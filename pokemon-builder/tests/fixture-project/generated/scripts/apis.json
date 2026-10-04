@@ -1,0 +1,71 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "apiUsage",
+  "summary": {
+    "totalScriptBlocks": 2,
+    "byCategory": {
+      "ESSENTIALS_API": 1,
+      "UNKNOWN": 1
+    },
+    "uniqueApis": 2,
+    "uniquePatterns": 2,
+    "unresolvedIdentifiers": 1,
+    "eventGlobals": 0,
+    "interpreterStateBlocks": 0
+  },
+  "apis": [
+    {
+      "name": "pbItemBall",
+      "kind": "method",
+      "category": "ESSENTIALS_API",
+      "occurrences": 1,
+      "blocks": 1,
+      "maps": 1,
+      "uniquePatterns": 1,
+      "patterns": [
+        {
+          "pattern": "pbItemBall(sym,num)",
+          "count": 1
+        }
+      ],
+      "files": [
+        "Map001.rxdata"
+      ],
+      "definedIn": [],
+      "sample": {
+        "file": "Map001.rxdata",
+        "eventId": 5,
+        "eventName": "ItemGiver",
+        "page": 1,
+        "commandIndex": 0
+      }
+    },
+    {
+      "name": "some_unknown_ruby_magic",
+      "kind": "method",
+      "category": "UNKNOWN",
+      "occurrences": 1,
+      "blocks": 1,
+      "maps": 1,
+      "uniquePatterns": 1,
+      "patterns": [
+        {
+          "pattern": "some_unknown_ruby_magic(num)",
+          "count": 1
+        }
+      ],
+      "files": [
+        "Map001.rxdata"
+      ],
+      "definedIn": [],
+      "sample": {
+        "file": "Map001.rxdata",
+        "eventId": 6,
+        "eventName": "UnknownMagic",
+        "page": 1,
+        "commandIndex": 0
+      }
+    }
+  ],
+  "eventGlobals": []
+}

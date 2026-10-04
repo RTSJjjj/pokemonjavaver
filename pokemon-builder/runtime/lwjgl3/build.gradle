@@ -1,0 +1,168 @@
+// Desktop backend (project3 sections 38-47): Lwjgl3 launcher, runnable JAR,
+// jpackage app-image and the dist task used by build-pc.bat.
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
+    runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
+    // R6.2: FreeType natives for the message window font.
+    runtimeOnly "com.badlogicgames.gdx:gdx-freetype-platform:${gdxVersion}:natives-desktop"
+}
+
+apply plugin: 'application'
+
+application {
+    mainClass = 'pokemon.runtime.lwjgl3.Lwjgl3Launcher'
+    applicationName = 'PokemonGame'
+}
+
+tasks.register('captureMap', JavaExec) {
+    description = 'Captures the production map renderer through a real OpenGL framebuffer.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'pokemon.runtime.lwjgl3.MapRenderCapture'
+    if (project.hasProperty('captureArgs')) args project.property('captureArgs').split('\\|')
+}
+
+// ---------------------------------------------------------------------------
+// R12 / project3 section 45: one runnable JAR.
+// ---------------------------------------------------------------------------
+
+/**
+ * Self-contained desktop JAR: source classes plus every runtime dependency and
+ * its natives, started with `java -jar PokemonGame.jar [runtime-data] [mapId]`.
+ * Natives ride along inside the JAR - libGDX extracts them at startup.
+ */
+tasks.register('runnableJar', Jar) {
+    group = 'distribution'
+    description = 'R12: runnable desktop JAR (Main-Class + dependencies + natives).'
+    archiveFileName = 'PokemonGame.jar'
+    destinationDirectory = layout.buildDirectory.dir('dist')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+                'Main-Class': application.mainClass.get(),
+                'Implementation-Title': 'PokemonGame',
+                'Implementation-Version': project.version)
+    }
+    from sourceSets.main.output
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/INDEX.LIST'
+    exclude 'module-info.class'
+}
+
+// ---------------------------------------------------------------------------
+// R12 / project3 sections 46-47: jpackage app-image.
+// ---------------------------------------------------------------------------
+
+def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
+def jpackageTool = new File(System.getProperty('java.home'),
+        'bin/jpackage' + (isWindows ? '.exe' : ''))
+
+/**
+ * Builds the self-contained app-image with the JDK's jpackage:
+ * PokemonGame(.exe) plus its own Java runtime, so players never install a JDK
+ * (section 47). The image lives in build/jpackage/PokemonGame and is copied to
+ * dist/Windows by the dist task.
+ */
+tasks.register('jpackageImage') {
+    group = 'distribution'
+    description = 'R12: jpackage app-image (PokemonGame + bundled runtime).'
+    dependsOn 'runnableJar'
+    def inputDir = layout.buildDirectory.dir('jpackage-input')
+    def destDir = layout.buildDirectory.dir('jpackage')
+    inputs.file(tasks.named('runnableJar').flatMap { it.archiveFile })
+    outputs.dir(layout.buildDirectory.dir('jpackage/PokemonGame'))
+    doLast {
+        if (!jpackageTool.isFile()) {
+            throw new GradleException("jpackage was not found at ${jpackageTool}. "
+                    + "R12 needs a JDK 17+ installation (jpackage ships with it).")
+        }
+        def input = inputDir.get().asFile
+        def dest = destDir.get().asFile
+        delete dest
+        input.mkdirs()
+        copy {
+            from tasks.named('runnableJar').flatMap { it.archiveFile }
+            into input
+            rename { 'PokemonGame.jar' }
+        }
+        def command = [jpackageTool.absolutePath,
+                       '--type', 'app-image',
+                       '--name', 'PokemonGame',
+                       '--input', input.absolutePath,
+                       '--main-jar', 'PokemonGame.jar',
+                       '--main-class', application.mainClass.get(),
+                       '--app-version', project.version.toString(),
+                       '--vendor', 'pokemon-builder',
+                       '--description', 'RMXP / Pokemon Essentials runtime (stage 2 technical preview)',
+                       '--dest', dest.absolutePath]
+        if (project.hasProperty('runtimeImage')) {
+            // Trimmed JDK without jmods/ (e.g. a bundled JRE): bundle that
+            // runtime image directly instead of running jlink.
+            command.addAll(['--runtime-image', project.property('runtimeImage').toString()])
+        } else {
+            // Keep the bundled runtime small; these cover libGDX/LWJGL/LWJGL3.
+            command.addAll(['--add-modules', 'java.base,java.desktop,java.logging,jdk.unsupported'])
+        }
+        if (isWindows && !project.hasProperty('noConsole')) {
+            // Stage 2 preview: keep the console so runtime logs stay visible.
+            // Pass -PnoConsole for a plain window-only launcher.
+            command.add('--win-console')
+        }
+        exec { commandLine command }
+    }
+}
+
+/**
+ * R12: the release layout of project3 section 47.
+ *
+ *   dist/
+ *   |-- PokemonGame.jar            (runnable JAR, section 46)
+ *   `-- Windows/
+ *       |-- PokemonGame.exe        (no JDK required)
+ *       |-- app/PokemonGame.jar
+ *       |-- runtime/               (bundled Java runtime)
+ *       `-- runtime-data/          (generated/ copied next to the exe)
+ */
+tasks.register('dist', Sync) {
+    group = 'distribution'
+    description = 'R12: runnable JAR + dist/Windows app-image (project3 sections 45-47).'
+    dependsOn 'runnableJar', 'jpackageImage'
+    def builderRoot = rootProject.projectDir.parentFile
+    def appImage = layout.buildDirectory.dir('jpackage/PokemonGame').get().asFile
+    // A Sync task empties its destination for anything it does not produce;
+    // refuse to run when jpackage left no app-image so an interrupted build can
+    // never wipe an existing dist/Windows.
+    doFirst {
+        String[] entries = appImage.isDirectory() ? appImage.list() : null
+        if (entries == null || entries.length == 0) {
+            throw new GradleException('jpackage produced no app-image in ' + appImage
+                    + '; refusing to sync dist/Windows')
+        }
+    }
+    into(new File(builderRoot, 'dist/Windows'))
+    from { appImage }
+    doLast {
+        copy {
+            from tasks.named('runnableJar').flatMap { it.archiveFile }
+            into new File(builderRoot, 'dist')
+        }
+        def data = new File(builderRoot, 'generated')
+        if (data.isDirectory()) {
+            // The packaged exe finds this through RuntimeDataLocator's
+            // runtime-data/ layout (R12 launcher fallback).
+            copy {
+                from data
+                into new File(builderRoot, 'dist/Windows/runtime-data')
+            }
+        } else {
+            logger.warn('dist: generated/ not found - run `builder build-data` first '
+                    + 'for a playable package')
+        }
+        def exe = new File(builderRoot, 'dist/Windows/PokemonGame'
+                + (isWindows ? '.exe' : ''))
+        if (exe.isFile() || new File(builderRoot, 'dist/Windows/PokemonGame.exe').isFile()) {
+            logger.lifecycle("dist ready: ${new File(builderRoot, 'dist').absolutePath}")
+        }
+    }
+}

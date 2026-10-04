@@ -1,0 +1,71 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "scriptBlocks",
+  "total": 2,
+  "blocks": [
+    {
+      "id": "map1/event5/page1/cmd0",
+      "source": "map",
+      "file": "Map001.rxdata",
+      "mapId": 1,
+      "mapName": "Fixture Map 1",
+      "eventId": 5,
+      "eventName": "ItemGiver",
+      "page": 1,
+      "commandIndex": 0,
+      "indent": 0,
+      "continuations": 1,
+      "lines": 2,
+      "characters": 24,
+      "switchId": null,
+      "category": "ESSENTIALS_API",
+      "apis": [
+        "pbItemBall"
+      ],
+      "calls": [
+        {
+          "name": "pbItemBall",
+          "pattern": "pbItemBall(sym,num)",
+          "shape": "sym,num",
+          "receiver": false,
+          "line": 0
+        }
+      ],
+      "unresolved": [],
+      "interpreterState": null,
+      "rubySource": "pbItemBall(:POTION, 3)\n\n"
+    },
+    {
+      "id": "map1/event6/page1/cmd0",
+      "source": "map",
+      "file": "Map001.rxdata",
+      "mapId": 1,
+      "mapName": "Fixture Map 1",
+      "eventId": 6,
+      "eventName": "UnknownMagic",
+      "page": 1,
+      "commandIndex": 0,
+      "indent": 0,
+      "continuations": 1,
+      "lines": 2,
+      "characters": 29,
+      "switchId": null,
+      "category": "UNKNOWN",
+      "apis": [],
+      "calls": [
+        {
+          "name": "some_unknown_ruby_magic",
+          "pattern": "some_unknown_ruby_magic(num)",
+          "shape": "num",
+          "receiver": false,
+          "line": 0
+        }
+      ],
+      "unresolved": [
+        "some_unknown_ruby_magic"
+      ],
+      "interpreterState": null,
+      "rubySource": "some_unknown_ruby_magic(42)\n\n"
+    }
+  ]
+}

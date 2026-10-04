@@ -22,3 +22,24 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# The Gradle wrapper must stay tracked even though the Java template ignores
+# every *.jar: stage 3-5 of the CI chain call gradlew.bat.
+!pokemon-builder/runtime/gradle/wrapper/gradle-wrapper.jar
+
+# Build outputs, caches and machine-local state inside pokemon-builder.
+# The RMXP game data (Audio/, Graphics/, Data/, ...) is intentionally not part
+# of this repository; ci-build.bat never reads it (tests use the committed
+# tests/fixture-project).
+pokemon-builder/dist/
+pokemon-builder/logs/
+pokemon-builder/generated/
+pokemon-builder/build/
+pokemon-builder/.probe/
+pokemon-builder/tools/ffmpeg/
+pokemon-builder/runtime/.gradle/
+pokemon-builder/runtime/**/build/
+pokemon-builder/runtime/local.properties
+pokemon-builder/**/node_modules/
+pokemon-builder/**/*.apk
+pokemon-builder/**/*.zip

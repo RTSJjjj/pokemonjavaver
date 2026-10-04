@@ -1,0 +1,58 @@
+// R13: shared libGDX native packaging for the Android backends (project3
+// sections 48-50).
+//
+// The modern and the legacy module apply this script: it declares the per-ABI
+// native archives (gdx + freetype, matching the core / R6.31 FreeType font)
+// and unpacks the .so files into <module>/build/gdx-natives/jniLibs, which each
+// module's source set points jniLibs at. One copy of the boilerplate.
+
+configurations {
+    natives
+}
+
+dependencies {
+    ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'].each { abi ->
+        natives "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-${abi}"
+        natives "com.badlogicgames.gdx:gdx-freetype-platform:${gdxVersion}:natives-${abi}"
+    }
+}
+
+tasks.register('copyAndroidNatives') {
+    group = 'build'
+    description = 'Unpacks libGDX per-ABI natives into build/gdx-natives/jniLibs.'
+    def outputDir = file('build/gdx-natives/jniLibs')
+    inputs.files(configurations.natives)
+    outputs.dir(outputDir)
+    doFirst {
+        outputDir.deleteDir()
+        configurations.natives.files.each { jar ->
+            def abi = null
+            if (jar.name.contains('natives-arm64-v8a')) {
+                abi = 'arm64-v8a'
+            } else if (jar.name.contains('natives-armeabi-v7a')) {
+                abi = 'armeabi-v7a'
+            } else if (jar.name.contains('natives-x86_64')) {
+                abi = 'x86_64'
+            } else if (jar.name.contains('natives-x86')) {
+                abi = 'x86'
+            }
+            if (abi != null) {
+                copy {
+                    from zipTree(jar)
+                    into new File(outputDir, abi)
+                    include '*.so'
+                }
+            }
+        }
+    }
+}
+
+// A plain `assembleDebug` must not depend on a manual native step.
+tasks.whenTaskAdded { task ->
+    if (task.name.contains('merge') && task.name.contains('JniLibFolders')) {
+        task.dependsOn 'copyAndroidNatives'
+    }
+}
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn 'copyAndroidNatives'
+}

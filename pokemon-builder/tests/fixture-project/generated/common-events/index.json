@@ -1,0 +1,17 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "commonEvents",
+  "total": 1,
+  "commonEvents": [
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Fixture Common",
+      "trigger": 0,
+      "switchId": 0,
+      "commands": 1,
+      "scriptBlocks": 0,
+      "ir": "common-events/common-event-001.json"
+    }
+  ]
+}

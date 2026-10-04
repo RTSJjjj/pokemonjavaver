@@ -1,0 +1,54 @@
+// Runtime core (project3 section 7): depends on libGDX Core API and the
+// Builder Runtime Data API only. It must never depend on the Android SDK,
+// AWT, Swing, RMXP, Ruby or RGSS - enforced by auditCoreDependencies below.
+
+dependencies {
+    implementation "com.badlogicgames.gdx:gdx:${gdxVersion}"
+    // R6.2: the message window renders the project's CJK pixel font through
+    // FreeType with incremental glyphs (desktop/Android provide the natives).
+    implementation "com.badlogicgames.gdx:gdx-freetype:${gdxVersion}"
+
+    // Unit tests for the headless-friendly parts (project3 section 61).
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Fails the build when a core source imports a forbidden dependency. This is
+// the automated half of the "core is platform free" rule.
+tasks.register('auditCoreDependencies') {
+    group = 'verification'
+    description = 'Fails when core/ sources import Android, AWT, Swing or Ruby runtime APIs.'
+    doLast {
+        def forbiddenPrefixes = [
+            'com.badlogic.gdx.backends.android.',
+            'java.awt.',
+            'javax.swing.',
+            'javafx.',
+            'org.jruby.',
+            'org.rubygems.',
+        ]
+        def sourceRoot = file('src/main/java')
+        def offenders = []
+        sourceRoot.eachFileRecurse { f ->
+            if (!f.isFile() || !f.name.endsWith('.java')) return
+            f.eachLine('UTF-8') { line, number ->
+                def trimmed = line.trim()
+                if (!trimmed.startsWith('import ')) return
+                for (prefix in forbiddenPrefixes) {
+                    if (trimmed.startsWith('import ' + prefix)) {
+                        offenders << "${f.path.replace('\\\\', '/')}:${number}: ${trimmed}"
+                    }
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException(
+                'core/ imports forbidden dependencies:\n  ' + offenders.join('\n  '))
+        }
+        logger.lifecycle('core dependency audit: OK (no forbidden imports)')
+    }
+}

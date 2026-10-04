@@ -1,0 +1,54 @@
+// Pokemon Builder stage 2 runtime (project3 section 6): libGDX multi module
+// project. core has no platform dependencies; lwjgl3 / android /
+// android-legacy are the platform backends.
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode = RepositoriesMode.PREFER_SETTINGS
+    repositories {
+        mavenCentral()
+        google()
+    }
+}
+
+rootProject.name = 'pokemon-runtime'
+
+// Windows + non-ASCII project path: Gradle test workers receive their
+// classpath via an @argfile. Gradle writes it in the daemon's file.encoding,
+// the JVM launcher reads it in the Windows native encoding (GBK on Chinese
+// Windows) - so a UTF-8 daemon plus a Chinese path corrupts every test class
+// (ClassNotFoundException). Run Gradle from an ASCII drive (the documented
+// `subst X: "<builder root>"` workflow) or start the daemon with
+// -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=GBK".
+if (System.getProperty("os.name").toLowerCase().contains("windows")
+        && !(rootDir.absolutePath ==~ /[\x00-\x7F]*/)) {
+    logger.warn("Project path contains non-ASCII characters (${rootDir.absolutePath}). " +
+            "Gradle test workers may fail with ClassNotFoundException; " +
+            "run from an ASCII drive (e.g. subst X: '<builder root>' then cd X:\\runtime) " +
+            "or add -Dorg.gradle.jvmargs=\"-Xmx2g -Dfile.encoding=GBK\".")
+}
+
+include 'core'
+include 'lwjgl3'
+
+// The Android backends need the Android SDK (ANDROID_HOME or a local.properties
+// with sdk.dir). When it is absent neither module is configured at all, so the
+// agent check (`gradlew agentCheck`, project3 section 44) never depends on the
+// Android SDK. Install the SDK (or open the project in Android Studio, which
+// writes local.properties) and both come back.
+def androidSdkPresent =
+    System.getenv("ANDROID_HOME") != null ||
+    System.getenv("ANDROID_SDK_ROOT") != null ||
+    file("local.properties").exists()
+
+if (androidSdkPresent) {
+    include 'android'
+    include 'android-legacy'
+} else {
+    logger.warn("Android SDK not found (ANDROID_HOME / local.properties): 'android' and 'android-legacy' are not included in this build.")
+}

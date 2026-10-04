@@ -1,0 +1,67 @@
+// Pokemon Builder stage 2 runtime - root build (project3 sections 6, 42).
+//
+// Dependency versions and the Android Gradle Plugin version live in exactly
+// one place: gradle.properties (gdxVersion) and the plugins block below.
+
+plugins {
+    // Pinned Android Gradle Plugin, applied by the android / android-legacy
+    // modules only. The version is fixed on purpose (project3 section 42).
+    id 'com.android.application' version '8.7.3' apply false
+}
+
+allprojects {
+    group = 'pokemon.runtime'
+    version = '0.1.0'
+}
+
+// Java modules (core, lwjgl3): Java 17 bytecode so the build runs on any
+// JDK 17+ (the builder machine ships JDK 21).
+configure(subprojects.findAll { !it.name.startsWith('android') }) {
+    apply plugin: 'java'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+    // Gradle spawns test workers with their classpath inside an @argfile. The
+    // daemon writes that file in the daemon's file.encoding, while the JVM
+    // launcher reads it in the Windows native encoding (GBK on Chinese
+    // Windows). With a non-ASCII project path and a UTF-8 daemon every test
+    // class fails with ClassNotFoundException (the classpath entries get
+    // corrupted). Two working setups: run Gradle from an ASCII drive (the
+    // documented `subst X:` workflow) or start the daemon with
+    // -Dfile.encoding=GBK. settings.gradle warns when this matters.
+    //
+    // The project path contains Chinese characters. Test workers get their own
+    // JVM whose default charset is the platform one (GBK on Chinese Windows):
+    // without this, the worker decodes the classpath entries differently from
+    // the daemon and every test class fails with ClassNotFoundException.
+    tasks.withType(Test).configureEach {
+        defaultCharacterEncoding = 'UTF-8'
+    }
+}
+
+// agentCheck (project3 section 44): the check an agent can run in any
+// environment - it must not need the Android SDK. It runs the Builder
+// (Node) suite, the core unit tests and the core dependency audit.
+tasks.register('agentCheck') {
+    group = 'verification'
+    description = 'Builder tests + core tests + core dependency audit (no Android SDK required).'
+    dependsOn ':core:test'
+    dependsOn ':core:auditCoreDependencies'
+    dependsOn 'builderTests'
+}
+
+tasks.register('builderTests', Exec) {
+    group = 'verification'
+    description = 'Runs the Builder (Node) test suite through node --test.'
+    // The runtime project lives inside the builder checkout, one level below
+    // its root:  <builder-root>/runtime -> <builder-root>.
+    workingDir rootProject.file('..')
+    commandLine 'node', '--test', 'builder/tests/*.test.js'
+}

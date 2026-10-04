@@ -1,0 +1,9 @@
+# Gradle / build outputs
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/

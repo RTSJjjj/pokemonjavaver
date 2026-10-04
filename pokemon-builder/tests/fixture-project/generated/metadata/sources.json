@@ -1,0 +1,115 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "sources",
+  "dataDir": "tests/fixture-project/project/Data",
+  "dataFiles": [
+    {
+      "name": "CommonEvents.rxdata",
+      "kind": "commonEvents",
+      "bytes": 156,
+      "sha1": "2EA596F5807191AA",
+      "ok": true,
+      "summary": {
+        "commonEvents": 2,
+        "scriptCommands": 0
+      }
+    },
+    {
+      "name": "Map001.rxdata",
+      "kind": "map",
+      "bytes": 2524,
+      "sha1": "231B52DDF55627E3",
+      "ok": true,
+      "summary": {
+        "width": 17,
+        "height": 13,
+        "events": 6,
+        "eventPages": 6
+      }
+    },
+    {
+      "name": "Map002.rxdata",
+      "kind": "map",
+      "bytes": 1739,
+      "sha1": "45D33372E414DE65",
+      "ok": true,
+      "summary": {
+        "width": 17,
+        "height": 13,
+        "events": 1,
+        "eventPages": 1
+      }
+    },
+    {
+      "name": "MapInfos.rxdata",
+      "kind": "mapInfos",
+      "bytes": 99,
+      "sha1": "952C4DD88A257260",
+      "ok": true,
+      "summary": {
+        "maps": [
+          {
+            "id": 1,
+            "name": "Fixture Map 1",
+            "order": 1,
+            "parentId": 0
+          },
+          {
+            "id": 2,
+            "name": "Fixture Map 2",
+            "order": 2,
+            "parentId": 0
+          }
+        ],
+        "mapNames": 2,
+        "source": "hash"
+      }
+    },
+    {
+      "name": "Scripts.rxdata",
+      "kind": "scripts",
+      "bytes": 85,
+      "sha1": "35B228248107E41A",
+      "ok": true,
+      "summary": {
+        "sections": 2
+      }
+    },
+    {
+      "name": "System.rxdata",
+      "kind": "system",
+      "bytes": 290,
+      "sha1": "82D7A1DD5648BC64",
+      "ok": true,
+      "summary": {
+        "startMapId": 1,
+        "elements": 2
+      }
+    },
+    {
+      "name": "Tilesets.rxdata",
+      "kind": "tilesets",
+      "bytes": 40130,
+      "sha1": "B8CE766E69338F07",
+      "ok": true,
+      "summary": {
+        "tilesets": 2
+      }
+    }
+  ],
+  "otherDataFiles": [],
+  "pbs": {
+    "directory": "E:\\仓库\\范例\\929\\pokemon-builder\\tests\\fixture-project\\.tmp-build\\project\\PBS",
+    "exists": true,
+    "files": [
+      {
+        "name": "metadata.txt",
+        "bytes": 42,
+        "sha1": "864C966AA85918DD",
+        "mtime": "2026-10-04T16:35:50.288Z",
+        "mtimeMs": 1791131750287.7844
+      }
+    ],
+    "problems": []
+  }
+}

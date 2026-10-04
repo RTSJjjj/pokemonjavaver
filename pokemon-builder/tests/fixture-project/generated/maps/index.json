@@ -1,0 +1,33 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "maps",
+  "total": 2,
+  "maps": [
+    {
+      "mapId": 1,
+      "name": "Fixture Map 1",
+      "file": "Map001.rxdata",
+      "width": 17,
+      "height": 13,
+      "tilesetId": 1,
+      "events": 6,
+      "pages": 6,
+      "commands": 15,
+      "scriptBlocks": 2,
+      "ir": "maps/map-001.json"
+    },
+    {
+      "mapId": 2,
+      "name": "Fixture Map 2",
+      "file": "Map002.rxdata",
+      "width": 17,
+      "height": 13,
+      "tilesetId": 1,
+      "events": 1,
+      "pages": 1,
+      "commands": 1,
+      "scriptBlocks": 0,
+      "ir": "maps/map-002.json"
+    }
+  ]
+}

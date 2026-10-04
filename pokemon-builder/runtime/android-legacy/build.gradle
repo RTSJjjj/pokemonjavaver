@@ -1,0 +1,52 @@
+// Legacy Android placeholder (project3 section 50): stage 2 only establishes
+// the module - a future API 14 / ARMv7 backend must be able to reuse Core, the
+// Runtime Data and GameAction / InputManager. The real backend (older libGDX
+// backend, ARMv7-only, API 14 devices) is a later stage; nothing here ships.
+//
+// minSdk is 21 because the current libGDX backend itself declares 21 (build
+// evidence); the API 14 device work needs an older backend and stays a
+// separate milestone. The reuse contract lives in LegacyRuntime, which
+// compiles against :core inside this module.
+
+plugins {
+    // Version pinned in the root build (project3 section 42).
+    id 'com.android.application'
+}
+
+android {
+    namespace 'pokemon.runtime.android.legacy'
+    // Same as the modern module: the libGDX backend's androidx.core dependency
+    // needs compileSdk 35.
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'pokemon.runtime.android.legacy'
+        // The libGDX 1.13.5 android backend itself declares minSdk 21 (build
+        // evidence), so the placeholder cannot go lower. The real API 14 /
+        // ARMv7 work needs the older backend and stays a separate milestone.
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName project.version.toString()
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['build/gdx-natives/jniLibs']
+        }
+    }
+}
+
+// R13: per-ABI libGDX natives (gdx + freetype) and the unpack task.
+apply from: rootProject.file('gradle/android-natives.gradle')
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-android:${gdxVersion}"
+    implementation "com.badlogicgames.gdx:gdx-freetype:${gdxVersion}"
+}

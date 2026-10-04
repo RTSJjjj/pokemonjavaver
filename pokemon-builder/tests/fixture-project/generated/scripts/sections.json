@@ -1,0 +1,25 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "scriptSections",
+  "total": 2,
+  "readable": 2,
+  "coreCutoff": null,
+  "sections": [
+    {
+      "index": 0,
+      "name": "================",
+      "lines": 0,
+      "origin": "core",
+      "definedSymbols": []
+    },
+    {
+      "index": 1,
+      "name": "Main",
+      "lines": 3,
+      "origin": "core",
+      "definedSymbols": [
+        "pbMain"
+      ]
+    }
+  ]
+}

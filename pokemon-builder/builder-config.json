@@ -1,0 +1,26 @@
+{
+  "projectName": "PokemonGame",
+  "version": "0.1.0",
+  "source": {
+    "rmxpProject": "E:\\仓库\\范例\\929"
+  },
+  "targets": {
+    "desktop": true,
+    "android": true,
+    "androidLegacy": false
+  },
+  "output": {
+    "generated": "generated",
+    "dist": "dist",
+    "logs": "logs"
+  },
+  "audio": {
+    "preset": "standard",
+    "convertSE": true,
+    "seThresholdBytes": 262144,
+    "deduplicate": true,
+    "analyzeSilence": true,
+    "trimSilence": false,
+    "normalize": false
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "build",
+  "builderVersion": "0.1.0",
+  "projectName": "FixtureProject",
+  "generatedAt": "fixture",
+  "source": {
+    "project": "tests/fixture-project/project",
+    "dataDir": "tests/fixture-project/project/Data"
+  },
+  "counts": {
+    "mapFiles": 2,
+    "maps": 2,
+    "events": 7,
+    "eventPages": 7,
+    "eventCommands": 16,
+    "commonEvents": 1,
+    "commonEventScriptBlocks": 0,
+    "scriptBlocks": 2,
+    "scriptSections": 2,
+    "scriptSectionsReadable": 2,
+    "scriptLines": 3,
+    "uniqueApis": 2,
+    "uniquePatterns": 2,
+    "unresolvedIdentifiers": 1,
+    "tilesets": 1,
+    "dataFiles": 7,
+    "dataFilesParsed": 7,
+    "pbsFiles": 1,
+    "mapsSkipped": 0,
+    "mapsRebuilt": 2
+  },
+  "outputs": [
+    {
+      "file": "maps/map-001.json",
+      "bytes": 16667
+    },
+    {
+      "file": "events/map-001.json",
+      "bytes": 1694
+    },
+    {
+      "file": "maps/map-002.json",
+      "bytes": 8976
+    },
+    {
+      "file": "connections.json",
+      "bytes": 121
+    },
+    {
+      "file": "common-events/common-event-001.json",
+      "bytes": 380
+    },
+    {
+      "file": "scripts/sections.json",
+      "bytes": 425
+    },
+    {
+      "file": "scripts/blocks.json",
+      "bytes": 1634
+    },
+    {
+      "file": "scripts/apis.json",
+      "bytes": 1446
+    },
+    {
+      "file": "tilesets.json",
+      "bytes": 302478
+    },
+    {
+      "file": "system.json",
+      "bytes": 480
+    },
+    {
+      "file": "animations.json",
+      "bytes": 102
+    },
+    {
+      "file": "metadata/sources.json",
+      "bytes": 2445
+    },
+    {
+      "file": "metadata/problems.json",
+      "bytes": 491
+    },
+    {
+      "file": "project.json",
+      "bytes": 1382
+    },
+    {
+      "file": "maps/index.json",
+      "bytes": 631
+    },
+    {
+      "file": "events/index.json",
+      "bytes": 221
+    },
+    {
+      "file": "common-events/index.json",
+      "bytes": 322
+    }
+  ],
+  "totalBytes": 339895,
+  "durations": {
+    "scanMs": 4,
+    "eventsMs": 2,
+    "convertMs": 40
+  },
+  "warnings": [],
+  "incremental": {
+    "used": false,
+    "reason": "cache disabled (full rebuild)",
+    "cacheFile": "E:\\仓库\\范例\\929\\pokemon-builder\\tests\\fixture-project\\.tmp-build\\build\\cache.json",
+    "skipped": [],
+    "rebuilt": [
+      "map:1",
+      "map:2",
+      "commonEvents",
+      "scripts"
+    ]
+  },
+  "ok": true
+}

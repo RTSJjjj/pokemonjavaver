@@ -1,0 +1,49 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "project",
+  "projectName": "FixtureProject",
+  "builderVersion": "0.1.0",
+  "source": {
+    "project": "tests/fixture-project/project",
+    "dataDir": "tests/fixture-project/project/Data"
+  },
+  "generatedAt": "fixture",
+  "counts": {
+    "mapFiles": 2,
+    "maps": 2,
+    "events": 7,
+    "eventPages": 7,
+    "eventCommands": 16,
+    "commonEvents": 1,
+    "commonEventScriptBlocks": 0,
+    "scriptBlocks": 2,
+    "scriptSections": 2,
+    "scriptSectionsReadable": 2,
+    "scriptLines": 3,
+    "uniqueApis": 2,
+    "uniquePatterns": 2,
+    "unresolvedIdentifiers": 1,
+    "tilesets": 1,
+    "dataFiles": 7,
+    "dataFilesParsed": 7,
+    "pbsFiles": 1,
+    "mapsSkipped": 0,
+    "mapsRebuilt": 2
+  },
+  "runtime": {},
+  "outputs": {
+    "maps": "maps/index.json",
+    "events": "events/index.json",
+    "commonEvents": "common-events/index.json",
+    "scripts": "scripts/blocks.json",
+    "apis": "scripts/apis.json",
+    "connections": "connections.json",
+    "animations": "animations.json",
+    "tilesets": "tilesets.json",
+    "system": "system.json",
+    "build": "metadata/build.json",
+    "sources": "metadata/sources.json",
+    "problems": "metadata/problems.json"
+  },
+  "status": "ok"
+}

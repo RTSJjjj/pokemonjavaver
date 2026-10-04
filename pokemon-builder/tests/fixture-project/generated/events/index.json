@@ -1,0 +1,13 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "mapEvents",
+  "total": 1,
+  "maps": [
+    {
+      "mapId": 1,
+      "mapName": "Fixture Map 1",
+      "ir": "events/map-001.json",
+      "scriptBlocks": 2
+    }
+  ]
+}

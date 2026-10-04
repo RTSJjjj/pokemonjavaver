@@ -1,0 +1,49 @@
+# Stage 2 CI (project3 section 62): Builder Tests -> Compiler Tests ->
+# Core Tests -> Desktop Build -> Android Debug Build.
+#
+# Windows is the primary target of this stage (bat wrappers, jpackage,
+# cmd.exe based tools), so the whole chain runs on windows-latest.
+# The Android SDK is preinstalled on the runner images, which lets stage 5
+# (assembleDebug) run for real; without an SDK the CI script skips it loudly.
+
+name: stage2-ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JDK 21 (Gradle + jpackage + jlink)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Node 20 (Builder CLI + tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Stage 2 CI chain
+        shell: cmd
+        run: pokemon-builder\scripts\ci-build.bat
+
+      - name: Upload game artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-stage2-artifacts
+          if-no-files-found: warn
+          path: |
+            pokemon-builder/dist/PokemonGame.jar
+            pokemon-builder/dist/Windows/
+            pokemon-builder/dist/*.apk
+            pokemon-builder/generated/build-report.json
+            pokemon-builder/logs/

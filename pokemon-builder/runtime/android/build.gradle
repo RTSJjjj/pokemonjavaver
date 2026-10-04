@@ -1,0 +1,83 @@
+// Modern Android backend (project3 sections 48-49): API 21+, the current
+// libGDX Android backend, reusing :core unchanged. The module needs the
+// Android SDK; settings.gradle only includes it when ANDROID_HOME /
+// ANDROID_SDK_ROOT / local.properties exist, so `gradlew agentCheck` stays
+// SDK-free (section 44).
+
+plugins {
+    // Version pinned in the root build (project3 section 42).
+    id 'com.android.application'
+}
+
+android {
+    namespace 'pokemon.runtime.android'
+    // 35 is what the libGDX 1.13.5 android backend's androidx.core dependency
+    // requires; minSdk 21 / targetSdk 34 keep the runtime behavior stable.
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'pokemon.runtime.android'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName project.version.toString()
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            // R13: the libGDX .so files are unpacked here by copyAndroidNatives
+            // instead of living in src/ (they are build artifacts).
+            jniLibs.srcDirs = ['build/gdx-natives/jniLibs']
+            // L3: the Builder stages the runtime data pack (runtime-data.zip +
+            // runtime-data.version) here before Gradle runs; without the
+            // directory the APK stays slim (adb push / external pack flow).
+            def stagedDataAssets = file('build/android-assets')
+            if (stagedDataAssets.directory) {
+                assets.srcDirs += stagedDataAssets
+            }
+        }
+    }
+
+    // The data pack zip is already compressed; never deflate it again into the
+    // APK (the APK stays close to the pack size and the build stays linear).
+    androidResources {
+        noCompress 'zip'
+    }
+
+    // L3: preview release signing. This is a development keystore, not a
+    // distribution identity - replace keystore/passwords before shipping.
+    def previewKeystore = file('keystore/preview-release.jks')
+    if (previewKeystore.exists()) {
+        signingConfigs {
+            preview {
+                storeFile previewKeystore
+                storePassword 'pokemon-preview'
+                keyAlias 'pokemon-preview'
+                keyPassword 'pokemon-preview'
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.preview
+                minifyEnabled false
+            }
+        }
+    }
+}
+
+// R13: per-ABI libGDX natives (gdx + freetype) and the unpack task.
+apply from: rootProject.file('gradle/android-natives.gradle')
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-android:${gdxVersion}"
+    // R6.31: the message window renders with FreeType; Android cannot use the
+    // desktop native, so the freetype extension rides along (its .so files
+    // come from the shared natives script).
+    implementation "com.badlogicgames.gdx:gdx-freetype:${gdxVersion}"
+}

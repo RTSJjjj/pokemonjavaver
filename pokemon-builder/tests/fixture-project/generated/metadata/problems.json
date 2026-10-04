@@ -1,0 +1,23 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "problems",
+  "unreadableData": [],
+  "uninterpretableScripts": [],
+  "unreadableScriptSections": [],
+  "unresolvedIdentifiers": [
+    {
+      "name": "some_unknown_ruby_magic",
+      "occurrences": 1,
+      "blocks": 0,
+      "sample": {
+        "file": "Map001.rxdata",
+        "eventId": 6,
+        "eventName": "UnknownMagic",
+        "page": 1,
+        "commandIndex": 0
+      },
+      "files": []
+    }
+  ],
+  "unreadablePbs": []
+}

@@ -1,0 +1,20 @@
+{
+ "version": "pokemon-builder/script-ir/1",
+ "commands": [
+  {
+   "id": "map1/event5/page1/cmd0",
+   "source": {
+    "mapId": 1,
+    "eventId": 5,
+    "page": 1,
+    "commandIndex": 0,
+    "file": "Map001.rxdata"
+   },
+   "ir": {
+    "command": "GIVE_ITEM",
+    "item": "POTION",
+    "amount": 3
+   }
+  }
+ ]
+}

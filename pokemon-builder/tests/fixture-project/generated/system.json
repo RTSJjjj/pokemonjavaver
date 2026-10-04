@@ -1,0 +1,37 @@
+{
+  "format": "pokemon-builder/debug-ir/4",
+  "kind": "system",
+  "magicNumber": 16522614,
+  "startMapId": 1,
+  "startX": 5,
+  "startY": 5,
+  "editMapId": 1,
+  "windowskinName": "",
+  "titleName": "",
+  "gameoverName": "",
+  "battlebackName": "",
+  "elements": [
+    "",
+    ""
+  ],
+  "switches": [
+    "",
+    "SW1",
+    "SW2"
+  ],
+  "variables": [
+    "",
+    "VAR1",
+    "VAR2"
+  ],
+  "words": [
+    [
+      "hp",
+      "HP"
+    ],
+    [
+      "attack",
+      "ATK"
+    ]
+  ]
+}
