@@ -69,18 +69,29 @@ if errorlevel 1 (
 
 REM Extra arguments (node:test options or file paths) are optional. Without
 REM them the whole suite runs; with them "node --test" gets them untouched.
+REM L12: a quoted "builder/tests/*.test.js" is NOT expanded (cmd does not glob
+REM and Node 20 has no glob patterns) - it fails with "Could not find ...".
+REM The no-argument form discovers the test files on Node 18/20/24, and it is
+REM run from builder/ so stray *.test.js copies elsewhere (logs/ backups) can
+REM never be picked up.
 set "ARGS=%*"
-if not defined ARGS (
-  echo [1/1] Running Builder test suite...
-  node --test "builder/tests/*.test.js"
-) else (
-  echo [1/1] Running Builder test suite with options: %ARGS%
-  node --test %ARGS%
-)
+if defined ARGS goto :withargs
 
+echo [1/1] Running Builder test suite...
+pushd "%ROOT%\builder"
+node --test
+set "STATUS=%errorlevel%"
+popd
+goto :report
+
+:withargs
+echo [1/1] Running Builder test suite with options: %ARGS%
+node --test %ARGS%
+set "STATUS=%errorlevel%"
+
+:report
 REM node --test exits non-zero as soon as one test fails; that exit code is
 REM reported unchanged, so a failing suite can never look like a success.
-set "STATUS=%errorlevel%"
 if not "%STATUS%"=="0" (
   echo TEST FAILED
   echo [ERROR] the Builder test suite reported failures ^(exit code %STATUS%^).

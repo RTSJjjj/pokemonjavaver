@@ -515,7 +515,13 @@ test("scripts wrappers are safe batch files", () => {
   const file = "scripts/test-builder.bat";
   const bat = readFileSync(path.join(BUILDER_SOURCE, file), "utf8");
   assert.match(bat, /chcp 65001/, file);
-  assert.match(bat, /node --test "builder\/tests\/\*\.test\.js"/, file);
+  // L12: a quoted "builder/tests/*.test.js" is not expanded on Node 20 (cmd
+  // does not glob and Node 20 has no glob patterns) - the CI suite stopped
+  // with "Could not find". No-argument discovery from builder/ works on every
+  // Node and never picks up stray *.test.js copies elsewhere in the tree.
+  assert.match(bat, /pushd "%ROOT%\\builder"/, file);
+  assert.match(bat, /node --test\r?\n/, file);
+  assert.ok(!/node --test "builder/.test(bat), file);
   // The node:test exit code is propagated, never swallowed.
   assert.match(bat, /exit \/b %STATUS%/, file);
   assert.match(bat, /echo TEST SUCCESS/, file);

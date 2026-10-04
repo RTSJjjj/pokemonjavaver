@@ -24,8 +24,11 @@ import {
 const PASSING_TESTS = {
   "tiny-pass.test.js": [
     'import test from "node:test";',
-    'test("tiny pass alpha", () => {});',
-    'test("tiny pass beta", () => {});',
+    // L12: the body prints a marker that differs from the test name. Node 20's
+    // TAP reporter prints skipped tests with their NAME ("# SKIP ..."), so
+    // asserting on the name cannot tell "ran" from "was skipped".
+    'test("tiny pass alpha", () => { console.log("ran:tiny pass alpha"); });',
+    'test("tiny pass beta", () => { console.log("ran:tiny pass beta"); });',
     "",
   ].join("\n"),
 };
@@ -87,8 +90,8 @@ test("test-builder.bat passes node:test options through to the runner", (t) => {
   const result = runTestBuilderBat(root, "--test-name-pattern=tiny pass beta");
   const out = outputOf(result);
   assert.equal(result.status, 0, out);
-  assert.match(out, /tiny pass beta/);
-  assert.ok(!/tiny pass alpha/.test(out), out);
+  assert.match(out, /ran:tiny pass beta/);
+  assert.ok(!/ran:tiny pass alpha/.test(out), out);
   assert.match(out, /TEST SUCCESS/);
 });
 
