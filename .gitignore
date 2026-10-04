@@ -1,45 +1,31 @@
-# Compiled class file
-*.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
-
-# The Gradle wrapper must stay tracked even though the Java template ignores
-# every *.jar: stage 3-5 of the CI chain call gradlew.bat.
-!pokemon-builder/runtime/gradle/wrapper/gradle-wrapper.jar
+# =============================================================================
+# This repository tracks only the Java runtime + Builder source (CI scope).
+# The RMXP game data next to it (Audio/, Graphics/, Data/, FF/, Fonts/, Save/,
+# PBS/, project1/, __*staging/, ...) stays local: GitHub's 100 MB file / 1 GB
+# repository limits reject it and scripts\ci-build.bat never reads it - every
+# test works on the committed tests/fixture-project.
+# =============================================================================
+/*
+!/.gitignore
+!/README.md
+!/.github/
+!.github/**
+!/pokemon-builder/
+!pokemon-builder/**
 
 # Build outputs, caches and machine-local state inside pokemon-builder.
-# The RMXP game data (Audio/, Graphics/, Data/, ...) is intentionally not part
-# of this repository; ci-build.bat never reads it (tests use the committed
-# tests/fixture-project).
-pokemon-builder/dist/
-pokemon-builder/logs/
-pokemon-builder/generated/
-pokemon-builder/build/
-pokemon-builder/.probe/
-pokemon-builder/tools/ffmpeg/
-pokemon-builder/runtime/.gradle/
-pokemon-builder/runtime/**/build/
-pokemon-builder/runtime/local.properties
-pokemon-builder/**/node_modules/
-pokemon-builder/**/*.apk
-pokemon-builder/**/*.zip
+/pokemon-builder/dist/
+/pokemon-builder/logs/
+/pokemon-builder/generated/
+/pokemon-builder/build/
+/pokemon-builder/.probe/
+/pokemon-builder/tools/ffmpeg/
+/pokemon-builder/runtime/.gradle/
+/pokemon-builder/runtime/**/build/
+/pokemon-builder/runtime/local.properties
+/pokemon-builder/**/node_modules/
+/pokemon-builder/**/*.class
+/pokemon-builder/**/*.apk
+/pokemon-builder/**/*.zip
+/pokemon-builder/**/*.tar
+/pokemon-builder/**/*.log
