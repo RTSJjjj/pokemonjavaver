@@ -274,5 +274,5 @@ scripts\ci-build.bat
   - 详情 `PokemonPartyDetailsPanel`：`self.y=height/2-128=96`；对战图（`Battlers/%03d[+s]`）中心 `(width/2, 126)`；HP 条 `Party/overlay_hp`(96×6, `src(0,hpzone*6,hpw,6)`) 在 `(91+offset, 250)`，`offset=width/2-96=240`；名字居中 `(-90+offset,15)`、等级右对齐 `262+offset+32`、HP 文本右对齐 `130+offset`、性别图标 `(152+offset,18)`；
   - 底部帮助窗（`bw choice` skin）。
 - 交互保留：`←→/↑↓` 移动光标、`Z` 打开 `查看详情/交换位置/取下道具/返回`、`X` 返回；交换/取下道具沿用 `PartyModel`。
-- 详情分栏（`pbSetSmallFont` overlay2）：`属性:`(4,56) + 属性图标 `Pictures/types`(64×28, `src(0,type*28,..)`) 在 `(4,80)/(68,80)`、形态 `(4,116)`、`性格:`(4,142)、`特性:`(4,168)、`个体:`(4,194) + 6 个 `Summary/RatingS..F`(16×20) 于 `xs=[56,71,86,132,101,116],y196`、`招式:`(232+offset+42=514,86) + 招式(512,110+24i)；底部帮助窗改成**白底窗体**（原插件是白色 speech 窗，非系统蓝皮肤）。
+- 详情分栏（`pbSetSmallFont` overlay2）：`属性:`(4,56) + 属性图标 `Pictures/types`(64×28, `src(0,type*28,..)`) 在 `(4,80)/(68,80)`、形态 `(4,116)`、`性格:`(4,142)、`特性:`(4,168)、`个体:`(4,194) + 6 个 `Summary/RatingS..F`(16×20) 于 `xs=[56,71,86,132,101,116],y196`、`招式:`(232+offset+42=514,86) + 招式(512,110+24i)；底部**白底帮助窗**显示脚本传入的 `starthelptext`（`选择宝可梦或取消`；交换时 `移动到哪里？`），**右下角 `取消` 按钮**（`Pictures/Party/icon_cancel`，134×42）——不要自造的操作提示。
 - **仍待补**：`BW PScreen_Summary`（"查看详情"详情页）、`[F]:寄存系统`、消息窗(`bw choice`)。`MenuCapture` `l1-party*` 两张。
