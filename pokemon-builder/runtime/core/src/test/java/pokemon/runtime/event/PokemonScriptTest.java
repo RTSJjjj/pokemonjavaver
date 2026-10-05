@@ -121,7 +121,7 @@ class PokemonScriptTest {
         }
         assertFalse(trainer.addToParty(new Pokemon(data.species("BULBASAUR"), 5, data)));
         assertEquals(TrainerState.PARTY_LIMIT, trainer.partyCount());
-        assertEquals(1, trainer.storage.size);
+        assertEquals(1, trainer.storage.count());
     }
 
     @Test
@@ -136,6 +136,40 @@ class PokemonScriptTest {
         interpreter.update(0f);
         assertFalse(interpreter.running());
         assertEquals(0, state.trainer().partyCount());
+    }
+
+    @Test
+    @DisplayName("P1: pbSetPokemonCenter stores the current map and player position")
+    void setPokemonCenter(@TempDir Path tempDir) throws Exception {
+        interpreter.attachPbs(PbsData.parse(syntheticPbs(tempDir)));
+        state.enterMap(9, 3, 4);
+        state.setPlayerPosition(3, 4, 6);
+        scriptIr.put("block1", new JsonReader().parse("{\"command\":\"SET_POKEMON_CENTER\"}"));
+        interpreter.start(program(script("block1")), 9, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        assertTrue(state.trainer().hasPokemonCenter());
+        assertEquals(9, state.trainer().healMapId);
+        assertEquals(3, state.trainer().healX);
+        assertEquals(4, state.trainer().healY);
+        assertEquals(6, state.trainer().healDirection);
+    }
+
+    @Test
+    @DisplayName("P1: myAddEgg puts a named level 1 egg in the party")
+    void addEgg(@TempDir Path tempDir) throws Exception {
+        interpreter.attachPbs(PbsData.parse(syntheticPbs(tempDir)));
+        scriptIr.put("block1", new JsonReader().parse(
+                "{\"command\":\"ADD_EGG\",\"species\":\"BULBASAUR\",\"text\":null}"));
+        interpreter.start(program(script("block1")), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        assertEquals(1, state.trainer().partyCount());
+        Pokemon egg = state.trainer().first();
+        assertTrue(egg.egg);
+        assertEquals("神秘的蛋", egg.name);
+        assertEquals(1, egg.level);
+        assertEquals(egg.maxHp(), egg.hp);
     }
 
     private static boolean hasMove(Pokemon pokemon, String internalName) {

@@ -198,10 +198,15 @@ test("a non-call statement is reported, not mis-translated (R6.19)", () => {
 });
 
 test("non literal handler arguments are reported instead of leaking Ruby (R6.19)", () => {
-  const result = compileBlock(essentials("pbGetKeyItem", "pbGetKeyItem(PBItems::TOWNMAP)"));
+  // A non-domain API cannot resolve a script argument: it stays unsupported.
+  const result = compileBlock(essentials("pbSEPlay", "pbSEPlay(seName)"));
   assert.equal(result.status, "UNSUPPORTED");
   assert.match(result.reason, /literal/);
   assert.equal(result.ir, undefined);
+  // A stage 3 domain API instead moves to the Java-handler bucket (section 25).
+  const domain = compileBlock(essentials("pbGetKeyItem", "pbGetKeyItem(PBItems::TOWNMAP)"));
+  assert.equal(domain.status, "JAVA_HANDLER_REQUIRED");
+  assert.equal(domain.ir, undefined);
 });
 
 test("no-parentheses calls work (pbTrainerEnd, pbBridgeOn)", () => {
@@ -360,4 +365,30 @@ test("P0c: a Pokemon script with a loop stays in the handler bucket", () => {
       "p=pbGenPkmn(:PIKACHU,5)\ncount=$Trainer.pokemonCount\nfor i in 0...count\npbAddPokemon(p,1)\nend"));
   assert.equal(result.status, "JAVA_HANDLER_REQUIRED");
 });
+
+test("P1: pbSetPokemonCenter / pbStoreItem / myAddEgg become IR", () => {
+  assert.deepEqual(
+    compileBlock(essentials("pbSetPokemonCenter", "pbSetPokemonCenter")).ir,
+    { command: "SET_POKEMON_CENTER" },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbStoreItem", "pbStoreItem(:POTION,2)")).ir,
+    { command: "GIVE_ITEM", item: "POTION", amount: 2 },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("myAddEgg", 'myAddEgg(:PICHU,"一只蛋")')).ir,
+    { command: "ADD_EGG", species: "PICHU", text: "一只蛋" },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("myAddEgg", "myAddEgg(:PICHU)")).ir,
+    { command: "ADD_EGG", species: "PICHU", text: null },
+  );
+});
+
+test("P1: myAddEgg with a non literal species stays in the handler bucket", () => {
+  const result = compileBlock(essentials("myAddEgg", "myAddEgg(pbGet(1))"));
+  assert.equal(result.status, "JAVA_HANDLER_REQUIRED");
+  assert.equal(result.ir, undefined);
+});
+
 

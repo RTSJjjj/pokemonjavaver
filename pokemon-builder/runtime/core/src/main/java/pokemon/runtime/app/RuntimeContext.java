@@ -249,6 +249,10 @@ public final class RuntimeContext {
         }
         audioManager.attach(database == null ? null : database.audio(),
                 database == null ? null : database.dataRoot());
+        if (database != null) {
+            // P1: rebuilding the saved party / PC storage needs the PBS tables.
+            saveManager.attachPbs(database.pbs());
+        }
         // L1: options (volumes) load once; a broken/missing file keeps defaults.
         settings = GameSettings.load(storage);
         audioManager.setVolumeFactors(settings.bgmFactor(), settings.seFactor(), settings.bgsFactor());

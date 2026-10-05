@@ -1158,6 +1158,36 @@ public final class EventInterpreter {
                 log.warn("received " + label + (toParty ? " (party)" : " (box)"));
                 break;
             }
+            // ---- P1: party / bag / PokeCenter data handlers ----
+            case "SET_POKEMON_CENTER": {
+                // pbSetPokemonCenter stores the live map / player position.
+                state.trainer().setPokemonCenter(mapId, state.playerX(), state.playerY(),
+                        state.playerDirection());
+                log.warn("PokeCenter set to map " + mapId + " (" + state.playerX() + ","
+                        + state.playerY() + ")");
+                break;
+            }
+            case "ADD_EGG": {
+                String speciesName = ir.getString("species", "");
+                if (pbs == null) {
+                    log.warn("ADD_EGG without the PBS data; skipped");
+                    break;
+                }
+                PbsData.Species species = pbs.species(speciesName);
+                if (species == null) {
+                    log.warn("ADD_EGG unknown species " + speciesName + "; skipped");
+                    break;
+                }
+                Pokemon egg = new Pokemon(species, 1, pbs); // EGG_LEVEL
+                egg.egg = true;
+                egg.name = "神秘的蛋";
+                egg.stepsToHatch = species.stepsToHatch;
+                egg.hp = egg.maxHp();
+                boolean toParty = state.trainer().addToParty(egg);
+                log.warn("received an egg of " + speciesName
+                        + (toParty ? " (party)" : " (box)"));
+                break;
+            }
             default:
                 log.warn("IR command " + name
                         + " needs a runtime service that does not exist yet; skipped");

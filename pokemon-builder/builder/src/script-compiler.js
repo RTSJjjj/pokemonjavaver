@@ -375,6 +375,33 @@ export const HANDLERS = {
   toggle_liefeng_switches() {
     return { command: "TOGGLE_PLATE_SWITCHES" };
   },
+  // ---- P1: party / bag / PokeCenter data handlers ----
+  /**
+   * P1: {@code pbSetPokemonCenter} stores the current map + player position as
+   * the respawn point ({@code $PokemonGlobal.pokecenter*}); the runtime reads
+   * the live position, so the IR carries no arguments.
+   */
+  pbSetPokemonCenter() {
+    return { command: "SET_POKEMON_CENTER" };
+  },
+  /**
+   * P1: {@code pbStoreItem(item, qty=1)} is the silent bag add
+   * ({@code $PokemonBag.pbStoreItem}); it shares GIVE_ITEM with pbItemBall.
+   */
+  pbStoreItem(args) {
+    return { command: "GIVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1 };
+  },
+  /**
+   * P1: {@code myAddEgg(species, text="")} creates a level 1 egg, names it and
+   * adds it to the party (or the PC when the party is full).
+   */
+  myAddEgg(args) {
+    return {
+      command: "ADD_EGG",
+      species: args[0],
+      text: args.length > 1 ? args[1] : null,
+    };
+  },
 };
 
 /** Simple conditions the runtime can already answer (R6.1). */
@@ -392,7 +419,7 @@ const DOMAIN_APIS = new Set([
   "pbBerryPlant", "pbPickBerry", "pbStoreItem", "pbGetKeyItem", "pbDeleteItem",
   "pbPokeCenterPC", "pbShowMap", "pbSetPokemonCenter",
   "pbToggleFollowingPokemon", "pbRegisterPartner", "pbDeregisterPartner",
-  "pbSet", "push",
+  "pbSet", "push", "myAddEgg", "pbCrystalWarp",
 ]);
 
 /**
@@ -544,6 +571,9 @@ export function compileBlock(block) {
     return { ...entry, status: "UNSUPPORTED", reason: "complex expression needs the script translator" };
   }
   const handler = name ? HANDLERS[name] : null;
+  // A block whose leading call is a stage 3 domain API stays in the Java-handler
+  // bucket even when a later statement cannot translate (section 25).
+  const blockIsDomain = name !== null && DOMAIN_APIS.has(name);
   // P0c: Pokemon construction scripts carry local variables and method calls
   // (`p = pbGenPkmn(:X, 5); p.makeShiny; p.iv = [...]; pbAddPokemon(p, 1)`),
   // the one dialect the flat HANDLERS table cannot express. A block that builds
@@ -586,7 +616,7 @@ export function compileBlock(block) {
       if (args === null || typeof stepHandler !== "function") {
         // A statement inside the stage 3 domain keeps the whole block in the
         // "needs a Java handler" bucket instead of "unsupported".
-        if (stepName !== null && DOMAIN_APIS.has(stepName)) {
+        if (blockIsDomain || (stepName !== null && DOMAIN_APIS.has(stepName))) {
           return {
             ...entry,
             status: "JAVA_HANDLER_REQUIRED",
@@ -604,6 +634,15 @@ export function compileBlock(block) {
       try {
         const stepIr = stepHandler(args, block);
         if (containsScriptPayload(stepIr)) {
+          // A stage 3 domain API whose argument is not a literal still needs a
+          // Java handler (section 25); only a non-domain API is "unsupported".
+          if (blockIsDomain || (stepName !== null && DOMAIN_APIS.has(stepName))) {
+            return {
+              ...entry,
+              status: "JAVA_HANDLER_REQUIRED",
+              reason: "needs the Pokemon runtime (stage 3 domain)",
+            };
+          }
           return {
             ...entry,
             status: "UNSUPPORTED",
