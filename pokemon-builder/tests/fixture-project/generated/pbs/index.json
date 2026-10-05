@@ -10,7 +10,9 @@
     "types": 0,
     "trainerTypes": 0,
     "natures": 25,
-    "tmMoves": 0
+    "tmMoves": 0,
+    "encounters": 0,
+    "trainers": 0
   },
   "files": {
     "pokemon": "pbs/pokemon.json",
@@ -21,6 +23,8 @@
     "types": "pbs/types.json",
     "trainerTypes": "pbs/trainertypes.json",
     "natures": "pbs/natures.json",
-    "tm": "pbs/tm.json"
+    "tm": "pbs/tm.json",
+    "encounters": "pbs/encounters.json",
+    "trainers": "pbs/trainers.json"
   }
 }

@@ -14,12 +14,14 @@ import {
   buildPbsIr,
   parseAbilities,
   parseCsvRecords,
+  parseEncounters,
   parseIniSections,
   parseItems,
   parsePokemon,
   parsePokemonForms,
   parseTmCompatibility,
   parseTrainerTypes,
+  parseTrainers,
   parseTypes,
   parseMoves,
 } from "../../tools/data-converter/pbs.js";
@@ -182,6 +184,76 @@ test("the real reference project PBS parses when it is available", (t) => {
   assert.ok(counts.abilities >= 300, "abilities floor: " + counts.abilities);
   assert.ok(counts.types >= 18, "types floor: " + counts.types);
   assert.equal(counts.natures, 25);
+  assert.ok(counts.encounters >= 100, "encounters floor: " + counts.encounters);
+  assert.ok(counts.trainers >= 300, "trainers floor: " + counts.trainers);
   assert.deepEqual(output["pbs/pokemon.json"].species.BULBASAUR.types, ["GRASS", "POISON"]);
   assert.ok(output["pbs/pokemon.json"].species.EEVEE.evolutions.length >= 5);
 });
+
+test("P2: encounters.txt maps density triples and per-method tables", () => {
+  const text = [
+    "# header",
+    "010 # 1号道路",
+    "15,8,8",
+    "Land",
+    "    FIDOUGH,17,22",
+    "    PIKACHU,17",
+    "Water",
+    "    MAGIKARP,10,12",
+    "OldRod",
+    "    MAGIKARP,5",
+  ].join("\n");
+  const { byMap, total } = parseEncounters(text);
+  assert.equal(total, 1);
+  const map = byMap["10"];
+  assert.equal(map.id, 10);
+  assert.equal(map.name, "1号道路");
+  assert.equal(map.densities.Land, 15);
+  assert.equal(map.densities.Cave, 8);
+  assert.equal(map.densities.Water, 8);
+  assert.equal(map.densities.LandNight, 15, "LandNight follows the Land compile density");
+  assert.deepEqual(map.methods.Land, [
+    { species: "FIDOUGH", min: 17, max: 22 },
+    { species: "PIKACHU", min: 17, max: 17 },
+  ]);
+  assert.deepEqual(map.methods.Water, [{ species: "MAGIKARP", min: 10, max: 12 }]);
+  assert.deepEqual(map.methods.OldRod, [{ species: "MAGIKARP", min: 5, max: 5 }]);
+});
+
+test("P2: trainers.txt sections carry the party and its per-Pokemon fields", () => {
+  const text = [
+    "[NNANXIAO,南晓]",
+    'LoseText = "果然还是你比较厉害啊"',
+    "Items = FULLRESTORE,MAXPOTION",
+    "Pokemon = SYLVEON,38",
+    "    Gender = female",
+    "    Moves = MOONBLAST,CALMMIND",
+    "    Ability = 2",
+    "    Item = LEFTOVERS",
+    "    IV = 25,15,25,31,25,31",
+    "    Nature = BOLD",
+    "Pokemon = LUNAROSA,36",
+    "    Shiny = true",
+    "[NNANXIAO,南晓,1]",
+    "Pokemon = BLISSEY,48",
+  ].join("\n");
+  const { byKey, order, total } = parseTrainers(text);
+  assert.equal(total, 2);
+  assert.deepEqual(order, ["NNANXIAO,南晓,0", "NNANXIAO,南晓,1"]);
+  const trainer = byKey["NNANXIAO,南晓,0"];
+  assert.equal(trainer.type, "NNANXIAO");
+  assert.equal(trainer.name, "南晓");
+  assert.equal(trainer.loseText, "果然还是你比较厉害啊");
+  assert.deepEqual(trainer.items, ["FULLRESTORE", "MAXPOTION"]);
+  assert.equal(trainer.party.length, 2);
+  assert.deepEqual(trainer.party[0].moves, ["MOONBLAST", "CALMMIND"]);
+  assert.equal(trainer.party[0].ability, "2");
+  assert.equal(trainer.party[0].item, "LEFTOVERS");
+  assert.equal(trainer.party[0].nature, "BOLD");
+  assert.equal(trainer.party[0].gender, "female");
+  assert.deepEqual(trainer.party[0].ivs, [25, 15, 25, 31, 25, 31]);
+  assert.equal(trainer.party[1].level, 36);
+  assert.equal(trainer.party[1].shiny, true, "the indented Shiny belongs to the second Pokemon");
+  assert.equal(byKey["NNANXIAO,南晓,1"].version, 1);
+});
+

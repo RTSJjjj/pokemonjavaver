@@ -3,6 +3,7 @@ package pokemon.runtime.pokemon;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 
 import java.io.File;
@@ -38,6 +39,10 @@ public final class PbsData {
     /** Move internal name -> species internal names that can learn it (TM/HM). */
     public final ObjectMap<String, Array<String>> tmCompatibility = new ObjectMap<>();
     public final ObjectMap<String, Array<String>> tmBySpecies = new ObjectMap<>();
+    /** P2: map id (as text) -> wild encounter table. */
+    public final ObjectMap<String, EncounterMap> encounters = new ObjectMap<>();
+    /** P2: "TYPE,NAME,version" -> trainer party. */
+    public final ObjectMap<String, TrainerData> trainers = new ObjectMap<>();
 
     private PbsData() {
     }
@@ -207,6 +212,75 @@ public final class PbsData {
     }
 
     // ------------------------------------------------------------------
+    // P2: wild encounters / trainers
+    // ------------------------------------------------------------------
+
+    /** One row of a wild encounter table. */
+    public static final class EncounterEntry {
+        public String species;
+        public int minLevel;
+        public int maxLevel;
+
+        public int level(java.util.Random random) {
+            return maxLevel <= minLevel ? minLevel : minLevel + random.nextInt(maxLevel - minLevel + 1);
+        }
+
+        public boolean contains(String speciesName) {
+            return species != null && species.equals(speciesName);
+        }
+    }
+
+    /** One map's wild encounter table, keyed by method (Land/Cave/Water/...). */
+    public static final class EncounterMap {
+        public int id;
+        public String name = "";
+        /** Method name -> density (EnctypeDensities with the map overrides applied). */
+        public final ObjectIntMap<String> densities = new ObjectIntMap<>();
+        public final ObjectMap<String, Array<EncounterEntry>> methods = new ObjectMap<>();
+
+        public Array<EncounterEntry> method(String name) {
+            return methods.get(name, null);
+        }
+
+        public int density(String name) {
+            return densities.get(name, 0);
+        }
+    }
+
+    /** One trainer's party member (trainers.txt "Pokemon =" plus its fields). */
+    public static final class TrainerPokemon {
+        public String species;
+        public int level = 1;
+        public Array<String> moves = new Array<>();
+        public String item;
+        public String ability;
+        public String nature;
+        public String gender;
+        public String ball;
+        public boolean shiny;
+        public boolean superShiny;
+        public int form;
+        public int happiness = -1;
+        public int[] ivs;
+        public int[] evs;
+    }
+
+    /** One trainers.txt section. */
+    public static final class TrainerData {
+        public String key;
+        public String type;
+        public String name;
+        public int version;
+        public String loseText;
+        public final Array<String> items = new Array<>();
+        public final Array<TrainerPokemon> party = new Array<>();
+
+        public boolean isVersion(int other) {
+            return version == other;
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Lookups
     // ------------------------------------------------------------------
 
@@ -270,6 +344,35 @@ public final class PbsData {
         return naturesByName.get(name.toUpperCase(Locale.ROOT));
     }
 
+    // ------------------------------------------------------------------
+    // P2 lookups: wild encounters / trainers
+    // ------------------------------------------------------------------
+
+    /** The wild encounter table of a map, or null. */
+    public EncounterMap encounterMap(int mapId) {
+        return mapId < 0 ? null : encounters.get(String.valueOf(mapId));
+    }
+
+    /** Trainer by type + name at version 0 (the default battle). */
+    public TrainerData trainer(String type, String name) {
+        return trainer(type, name, 0);
+    }
+
+    /**
+     * Trainer by type + name + version. A missing exact version falls back to
+     * version 0, matching Essentials' {@code pbLoadTrainer}.
+     */
+    public TrainerData trainer(String type, String name, int version) {
+        if (type == null || name == null) {
+            return null;
+        }
+        TrainerData direct = trainers.get(type + "," + name + "," + version);
+        if (direct != null) {
+            return direct;
+        }
+        return version == 0 ? null : trainers.get(type + "," + name + ",0");
+    }
+
     /**
      * Type effectiveness of one attacking type against a defender's types, in
      * the Essentials chart: 2x weakness, 0.5x resistance, 0x immunity, times
@@ -322,6 +425,8 @@ public final class PbsData {
         readTrainerTypes(data, read(pbs, "trainertypes.json"));
         readNatures(data, read(pbs, "natures.json"));
         readTm(data, read(pbs, "tm.json"));
+        readEncounters(data, read(pbs, "encounters.json"));
+        readTrainers(data, read(pbs, "trainers.json"));
         return data;
     }
 
@@ -634,5 +739,106 @@ public final class PbsData {
                 moves.add(node.name);
             }
         }
+    }
+
+    /** P2: generated/pbs/encounters.json -> the per-map wild tables. */
+    private static void readEncounters(PbsData data, JsonValue root) {
+        JsonValue byMap = child(root, "byMap");
+        if (byMap == null || !byMap.isObject()) {
+            return;
+        }
+        for (JsonValue node = byMap.child; node != null; node = node.next) {
+            EncounterMap map = new EncounterMap();
+            map.id = node.getInt("id", 0);
+            map.name = node.getString("name", "");
+            JsonValue densities = child(node, "densities");
+            if (densities != null && densities.isObject()) {
+                for (JsonValue entry = densities.child; entry != null; entry = entry.next) {
+                    map.densities.put(entry.name, entry.asInt());
+                }
+            }
+            JsonValue methods = child(node, "methods");
+            if (methods != null && methods.isObject()) {
+                for (JsonValue table = methods.child; table != null; table = table.next) {
+                    if (!table.isArray()) {
+                        continue;
+                    }
+                    Array<EncounterEntry> entries = new Array<>();
+                    for (JsonValue row = table.child; row != null; row = row.next) {
+                        EncounterEntry entry = new EncounterEntry();
+                        entry.species = row.getString("species", null);
+                        entry.minLevel = row.getInt("min", 1);
+                        entry.maxLevel = row.getInt("max", entry.minLevel);
+                        if (entry.species != null) {
+                            entries.add(entry);
+                        }
+                    }
+                    map.methods.put(table.name, entries);
+                }
+            }
+            data.encounters.put(node.name, map);
+        }
+    }
+
+    /** P2: generated/pbs/trainers.json -> the trainer parties. */
+    private static void readTrainers(PbsData data, JsonValue root) {
+        JsonValue trainers = child(root, "trainers");
+        if (trainers == null || !trainers.isObject()) {
+            return;
+        }
+        for (JsonValue node = trainers.child; node != null; node = node.next) {
+            TrainerData trainer = new TrainerData();
+            trainer.key = node.getString("key", node.name);
+            trainer.type = node.getString("type", "");
+            trainer.name = node.getString("name", "");
+            trainer.version = node.getInt("version", 0);
+            trainer.loseText = node.getString("loseText", null);
+            JsonValue items = child(node, "items");
+            if (items != null && items.isArray()) {
+                for (JsonValue item = items.child; item != null; item = item.next) {
+                    trainer.items.add(item.asString());
+                }
+            }
+            JsonValue party = child(node, "party");
+            if (party != null && party.isArray()) {
+                for (JsonValue node2 = party.child; node2 != null; node2 = node2.next) {
+                    TrainerPokemon member = new TrainerPokemon();
+                    member.species = node2.getString("species", null);
+                    member.level = node2.getInt("level", 1);
+                    JsonValue moves = child(node2, "moves");
+                    if (moves != null && moves.isArray()) {
+                        for (JsonValue move = moves.child; move != null; move = move.next) {
+                            member.moves.add(move.asString());
+                        }
+                    }
+                    member.item = node2.getString("item", null);
+                    member.ability = node2.getString("ability", null);
+                    member.nature = node2.getString("nature", null);
+                    member.gender = node2.getString("gender", null);
+                    member.ball = node2.getString("ball", null);
+                    member.shiny = node2.getBoolean("shiny", false);
+                    member.superShiny = node2.getBoolean("superShiny", false);
+                    member.form = node2.getInt("form", 0);
+                    member.happiness = node2.getInt("happiness", -1);
+                    member.ivs = optionalIntArray(child(node2, "ivs"));
+                    member.evs = optionalIntArray(child(node2, "evs"));
+                    if (member.species != null) {
+                        trainer.party.add(member);
+                    }
+                }
+            }
+            data.trainers.put(node.name, trainer);
+        }
+    }
+
+    private static int[] optionalIntArray(JsonValue node) {
+        if (node == null || !node.isArray()) {
+            return null;
+        }
+        int[] out = new int[node.size];
+        for (int i = 0; i < node.size; i++) {
+            out[i] = node.get(i).asInt();
+        }
+        return out;
     }
 }

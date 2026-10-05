@@ -349,6 +349,149 @@ export function parseTrainerTypes(text) {
   return trainerTypes;
 }
 
+/** EncounterTypes::Names order (PField_Encounters). */
+export const ENCOUNTER_METHODS = [
+  "Land", "Cave", "Water", "RockSmash", "OldRod", "GoodRod", "SuperRod",
+  "HeadbuttLow", "HeadbuttHigh", "LandMorning", "LandDay", "LandNight", "BugContest",
+];
+/** EncounterTypes::EnctypeDensities (defaults when the map has no entry). */
+const ENCOUNTER_DENSITIES = [25, 10, 10, 0, 0, 0, 0, 0, 0, 25, 25, 25, 25];
+/** EncounterTypes::EnctypeCompileDens: 1=Land, 2=Cave, 3=Water, 0=own. */
+const ENCOUNTER_COMPILE_DENS = [1, 2, 3, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1];
+
+/**
+ * P2: encounters.txt -> { byMap, total }. Every map is
+ * {@code { id, name, densities, methods }} where densities is keyed by method
+ * name (the file only stores Land/Cave/Water; the others follow
+ * EnctypeCompileDens / EnctypeDensities) and methods maps a method name to
+ * [{ species, min, max }].
+ */
+export function parseEncounters(text) {
+  const byMap = {};
+  let current = null;
+  let method = null;
+  for (const rawLine of (text || "").split(/\r?\n/)) {
+    const line = rawLine.replace(/^\uFEFF/, "").trim();
+    if (line === "" || line.startsWith("#")) continue;
+    const header = /^(\d+)(?:\s*#\s*(.*))?$/.exec(line);
+    if (header) {
+      const id = Number(header[1]);
+      current = { id, name: header[2] ? header[2].trim() : "", densities: null, methods: {} };
+      byMap[id] = current;
+      method = null;
+      continue;
+    }
+    if (!current) continue;
+    const density = /^(\d+)\s*,\s*(\d+)\s*,\s*(\d+)$/.exec(line);
+    if (density && current.densities === null) {
+      current.densities = {
+        Land: Number(density[1]), Cave: Number(density[2]), Water: Number(density[3]),
+      };
+      continue;
+    }
+    if (ENCOUNTER_METHODS.includes(line)) {
+      method = line;
+      current.methods[method] = [];
+      continue;
+    }
+    if (method) {
+      const parts = line.split(",").map((part) => part.trim());
+      const species = parts[0];
+      const min = Number(parts[1]);
+      if (species && Number.isFinite(min)) {
+        const max = parts.length > 2 ? Number(parts[2]) : min;
+        current.methods[method].push({
+          species, min, max: Number.isFinite(max) ? max : min,
+        });
+      }
+    }
+  }
+  const maps = {};
+  for (const [key, map] of Object.entries(byMap)) {
+    const base = map.densities
+      || { Land: ENCOUNTER_DENSITIES[0], Cave: ENCOUNTER_DENSITIES[1], Water: ENCOUNTER_DENSITIES[2] };
+    const densities = {};
+    ENCOUNTER_METHODS.forEach((name, index) => {
+      const compile = ENCOUNTER_COMPILE_DENS[index];
+      densities[name] = compile === 1 ? base.Land
+        : compile === 2 ? base.Cave
+          : compile === 3 ? base.Water : ENCOUNTER_DENSITIES[index];
+    });
+    maps[key] = { id: map.id, name: map.name, densities, methods: map.methods };
+  }
+  return { byMap: maps, total: Object.keys(maps).length };
+}
+
+/**
+ * P2: trainers.txt -> { byKey, order, total }. A section is
+ * {@code [TYPE,Name(,version)]}; "Pokemon = SPECIES,level" starts a party
+ * member whose indented keys (Moves/Item/IV/EV/Ability/Nature/Form/Shiny/
+ * Ball/Gender/Happiness/SuperShiny) adjust it.
+ */
+export function parseTrainers(text) {
+  const byKey = {};
+  const order = [];
+  let current = null;
+  let pokemon = null;
+  for (const rawLine of (text || "").split(/\r?\n/)) {
+    const line = rawLine.replace(/^\uFEFF/, "");
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const header = /^\[(.+)\]$/.exec(trimmed);
+    if (header) {
+      const parts = header[1].split(",").map((part) => part.trim());
+      const type = parts[0];
+      const name = parts[1] || "";
+      const version = parts.length > 2 ? Number(parts[2]) : 0;
+      const key = `${type},${name},${version}`;
+      current = { key, type, name, version, loseText: null, items: [], party: [] };
+      byKey[key] = current;
+      order.push(key);
+      pokemon = null;
+      continue;
+    }
+    if (!current) continue;
+    const keyValue = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(trimmed);
+    if (!keyValue) continue;
+    const key = keyValue[1];
+    const value = keyValue[2].trim();
+    if (key === "Pokemon") {
+      pokemon = { species: value.split(",")[0].trim(), level: 1, moves: [], ivs: null, evs: null };
+      const level = intOrNull(value.split(",")[1]);
+      if (level !== null) pokemon.level = level;
+      current.party.push(pokemon);
+      continue;
+    }
+    const indented = /^\s/.test(line);
+    if (!indented) {
+      if (key === "LoseText") current.loseText = value.replace(/^"|"$/g, "");
+      else if (key === "Items") current.items = list(value);
+      continue;
+    }
+    if (!pokemon) continue;
+    applyTrainerPokemonField(pokemon, key, value);
+  }
+  return { byKey, order, total: order.length };
+}
+
+function applyTrainerPokemonField(pokemon, key, value) {
+  switch (key) {
+    case "Moves": pokemon.moves = list(value); break;
+    case "Item": pokemon.item = value; break;
+    case "IV": pokemon.ivs = numList(value); break;
+    case "EV": pokemon.evs = numList(value); break;
+    case "Ability": pokemon.ability = value; break;
+    case "Nature": pokemon.nature = value; break;
+    case "Form": pokemon.form = intOrNull(value); break;
+    case "Shiny": pokemon.shiny = value === "true"; break;
+    case "SuperShiny": pokemon.superShiny = value === "true"; break;
+    case "Ball": pokemon.ball = value; break;
+    case "Gender": pokemon.gender = value; break;
+    case "Happiness": pokemon.happiness = intOrNull(value); break;
+    default: break;
+  }
+}
+
 // tm.txt is "[MOVE]" followed by a raw CSV line, which the INI reader would
 // treat as an unknown key. Parse it line by line instead.
 export function parseTmCompatibility(text) {
@@ -422,6 +565,8 @@ export function buildPbsIr(projectPath) {
   const trainerTypes = parseTrainerTypes(read("trainertypes.txt"));
   const natures = buildNatures();
   const tm = parseTmCompatibility(read("tm.txt"));
+  const encounters = parseEncounters(read("encounters.txt"));
+  const trainers = parseTrainers(read("trainers.txt"));
 
   const counts = {
     species: Object.keys(pokemon.species).length,
@@ -433,6 +578,8 @@ export function buildPbsIr(projectPath) {
     trainerTypes: Object.keys(trainerTypes).length,
     natures: natures.length,
     tmMoves: Object.keys(tm).length,
+    encounters: encounters.total,
+    trainers: trainers.total,
   };
 
   const output = {
@@ -441,6 +588,7 @@ export function buildPbsIr(projectPath) {
         pokemon: "pbs/pokemon.json", forms: "pbs/pokemonforms.json", moves: "pbs/moves.json",
         items: "pbs/items.json", abilities: "pbs/abilities.json", types: "pbs/types.json",
         trainerTypes: "pbs/trainertypes.json", natures: "pbs/natures.json", tm: "pbs/tm.json",
+        encounters: "pbs/encounters.json", trainers: "pbs/trainers.json",
       } },
     "pbs/pokemon.json": { format: "pokemon-builder/pbs/1", kind: "pbsPokemon",
       total: counts.species, byId: pokemon.byId, species: pokemon.species },
@@ -454,6 +602,10 @@ export function buildPbsIr(projectPath) {
       total: counts.trainerTypes, trainerTypes },
     "pbs/natures.json": { format: "pokemon-builder/pbs/1", kind: "pbsNatures", total: counts.natures, natures },
     "pbs/tm.json": { format: "pokemon-builder/pbs/1", kind: "pbsTm", total: counts.tmMoves, compatibility: tm },
+    "pbs/encounters.json": { format: "pokemon-builder/pbs/1", kind: "pbsEncounters",
+      total: counts.encounters, byMap: encounters.byMap },
+    "pbs/trainers.json": { format: "pokemon-builder/pbs/1", kind: "pbsTrainers",
+      total: counts.trainers, order: trainers.order, trainers: trainers.byKey },
   };
   return { output, counts };
 }

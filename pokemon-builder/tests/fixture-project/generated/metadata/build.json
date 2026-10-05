@@ -35,6 +35,8 @@
     "pbsTrainerTypes": 0,
     "pbsNatures": 25,
     "pbsTmMoves": 0,
+    "pbsEncounters": 0,
+    "pbsTrainers": 0,
     "pbsFiles": 1,
     "mapsSkipped": 0,
     "mapsRebuilt": 2
@@ -58,7 +60,7 @@
     },
     {
       "file": "pbs/index.json",
-      "bytes": 568
+      "bytes": 686
     },
     {
       "file": "pbs/pokemon.json",
@@ -97,6 +99,14 @@
       "bytes": 95
     },
     {
+      "file": "pbs/encounters.json",
+      "bytes": 95
+    },
+    {
+      "file": "pbs/trainers.json",
+      "bytes": 111
+    },
+    {
       "file": "common-events/common-event-001.json",
       "bytes": 380
     },
@@ -126,7 +136,7 @@
     },
     {
       "file": "metadata/sources.json",
-      "bytes": 2444
+      "bytes": 2445
     },
     {
       "file": "metadata/problems.json",
@@ -134,7 +144,7 @@
     },
     {
       "file": "project.json",
-      "bytes": 1600
+      "bytes": 1646
     },
     {
       "file": "maps/index.json",
@@ -149,11 +159,11 @@
       "bytes": 322
     }
   ],
-  "totalBytes": 344907,
+  "totalBytes": 345278,
   "durations": {
     "scanMs": 3,
     "eventsMs": 1,
-    "convertMs": 37
+    "convertMs": 34
   },
   "warnings": [],
   "incremental": {

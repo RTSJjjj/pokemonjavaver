@@ -62,6 +62,16 @@ class PbsDataTest {
         write(tempDir, "trainertypes.json", "{\"total\":1,\"trainerTypes\":{\"POKEMONTRAINER_Red\":{"
                 + "\"id\":0,\"internalName\":\"POKEMONTRAINER_Red\",\"name\":\"Trainer\",\"baseMoney\":60}}}");
         write(tempDir, "tm.json", "{\"total\":1,\"compatibility\":{\"VINEWHIP\":[\"BULBASAUR\"]}}");
+        write(tempDir, "encounters.json", "{\"total\":1,\"byMap\":{\"10\":{\"id\":10,\"name\":\"Route 1\","
+                + "\"densities\":{\"Land\":15,\"Cave\":8,\"Water\":8},"
+                + "\"methods\":{\"Land\":[{\"species\":\"BULBASAUR\",\"min\":17,\"max\":22},"
+                + "{\"species\":\"PIKACHU\",\"min\":17,\"max\":17}]}}}}");
+        write(tempDir, "trainers.json", "{\"total\":1,\"order\":[\"POKEMONTRAINER_Red,Blue,0\"],\"trainers\":{"
+                + "\"POKEMONTRAINER_Red,Blue,0\":{\"key\":\"POKEMONTRAINER_Red,Blue,0\","
+                + "\"type\":\"POKEMONTRAINER_Red\",\"name\":\"Blue\",\"version\":0,\"loseText\":\"gg\","
+                + "\"items\":[\"POTION\"],\"party\":[{\"species\":\"BULBASAUR\",\"level\":12,"
+                + "\"moves\":[\"TACKLE\"],\"ability\":\"2\",\"item\":\"LEFTOVERS\",\"nature\":\"LONELY\","
+                + "\"ivs\":[31,30,29,28,27,26],\"evs\":null,\"shiny\":true}]}}}");
         return tempDir.toFile();
     }
 
@@ -99,6 +109,30 @@ class PbsDataTest {
         assertTrue(data.nature("Hardy").neutral());
         assertArrayEquals(new String[] {"BULBASAUR"}, data.tmCompatibility.get("VINEWHIP").toArray(String.class));
         assertTrue(data.tmBySpecies.get("BULBASAUR").contains("VINEWHIP", false));
+
+        // P2: wild encounter tables and trainer parties.
+        PbsData.EncounterMap route1 = data.encounterMap(10);
+        assertNotNull(route1);
+        assertEquals("Route 1", route1.name);
+        assertEquals(15, route1.density("Land"));
+        assertEquals(8, route1.density("Cave"));
+        assertEquals(2, route1.method("Land").size);
+        assertEquals("BULBASAUR", route1.method("Land").first().species);
+        assertEquals(22, route1.method("Land").first().maxLevel);
+        assertNull(data.encounterMap(99));
+
+        PbsData.TrainerData blue = data.trainer("POKEMONTRAINER_Red", "Blue");
+        assertNotNull(blue);
+        assertEquals(1, blue.party.size);
+        assertEquals("BULBASAUR", blue.party.first().species);
+        assertEquals(12, blue.party.first().level);
+        assertEquals("2", blue.party.first().ability);
+        assertEquals("LEFTOVERS", blue.party.first().item);
+        assertTrue(blue.party.first().shiny);
+        assertArrayEquals(new int[] {31, 30, 29, 28, 27, 26}, blue.party.first().ivs);
+        assertNull(blue.party.first().evs);
+        assertTrue(blue.items.contains("POTION", false));
+        assertNull(data.trainer("POKEMONTRAINER_Red", "Nobody"));
     }
 
     @Test
@@ -141,5 +175,14 @@ class PbsDataTest {
         assertEquals(120, data.move("MEGAHORN").power);
         assertNotNull(data.form("VENUSAUR", 1), "mega forms are keyed SPECIES_FORM");
         assertEquals(2f, data.effectiveness("FIRE", types("GRASS", "POISON")), "grass is weak to fire");
+
+        // P2 floors: wild encounter maps and trainer parties.
+        assertTrue(data.encounters.size >= 100, "encounter maps: " + data.encounters.size);
+        assertTrue(data.trainers.size >= 300, "trainers: " + data.trainers.size);
+        PbsData.EncounterMap route1 = data.encounterMap(10);
+        assertNotNull(route1, "map 10 (route 1) has an encounter table");
+        assertNotNull(route1.method("Land"));
+        assertTrue(route1.method("Land").size >= 8, "land slots: " + route1.method("Land").size);
+        assertNotNull(data.trainer("NNANXIAO", "南晓"));
     }
 }

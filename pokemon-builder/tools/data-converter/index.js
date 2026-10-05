@@ -1401,6 +1401,8 @@ export function convertProject(projectPath, options = {}) {
     pbsTrainerTypes: pbsData.counts.trainerTypes,
     pbsNatures: pbsData.counts.natures,
     pbsTmMoves: pbsData.counts.tmMoves,
+    pbsEncounters: pbsData.counts.encounters,
+    pbsTrainers: pbsData.counts.trainers,
     pbsFiles: pbs.files.length,
     mapsSkipped: result.incremental.skipped.filter((id) => id.startsWith("map:")).length,
     mapsRebuilt: result.incremental.rebuilt.filter((id) => id.startsWith("map:")).length,
