@@ -298,3 +298,13 @@ scripts\ci-build.bat
 - **缎带 id 口径**：插件是 int（`PBRibbons` 常量，1-based），本工程事件/测试存的是字符串 → 页面只解析**数字字符串**为 id（其余跳过）。若要完全一致需把 `Pokemon.ribbons` 改 `IntArray` 并改事件/存档/测试。
 - 顺带修复：队伍屏状态图路径 `Pictures/Party/statuses` → 插件全局 `Pictures/statuses`，且画在**详情面板** `(self.x+12, self.y+12)=(348,108)`（不是每个槽）；行索引改成插件的 `status-1`（0 睡/1 毒/2 烧/3 麻/4 冰、7 濒死）。
 - **待补**：页1-3 选项里的 `查看图鉴`（工程未建模 `$Trainer.pokedex`）。`MenuCapture` 增 `l1-summary-1..5`、`l1-summary-{ribbon,move,move2,options,hold,marking}`。
+
+### 9.10 图鉴主列表对齐 `PokedexMain BW Style`（进行中）
+- `PokedexView` 重写为 `PokemonPokedex_Scene` 的主列表：
+  - 背景滚动 `Pokedex/bg_list`（ScrollingSprite，1px/帧）+ `Pokedex/list_overlay`（整屏，自带 9 行行框/黄色球槽/滑轨/"Enter: INFO" 提示）；
+  - 列表窗 `Window_Pokedex.new(184*2=368, 94, 276, 344)`（`windowskin=nil` ⇒ 边框 32、内容原点 `(384,110)`、行高 32、可见 9 行）：光标 `Pokedex/cursor_list`(244×44) 整图放 `(384, 110+row*32)`；拥有 → `Icons/icon%03d` 缩 32×32 于内容 `x=7`（绝对 391）、已见未拥有 → `Pokedex/icon_seen`(28×28) 于内容 `x=11`（绝对 395）；文字 `%04d name`（未见 `%04d ----------`）在内容 `x=52`（绝对 436）`y=row+6`，色 `222,222,222`/`132,132,132`；
+  - 选中立绘 `Battlers/%03d` Center 原点 `(110+64,196+32)=(174,228)`；未拥有→灰(`0.72` 近似 `Tone` 去色)、未发现→全黑剪影；
+  - 顶部信息：`宝可梦图鉴(18+64,8)`、物种名居中 `(114+64, 332+64)`、`发现的：(30+32,57)` 右缘 `220+32`、`拥有的：(280+32,57)` 右缘 `470+32`；滑轨 `Pokedex/icon_slider`(40 宽) `x=468+32+128`、上/下 `(628,118)/(628,307)`、滑块 `(40,0/8/24)` 按 `top/(total-9)`；
+  - `↑↓` 移光标（整行滚动、对齐 baked 行框）、`Z` 进条目、`X` 退出。
+- 口径：插件 `pbGetDexList` 用 `$Trainer.formlastseen` **过滤未发现**，工程无该表 → 这里列出**全部**物种（未见显示 `----------`，与 `drawItem` 的 else 分支一致）。
+- **待补**：`Z` 的条目页 `PokedexEntry BW Style`（Info/Data/Area/Forms/Evo 5 页）；搜索模式（`Input::A`，`pbDexSearch` 多参数屏）；`PokedexMenu BW Style`（多地区图鉴选择，仅多地区时出现）。`MenuCapture` 增 `l1-dex*`。
