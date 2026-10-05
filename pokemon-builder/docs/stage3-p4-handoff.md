@@ -331,4 +331,6 @@ scripts\ci-build.bat
   - `pbDrawShadowText(x,y,width,height,...)` 里 RGSS `draw_text` 会**在 height 矩形内垂直居中**（我们字体是顶端对齐）——盒名 `(xval,8,widthval,40)` 要 `8+(40-lineHeight)/2`。其它 `pbDrawTextPositions` 传的高度=文字高，顶端对齐即等价。
   - `查看队伍` 是 align 2 = **居中**（`(274,411)`），原来画成右对齐了。
   - PC 消息窗照 `pbDisplay/pbShowCommands`：`Window_UnformattedTextPokemon.newWithSize("",180,0,width-180,32)` + `pbBottomRight` ⇒ `(180, h-32, w-180, 32)`，命令窗在其正上方（`y -= 32`）。
-- **口径**：工程 `Storage` 是**紧凑列表**（无固定 30 格/盒名/背景），故放置是**追加**、盒名用 `盒子 N`、背景 `box_<box%42>`；`概况/道具` 暂提示用宝可梦菜单/背包（跨屏待接）。**待补**：`概况` 直连详情、`道具` 直连背包、盒名/背景编辑、`提交`(放生)全套确认、DEPOSIT/WITHDRAW 三种模式入口。`MenuCapture` 增 `l1-pc*`。
+  - 命令 `提交` 是插件机翻错误，按功能改为 **`放生`**（`pbRelease`）。
+  - 背包命令窗（`pbShowCommands`）：底边贴住底部消息窗 `(16,16,w-32,64)` 的顶边（原来飘在中间 `h-120-winH`）。
+- **口径**：工程 `Storage` 是**紧凑列表**（无固定 30 格/盒名/背景），故放置是**追加**、盒名用 `盒子 N`、背景 `box_<box%42>`；`概况/道具` 暂提示用宝可梦菜单/背包（跨屏待接）。**待补**：`概况` 直连详情、`道具` 直连背包、盒名/背景编辑、放生全套确认、DEPOSIT/WITHDRAW 三种模式入口。`MenuCapture` 增 `l1-pc*`。
