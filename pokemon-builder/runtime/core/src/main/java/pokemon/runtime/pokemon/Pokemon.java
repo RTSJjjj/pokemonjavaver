@@ -32,6 +32,10 @@ public final class Pokemon {
     public String item;
     public int happiness;
     public int stepsToHatch;
+    /** Original trainer name written by {@code p.ot = "..."} (P0c). */
+    public String originalTrainer;
+    /** Essence-battle rank written by {@code p.battleRank = n} (P0c). */
+    public int battleRank;
 
     /** One known move with its current PP (up to 4 by the time battle lands). */
     public static final class MoveSlot {

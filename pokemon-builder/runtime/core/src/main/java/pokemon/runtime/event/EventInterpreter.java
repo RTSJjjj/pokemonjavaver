@@ -2,11 +2,15 @@ package pokemon.runtime.event;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.JsonValue;
+import com.badlogic.gdx.utils.ObjectMap;
 import pokemon.runtime.audio.AudioManager;
 import pokemon.runtime.data.EventCommand;
 import pokemon.runtime.data.MoveRoute;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
+import pokemon.runtime.pokemon.PbsData;
+import pokemon.runtime.pokemon.Pokemon;
+import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.state.GameState;
 
 import java.util.regex.Matcher;
@@ -63,6 +67,14 @@ public final class EventInterpreter {
     private ScreenEffects screenEffects;
     private ScriptIr scriptIr;
     private pokemon.runtime.state.Inventory inventory;
+    /** P0c: PBS data used by the Pokemon construction IR commands. */
+    private PbsData pbs;
+    /**
+     * P0c: local variables of the Pokemon construction scripts
+     * ({@code p = pbGenPkmn(...)}). They live for one compiled SEQUENCE, which
+     * is one event script block.
+     */
+    private final ObjectMap<String, Object> scriptLocals = new ObjectMap<>();
     private final WarningLog log;
 
     private final Array<Frame> stack = new Array<>();
@@ -126,6 +138,7 @@ public final class EventInterpreter {
         activeCommonEvents.clear();
         pendingSteps = null;
         pendingStepIndex = 0;
+        scriptLocals.clear();
         // Never close the shared message window here: a parallel event restarts
         // its own interpreter every few frames, and that used to dismiss the
         // message the player was reading (reported as "all messages auto
@@ -172,6 +185,15 @@ public final class EventInterpreter {
     /** Item container used by GIVE_ITEM / REMOVE_ITEM IR (R7.2b). */
     public void attachInventory(pokemon.runtime.state.Inventory items) {
         this.inventory = items;
+    }
+
+    /**
+     * P0c: PBS data (species / moves / natures) used by the Pokemon
+     * construction IR commands ({@code POKEMON_CREATE}, {@code POKEMON_CALL},
+     * {@code POKEMON_SET}). Without it those steps are logged and skipped.
+     */
+    public void attachPbs(PbsData data) {
+        this.pbs = data;
     }
 
     /** Called once per frame by the map screen. */
@@ -812,6 +834,8 @@ public final class EventInterpreter {
                 if (steps == null || !steps.isArray() || steps.size == 0) {
                     log.warn("SEQUENCE without steps; skipped");
                 } else {
+                    // P0c: local variables are scoped to one compiled block.
+                    scriptLocals.clear();
                     pendingSteps = steps;
                     pendingStepIndex = 0;
                 }
@@ -1060,6 +1084,78 @@ public final class EventInterpreter {
                 if (mapPort != null) {
                     mapPort.togglePlateSwitches();
                 }
+                break;
+            }
+            // ---- P0c: Pokemon construction scripts (locals + object methods) ----
+            case "SET_VARIABLE": {
+                // pbSet(id, value) is $game_variables[id] = value; the runtime
+                // variables are integer only, so other values are logged.
+                Object idValue = resolveIrValue(ir.get("id"));
+                if (!(idValue instanceof Number) || ((Number) idValue).intValue() < 1) {
+                    log.warn("SET_VARIABLE with an unusable id; skipped");
+                    break;
+                }
+                int variableId = ((Number) idValue).intValue();
+                Object value = resolveIrValue(ir.get("value"));
+                if (value instanceof Number) {
+                    state.variables().set(variableId, ((Number) value).intValue());
+                } else if (value instanceof Boolean) {
+                    state.variables().set(variableId, ((Boolean) value) ? 1 : 0);
+                } else {
+                    log.warn("SET_VARIABLE " + variableId + " ignores non-numeric value "
+                            + value);
+                }
+                break;
+            }
+            case "LOCAL_SET": {
+                setLocal(ir.getString("local", ""), resolveIrValue(ir.get("value")));
+                break;
+            }
+            case "POKEMON_CREATE": {
+                String local = ir.getString("local", "");
+                String speciesName = ir.getString("species", "");
+                int level = ir.getInt("level", 1);
+                if (pbs == null) {
+                    log.warn("POKEMON_CREATE without the PBS data; skipped");
+                    setLocal(local, null);
+                    break;
+                }
+                PbsData.Species species = pbs.species(speciesName);
+                if (species == null) {
+                    log.warn("POKEMON_CREATE unknown species " + speciesName + "; skipped");
+                    setLocal(local, null);
+                    break;
+                }
+                setLocal(local, new Pokemon(species, level, pbs));
+                break;
+            }
+            case "POKEMON_CALL": {
+                Pokemon pokemon = localPokemon(ir.getString("local", ""));
+                if (pokemon == null) {
+                    log.warn("POKEMON_CALL on an unknown local; skipped");
+                    break;
+                }
+                pokemonCall(pokemon, ir);
+                break;
+            }
+            case "POKEMON_SET": {
+                Pokemon pokemon = localPokemon(ir.getString("local", ""));
+                if (pokemon == null) {
+                    log.warn("POKEMON_SET on an unknown local; skipped");
+                    break;
+                }
+                pokemonSet(pokemon, ir.getString("property", ""), resolveIrValue(ir.get("value")));
+                break;
+            }
+            case "PARTY_ADD": {
+                Pokemon pokemon = localPokemon(ir.getString("local", ""));
+                if (pokemon == null) {
+                    log.warn("PARTY_ADD of an unknown local; skipped");
+                    break;
+                }
+                boolean toParty = state.trainer().addToParty(pokemon);
+                String label = pokemon.name == null ? pokemon.internalName : pokemon.name;
+                log.warn("received " + label + (toParty ? " (party)" : " (box)"));
                 break;
             }
             default:
@@ -1482,6 +1578,265 @@ public final class EventInterpreter {
     private static String stringParam(JsonValue parameters, int position, String fallback) {
         JsonValue value = parameters == null ? null : parameters.get(position);
         return value == null || !value.isString() ? fallback : value.asString();
+    }
+
+    // ------------------------------------------------------------------
+    // P0c: Pokemon construction scripts (locals + object methods)
+    // ------------------------------------------------------------------
+
+    /**
+     * Resolves one value of the Pokemon construction IR: a literal, an integer
+     * array (IVs / EVs), a game variable ({@code pbGet(n)}), a local variable, a
+     * field of a local Pokemon, or {@code $Trainer.pokemonCount}.
+     */
+    private Object resolveIrValue(JsonValue value) {
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        if (value.isString()) {
+            return value.asString();
+        }
+        if (value.isBoolean()) {
+            return value.asBoolean();
+        }
+        if (value.isArray()) {
+            if (value.size > 0 && value.get(0).isNumber()) {
+                return value.asIntArray();
+            }
+            String[] strings = new String[value.size];
+            for (int i = 0; i < value.size; i++) {
+                strings[i] = value.get(i).asString();
+            }
+            return strings;
+        }
+        if (value.isObject()) {
+            if (value.has("variable")) {
+                int id = value.getInt("variable", 0);
+                return id < 1 ? 0 : state.variables().get(id);
+            }
+            if (value.has("trainerPokemonCount")) {
+                return state.trainer().partyCount();
+            }
+            if (value.has("local")) {
+                Object stored = scriptLocals.get(value.getString("local", ""), null);
+                if (!value.has("property")) {
+                    return stored;
+                }
+                return pokemonProperty(stored, value.getString("property", ""));
+            }
+        }
+        return null;
+    }
+
+    /** Reads one field of a local Pokemon used as an argument ({@code p.name}). */
+    private Object pokemonProperty(Object stored, String property) {
+        if (!(stored instanceof Pokemon)) {
+            return null;
+        }
+        Pokemon pokemon = (Pokemon) stored;
+        switch (property) {
+            case "name":
+                return pokemon.name;
+            case "ot":
+                return pokemon.originalTrainer;
+            case "level":
+                return pokemon.level;
+            case "species":
+                return pokemon.internalName;
+            case "item":
+                return pokemon.item;
+            case "shiny":
+                return pokemon.shiny;
+            case "form":
+                return pokemon.form == null ? 0 : pokemon.form.form;
+            default:
+                return null;
+        }
+    }
+
+    private void setLocal(String local, Object value) {
+        if (local == null || local.isEmpty()) {
+            return;
+        }
+        if (value == null) {
+            scriptLocals.remove(local);
+        } else {
+            scriptLocals.put(local, value);
+        }
+    }
+
+    private Pokemon localPokemon(String local) {
+        Object stored = scriptLocals.get(local, null);
+        return stored instanceof Pokemon ? (Pokemon) stored : null;
+    }
+
+    private void pokemonCall(Pokemon pokemon, JsonValue ir) {
+        String action = ir.getString("action", "");
+        JsonValue args = ir.get("args");
+        Object first = args != null && args.isArray() && args.size > 0
+                ? resolveIrValue(args.get(0)) : null;
+        switch (action) {
+            case "makeShiny":
+            case "makeSuperShiny":
+                pokemon.shiny = true;
+                break;
+            case "makeFemale":
+                pokemon.gender = PokemonStats.FEMALE;
+                break;
+            case "makeMale":
+                pokemon.gender = PokemonStats.MALE;
+                break;
+            case "calcStats":
+                pokemon.hp = pokemon.maxHp();
+                break;
+            case "setAbility":
+                applyAbility(pokemon, first);
+                break;
+            case "setItem":
+                pokemon.item = asName(first);
+                break;
+            case "setNature":
+                applyNature(pokemon, first);
+                break;
+            case "pbLearnMove":
+                learnMove(pokemon, asName(first));
+                break;
+            case "pbRecordFirstMoves":
+                // The level-up move list is already recorded by POKEMON_CREATE.
+                break;
+            default:
+                log.warn("POKEMON_CALL " + action + " is not implemented yet; skipped");
+                break;
+        }
+    }
+
+    /** {@code p.setAbility(n)}: 0/1 from the species list, 2 the hidden one. */
+    private void applyAbility(Pokemon pokemon, Object value) {
+        if (value instanceof Number) {
+            int index = ((Number) value).intValue();
+            if (pokemon.species != null && index >= 0 && index < pokemon.species.abilities.size) {
+                pokemon.ability = pokemon.species.abilities.get(index);
+            } else if (index == 2 && pokemon.species != null) {
+                pokemon.ability = pokemon.species.hiddenAbility;
+            } else {
+                log.warn("setAbility(" + index + ") has no such ability; skipped");
+            }
+        } else if (value instanceof String) {
+            pokemon.ability = (String) value;
+        }
+    }
+
+    private void applyNature(Pokemon pokemon, Object value) {
+        if (pbs == null) {
+            return;
+        }
+        PbsData.Nature nature = value instanceof Number
+                ? pbs.nature(((Number) value).intValue())
+                : pbs.nature(asName(value));
+        if (nature == null) {
+            log.warn("setNature(" + value + ") is unknown; skipped");
+            return;
+        }
+        pokemon.nature = nature;
+    }
+
+    private void applyForm(Pokemon pokemon, int form) {
+        if (pokemon.species == null) {
+            return;
+        }
+        if (form <= 0) {
+            pokemon.form = null;
+            pokemon.internalName = pokemon.species.internalName;
+            return;
+        }
+        PbsData.SpeciesForm resolved = pbs == null ? null : pbs.form(pokemon.species.internalName, form);
+        if (resolved == null) {
+            log.warn("form " + form + " of " + pokemon.species.internalName + " is unknown; skipped");
+            return;
+        }
+        pokemon.form = resolved;
+        pokemon.internalName = resolved.key;
+    }
+
+    private void learnMove(Pokemon pokemon, String moveName) {
+        if (pbs == null || moveName == null) {
+            return;
+        }
+        PbsData.Move move = pbs.move(moveName);
+        if (move == null) {
+            log.warn("pbLearnMove(" + moveName + ") is unknown; skipped");
+            return;
+        }
+        for (int i = 0; i < pokemon.moves.size; i++) {
+            PbsData.Move known = pokemon.moves.get(i).move;
+            if (known != null && moveName.equals(known.internalName)) {
+                return;
+            }
+        }
+        if (pokemon.moves.size >= 4) {
+            log.warn("pbLearnMove(" + moveName + "): the move list is full; skipped");
+            return;
+        }
+        pokemon.moves.add(new Pokemon.MoveSlot(move));
+    }
+
+    private void pokemonSet(Pokemon pokemon, String property, Object value) {
+        switch (property) {
+            case "iv":
+                copyStats(value, pokemon.ivs, "iv");
+                pokemon.hp = pokemon.maxHp();
+                break;
+            case "ev":
+                copyStats(value, pokemon.evs, "ev");
+                pokemon.hp = pokemon.maxHp();
+                break;
+            case "form":
+                applyForm(pokemon, value instanceof Number ? ((Number) value).intValue() : 0);
+                pokemon.hp = pokemon.maxHp();
+                break;
+            case "ot":
+                pokemon.originalTrainer = asName(value);
+                break;
+            case "name":
+                pokemon.name = asName(value);
+                break;
+            case "battleRank":
+                pokemon.battleRank = value instanceof Number ? ((Number) value).intValue() : 0;
+                break;
+            case "shiny":
+                pokemon.shiny = Boolean.TRUE.equals(value);
+                break;
+            case "item":
+                pokemon.item = asName(value);
+                break;
+            case "nature":
+                applyNature(pokemon, value);
+                break;
+            case "happiness":
+                pokemon.happiness = value instanceof Number ? ((Number) value).intValue() : 0;
+                break;
+            case "stepsToHatch":
+                pokemon.stepsToHatch = value instanceof Number ? ((Number) value).intValue() : 0;
+                break;
+            default:
+                log.warn("Pokemon property " + property + " is not implemented yet; skipped");
+                break;
+        }
+    }
+
+    private void copyStats(Object value, int[] target, String label) {
+        if (!(value instanceof int[]) || ((int[]) value).length != target.length) {
+            log.warn(label + " expects " + target.length + " numbers; skipped");
+            return;
+        }
+        System.arraycopy(value, 0, target, 0, target.length);
+    }
+
+    private static String asName(Object value) {
+        return value instanceof String ? (String) value : null;
     }
 
     /**

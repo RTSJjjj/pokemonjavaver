@@ -1,5 +1,7 @@
 package pokemon.runtime.state;
 
+import pokemon.runtime.pokemon.TrainerState;
+
 /**
  * Runtime game state (project3 section 30): current map, player position,
  * switches, variables, self switches and temporary event state. Stage 3
@@ -24,6 +26,12 @@ public final class GameState {
     private final Inventory inventory = new Inventory();
     /** Quest plugin state (plugin batch 1). */
     private final QuestLog quests = new QuestLog(version);
+    /**
+     * P0c: the player trainer's Pokemon state ({@code $Trainer}: name, party,
+     * money). The Pokemon construction scripts fill it; save serialisation
+     * arrives with P1.
+     */
+    private final TrainerState trainer = new TrainerState();
     /** Essentials {@code $PokemonGlobal.followerToggled} (the follower sprite needs a party). */
     private boolean followerToggled;
     /**
@@ -111,6 +119,14 @@ public final class GameState {
     /** Quests activated / advanced / completed by event scripts (plugin batch 1). */
     public QuestLog quests() {
         return quests;
+    }
+
+    /**
+     * P0c: the player trainer's Pokemon state ({@code $Trainer}). Event scripts
+     * fill the party through the Pokemon construction IR commands.
+     */
+    public TrainerState trainer() {
+        return trainer;
     }
 
     /**

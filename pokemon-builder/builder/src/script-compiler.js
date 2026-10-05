@@ -386,13 +386,135 @@ const SIMPLE_CONDITION = /^\$game_(switches|variables)\[\d+\][^;]*$/;
  * project3 section 25 maps them to JAVA_HANDLER_REQUIRED so R8 can emit stubs.
  */
 const DOMAIN_APIS = new Set([
-  "pbGenPkmn", "pbAddPokemon", "pbChoosePokemon", "pbChoosePokemonForTrade",
-  "pbTrainerBattle", "pbDoubleTrainerBattle", "pbWildBattle", "pbTrainerIntro",
+  "pbGenPkmn", "pbAddPokemon", "pbAddPokemonSilent", "pbChoosePokemon", "pbChoosePokemonForTrade",
+  "pbTrainerBattle", "pbDoubleTrainerBattle", "pbWildBattle", "pbFreeWildBattle", "pbTrainerIntro",
+  "setBattleRule", "pbStartTrade",
   "pbBerryPlant", "pbPickBerry", "pbStoreItem", "pbGetKeyItem", "pbDeleteItem",
   "pbPokeCenterPC", "pbShowMap", "pbSetPokemonCenter",
   "pbToggleFollowingPokemon", "pbRegisterPartner", "pbDeregisterPartner",
   "pbSet", "push",
 ]);
+
+/**
+ * P0c: methods of one Pokemon in the construction scripts
+ * ({@code p = pbGenPkmn(...); p.makeShiny; p.setAbility(1); p.calcStats}).
+ */
+const POKEMON_METHODS = new Set([
+  "makeShiny", "makeSuperShiny", "makeFemale", "makeMale", "calcStats",
+  "setAbility", "setItem", "setNature", "pbLearnMove", "pbRecordFirstMoves",
+]);
+/** P0c: assignable Pokemon fields ({@code p.iv = [...]}, {@code p.form = 1}). */
+const POKEMON_PROPERTIES = new Set([
+  "iv", "ev", "form", "ot", "name", "battleRank", "shiny", "item", "nature",
+  "happiness", "stepsToHatch",
+]);
+
+/**
+ * P0c: a value used by the Pokemon construction scripts. Literals keep the
+ * {@link parseValue} shape; a few Ruby expressions become typed IR values the
+ * runtime resolves without a general script translator:
+ * {@code pbGet(n)} / {@code $game_variables[n]} -> {@code {variable:n}},
+ * {@code $Trainer.pokemonCount} -> {@code {trainerPokemonCount:true}},
+ * a local Pokemon or one of its fields -> {@code {local:"p",property:"iv"}}.
+ */
+function parseScriptValue(text, locals) {
+  const value = String(text).trim();
+  const variable = /^(?:pbGet\(\s*(-?\d+)\s*\)|\$game_variables\[\s*(-?\d+)\s*\])$/.exec(value);
+  if (variable) {
+    return { variable: Number(variable[1] !== undefined ? variable[1] : variable[2]) };
+  }
+  if (/^\$Trainer\.pokemonCount$/.test(value)) {
+    return { trainerPokemonCount: true };
+  }
+  const localProperty = /^([A-Za-z_]\w*)\.([A-Za-z_]\w*)$/.exec(value);
+  if (localProperty && locals.get(localProperty[1]) === "pokemon") {
+    return { local: localProperty[1], property: localProperty[2] };
+  }
+  if (locals.get(value) === "pokemon") {
+    return { local: value };
+  }
+  return parseValue(value);
+}
+
+/**
+ * P0c: translates one statement of a Pokemon construction script, or null when
+ * the statement is not part of that dialect. {@code {todo}} means "this is a
+ * stage 3 statement we cannot translate yet" (battle/trade terminators, loops),
+ * which keeps the whole block in the JAVA_HANDLER_REQUIRED bucket.
+ */
+function pokemonStatement(statement, locals) {
+  const text = statement.trim();
+  let match = /^([A-Za-z_]\w*)\s*=\s*pbGenPkmn\(\s*:([A-Za-z_]\w*)\s*,\s*(-?\d+)\s*\)$/.exec(text);
+  if (!match) {
+    match = /^([A-Za-z_]\w*)\s*=\s*PokeBattle_Pokemon\.new\(\s*:([A-Za-z_]\w*)\s*,\s*(-?\d+)\s*(?:,\s*[^)]*)?\)$/.exec(text);
+  }
+  if (match) {
+    locals.set(match[1], "pokemon");
+    return { ir: { command: "POKEMON_CREATE", local: match[1], species: match[2], level: Number(match[3]) } };
+  }
+  match = /^([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*(?:\((.*)\))?$/s.exec(text);
+  if (match && POKEMON_METHODS.has(match[2]) && locals.get(match[1]) === "pokemon") {
+    const raw = match[3] === undefined || match[3].trim() === "" ? [] : splitArguments(match[3]);
+    const args = raw.map((argument) => parseScriptValue(argument, locals));
+    if (args.some(containsScriptPayload)) {
+      return { todo: true };
+    }
+    return { ir: { command: "POKEMON_CALL", local: match[1], action: match[2], args } };
+  }
+  match = /^([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*=\s*(.+)$/s.exec(text);
+  if (match && POKEMON_PROPERTIES.has(match[2]) && locals.get(match[1]) === "pokemon") {
+    const value = parseScriptValue(match[3], locals);
+    if (containsScriptPayload(value)) {
+      return { todo: true };
+    }
+    return { ir: { command: "POKEMON_SET", local: match[1], property: match[2], value } };
+  }
+  match = /^([A-Za-z_]\w*)\s*=\s*(.+)$/s.exec(text);
+  if (match) {
+    const value = parseScriptValue(match[2], locals);
+    if (containsScriptPayload(value)) {
+      return { todo: true };
+    }
+    locals.set(match[1], "value");
+    return { ir: { command: "LOCAL_SET", local: match[1], value } };
+  }
+  match = /^pbAddPokemon(Silent)?\(\s*([A-Za-z_]\w*)\s*(?:,\s*[^)]*)?\)$/.exec(text);
+  if (match && locals.get(match[2]) === "pokemon") {
+    return { ir: { command: "PARTY_ADD", local: match[2], silent: Boolean(match[1]) } };
+  }
+  match = /^pbSet\(\s*([^,]+?)\s*,\s*(.+)\)$/s.exec(text);
+  if (match) {
+    const id = parseScriptValue(match[1], locals);
+    const value = parseScriptValue(match[2], locals);
+    if (containsScriptPayload(id) || containsScriptPayload(value)) {
+      return { todo: true };
+    }
+    return { ir: { command: "SET_VARIABLE", id, value } };
+  }
+  return null;
+}
+
+/**
+ * P0c: translates one statement of a Pokemon construction script, falling back
+ * to the flat HANDLERS table for the plain API calls that appear next to the
+ * local variables ({@code pbSEPlay}, {@code pbWait}, ...).
+ * @returns {{ir: object} | {todo: true} | {error: string} | null}
+ */
+function translateStatement(statement, locals, block) {
+  const pokemon = pokemonStatement(statement, locals);
+  if (pokemon) return pokemon;
+  const stepName = statementName(statement);
+  const args = statementArguments(statement);
+  const stepHandler = stepName === null ? null : HANDLERS[stepName];
+  if (args === null || typeof stepHandler !== "function") {
+    return null;
+  }
+  try {
+    return { ir: stepHandler(args, block) };
+  } catch (error) {
+    return { error: error.message };
+  }
+}
 
 /**
  * Compiles one block.
@@ -422,12 +544,37 @@ export function compileBlock(block) {
     return { ...entry, status: "UNSUPPORTED", reason: "complex expression needs the script translator" };
   }
   const handler = name ? HANDLERS[name] : null;
+  // P0c: Pokemon construction scripts carry local variables and method calls
+  // (`p = pbGenPkmn(:X, 5); p.makeShiny; p.iv = [...]; pbAddPokemon(p, 1)`),
+  // the one dialect the flat HANDLERS table cannot express. A block that builds
+  // a Pokemon - or only touches game variables through pbSet / pbGet - gets its
+  // own pass; any statement it cannot translate keeps the block in the stage 3
+  // "needs a Java handler" bucket.
+  const statements = rewriteCryStatements(callStatements(block));
+  if (statements.some((statement) => /pbGenPkmn\s*\(|PokeBattle_Pokemon\.new\s*\(|pbSet\s*\(/.test(statement))) {
+    if (statements.length === 0) {
+      return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
+    }
+    const locals = new Map();
+    const steps = [];
+    for (const statement of statements) {
+      const outcome = translateStatement(statement, locals, block);
+      if (outcome === null || outcome.todo || outcome.error !== undefined) {
+        return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
+      }
+      if (containsScriptPayload(outcome.ir)) {
+        return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
+      }
+      steps.push(outcome.ir);
+    }
+    const ir = steps.length === 1 ? steps[0] : { command: "SEQUENCE", steps };
+    return { ...entry, status: "TRANSLATED", ir };
+  }
   if (handler) {
     // R6.19: a block may hold several statements. Every one of them has to
     // translate on its own; the resulting IR is a SEQUENCE the runtime plays
     // step by step (a waiting step such as SHOW_TEXT resumes the rest).
     // R6.30: the project's cry pair is rewritten first.
-    const statements = rewriteCryStatements(callStatements(block));
     if (statements.length === 0) {
       return { ...entry, status: "UNSUPPORTED", reason: "empty script block" };
     }

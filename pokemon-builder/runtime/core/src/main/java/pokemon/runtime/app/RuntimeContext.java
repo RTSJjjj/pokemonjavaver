@@ -382,6 +382,10 @@ public final class RuntimeContext {
                 this::logWarning);
         eventInterpreter.attachScreenEffects(screenEffects);
         eventInterpreter.attachInventory(gameState.inventory());
+        if (database != null) {
+            // P0c: the Pokemon construction IR commands need the PBS data.
+            eventInterpreter.attachPbs(database.pbs());
+        }
         if (database != null && database.system() != null) {
             // Named switches ("s:...") are script expressions, not booleans.
             gameState.switchNames(database.system().switches);
@@ -436,6 +440,9 @@ public final class RuntimeContext {
         interpreter.attachScreenEffects(screenEffects);
         interpreter.attachInventory(gameState.inventory());
         interpreter.attachScriptIr(scriptIr);
+        if (database != null) {
+            interpreter.attachPbs(database.pbs());
+        }
         return interpreter;
     }
 

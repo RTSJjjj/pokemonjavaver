@@ -304,3 +304,60 @@ test("coverage counts every block exactly once", () => {
   assert.equal(ir.length, 1);
   assert.equal(coverage.byApi.pbItemBall.translated, 1);
 });
+
+test("P0c: a pbGenPkmn construction script becomes local-variable IR", () => {
+  const result = compileBlock(essentials("pbGenPkmn",
+      "p=pbGenPkmn(:PANSAGE,15)\np.iv=[31,31,31,31,31,31]\np.setAbility(2)\npbAddPokemon(p,1)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.equal(result.ir.command, "SEQUENCE");
+  assert.deepEqual(result.ir.steps, [
+    { command: "POKEMON_CREATE", local: "p", species: "PANSAGE", level: 15 },
+    { command: "POKEMON_SET", local: "p", property: "iv", value: [31, 31, 31, 31, 31, 31] },
+    { command: "POKEMON_CALL", local: "p", action: "setAbility", args: [2] },
+    { command: "PARTY_ADD", local: "p", silent: false },
+  ]);
+  assert.ok(!JSON.stringify(result.ir).includes("pbGenPkmn"), "IR must not carry Ruby");
+});
+
+test("P0c: Pokemon methods, properties and mixed handler statements translate", () => {
+  const result = compileBlock(essentials("pbGenPkmn",
+      'p=PokeBattle_Pokemon.new(:GOOMY,5,$Trainer)\np.makeShiny\np.ot="阿辽"\np.form=1\n'
+      + "p.setNature(:LONELY)\np.setItem(:LEFTOVERS)\np.pbLearnMove(:TACKLE)\np.calcStats\n"
+      + "pbAddPokemonSilent(p)\npbSEPlay(\"Door enter\")\npbSet(4,p.name)"));
+  assert.equal(result.status, "TRANSLATED");
+  const steps = result.ir.steps;
+  assert.deepEqual(steps[0], { command: "POKEMON_CREATE", local: "p", species: "GOOMY", level: 5 });
+  assert.deepEqual(steps[1], { command: "POKEMON_CALL", local: "p", action: "makeShiny", args: [] });
+  assert.deepEqual(steps[2], { command: "POKEMON_SET", local: "p", property: "ot", value: "阿辽" });
+  assert.deepEqual(steps[3], { command: "POKEMON_SET", local: "p", property: "form", value: 1 });
+  assert.deepEqual(steps[4], { command: "POKEMON_CALL", local: "p", action: "setNature", args: ["LONELY"] });
+  assert.deepEqual(steps[8], { command: "PARTY_ADD", local: "p", silent: true });
+  assert.equal(steps[9].command, "PLAY_SE");
+  assert.deepEqual(steps[10], {
+    command: "SET_VARIABLE",
+    id: 4,
+    value: { local: "p", property: "name" },
+  });
+});
+
+test("P0c: pbGet / $game_variables become typed variable values", () => {
+  const result = compileBlock(essentials("pbSet", "pbSet(10, pbGet(3))"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, { command: "SET_VARIABLE", id: 10, value: { variable: 3 } });
+  const direct = compileBlock(essentials("pbSet", "pbSet(10, $game_variables[4])"));
+  assert.deepEqual(direct.ir, { command: "SET_VARIABLE", id: 10, value: { variable: 4 } });
+});
+
+test("P0c: a battle / trade terminator keeps the block in the handler bucket", () => {
+  const result = compileBlock(essentials("pbGenPkmn",
+      "p=pbGenPkmn(:PIKACHU,5)\np.makeShiny\npbFreeWildBattle(p)"));
+  assert.equal(result.status, "JAVA_HANDLER_REQUIRED");
+  assert.match(result.reason, /Pokemon runtime/);
+});
+
+test("P0c: a Pokemon script with a loop stays in the handler bucket", () => {
+  const result = compileBlock(essentials("pbGenPkmn",
+      "p=pbGenPkmn(:PIKACHU,5)\ncount=$Trainer.pokemonCount\nfor i in 0...count\npbAddPokemon(p,1)\nend"));
+  assert.equal(result.status, "JAVA_HANDLER_REQUIRED");
+});
+
