@@ -238,6 +238,7 @@ scripts\ci-build.bat
   - **窗口不再留黑边**：`DisplaySettings.windowUnit*` 改用**逻辑分辨率**(672×448)，窗口是其整数倍，标题/暂停菜单底部不再被黑幕(旧的 672×488 窗口单位造成的 letterbox)挡住版本号；`DisplaySettingsTest` 已同步；
   - 入口是**右侧面板**：`MPM/sel.png` 420×72，左半=未选、右半=选中；图标 64×72 画在面板 `+8`，文字 `+66`；面板 `x = width-210-40`、`y = 40+84*i`（选中项左移 6、未选变暗）；可见窗 4 项，`j=max(0,index-3)` 滚动；
   - 最右滚动条 `MPM/scrollbar_bg`(8×204) + 拉伸的 `scrollbar_kn`(16×16)，`x=width-28, y=(height-204)/2`；
+  - **细节修正**（照 `PokemonLoad_Scene`/`PokemonLoadPanel#refresh` 的 dumps 逐条核对）：版本号/页脚改用 `MenuFont.lineHeight()` 定位（`y=lineHeight()+4`），不再被窗口下边缘裁掉（之前 `y=6/8`，去掉 letterbox 后文字下半截被切）；
   - 背景：地图快照(模糊) + `MPM/bg` + 滚动 `MPM/panorama`；左上日期时间、左下 `版本号：CURRENT_NAME`；去掉了自造的顶栏(名字/金钱/图鉴)与底栏(Z 确认/X 返回)。
 - 旧的 `PauseMenuModelTest` 已按新顺序更新，并加了"有队伍时宝可梦条目出现在插件位置"的用例。
 
@@ -245,6 +246,8 @@ scripts\ci-build.bat
 - `TitleScreen.renderCommands` 去掉自造的 windowskin 窗口，改为照 `PokemonLoad_Scene#pbStartScene`：
   - 背景 `Graphics/Pictures/loadbg`（672×448）；
   - 命令面板 `Graphics/Pictures/loadPanels`（408×536：继续未选 0、继续选中 222、普通未选 444、普通选中 490），面板 `x=144`、`y` 从 32 起步进 **224（继续槽 408×222）/ 48（普通 408×46）**；
-  - "继续"面板显示玩家名/地图名/存档摘要（`SaveSlots.Slot` 现已读取徽章数/图鉴数/时长）；文本行位照 `PScreen_Load` 的 `line_y=[10,64,96,128]`（top-origin）：标题 28/10、名字 112/56、地图名右对齐 388/10、徽章数 268/64+值右 388、图鉴数 268/96+值右 388、时长 28/96+值右 248、保存时间 28/128+值右 248；普通行标签在 `(32,10)`；
-  - 底部提示 `【←】/【→】:切换存档插槽`。
-- **仍待补**（后续按顺序做）：保存槽的左右切换（多槽位选择）、训练家行走图（`pbSetParty`，`x=56*2-cw/8+32+64, y=32*2-ch/8`、`src_rect` 首帧）与队伍图标（`x=(46+32*i)*2+32+64, y=110*2`）。
+  - "继续"面板（`PokemonLoadPanel#refresh`，文本画在面板自身 bitmap 上、坐标面板相对）：标题 = `←存档N→`/`←自动保存→`（`SaveData.get_*_slot`），名字在 `(112,56)` 且按性别用 `MALETEXTCOLOR`/`FEMALETEXTCOLOR`，地图名右对齐 `388/10`；`line_y=[10,64,96,128]`（top-origin）：`徽章：`/`图鉴：` 在 `268/64`、`268/96`，值右对齐 `388`；`时长：`/`保存时间：` 在 `28/96`、`28/128`，值右对齐 `248`；普通行标签在 `(32,10)`（`TEXTCOLOR=232,232,232`、阴影 `136,136,136`）；
+  - 顶部提示 `[←]/[→]:切换存档插槽`（`004` 的 20px tips bitmap，`y=0` 左上、半透明 `248/88,128`），**仅当"继续"行被选中时显示**；`←/→` 在继续行上循环四个存档槽（`SaveSlots.list`，默认选 `get_newest_slot` 的最新档），确认直接读取该槽（`SaveSlots.Slot` 另读取 `gender`）；
+  - `SaveSlots.Slot` 现已读取徽章数/图鉴数/时长/性别；`playSeconds` 按 double 读。
+- `MenuCapture` 现在有 Gradle 任务 `:lwjgl3:captureMenu`（`-PcaptureArgs=dataRoot|outputDir`）逐屏产出 PNG，便于 P4 每屏回归（已用 `l14-title-commands.png` 核对本屏）。
+- **仍待补**（后续按顺序做）：训练家行走图（`pbSetParty`，`x=56*2-cw/8+32+64, y=32*2-ch/8`、`src_rect` 首帧）与队伍图标（`x=(46+32*i)*2+32+64, y=110*2`）；两者需要从存档读 `playerId` 与队伍 species。
