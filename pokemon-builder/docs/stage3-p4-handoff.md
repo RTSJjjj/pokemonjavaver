@@ -181,9 +181,9 @@ scripts\ci-build.bat
 ## 9. 最新补丁（DeepSeek，工作区未提交；与 P4 一起提交）
 
 > gpt6 的 P4/P2d 仍在工作区，下面是本轮补的**修复**与**「字库」名字输入**实现。
-> 涉及文件：`event/EventInterpreter.java`、`event/EventInterpreterTest.java`、`ui/menu/TrainerSetupView.java`、
-> `ui/menu/NameEntryModel.java`(新)、`ui/menu/NameEntryModelTest.java`(新)、`data/PinyinTable.java`(新)、
-> `data/GameDatabase.java`、`tools/data-converter/index.js`、`ui/menu/P4MenuTest.java`。
+> 涉及文件：`event/EventInterpreter.java`、`event/EventInterpreterTest.java`、`ui/menu/GenderSelectorView.java`(新，取代自造的 `TrainerSetupView`)、
+> `ui/menu/NameEntryModel.java`(新)、`ui/menu/NameEntryModelTest.java`(新)、`ui/menu/PauseMenuOverlay.java`、
+> `data/PinyinTable.java`(新)、`data/GameDatabase.java`、`tools/data-converter/index.js`、`ui/menu/P4MenuTest.java`。
 
 ### 9.1 修复：Show / Move Picture 坐标错位（开场图片全偏）
 - 工程 `Interpreter#command_231/232` 参数顺序：`[number, name, origin, appointmentMode, x, y, zoomX, zoomY, opacity, blend]`。
@@ -197,8 +197,10 @@ scripts\ci-build.bat
   - 数据：`tools/data-converter/index.js#parsePinyinTable` → `generated/text/pinyin.json`（**424 音节→汉字**，`yu`→50 字等），已注册 expectedOutputs。
   - 运行时：`data/PinyinTable`（读 `text/pinyin.json`）+ `GameDatabase.pinyin()`（惰性）。
   - 模型（无头，可测）：`ui/menu/NameEntryModel` —— 字母→拼音缓冲→该音节候选字（分页，每行 11 字 = `PokemonEntryScene2::MaxCharsPerLine`）→选字组合；退格先删拼音再删名字；长度上限。
-  - 视图：`TrainerSetupView` 两段（选性别 → 拼音输名字）：**字母键入、数字键选字、←→ 翻页、退格删除、回车完成、取消先清拼音再完成**；任何路径都能完成，**不会再卡**。
-- **视觉待补**：原工程那套选字网格/立绘皮肤（`Window_CharacterEntry` XSIZE=13/YSIZE=4）——照 `docs/stage3-menu-layout-reference.md` 对齐，属 P4 视觉。
+  - 视图（**照原工程 `BWGenderSelector` 移植**，不再自造）：`ui/menu/GenderSelectorView` —— 用 `Graphics/Pictures/{introbg,genderselect,introBoy,introGirl}.png`，流程与脚本一致：
+    `introbg` 背景 + `genderselect` 男/女条 + `introBoy`/`introGirl` 立绘 → 淡入 → `你是男生还是女生？` → ←→选角 → 确认 `是男生吗？/是女生吗？` → `pbChangePlayer(0/1)` + `$game_variables[52]=id` → `还不知道你的名字呢…` → **字库拼音输名字** → `你的名字是{1}？` → 完成。
+    坐标用脚本里的 `boy.x=100`、`girl.x=Graphics.width-130`、`y=Graphics.height/2`、`genderselect` 上/下半条与 `ox=barwidth/2∓barwidth/6`（RMXP 左上原点 → libGDX `y_gdx = 448 - y`）。
+- **视觉待补**：脚本里的逐帧动画（`selectBoy/selectGirl` 6 帧、`selection` 22 帧的位移/zoom/tone）现为插值近似；`genderselect` 条与立绘的精确动效可按原脚本细调。
 
 ### 9.3 其它
 - `P4MenuTest.optionalSaveFieldsRoundTripAndLegacyBackfillsDex` 修复：测试 `setup()` 少了 `state.enterMap(...)`，且旧档 JSON 没带 `map`（`fromJson` 契约要求地图；与已提交的 `SaveManagerTest.rejectsBadDocuments` 一致）。
