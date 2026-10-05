@@ -46,6 +46,7 @@ public final class SaveManager {
         JsonValue root = object();
         root.addChild("saveVersion", new JsonValue(SAVE_VERSION));
         root.addChild("playerName", new JsonValue(state.playerName() == null ? "" : state.playerName()));
+        root.addChild("playerId", new JsonValue(state.playerId()));
 
         JsonValue map = object();
         map.addChild("id", new JsonValue(state.currentMapId()));
@@ -256,6 +257,9 @@ public final class SaveManager {
         }
 
         state.playerName(root.getString("playerName", state.playerName()));
+        // Older saves predate the selector and used the male graphic (id 0);
+        // a new game never loads, so it still starts blank (-1).
+        state.playerId(root.getInt("playerId", 0));
         state.enterMap(mapId, map.getInt("x", state.playerX()), map.getInt("y", state.playerY()));
         state.setPlayerPosition(map.getInt("x", state.playerX()), map.getInt("y", state.playerY()),
                 map.getInt("direction", state.playerDirection()));

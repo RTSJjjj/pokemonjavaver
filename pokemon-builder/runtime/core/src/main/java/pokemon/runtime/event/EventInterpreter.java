@@ -1261,6 +1261,30 @@ public final class EventInterpreter {
                         + (smash == null ? "not started" : smash.outcome));
                 break;
             }
+            // ---- player graphics (the intro's gender selector) ----
+            case "GENDER_SELECTOR": {
+                // The BWGenderSelector UI (genderselect.png + name entry) is P4;
+                // the stopgap applies the male player so the intro does not leave
+                // the hero without a walking graphic. pbChangePlayer sets it.
+                if (state.playerId() >= 0) {
+                    break; // already chosen (a load or a second page)
+                }
+                state.playerId(0);
+                state.trainer().gender = PokemonStats.MALE;
+                log.warn("gender selector: default male player (full UI arrives in P4)");
+                break;
+            }
+            case "CHANGE_PLAYER": {
+                int playerId = irInt(ir, "playerId", 0);
+                if (playerId < 0 || playerId > 7) {
+                    log.warn("CHANGE_PLAYER " + playerId + " is out of range; skipped");
+                    break;
+                }
+                state.playerId(playerId);
+                state.trainer().gender = playerId == 1 ? PokemonStats.FEMALE : PokemonStats.MALE;
+                log.warn("player graphic -> id " + playerId);
+                break;
+            }
             default:
                 log.warn("IR command " + name
                         + " needs a runtime service that does not exist yet; skipped");

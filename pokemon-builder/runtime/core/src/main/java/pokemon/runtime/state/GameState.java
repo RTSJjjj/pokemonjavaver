@@ -51,6 +51,12 @@ public final class GameState {
      * screen (R10/R14) overwrites.
      */
     private String playerName = "训练家";
+    /**
+     * P-select: the player graphic id chosen by {@code pbChangePlayer} (0..7).
+     * -1 until the intro's gender selector picks one, so a new game starts with
+     * no walking sprite (the project redefines it in the selection script).
+     */
+    private int playerId = -1;
 
     public long version() {
         return version.value();
@@ -127,6 +133,18 @@ public final class GameState {
      */
     public TrainerState trainer() {
         return trainer;
+    }
+
+    /**
+     * P-select: the player graphic chosen by {@code pbChangePlayer}, or -1
+     * before the gender selector has run.
+     */
+    public int playerId() {
+        return playerId;
+    }
+
+    public void playerId(int id) {
+        this.playerId = id;
     }
 
     /**

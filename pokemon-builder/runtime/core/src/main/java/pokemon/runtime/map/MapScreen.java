@@ -152,6 +152,9 @@ public final class MapScreen extends ScreenAdapter {
     private String playerCharacter = PLAYER_CHARACTER;
     private String playerRunningCharacter = PLAYER_RUNNING_CHARACTER;
     private String messageFontName = DEFAULT_MESSAGE_FONT;
+    /** PlayerA..PlayerH metadata; the player id is applied from GameState. */
+    private pokemon.runtime.data.ProjectInfo.RuntimeProfile runtimeProfile;
+    private int appliedPlayerId = Integer.MIN_VALUE;
 
     /**
      * @param mapId the map to show; use the System start map for normal runs,
@@ -193,17 +196,16 @@ public final class MapScreen extends ScreenAdapter {
         // different project does not need runtime edits.
         pokemon.runtime.data.ProjectInfo.RuntimeProfile profile = database.project() == null
                 ? null : database.project().runtime;
+        runtimeProfile = profile;
         if (profile != null) {
-            if (profile.hasPlayerCharset()) {
-                playerCharacter = profile.playerCharset;
-            }
-            if (profile.hasRunningCharset()) {
-                playerRunningCharacter = profile.runningCharset;
-            }
             if (profile.hasMessageFont()) {
                 messageFontName = profile.messageFont;
             }
         }
+        // The player graphic comes from GameState.playerId (pbChangePlayer); a
+        // project with PlayerA..PlayerH metadata starts blank until the gender
+        // selector picks one.
+        applyPlayerCharset();
         mapData = data;
         collectSightEvents(data);
         links = database.links();
@@ -607,6 +609,9 @@ public final class MapScreen extends ScreenAdapter {
         // R6.23: a step that left the map edge lands in the connected
         // neighbour (PokemonMapFactory#setCurrentMap).
         updateMapConnection();
+        if (gameState.playerId() != appliedPlayerId) {
+            applyPlayerCharset(); // pbChangePlayer changed the walking graphic
+        }
         updateGrassRustle(); // R6.28: Essentials field-movement rustle
         // R6.15/R6.33: the arrival door page must not show the hero before its
         // forced walk-out route really steps. On maps with several doors, every
@@ -984,6 +989,42 @@ public final class MapScreen extends ScreenAdapter {
             return true;
         }
         return data.snapEdges;
+    }
+
+    /**
+     * Applies {@link GameState#playerId()} to the player's walking graphic.
+     * A project with PlayerA..PlayerH metadata starts blank (id -1) until the
+     * intro's gender selector runs pbChangePlayer; a project without the table
+     * keeps the default charset.
+     */
+    private void applyPlayerCharset() {
+        pokemon.runtime.data.ProjectInfo.RuntimeProfile profile = runtimeProfile;
+        boolean hasSelector = profile != null && profile.players != null && profile.players.size > 0;
+        int id = gameState.playerId();
+        String charset = null;
+        String running = null;
+        if (id >= 0 && profile != null) {
+            pokemon.runtime.data.ProjectInfo.PlayerGraphic graphic = profile.player(id);
+            if (graphic != null) {
+                charset = blankToNull(graphic.charset);
+                running = blankToNull(graphic.runningCharset);
+            }
+        }
+        if (charset == null && !hasSelector) {
+            charset = PLAYER_CHARACTER;
+            running = PLAYER_RUNNING_CHARACTER;
+        }
+        playerCharacter = charset;
+        playerRunningCharacter = running;
+        appliedPlayerId = id;
+        if (player != null) {
+            player.characterName = charset;
+            player.runningCharacterName = running;
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
     }
 
     /**

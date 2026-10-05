@@ -91,6 +91,8 @@ public class ProjectInfo {
         public String messageFont;
         public int screenWidth;
         public int screenHeight;
+        /** PlayerA..PlayerH graphics (id 0..7) for pbChangePlayer. */
+        public com.badlogic.gdx.utils.Array<PlayerGraphic> players;
 
         public boolean hasPlayerCharset() {
             return playerCharset != null && !playerCharset.isEmpty();
@@ -103,5 +105,20 @@ public class ProjectInfo {
         public boolean hasMessageFont() {
             return messageFont != null && !messageFont.isEmpty();
         }
+
+        /** The graphics of one player id, or null when the manifest lacks it. */
+        public PlayerGraphic player(int id) {
+            return players == null || id < 0 || id >= players.size ? null : players.get(id);
+        }
+    }
+
+    /** One PBS/metadata.txt PlayerX entry. */
+    public static class PlayerGraphic {
+        public String trainerType;
+        public String charset;
+        public String bikeCharset;
+        public String surfCharset;
+        public String runningCharset;
+        public String fishCharset;
     }
 }

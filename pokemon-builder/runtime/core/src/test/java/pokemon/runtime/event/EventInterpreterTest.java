@@ -596,6 +596,23 @@ class EventInterpreterTest {
         assertFalse(interpreter.running());
     }
 
+    @Test
+    @DisplayName("P-select: GENDER_SELECTOR then CHANGE_PLAYER set the player graphic")
+    void playerGraphics() {
+        scriptIr.put("b1", new com.badlogic.gdx.utils.JsonReader().parse("{\"command\":\"GENDER_SELECTOR\"}"));
+        scriptIr.put("b2", new com.badlogic.gdx.utils.JsonReader().parse("{\"command\":\"CHANGE_PLAYER\",\"playerId\":1}"));
+        EventCommand first = cmd(0, 355, 0, array("pbGenderSelector"));
+        first.scriptBlockId = "b1";
+        EventCommand second = cmd(1, 355, 0, array("pbChangePlayer(1)"));
+        second.scriptBlockId = "b2";
+        interpreter.start(program(first, second), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+
+        assertEquals(1, state.playerId());
+        assertEquals(pokemon.runtime.pokemon.PokemonStats.FEMALE, state.trainer().gender);
+    }
+
     // ------------------------------------------------------------------
 
     private void press(GameAction action) {

@@ -27,6 +27,7 @@ class SaveManagerTest {
         state.variables().set(7, -2);
         state.selfSwitches().set(7, 12, "B", true);
         state.inventory().add("ORANBERRY", 3);
+        state.playerId(1);
         state.pokemonMapStrengthUsed(true);
         return state;
     }
@@ -37,6 +38,7 @@ class SaveManagerTest {
         assertEquals(expected.playerY(), actual.playerY());
         assertEquals(expected.playerDirection(), actual.playerDirection());
         assertEquals(expected.playerName(), actual.playerName());
+        assertEquals(expected.playerId(), actual.playerId());
         assertEquals(expected.switches().get(3), actual.switches().get(3));
         assertEquals(expected.switches().get(9), actual.switches().get(9));
         assertEquals(2, actual.switches().size());

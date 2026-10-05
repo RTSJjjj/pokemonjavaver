@@ -430,6 +430,17 @@ test("P2: wild / trainer battle scripts become battle IR", () => {
   );
 });
 
+test("P-select: pbGenderSelector / pbChangePlayer become player IR", () => {
+  assert.deepEqual(
+    compileBlock(essentials("pbGenderSelector", "pbGenderSelector")).ir,
+    { command: "GENDER_SELECTOR" },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbChangePlayer", "pbChangePlayer(1)")).ir,
+    { command: "CHANGE_PLAYER", playerId: 1 },
+  );
+});
+
 
 
 

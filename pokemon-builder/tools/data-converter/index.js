@@ -586,12 +586,31 @@ function runtimeProfile(projectPath, scriptSources) {
   try {
     const metadata = path.join(projectPath, "PBS", "metadata.txt");
     if (existsSync(metadata)) {
-      const line = readFileSync(metadata, "utf8").split(/\r?\n/)
-        .find((entry) => /^PlayerA\s*=/.test(entry.trim()));
-      if (line) {
-        const fields = line.slice(line.indexOf("=") + 1).split(",").map((field) => field.trim());
-        if (fields[1]) profile.playerCharset = fields[1];
-        if (fields[4]) profile.runningCharset = fields[4];
+      const lines = readFileSync(metadata, "utf8").split(/\r?\n/);
+      // PlayerA..PlayerH: [trainerType, charset, bike, surf, run, surf, fish, fish];
+      // the gender selector calls pbChangePlayer(id) to apply one of them.
+      const players = [];
+      for (const entry of lines) {
+        const match = /^Player([A-H])\s*=\s*(.*)$/.exec(entry.trim());
+        if (!match) {
+          continue;
+        }
+        const fields = match[2].split(",").map((field) => field.trim());
+        players.push({
+          trainerType: fields[0] || "",
+          charset: fields[1] || "",
+          bikeCharset: fields[2] || "",
+          surfCharset: fields[3] || "",
+          runningCharset: fields[4] || "",
+          fishCharset: fields[6] || "",
+        });
+      }
+      if (players.length > 0) {
+        profile.players = players;
+        // Keep the PlayerA-derived single defaults for manifests read by an
+        // older runtime build.
+        if (players[0].charset) profile.playerCharset = players[0].charset;
+        if (players[0].runningCharset) profile.runningCharset = players[0].runningCharset;
       }
     }
   } catch (error) {

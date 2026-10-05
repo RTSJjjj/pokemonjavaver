@@ -282,6 +282,15 @@ export const HANDLERS = {
   pbTrainerEnd() {
     return { command: "TRAINER_END" };
   },
+  // ---- player graphics (the intro's gender selector) ----
+  /** The BWGenderSelector plugin: picks a gender and applies pbChangePlayer. */
+  pbGenderSelector() {
+    return { command: "GENDER_SELECTOR" };
+  },
+  /** pbChangePlayer(id) sets the walking graphic from metadata PlayerA+id. */
+  pbChangePlayer(args) {
+    return { command: "CHANGE_PLAYER", playerId: args[0] };
+  },
   // ---- P2: wild / trainer battles ----
   /** pbWildBattle(species, level[, ...]) starts a single wild battle. */
   pbWildBattle(args) {
