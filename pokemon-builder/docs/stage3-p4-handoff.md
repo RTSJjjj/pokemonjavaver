@@ -290,6 +290,11 @@ scripts\ci-build.bat
   - 页5：`缎带数量(38,303)`、数量**右对齐** `(157,334)`、缎带图 `Pictures/ribbons`(64×64, `src(64*(id%8),64*(id/8))`) `(2+68*(c%4),74+68*(c/4))`；
   - 蛋页 `drawPageOneEgg`：球 `(518,44)`、`面板(26,8)`、名字 `(424,46)`、`道具(366,322)`、道具名 `(290,350)`/`无(360,350)`、备忘 `(10,82)`。
 - 操作：`←→` 翻页(1..5)、`↑↓` 换队伍成员、`X/B` 返回（蛋不翻页）。
-- **数据缺口**（Java 模型暂无 → 用插件默认/占位，需用户定夺是否补 P0 字段）：`publicID`(页1 ID 显示 `00000`)、`otGender`、获取日期/地图/等级/方式(`timeReceived/obtainMap/obtainLevel/obtainMode`，页2 用 `遥远的地方`+`等级N时遇见`)、`ballused`(球图固定 `icon_ball_00`)、`markings`(全空标记)、`pokerusStage`、缎带是**名字**数组而非插件缎带 id(页5 只画数量)、`personalID`(特性用 `hashCode` 兜底)。性格名显示英文（工程无 `PBS/natures.txt`，`natures.json` 即英文）。
-- **待补**：页4 `Z` 的招式详情子页 `drawSelectedMove`(`bg_movedetail`/`bg_learnmove`) + 页5 的缎带游标 `pbRibbonSelection`。`MenuCapture` 增 `l1-summary-1..5`。
-- 顺带发现：队伍屏 `PartyView` 把状态图写成 `Pictures/Party/statuses`（插件是全局 `Graphics/Pictures/statuses`）→ 一直加载失败；且插件是在**详情面板** overlay `blt(0,12,..)`（绝对 `details.x+12, details.y+12`）而不是每个槽。待修。
+- **各页功能（照插件）**：
+  - 页1-3 `Z` → `pbOptions` 命令窗（`pbShowCommands`，`pbBottomRight` 贴右下角）：`携带道具`/`拿回道具`(有道具时)/`标记`/`取消`。`携带道具` → 背包"为某只宝可梦选道具"模式（`BagView.chooseHold`，插件的 `pbChooseItemScreen`，经 `PauseMenuOverlay.openBagForHold` 回跳）；`拿回道具` → 放回背包；`标记` → `pbMarking`（`overlay_marking` 210×268 @`(260,88)`、6 标记 `(300+58*(i%3),154+50*(i/3))`、`cursor_marking` @`(284+58*(i%3),144+50*(i/3))`、OK `(284,244)`/取消 `(284,294)`、文字右对齐 `x=366`）。
+  - 页4 `Z` → `pbMoveSelection`：`bg_movedetail`、招式列表 `yPos=98` 步进 `64`（属性图 `(310,y+2)`、名 `(380,y)`、`PP` `(380,y+32)`、值右缘 `492`、分类图 `(310,y+32)`）、`招式/威力/命中/标签` `(26,8)/(20,122)/(20,154)/(20,186)`、威力/命中居中 `(216,122)/(216,155)`、标签图 `(120,188)` 步进 26（`b/e` 是**没有才显示**）、描述 `((4,220),宽230,5行)`、`cursor_move` `(286,91+64*i)`、`pokeicon` `(46,92)`；`↑↓` 换招式、`Z` 选/换位、`X` 返回。
+  - 页5 `Z` → `pbRibbonSelection`：`overlay_ribbon` `(0,280)`、名 `(30,286)`、描述 `((30,318),480)`、`cursor_ribbon` `(0+68*(i%4),72+68*(i/4))`、上下箭头 `(260,56)/(260,260)`；`↑↓←→` 移、`Z` 换位、页滚动 `ribbonOffset`。名字/描述来自新移植的 `pokemon/Ribbons`（`PBRibbons` 全表）。
+- **已补 P0 字段**（`Pokemon` + 存档往返）：`personalID`/`publicID`/`otGender`/`ballused`/`markings`/`obtainMap`/`obtainLevel`/`obtainMode`/`obtainText`/`pokerus`。页1 的训练家名/ID/颜色、球图、标记、Pokerus、页2 获取信息、特性（`personalID%6`）都按插件。
+- **缎带 id 口径**：插件是 int（`PBRibbons` 常量，1-based），本工程事件/测试存的是字符串 → 页面只解析**数字字符串**为 id（其余跳过）。若要完全一致需把 `Pokemon.ribbons` 改 `IntArray` 并改事件/存档/测试。
+- 顺带修复：队伍屏状态图路径 `Pictures/Party/statuses` → 插件全局 `Pictures/statuses`，且画在**详情面板** `(self.x+12, self.y+12)=(348,108)`（不是每个槽）；行索引改成插件的 `status-1`（0 睡/1 毒/2 烧/3 麻/4 冰、7 濒死）。
+- **待补**：页1-3 选项里的 `查看图鉴`（工程未建模 `$Trainer.pokedex`）。`MenuCapture` 增 `l1-summary-1..5`、`l1-summary-{ribbon,move,move2,options,hold,marking}`。
