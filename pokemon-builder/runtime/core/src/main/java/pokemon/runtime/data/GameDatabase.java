@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
 import pokemon.runtime.map.MapLinks;
+import pokemon.runtime.pokemon.PbsData;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +41,10 @@ public final class GameDatabase {
     private final AnimationData animations;
     /** L1: title screen configuration (splash slides / title BGM). */
     private final TitleData title;
+
+    /** Stage 3 / P0: PBS tables (species, moves, items, ...), loaded lazily. */
+    private PbsData pbs;
+    private boolean pbsLoaded;
 
     private final ObjectMap<Integer, MapData> mapCache = new ObjectMap<>();
     private final ObjectMap<Integer, CommonEventData> commonEventCache = new ObjectMap<>();
@@ -199,6 +204,19 @@ public final class GameDatabase {
         return maps;
     }
 
+    /**
+     * Stage 3 / P0: the Essentials PBS tables ({@code generated/pbs/*.json}).
+     * Loaded on first use so the title screen and menus do not pay for the
+     * ~6 MB of JSON up front.
+     */
+    public PbsData pbs() {
+        if (!pbsLoaded) {
+            pbs = PbsData.parse(dataRoot);
+            pbsLoaded = true;
+        }
+        return pbs;
+    }
+
     public int mapCount() {
         return maps.size;
     }
@@ -351,5 +369,7 @@ public final class GameDatabase {
     public void dispose() {
         mapCache.clear();
         commonEventCache.clear();
+        pbs = null;
+        pbsLoaded = false;
     }
 }
