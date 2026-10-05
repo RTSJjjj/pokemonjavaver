@@ -249,5 +249,5 @@ scripts\ci-build.bat
   - "继续"面板（`PokemonLoadPanel#refresh`，文本画在面板自身 bitmap 上、坐标面板相对）：标题 = `←存档N→`/`←自动保存→`（`SaveData.get_*_slot`），名字在 `(112,56)` 且按性别用 `MALETEXTCOLOR`/`FEMALETEXTCOLOR`，地图名右对齐 `388/10`；`line_y=[10,64,96,128]`（top-origin）：`徽章：`/`图鉴：` 在 `268/64`、`268/96`，值右对齐 `388`；`时长：`/`保存时间：` 在 `28/96`、`28/128`，值右对齐 `248`；普通行标签在 `(32,10)`（`TEXTCOLOR=232,232,232`、阴影 `136,136,136`）；
   - 顶部提示 `[←]/[→]:切换存档插槽`（`004` 的 20px tips bitmap，`y=0` 左上、半透明 `248/88,128`），**仅当"继续"行被选中时显示**；`←/→` 在继续行上循环四个存档槽（`SaveSlots.list`，默认选 `get_newest_slot` 的最新档），确认直接读取该槽（`SaveSlots.Slot` 另读取 `gender`）；
   - `SaveSlots.Slot` 现已读取徽章数/图鉴数/时长/性别；`playSeconds` 按 double 读。
-- `MenuCapture` 现在有 Gradle 任务 `:lwjgl3:captureMenu`（`-PcaptureArgs=dataRoot|outputDir`）逐屏产出 PNG，便于 P4 每屏回归（已用 `l14-title-commands.png` 核对本屏）。
-- **仍待补**（后续按顺序做）：训练家行走图（`pbSetParty`，`x=56*2-cw/8+32+64, y=32*2-ch/8`、`src_rect` 首帧）与队伍图标（`x=(46+32*i)*2+32+64, y=110*2`）；两者需要从存档读 `playerId` 与队伍 species。
+- `MenuCapture` 现在有 Gradle 任务 `:lwjgl3:captureMenu`（`-PcaptureArgs=dataRoot|outputDir`）逐屏产出 PNG，便于 P4 每屏回归（已用 `l14-title-commands.png` 核对本屏；capture 里已 seed 玩家 `playerId=0` 与 BULBASAUR/CHARMANDER/SQUIRTLE 队伍）。
+- **已补 `pbSetParty`**：`SaveSlots.Slot` 另读 `playerId` 与 `trainer.party[].{species,gender,shiny,egg}`；`TitleScreen.drawPartySprites` 画训练家行走图（`Characters/<runtime.players[id].charset>`，取 `src_rect` 首帧 `w/4×h/4`，`x=208-frameW/2, y=height-64-frameH/2`）与队伍图标（`Icons/icon%03d[+f][+s]`，原点 Center=脚下 `(188+64i, 220)`、`oy=h*5/8`）；`MenuAssets` 加 `character()`/`icon()` 载入器。
