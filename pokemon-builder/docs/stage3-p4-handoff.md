@@ -265,3 +265,13 @@ scripts\ci-build.bat
 - `BagModel`：`cursor` 可见 9 行、多一行 `关闭背包`（`selected()` 在末行返回 null → 关闭背包）。
 - 机制：`使用 / 给予 / 丢弃(remove 1) / 取消`（`ItemUse`/`PartyModel.giveItem`），未移植登录/整理（插件 `A/SHIFT` 排序）——需要再说。
 - `PauseMenuOverlay` 加 `openAt(action)` 便于截图/测试直接进入某子界面；`MenuCapture` 增加 `l1-bag*` 四张（seed 了道具/队伍）。
+
+### 9.8 宝可梦菜单对齐 `PScreen_Party`（进行中）
+- `PartyView` 重写为 `PScreen_Party` 的 `PokemonParty_Scene#pbStartScene` 版式：
+  - 背景 `Pictures/Party/bg` + `bg2`（各 672×448，bg2 z+1）；
+  - 选择底板 `PokemonPartySelectionBackgroundPanel`：`Pictures/Party/panel_pok_base_bg`（430×88）在 `((width-430)/2, 228+64)=(121,292)`；
+  - 6 个槽 `PokemonPartySelectionPanel`：`slot_width=72`、`start_x=(width-430)/2=121`、`y=226+64=290`；每槽：阴影 `Party/shadow`(32×14) 中心 `(x+24, y+64)`、宝可梦图标 `Icons/icon%03d[+s]`（`PictureOrigin::Center`，`oy=h*5/8`）在 `(x+36, y+52)`、携带道具 `Icons/item%03d` 在 `(x+40, y+56)`、选中箭头 `Party/arrow_normal`(20×12) 在 `(x+24, y)`、状态 `Pictures/statuses`(44×16, `src(0,16*status,44,16)`) 在 `(x+12, y+12)`；
+  - 详情 `PokemonPartyDetailsPanel`：`self.y=height/2-128=96`；对战图（`Battlers/%03d[+s]`）中心 `(width/2, 126)`；HP 条 `Party/overlay_hp`(96×6, `src(0,hpzone*6,hpw,6)`) 在 `(91+offset, 250)`，`offset=width/2-96=240`；名字居中 `(-90+offset,15)`、等级右对齐 `262+offset+32`、HP 文本右对齐 `130+offset`、性别图标 `(152+offset,18)`；
+  - 底部帮助窗（`bw choice` skin）。
+- 交互保留：`←→/↑↓` 移动光标、`Z` 打开 `查看详情/交换位置/取下道具/返回`、`X` 返回；交换/取下道具沿用 `PartyModel`。
+- **仍待补**：`BW PScreen_Summary`（详情页）、性格/特性/招式/个体/属性图标等详情分栏、`[F]:寄存系统`。<b>`MenuCapture` `l1-party*` 两张。</b>
