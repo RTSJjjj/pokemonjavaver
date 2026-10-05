@@ -38,6 +38,7 @@ import { isInside } from "../../builder/src/config.js";
 import { scanProject } from "../scanner/index.js";
 import { analyzeProjectEvents } from "../event-analyzer/index.js";
 import { readScriptSources } from "../scanner/index.js";
+import { buildPbsIr } from "./pbs.js";
 import { analyzeScriptUsage } from "../script-analyzer/index.js";
 import { rubyText } from "../scanner/index.js";
 import {
@@ -1190,6 +1191,14 @@ export function convertProject(projectPath, options = {}) {
   const connectionsIr = parseConnections(projectPath, mapsIndex, result.warnings);
   write("connections.json", connectionsIr);
 
+  // Stage 3 / P0: Essentials PBS data (species, forms, moves, items, abilities,
+  // type chart, trainer classes, natures, TM compatibility). Global outputs like
+  // connections.json: always rewritten and registered in expectedOutputs below.
+  const pbsData = buildPbsIr(projectPath);
+  for (const [relative, document] of Object.entries(pbsData.output)) {
+    write(relative, document);
+  }
+
   const commonEventsIndex = [];
   const commonEventsUnitId = "commonEvents";
   const commonEventsDeps = ["Data/CommonEvents.rxdata", "Data/Scripts.rxdata"];
@@ -1383,6 +1392,15 @@ export function convertProject(projectPath, options = {}) {
     tilesets: tilesetsIr.tilesets.length,
     dataFiles: scan.data.rxdataCount,
     dataFilesParsed: scan.data.parsedCount,
+    pbsSpecies: pbsData.counts.species,
+    pbsForms: pbsData.counts.forms,
+    pbsMoves: pbsData.counts.moves,
+    pbsItems: pbsData.counts.items,
+    pbsAbilities: pbsData.counts.abilities,
+    pbsTypes: pbsData.counts.types,
+    pbsTrainerTypes: pbsData.counts.trainerTypes,
+    pbsNatures: pbsData.counts.natures,
+    pbsTmMoves: pbsData.counts.tmMoves,
     pbsFiles: pbs.files.length,
     mapsSkipped: result.incremental.skipped.filter((id) => id.startsWith("map:")).length,
     mapsRebuilt: result.incremental.rebuilt.filter((id) => id.startsWith("map:")).length,
@@ -1404,6 +1422,7 @@ export function convertProject(projectPath, options = {}) {
       scripts: "scripts/blocks.json",
       apis: "scripts/apis.json",
       connections: "connections.json",
+      pbs: "pbs/index.json",
       animations: "animations.json",
       tilesets: "tilesets.json",
       system: "system.json",
@@ -1461,6 +1480,9 @@ export function convertProject(projectPath, options = {}) {
     "metadata/problems.json",
   ]);
   if (titleIr) expectedOutputs.add("title.json");
+  for (const relative of Object.keys(pbsData.output)) {
+    expectedOutputs.add(relative);
+  }
   for (const unit of Object.values(cacheUnits)) {
     for (const output of unit.outputs) expectedOutputs.add(output);
   }

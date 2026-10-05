@@ -1,0 +1,26 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsIndex",
+  "counts": {
+    "species": 0,
+    "forms": 0,
+    "moves": 0,
+    "items": 0,
+    "abilities": 0,
+    "types": 0,
+    "trainerTypes": 0,
+    "natures": 25,
+    "tmMoves": 0
+  },
+  "files": {
+    "pokemon": "pbs/pokemon.json",
+    "forms": "pbs/pokemonforms.json",
+    "moves": "pbs/moves.json",
+    "items": "pbs/items.json",
+    "abilities": "pbs/abilities.json",
+    "types": "pbs/types.json",
+    "trainerTypes": "pbs/trainertypes.json",
+    "natures": "pbs/natures.json",
+    "tm": "pbs/tm.json"
+  }
+}

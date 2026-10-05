@@ -284,7 +284,7 @@ test("replaces stale intermediate data", (t) => {
   assert.ok(existsSync(path.join(generatedDir, "maps", "map-001.json")));
   for (const name of readdirSync(generatedDir)) {
     assert.ok(["project.json", "maps", "events", "common-events", "scripts", "metadata",
-      "connections.json", "animations.json", "tilesets.json", "system.json"].includes(name), name);
+      "connections.json", "animations.json", "tilesets.json", "system.json", "pbs"].includes(name), name);
   }
 });
 
