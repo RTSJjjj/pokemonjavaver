@@ -255,9 +255,12 @@ scripts\ci-build.bat
 ### 9.7 背包对齐 `BW Bag`（PScreen Bag Graphical Overhaul）
 - `BagView` 重写为 `BW Bag` 的 `PokemonBag_Scene#pbStartScene/pbRefresh*` 版式（不再用自造 `MenuPanel`）：
   - 背景：滚动 `AnimatedPlane` `Pictures/Bag/bg_grid`（女 `bg_gridf`，576×336 平铺，`ox+=1`/帧）→ 背包图 `bag_<pocket>`（女且存在则 `bag_<pocket>_f`，`(-30,10)`）→ 外框 `bg`/`bg_f`（672×448）；
-  - 口袋图标：`icon_pocket`（28×28，`blt(2,2,src((pocket-1)*28,0,28,28))` 在 `(0,-3)` 的 186×32 sprite 上）；口袋名 `PokemonBag.pocketNames[pocket]` 右对齐 `(110,186)`；
-  - 物品窗 `Window_PokemonBag` `x=218-32+64=250, y=-8, w=326+32=358, h=80+9*32=368`，`ITEMSVISIBLE=9`、行高 32；行内容照 `drawItem`（+16/+16）：光标 `Bag/cursor`（314×34，`(baseX+12, y+2)`）、图标 `Icons/item%03d` 取 48×48 缩到 24×24（`(baseX+16, y+22)`）、名字 `(baseX+44, y+20)`、数量 `x%3d` 右对齐；重要道具（`pocket==8` 或 `fieldUse==4`）不显示数量、显示 `icon_register`；末行 `关闭背包`；
-  - 选中道具 48×48 图标 `(48,height-48)` Center 原点、说明文字 `(84,334)` `564×128`（`ITEMTEXTBASECOLOR 248,248,248`/阴影 `90,90,90`）；左上 `[Z]:手动 [Shift]:自动`（插件 `overlay2` 小字；因运行时系统字号更大改到 `x=34` 左对齐以免被裁）。
+  - 口袋图标：`icon_pocket`（28×28，`blt(2,2,src((pocket-1)*28,0,28,28))` 在 `(0,-3)` 的 186×32 sprite 上）；口袋名 `PokemonBag.pocketNames[pocket]` 画在 `(110,186)`；
+  - 物品窗 `Window_PokemonBag` `x=218-32+64=250, y=-8, w=326+32=358, h=80+9*32=368`，`ITEMSVISIBLE=9`、行高 32；**`windowskin=nil` ⇒ SpriteWindow 边框 32、`startX/Y=16`，内容原点 `(266,8)`**，`drawItem` 再 `+16/+16`，故：光标 `Bag/cursor` 在 `(266+12, row+1)`、图标 `Icons/item%03d` 48×48 缩 24×24 在 `(266+16, row+22)`、名字 `(266+44, row+20)`、数量 `x%3d` 右缘 `266+326-16=576`、`icon_register` 在 `266+326-64`；重要道具（`pocket==8` 或 `fieldUse==4`）不显示数量、显示 `icon_register`；末行 `关闭背包`；
+  - `Bag/cursor.png` 是 **314×68**、圆角框在 `y=16..53`（38 高），要取 `src(0,16,314,38)`（之前只取上半 → 高亮框被削一半）；
+  - 右侧滚动条 `icon_slider`（`534+64=598`，上/下箭头 + 滑块，多于 9 行时）；
+  - 选中道具 48×48 图标 `(48,height-48)` Center 原点、说明文字框 `(84,334)`⇒内容 `(100,350)` `564×128`（`ITEMTEXTBASECOLOR 248,248,248`/阴影 `90,90,90`）；左上 `[Z]:手动 [Shift]:自动` 用**小字**（`PauseMenuOverlay` 新增 size 14 的 `smallFont`）右对齐 `(108,8)`。
+- **选项窗体照插件**：`BW Bag` 的 `pbShowCommands` 用项目 windowskin 的窗口；`BagView.drawAction` 改画右侧命令窗（`使用/给予/丢弃/取消`，`▶` 光标）+ 底部消息窗 `已选择<道具名>`，不再是自绘面板。
 - `BagModel`：`cursor` 可见 9 行、多一行 `关闭背包`（`selected()` 在末行返回 null → 关闭背包）。
-- 机制仍是 `使用/交给宝可梦/返回`（`ItemUse`/`PartyModel.giveItem`），未移植登录/丢弃/整理（插件 `A/SHIFT` 排序）——需要再说。
-- `PauseMenuOverlay` 加 `openAt(action)` 便于截图/测试直接进入某子界面；`MenuCapture` 增加 `l1-bag*` 三张（seed 了道具/队伍）。
+- 机制：`使用 / 给予 / 丢弃(remove 1) / 取消`（`ItemUse`/`PartyModel.giveItem`），未移植登录/整理（插件 `A/SHIFT` 排序）——需要再说。
+- `PauseMenuOverlay` 加 `openAt(action)` 便于截图/测试直接进入某子界面；`MenuCapture` 增加 `l1-bag*` 四张（seed 了道具/队伍）。
