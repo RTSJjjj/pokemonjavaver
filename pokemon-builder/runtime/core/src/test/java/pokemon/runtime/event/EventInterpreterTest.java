@@ -585,6 +585,17 @@ class EventInterpreterTest {
         assertFalse(state.switches().get(1));
     }
 
+    @Test
+    @DisplayName("P2: an empty numeric command parameter falls back instead of crashing")
+    void emptyNumericParameter() {
+        // The intro's Fade Screen carries an empty duration string; asInt()
+        // used to throw NumberFormatException and close the game.
+        interpreter.start(program(cmd(0, 221, 0, array(""))), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        assertFalse(interpreter.running());
+    }
+
     // ------------------------------------------------------------------
 
     private void press(GameAction action) {

@@ -1,5 +1,6 @@
 package pokemon.runtime.lwjgl3;
 
+import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
@@ -27,6 +28,7 @@ public final class Lwjgl3Launcher {
     }
 
     public static void main(String[] args) {
+        installCrashLog();
         List<String> positional = DisplaySettings.positionals(args);
         DisplaySettings display = DisplaySettings.parse(args);
         // R12: a packaged app-image keeps its runtime data next to the exe; the
@@ -68,8 +70,77 @@ public final class Lwjgl3Launcher {
                 System.err.println("ignoring invalid map id argument: " + positional.get(1));
             }
         }
-        new Lwjgl3Application(new PokemonGame(dataRoot, startMap, new Lwjgl3KeyStateSource()),
-                config);
+        new Lwjgl3Application(new CrashGuardedListener(
+                new PokemonGame(dataRoot, startMap, new Lwjgl3KeyStateSource())), config);
+    }
+
+    /**
+     * Writes any uncaught exception to {@code ~/pokemon-runtime-crash.log} and
+     * still prints it, so a crash is diagnosable even when the launcher hides
+     * stdout (jpackage). A render-loop failure is caught and rethrown so libGDX
+     * still stops, but the file keeps the stack.
+     */
+    private static void installCrashLog() {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> writeCrash(error));
+    }
+
+    static void writeCrash(Throwable error) {
+        error.printStackTrace();
+        try {
+            File file = new File(System.getProperty("user.home", "."), "pokemon-runtime-crash.log");
+            try (java.io.PrintWriter out = new java.io.PrintWriter(new java.io.FileWriter(file, true))) {
+                out.println("=== " + new java.util.Date() + " thread="
+                        + Thread.currentThread().getName() + " ===");
+                error.printStackTrace(out);
+            }
+            System.err.println("[PokemonGame] crash log: " + file.getAbsolutePath());
+        } catch (Exception ignored) {
+            // never let crash logging hide the original error
+        }
+    }
+
+    /** Forwards to the game, capturing a render-loop throwable first. */
+    private static final class CrashGuardedListener implements ApplicationListener {
+        private final ApplicationListener game;
+
+        CrashGuardedListener(ApplicationListener game) {
+            this.game = game;
+        }
+
+        @Override
+        public void create() {
+            game.create();
+        }
+
+        @Override
+        public void resize(int width, int height) {
+            game.resize(width, height);
+        }
+
+        @Override
+        public void render() {
+            try {
+                game.render();
+            } catch (Throwable error) {
+                writeCrash(error);
+                throw error;
+            }
+        }
+
+        @Override
+        public void pause() {
+            game.pause();
+        }
+
+        @Override
+        public void resume() {
+            game.resume();
+        }
+
+        @Override
+        public void dispose() {
+            game.dispose();
+        }
     }
 
     /**

@@ -16,6 +16,16 @@ application {
     applicationName = 'PokemonGame'
 }
 
+// Stage 3 dev runs: point the game at the Builder's generated/ output so
+// `gradlew :lwjgl3:run` works from the runtime project (its working dir is
+// lwjgl3/, which has no runtime data of its own).
+tasks.named('run') {
+    def generated = new File(rootProject.projectDir.parentFile, 'generated')
+    if (generated.isDirectory()) {
+        systemProperty 'pokemon.runtime.data', generated.absolutePath
+    }
+}
+
 tasks.register('captureMap', JavaExec) {
     description = 'Captures the production map renderer through a real OpenGL framebuffer.'
     classpath = sourceSets.main.runtimeClasspath

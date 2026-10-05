@@ -1670,12 +1670,41 @@ public final class EventInterpreter {
 
     private static int intParam(JsonValue parameters, int position, int fallback) {
         JsonValue value = parameters == null ? null : parameters.get(position);
-        return value == null ? fallback : value.asInt();
+        if (value == null || value.isNull()) {
+            return fallback;
+        }
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        if (value.isString()) {
+            // The project data carries empty strings for "unset" numeric
+            // parameters; asInt() would throw and close the game (seen on the
+            // intro's Fade Screen). Treat them as the documented fallback.
+            try {
+                return Integer.parseInt(value.asString().trim());
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     private static float floatParam(JsonValue parameters, int position, float fallback) {
         JsonValue value = parameters == null ? null : parameters.get(position);
-        return value == null ? fallback : value.asFloat();
+        if (value == null || value.isNull()) {
+            return fallback;
+        }
+        if (value.isNumber()) {
+            return value.asFloat();
+        }
+        if (value.isString()) {
+            try {
+                return Float.parseFloat(value.asString().trim());
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     private static String stringParam(JsonValue parameters, int position, String fallback) {
