@@ -231,6 +231,22 @@ function rewriteCryStatements(statements) {
   }
   return rewritten;
 }
+
+/**
+ * P1: {@code $PokemonBag.pbStoreItem(...)} / {@code $PokemonBag.pbDeleteItem(...)}
+ * are the global {@code pbStoreItem} / {@code pbDeleteItem} (PItem_Bag delegates
+ * to {@code $PokemonBag}), so the receiver can be dropped before translation.
+ */
+function rewriteGlobalReceivers(statements) {
+  return statements.map((statement) =>
+    statement.replace(/^\s*\$PokemonBag\.(pbStoreItem|pbDeleteItem)\s*\(/, "$1("));
+}
+
+/** The statements of one block, after the project rewrites (R6.30 / P1). */
+function blockStatements(block) {
+  return rewriteGlobalReceivers(rewriteCryStatements(callStatements(block)));
+}
+
 export const HANDLERS = {
   pbItemBall(args) {
     return { command: "GIVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1 };
@@ -580,7 +596,7 @@ export function compileBlock(block) {
   // a Pokemon - or only touches game variables through pbSet / pbGet - gets its
   // own pass; any statement it cannot translate keeps the block in the stage 3
   // "needs a Java handler" bucket.
-  const statements = rewriteCryStatements(callStatements(block));
+  const statements = blockStatements(block);
   if (statements.some((statement) => /pbGenPkmn\s*\(|PokeBattle_Pokemon\.new\s*\(|pbSet\s*\(/.test(statement))) {
     if (statements.length === 0) {
       return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };

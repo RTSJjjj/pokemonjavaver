@@ -391,4 +391,16 @@ test("P1: myAddEgg with a non literal species stays in the handler bucket", () =
   assert.equal(result.ir, undefined);
 });
 
+test("P1: $PokemonBag.pbStoreItem / pbDeleteItem drop the receiver", () => {
+  assert.deepEqual(
+    compileBlock(essentials("pbStoreItem", "$PokemonBag.pbStoreItem(:FRESHWATER)")).ir,
+    { command: "GIVE_ITEM", item: "FRESHWATER", amount: 1 },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbDeleteItem", "$PokemonBag.pbDeleteItem(:CREDENTIALS)")).ir,
+    { command: "REMOVE_ITEM", item: "CREDENTIALS", amount: 1 },
+  );
+});
+
+
 
