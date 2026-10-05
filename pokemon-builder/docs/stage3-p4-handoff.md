@@ -182,7 +182,7 @@ scripts\ci-build.bat
 
 > gpt6 的 P4/P2d 仍在工作区，下面是本轮补的**修复**与**「字库」名字输入**实现。
 > 涉及文件：`event/EventInterpreter.java`、`event/EventInterpreterTest.java`、`ui/menu/GenderSelectorView.java`(新，取代自造的 `TrainerSetupView`)、
-> `ui/menu/NameEntryModel.java`(新)、`ui/menu/NameEntryModelTest.java`(新)、`ui/menu/PauseMenuOverlay.java`、
+> `ui/menu/NameEntryModel.java`(新)、`ui/menu/NameEntryModelTest.java`(新)、`ui/menu/PauseMenuOverlay.java`、`ui/menu/TitleScreen.java`、
 > `data/PinyinTable.java`(新)、`data/GameDatabase.java`、`tools/data-converter/index.js`、`ui/menu/P4MenuTest.java`。
 
 ### 9.1 修复：Show / Move Picture 坐标错位（开场图片全偏）
@@ -207,3 +207,26 @@ scripts\ci-build.bat
 - 玩家角色链（P-select，已提交 `8926116`）：`GameState.playerId`（-1=空行走图）/ `GENDER_SELECTOR` / `CHANGE_PLAYER` / `project.json runtime.players[PlayerA..H]` / 存档 `playerId`。
 - 参考文档：`docs/stage3-menu-layout-reference.md`（原工程各屏与自定义面板的坐标/素材对照表）。
 - 当前测试：Java **351/0**（含 `NameEntryModelTest` 3 项）；`build-data` 成功（translated **4661** / 96.4%）。
+
+### 9.4 标题错位修复 + **GUI 插件权威来源**（照脚本库来，别自造）
+- **标题错位**：原插件 `MTS_Element_Logo` 里 `logo1` 与 `logo2` 都各自 `ox = bitmap.width/2`（各自按自身宽度居中于 `@x`）。运行时原来让 `logo2` 沿用 `logo1` 的左边（logo1 386×148、logo2 200×113 → logo2 左移约 93px）。已改为**各自居中**（`TitleScreen.renderScene`：`logo1Left`/`logo2Left`），并核对了其余项均与插件一致：
+  - `background:bw` → `Backgrounds/bw`（672×448 全屏）；
+  - `overlay2` → `MTS_Element_OL2` 默认 `Overlays/scrolling002`（672×448）；
+  - `effect6_y312` → `Particles/shine002`（中心 `(width/2, y=312)`）；
+  - `misc4_s2_x284_y339` → `MTS_Element_MX4` 在 `ModularTitle::SPECIES` 有值时画宝可梦，本工程 `SPECIES=nil` → **正确地不画**；
+  - `start`（闪烁"按任意键"）→ `start.y = height*0.85` 居中（`Scene_Intro` 的 `@pic2`）。
+- **GUI 一律对照脚本库里的插件**（名字带 `bw`/`b2w2` 或 `MSF`/`Modular`）：
+  | 界面 | 插件分节 |
+  |---|---|
+  | 标题 / 载入图 | `Modular Title Screen`（配置 `ModularTitle`）+ `MTS_Script`（渲染器 `ModularTS`）；"Press Enter" = `Scene_Intro` |
+  | 开始/读档菜单（新的冒险/继续/选项/退出 + 存档面板）| `004_MSF_UI_Load`（`PokemonLoad_Scene`/`PokemonLoadScreen`；面板 `x=24*2+32+64`、`y=32` 步进 `48`；玩家行走图 `x=56*2-cw/8+32+64, y=32*2-ch/8`；队伍图标 `x=(46+32*i)*2+32+64, y=110*2`）；相邻 `001_MSF_AutoSave`/`002_MSF_SaveData`/`003_MSF_UI_Save` |
+  | 选角色 + 名字 | `BWGenderSelector`（+ `BWGenderSettings`）+ `字库`(`PBZ_IM_quanpin`) |
+  | 宝可梦菜单 | `BW PScreen_Summary`（+ `PScreen_Party`） |
+  | 背包 | `BW Bag`（+ `PScreen_Bag`） |
+  | 图鉴 | `PokedexMenu/Main/Entry BW Style`（+ `PScreen_Pokedex*`） |
+  | 训练家卡 | `B2W2 Trainer Card` |
+  | PC 存储 | `B2W2 PC`（+ `PScreen_PokemonStorage`/`PScreen_ItemStorage`） |
+  | 存/读档界面 | `BW_SaveScreen`、`003_MSF_UI_Save`、`004_MSF_UI_Load` |
+  | 路牌 | `BW_SignPosts`（+ `BW_SignPosts_Config`） |
+  | 暂停菜单 | `Modular Pause Menu`/`Modular Menu` |
+  更细的窗口坐标/素材见 `docs/stage3-menu-layout-reference.md`。
