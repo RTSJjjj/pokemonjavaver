@@ -240,3 +240,11 @@ scripts\ci-build.bat
   - 最右滚动条 `MPM/scrollbar_bg`(8×204) + 拉伸的 `scrollbar_kn`(16×16)，`x=width-28, y=(height-204)/2`；
   - 背景：地图快照(模糊) + `MPM/bg` + 滚动 `MPM/panorama`；左上日期时间、左下 `版本号：CURRENT_NAME`；去掉了自造的顶栏(名字/金钱/图鉴)与底栏(Z 确认/X 返回)。
 - 旧的 `PauseMenuModelTest` 已按新顺序更新，并加了"有队伍时宝可梦条目出现在插件位置"的用例。
+
+### 9.6 开始/读档菜单对齐 `004_MSF_UI_Load`
+- `TitleScreen.renderCommands` 去掉自造的 windowskin 窗口，改为照 `PokemonLoad_Scene#pbStartScene`：
+  - 背景 `Graphics/Pictures/loadbg`（672×448）；
+  - 命令面板 `Graphics/Pictures/loadPanels`（408×536：继续未选 0、继续选中 222、普通未选 444、普通选中 490），面板 `x=144`、`y` 从 32 起步进 **224（继续槽 408×222）/ 48（普通 408×46）**；
+  - "继续"面板显示玩家名/地图名/存档摘要（`SaveSlots.Slot`）；
+  - 底部提示 `【←】/【→】:切换存档插槽`。
+- **仍待补**（后续按顺序做）：保存槽的左右切换（多槽位选择）、训练家行走图（`pbSetParty`，`x=56*2-cw/8+32+64, y=32*2-ch/8`、`src_rect` 首帧）与队伍图标（`x=(46+32*i)*2+32+64, y=110*2`）。
