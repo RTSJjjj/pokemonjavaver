@@ -255,9 +255,10 @@ scripts\ci-build.bat
 ### 9.7 背包对齐 `BW Bag`（PScreen Bag Graphical Overhaul）
 - `BagView` 重写为 `BW Bag` 的 `PokemonBag_Scene#pbStartScene/pbRefresh*` 版式（不再用自造 `MenuPanel`）：
   - 背景：滚动 `AnimatedPlane` `Pictures/Bag/bg_grid`（女 `bg_gridf`，576×336 平铺，`ox+=1`/帧）→ 背包图 `bag_<pocket>`（女且存在则 `bag_<pocket>_f`，`(-30,10)`）→ 外框 `bg`/`bg_f`（672×448）；
-  - 口袋图标：`icon_pocket`（28×28，`blt(2,2,src((pocket-1)*28,0,28,28))` 在 `(0,-3)` 的 186×32 sprite 上）；口袋名 `PokemonBag.pocketNames[pocket]` 画在 `(110,186)`；
+  - 口袋图标：`icon_pocket`（28×28，`blt(2,2,src((pocket-1)*28,0,28,28))` 在 `(0,-3)` 的 186×32 sprite 上；`icon_pocket` 只有 8 列，pocket 9 越界不画）；口袋名 `PokemonBag.pocketNames[pocket]` 画在 `(110,186)`；
+  - **口袋表对齐插件**：`BagModel.POCKETS[0]=""`、只循环 **1..9**（`pbPocketNames` 第 0 项为空、`numPockets=9`）；运行时原来的 `"其它"` 口袋是自造的，已删（pocket 0 的道具不再出现在任何栏）；
   - 物品窗 `Window_PokemonBag` `x=218-32+64=250, y=-8, w=326+32=358, h=80+9*32=368`，`ITEMSVISIBLE=9`、行高 32；**`windowskin=nil` ⇒ SpriteWindow 边框 32、`startX/Y=16`，内容原点 `(266,8)`**，`drawItem` 再 `+16/+16`，故：光标 `Bag/cursor` 在 `(266+12, row+1)`、图标 `Icons/item%03d` 48×48 缩 24×24 在 `(266+16, row+22)`、名字 `(266+44, row+20)`、数量 `x%3d` 右缘 `266+326-16=576`、`icon_register` 在 `266+326-64`；重要道具（`pocket==8` 或 `fieldUse==4`）不显示数量、显示 `icon_register`；末行 `关闭背包`；
-  - `Bag/cursor.png` 是 **314×68**、圆角框在 `y=16..53`（38 高），要取 `src(0,16,314,38)`（之前只取上半 → 高亮框被削一半）；
+  - `Bag/cursor.png` 是 **314×68**、圆角框在 `y=16..53`（上下各 16 透明）；`drawCursor` 是 `pbCopyBitmap(contents, cursor, rect.x+12, rect.y+2)` 整图拷贝，透明边正好把框居中在行上——不要只取上半（会削一半）、也不要只画 `src(0,16,..)`（会偏高）；
   - 右侧滚动条 `icon_slider`（`534+64=598`，上/下箭头 + 滑块，多于 9 行时）；
   - 选中道具 48×48 图标 `(48,height-48)` Center 原点、说明文字框 `(84,334)`⇒内容 `(100,350)` `564×128`（`ITEMTEXTBASECOLOR 248,248,248`/阴影 `90,90,90`）；左上 `[Z]:手动 [Shift]:自动` 用**小字**（`PauseMenuOverlay` 新增 size 14 的 `smallFont`）右对齐 `(108,8)`。
 - **选项窗体照插件**：`BW Bag` 的 `pbShowCommands` 用项目 windowskin 的窗口；`BagView.drawAction` 改画右侧命令窗（`使用/给予/丢弃/取消`，`▶` 光标）+ 底部消息窗 `已选择<道具名>`，不再是自绘面板。
