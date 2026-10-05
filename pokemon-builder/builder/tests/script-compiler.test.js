@@ -441,6 +441,14 @@ test("P-select: pbGenderSelector / pbChangePlayer become player IR", () => {
   );
 });
 
+test("P3: p.giveRibbon becomes a POKEMON_CALL", () => {
+  const result = compileBlock(essentials("pbGenPkmn",
+      "p=pbGenPkmn(:PIKACHU,5)\np.giveRibbon(:EFFORT)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir.steps[1],
+      { command: "POKEMON_CALL", local: "p", action: "giveRibbon", args: ["EFFORT"] });
+});
+
 
 
 

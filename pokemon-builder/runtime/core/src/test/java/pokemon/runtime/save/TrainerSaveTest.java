@@ -43,6 +43,7 @@ class TrainerSaveTest {
         lead.shiny = true;
         lead.originalTrainer = "阿辽";
         lead.battleRank = 7;
+        lead.ribbons.add("EFFORT");
         lead.hp = 1;
         lead.status = "POISON";
         original.trainer().party.add(lead);
@@ -76,6 +77,7 @@ class TrainerSaveTest {
         assertTrue(reloaded.shiny);
         assertEquals("阿辽", reloaded.originalTrainer);
         assertEquals(7, reloaded.battleRank);
+        assertTrue(reloaded.ribbons.contains("EFFORT", false), "ribbons survive the save");
         assertEquals(1, reloaded.hp);
         assertEquals("POISON", reloaded.status);
 

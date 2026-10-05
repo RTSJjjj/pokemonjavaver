@@ -32,6 +32,8 @@ public final class Pokemon {
     public String item;
     public int happiness;
     public int stepsToHatch;
+    /** Ribbons awarded by events (P3). */
+    public final Array<String> ribbons = new Array<>();
     /** Cumulative experience (P2); level is kept in sync when it grows. */
     public int exp;
     /** Original trainer name written by {@code p.ot = "..."} (P0c). */

@@ -494,6 +494,7 @@ const DOMAIN_APIS = new Set([
 const POKEMON_METHODS = new Set([
   "makeShiny", "makeSuperShiny", "makeFemale", "makeMale", "calcStats",
   "setAbility", "setItem", "setNature", "pbLearnMove", "pbRecordFirstMoves",
+  "giveRibbon",
 ]);
 /** P0c: assignable Pokemon fields ({@code p.iv = [...]}, {@code p.form = 1}). */
 const POKEMON_PROPERTIES = new Set([

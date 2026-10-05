@@ -87,4 +87,20 @@ class PartyTest {
         party.remove(able);
         assertNull(party.firstAble());
     }
+
+    @Test
+    @DisplayName("P3: a party egg hatches after its steps")
+    void eggHatches() {
+        Party party = new Party();
+        Pokemon egg = pokemon();
+        egg.egg = true;
+        egg.stepsToHatch = 2;
+        party.add(egg);
+
+        assertTrue(party.stepEggs().isEmpty(), "not yet");
+        assertEquals(1, egg.stepsToHatch);
+        assertEquals(1, party.stepEggs().size, "the counter reached zero");
+        assertFalse(egg.egg);
+        assertEquals(0, party.eggCount());
+    }
 }

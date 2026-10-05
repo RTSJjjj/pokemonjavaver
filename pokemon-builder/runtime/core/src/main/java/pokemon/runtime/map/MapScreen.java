@@ -2029,6 +2029,7 @@ public final class MapScreen extends ScreenAdapter {
             lastPlayerTile[0] = player.x();
             lastPlayerTile[1] = player.y();
             rustleAt(player.x(), player.y());
+            stepEggs();
             checkStepEncounter();
         }
         Array<MapCharacter> characters = eventCharacters.characters();
@@ -2058,6 +2059,22 @@ public final class MapScreen extends ScreenAdapter {
                 context.game().log("grass rustle at " + x + "," + y);
             }
             context.mapPort().showTileAnimation(GRASS_ANIMATION_ID, x, y, 1);
+        }
+    }
+
+    /**
+     * P3: eggs in the party hatch after their species' steps. Called on the same
+     * player step as the grass rustle (the project's onStepTaken hook).
+     */
+    private void stepEggs() {
+        if (gameState.trainer().party.eggCount() == 0) {
+            return;
+        }
+        com.badlogic.gdx.utils.Array<pokemon.runtime.pokemon.Pokemon> hatched =
+                gameState.trainer().party.stepEggs();
+        for (pokemon.runtime.pokemon.Pokemon egg : hatched) {
+            context.game().log("egg hatched: "
+                    + (egg.species == null ? "?" : egg.species.name));
         }
     }
 

@@ -170,6 +170,13 @@ public final class SaveManager {
         node.addChild("item", new JsonValue(pokemon.item == null ? "" : pokemon.item));
         node.addChild("happiness", new JsonValue(pokemon.happiness));
         node.addChild("stepsToHatch", new JsonValue(pokemon.stepsToHatch));
+        if (pokemon.ribbons.size > 0) {
+            JsonValue ribbons = array();
+            for (String ribbon : pokemon.ribbons) {
+                ribbons.addChild(new JsonValue(ribbon));
+            }
+            node.addChild("ribbons", ribbons);
+        }
         node.addChild("ot", new JsonValue(pokemon.originalTrainer == null ? "" : pokemon.originalTrainer));
         node.addChild("battleRank", new JsonValue(pokemon.battleRank));
         return node;
@@ -392,6 +399,12 @@ public final class SaveManager {
         pokemon.item = item == null || item.isEmpty() ? null : item;
         pokemon.happiness = node.getInt("happiness", pokemon.happiness);
         pokemon.stepsToHatch = node.getInt("stepsToHatch", pokemon.stepsToHatch);
+        JsonValue ribbons = node.get("ribbons");
+        if (ribbons != null && ribbons.isArray()) {
+            for (JsonValue entry = ribbons.child; entry != null; entry = entry.next) {
+                pokemon.ribbons.add(entry.asString());
+            }
+        }
         String originalTrainer = node.getString("ot", null);
         pokemon.originalTrainer = originalTrainer == null || originalTrainer.isEmpty()
                 ? null : originalTrainer;

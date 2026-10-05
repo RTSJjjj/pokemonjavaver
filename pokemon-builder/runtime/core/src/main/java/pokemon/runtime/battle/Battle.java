@@ -137,7 +137,12 @@ public final class Battle {
             // The battler's HP is authoritative during the battle; sync it first
             // so a level-up adds only the maximum-HP increase.
             battler.pokemon.hp = battler.hp;
-            battler.pokemon.gainExperience(share);
+            int oldLevel = battler.pokemon.level;
+            boolean leveled = battler.pokemon.gainExperience(share);
+            if (leveled) {
+                // P3: learn the level's moves and evolve on a reached condition.
+                pokemon.runtime.pokemon.PokemonGrowth.afterLevelUp(battler.pokemon, pbs, oldLevel);
+            }
             battler.hp = Math.min(battler.pokemon.hp, battler.maxHp());
         }
     }

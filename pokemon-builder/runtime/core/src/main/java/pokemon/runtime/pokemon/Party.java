@@ -80,6 +80,33 @@ public final class Party {
         return eggs;
     }
 
+    /**
+     * P3: one field step. Decrements every egg's hatch counter and hatches the
+     * ones that reach zero (the egg becomes the species, full HP).
+     *
+     * @return the Pokemon that hatched this step (empty when none)
+     */
+    public Array<Pokemon> stepEggs() {
+        Array<Pokemon> hatched = new Array<>();
+        for (Pokemon pokemon : members) {
+            if (!pokemon.egg) {
+                continue;
+            }
+            if (pokemon.stepsToHatch > 0) {
+                pokemon.stepsToHatch--;
+            }
+            if (pokemon.stepsToHatch <= 0) {
+                pokemon.egg = false;
+                if (pokemon.name == null || pokemon.name.isEmpty() || "神秘的蛋".equals(pokemon.name)) {
+                    pokemon.name = pokemon.species == null ? pokemon.name : pokemon.species.name;
+                }
+                pokemon.hp = pokemon.maxHp();
+                hatched.add(pokemon);
+            }
+        }
+        return hatched;
+    }
+
     /** Heals every member (PokeCenter); true when at least one changed. */
     public boolean heal() {
         boolean changed = false;

@@ -172,6 +172,23 @@ class PokemonScriptTest {
         assertEquals(egg.maxHp(), egg.hp);
     }
 
+    @Test
+    @DisplayName("P3: p.giveRibbon adds a ribbon to the built Pokemon")
+    void giveRibbon(@TempDir Path tempDir) throws Exception {
+        interpreter.attachPbs(PbsData.parse(syntheticPbs(tempDir)));
+        scriptIr.put("block1", new JsonReader().parse(
+                "{\"command\":\"SEQUENCE\",\"steps\":["
+                        + "{\"command\":\"POKEMON_CREATE\",\"local\":\"p\",\"species\":\"BULBASAUR\",\"level\":5},"
+                        + "{\"command\":\"POKEMON_CALL\",\"local\":\"p\",\"action\":\"giveRibbon\",\"args\":[\"EFFORT\"]},"
+                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\"}]}"));
+        interpreter.start(program(script("block1")), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        Pokemon pokemon = state.trainer().first();
+        assertNotNull(pokemon);
+        assertTrue(pokemon.ribbons.contains("EFFORT", false));
+    }
+
     private static boolean hasMove(Pokemon pokemon, String internalName) {
         for (int i = 0; i < pokemon.moves.size; i++) {
             PbsData.Move move = pokemon.moves.get(i).move;

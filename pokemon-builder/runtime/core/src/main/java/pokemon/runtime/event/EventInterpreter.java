@@ -1863,6 +1863,13 @@ public final class EventInterpreter {
             case "pbRecordFirstMoves":
                 // The level-up move list is already recorded by POKEMON_CREATE.
                 break;
+            case "giveRibbon": {
+                String ribbon = asName(first);
+                if (ribbon != null && !pokemon.ribbons.contains(ribbon, false)) {
+                    pokemon.ribbons.add(ribbon);
+                }
+                break;
+            }
             default:
                 log.warn("POKEMON_CALL " + action + " is not implemented yet; skipped");
                 break;
