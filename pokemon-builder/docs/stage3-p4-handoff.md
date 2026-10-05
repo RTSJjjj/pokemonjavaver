@@ -216,6 +216,7 @@ scripts\ci-build.bat
   - `misc4_s2_x284_y339` → `MTS_Element_MX4` 在 `ModularTitle::SPECIES` 有值时画宝可梦，本工程 `SPECIES=nil` → **正确地不画**；
   - `start`（闪烁"按任意键"）→ `start.y = height*0.85` 居中（`Scene_Intro` 的 `@pic2`）。
 - **GUI 一律对照脚本库里的插件**（名字带 `bw`/`b2w2` 或 `MSF`/`Modular`）：
+  - **铁律：禁止自造**——界面、面板、提示文字、坐标、控件一律照原工程脚本库插件（含脚本传入的 `starthelptext`、窗口皮肤等）；插件没有的先问，不自作主张。自造过的已删除（`TrainerSetupView`、背包/宝可梦菜单的自制帮助窗与操作提示等）。
   | 界面 | 插件分节 |
   |---|---|
   | 标题 / 载入图 | `Modular Title Screen`（配置 `ModularTitle`）+ `MTS_Script`（渲染器 `ModularTS`）；"Press Enter" = `Scene_Intro` |
