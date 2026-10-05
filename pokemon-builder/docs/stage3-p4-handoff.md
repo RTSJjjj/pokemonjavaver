@@ -230,3 +230,12 @@ scripts\ci-build.bat
   | 路牌 | `BW_SignPosts`（+ `BW_SignPosts_Config`） |
   | 暂停菜单 | `Modular Pause Menu`/`Modular Menu` |
   更细的窗口坐标/素材见 `docs/stage3-menu-layout-reference.md`。
+
+### 9.5 训练家/暂停菜单对齐 `Modular Menu` + `Modular Pause Menu`
+- **入口**（`PauseMenuModel`，照 `MenuHandlers.addEntry` 顺序/标签/图标）：`图鉴 / 寄存系统 / 宝可梦 / 背包 / 训练家(\pn=玩家名) / 保存 / 读档 / 退出 / 设置 / 退出游戏`；未实现的 `分布图鉴/宝可装置/任务/调试` 不显示；`宝可梦` 按插件条件 `party.length>0` 隐藏。（**更正**：`训练家` 条目本就在插件里，标签 `\pn`，不是自造。）
+- **版式**（`PauseMenuOverlay.renderMain`，照 `ModularPauseMenu#refresh/pbStartScene`）：
+  - 立绘在**左侧** `(0, height-340)`，`MPM/intro_Girl1`/`intro_Boy1`（按性别）；
+  - 入口是**右侧面板**：`MPM/sel.png` 420×72，左半=未选、右半=选中；图标 64×72 画在面板 `+8`，文字 `+66`；面板 `x = width-210-40`、`y = 40+84*i`（选中项左移 6、未选变暗）；可见窗 4 项，`j=max(0,index-3)` 滚动；
+  - 最右滚动条 `MPM/scrollbar_bg`(8×204) + 拉伸的 `scrollbar_kn`(16×16)，`x=width-28, y=(height-204)/2`；
+  - 背景：地图快照(模糊) + `MPM/bg` + 滚动 `MPM/panorama`；左上日期时间、左下 `版本号：CURRENT_NAME`；去掉了自造的顶栏(名字/金钱/图鉴)与底栏(Z 确认/X 返回)。
+- 旧的 `PauseMenuModelTest` 已按新顺序更新，并加了"有队伍时宝可梦条目出现在插件位置"的用例。
