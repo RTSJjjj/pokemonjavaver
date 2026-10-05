@@ -110,6 +110,17 @@ class BattleScriptTest {
         assertTrue(calls.isEmpty());
     }
 
+    @Test
+    @DisplayName("P2: ROCK_SMASH_ENCOUNTER picks from the map's RockSmash table")
+    void rockSmashEncounter(@TempDir Path tempDir) throws Exception {
+        interpreter.attachPbs(PbsData.parse(syntheticPbs(tempDir)));
+        scriptIr.put("block1", new JsonReader().parse("{\"command\":\"ROCK_SMASH_ENCOUNTER\"}"));
+        interpreter.start(program(script("block1")), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        assertEquals(List.of("wild:FOE:5"), calls);
+    }
+
     private static EventCommand script(String blockId) {
         EventCommand command = cmd(0, 355, 0, array("pbWildBattle(:FOE,12)"));
         command.scriptBlockId = blockId;
@@ -133,6 +144,9 @@ class BattleScriptTest {
         write(root, "trainers.json", "{\"total\":1,\"order\":[\"RIVAL,Blue,1\"],\"trainers\":{"
                 + "\"RIVAL,Blue,1\":{\"key\":\"RIVAL,Blue,1\",\"type\":\"RIVAL\",\"name\":\"Blue\","
                 + "\"version\":1,\"party\":[{\"species\":\"FOE\",\"level\":12,\"moves\":[\"TACKLE\"]}]}}}");
+        write(root, "encounters.json", "{\"total\":1,\"byMap\":{\"1\":{\"id\":1,"
+                + "\"densities\":{\"RockSmash\":10},"
+                + "\"methods\":{\"RockSmash\":[{\"species\":\"FOE\",\"min\":5,\"max\":5}]}}}}");
         write(root, "abilities.json", "{\"total\":0,\"abilities\":{}}");
         write(root, "types.json", "{\"total\":1,\"types\":{\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\"}}}");
         write(root, "natures.json", "{\"total\":1,\"natures\":[{\"id\":0,\"internalName\":\"HARDY\",\"name\":\"Hardy\"}]}");

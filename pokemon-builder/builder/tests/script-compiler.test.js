@@ -423,6 +423,11 @@ test("P2: wild / trainer battle scripts become battle IR", () => {
       "p=pbGenPkmn(:PIKACHU,5)\np.makeShiny\npbFreeWildBattle(p)"));
   assert.equal(free.status, "TRANSLATED");
   assert.deepEqual(free.ir.steps[2], { command: "FREE_WILD_BATTLE", local: "p" });
+
+  assert.deepEqual(
+    compileBlock(essentials("pbRockSmashRandomEncounter", "pbRockSmashRandomEncounter")).ir,
+    { command: "ROCK_SMASH_ENCOUNTER" },
+  );
 });
 
 

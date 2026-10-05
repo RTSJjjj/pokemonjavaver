@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import pokemon.runtime.audio.AudioManager;
 import pokemon.runtime.battle.BattlePort;
 import pokemon.runtime.battle.BattleResult;
+import pokemon.runtime.battle.WildEncounters;
 import pokemon.runtime.data.EventCommand;
 import pokemon.runtime.data.MoveRoute;
 import pokemon.runtime.input.GameAction;
@@ -73,6 +74,8 @@ public final class EventInterpreter {
     private PbsData pbs;
     /** P2: runs wild / trainer battles started by event scripts. */
     private BattlePort battlePort;
+    /** P2: the random source for triggered encounters (RockSmash). */
+    private final java.util.Random encounterRandom = new java.util.Random();
     /**
      * P0c: local variables of the Pokemon construction scripts
      * ({@code p = pbGenPkmn(...)}). They live for one compiled SEQUENCE, which
@@ -1239,6 +1242,23 @@ public final class EventInterpreter {
                 BattleResult result = battlePort.trainerBattle(trainer);
                 log.warn("trainer battle vs " + trainer.name + " -> "
                         + (result == null ? "not started" : result.outcome));
+                break;
+            }
+            case "ROCK_SMASH_ENCOUNTER": {
+                if (battlePort == null || pbs == null) {
+                    log.warn("ROCK_SMASH_ENCOUNTER without a battle runtime or PBS data; skipped");
+                    break;
+                }
+                PbsData.EncounterMap map = pbs.encounterMap(mapId);
+                WildEncounters.WildEncounter encounter = map == null ? null
+                        : WildEncounters.pick(map, "RockSmash", encounterRandom);
+                if (encounter == null) {
+                    log.warn("ROCK_SMASH_ENCOUNTER: no RockSmash table on map " + mapId);
+                    break;
+                }
+                BattleResult smash = battlePort.wildBattle(encounter.species, encounter.level);
+                log.warn("rock smash encounter -> "
+                        + (smash == null ? "not started" : smash.outcome));
                 break;
             }
             default:

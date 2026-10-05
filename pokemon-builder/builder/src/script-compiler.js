@@ -424,6 +424,10 @@ export const HANDLERS = {
   pbPushThisBoulder() {
     return { command: "PUSH_BOULDER" };
   },
+  /** P2: a RockSmash encounter (no probability roll; the smashed rock decides). */
+  pbRockSmashRandomEncounter() {
+    return { command: "ROCK_SMASH_ENCOUNTER" };
+  },
   toggle_liefeng_switches() {
     return { command: "TOGGLE_PLATE_SWITCHES" };
   },

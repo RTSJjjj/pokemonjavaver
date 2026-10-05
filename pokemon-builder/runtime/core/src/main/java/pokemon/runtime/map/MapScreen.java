@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.Array;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
+import pokemon.runtime.battle.WildEncounters;
 import pokemon.runtime.data.GameDatabase;
 import pokemon.runtime.data.AnimationData;
 import pokemon.runtime.data.MapData;
@@ -1970,6 +1971,9 @@ public final class MapScreen extends ScreenAdapter {
     private final com.badlogic.gdx.utils.IntMap<int[]> lastEventTiles =
             new com.badlogic.gdx.utils.IntMap<>();
     private int[] lastPlayerTile = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE};
+    /** P2: the wild encounter roll for step-based battles. */
+    private final WildEncounters wildEncounters = new WildEncounters();
+    private final java.util.Random encounterRandom = new java.util.Random();
 
     /**
      * R6.28: the project's {@code Events.onStepTakenFieldMovement} hook: every
@@ -1984,6 +1988,7 @@ public final class MapScreen extends ScreenAdapter {
             lastPlayerTile[0] = player.x();
             lastPlayerTile[1] = player.y();
             rustleAt(player.x(), player.y());
+            checkStepEncounter();
         }
         Array<MapCharacter> characters = eventCharacters.characters();
         for (int i = 0; i < characters.size; i++) {
@@ -2013,6 +2018,35 @@ public final class MapScreen extends ScreenAdapter {
             }
             context.mapPort().showTileAnimation(GRASS_ANIMATION_ID, x, y, 1);
         }
+    }
+
+    /**
+     * P2: a wild encounter on the tile the player just stepped on. Never while
+     * an event or a message is on screen; the roll itself (method, density,
+     * safe steps) lives in {@link WildEncounters} so it stays headless-testable.
+     */
+    private void checkStepEncounter() {
+        if (context.battlePort() == null || context.pbsData() == null) {
+            return;
+        }
+        if (interpreter != null && interpreter.running()) {
+            return;
+        }
+        if (context.messageService() != null && context.messageService().visible()) {
+            return;
+        }
+        wildEncounters.onMap(mapData.mapId);
+        int tag = tileMap.terrainTag(player.x(), player.y(), true);
+        WildEncounters.WildEncounter encounter =
+                wildEncounters.roll(context.pbsData(), mapData.mapId, tag, encounterRandom);
+        if (encounter == null) {
+            return;
+        }
+        wildEncounters.reset();
+        if (Boolean.getBoolean("pokemon.debug.flow")) {
+            context.game().log("wild encounter: " + encounter.species + " L" + encounter.level);
+        }
+        context.battlePort().wildBattle(encounter.species, encounter.level);
     }
 
     @Override

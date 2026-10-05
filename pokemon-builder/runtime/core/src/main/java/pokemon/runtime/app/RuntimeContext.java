@@ -105,6 +105,16 @@ public final class RuntimeContext {
         return saveManager;
     }
 
+    /** P2: the battle runtime (wild / trainer battles from events and steps). */
+    public BattlePort battlePort() {
+        return battlePort;
+    }
+
+    /** P2: the PBS tables, or null before the runtime data has loaded. */
+    public pokemon.runtime.pokemon.PbsData pbsData() {
+        return database == null ? null : database.pbs();
+    }
+
     public StoragePort storage() {
         return storage;
     }
