@@ -133,7 +133,7 @@ scripts\ci-build.bat
 - **图形工作注意**：本仓库是可运行的真实 libGDX 项目，UI 全部用现有 `SpriteBatch`/`Texture`/`BitmapFont` 资产；不要引入新依赖。所有素材来自工程 `Graphics/`（已随包到 `runtime-data/`）。
 - **stdout 缓冲**：从 gradle `run` 看不到游戏内日志（进程退出才 flush）；排查用 `~/pokemon-runtime-crash.log`。
 - **空参数容错**：`EventInterpreter.intParam/floatParam` 已容错空串（曾导致开场闪退），新命令读参数也请用它们。
-- **玩家角色链**（已做）：`GameState.playerId`（-1=空行走图），`pbGenderSelector→GENDER_SELECTOR`（当前兜底默认男，**完整选择画面 + 名字输入 + `WRITETRAINERNAME` 归 P4**），`pbChangePlayer(id)→CHANGE_PLAYER` 用 `project.json runtime.players[PlayerA..H]`。
+- **玩家角色链**（已做）：`GameState.playerId`（-1=空行走图），`pbGenderSelector→GENDER_SELECTOR`（选性别 → **游戏内「字库」拼音输名字**，见 §9.2），`pbChangePlayer(id)→CHANGE_PLAYER` 用 `project.json runtime.players[PlayerA..H]`。
 - `subst X:` 会被清理；丢了重建。
 - 改 `builder/tests/fixture-project` 影响的金牌输出：`node tests/fixture-project/generate.mjs`（**从 `pokemon-builder/` 根跑**）后提交。
 - `build-pc`/`ci-build` 会重写 `docs/*-audit.md` 的时间戳行（可一并提交）。
@@ -143,7 +143,7 @@ scripts\ci-build.bat
 
 ## 6. 测试与验收规范
 - Builder：`builder/` 下 `node --test`（278 用例）。
-- Java：`X:\runtime` 下 `gradlew :core:test`（331 用例）；无头优先，所有界面逻辑尽量抽成可单测的 model（参考 `PauseMenuModel`）。
+- Java：`X:\runtime` 下 `gradlew :core:test`（351 用例）；无头优先，所有界面逻辑尽量抽成可单测的 model（参考 `PauseMenuModel`、`NameEntryModel`）。
 - 图形探针：`MenuCapture`/`MapRenderCapture`/`MessageCapture` 可无交互产出 PNG，适合 P4 每屏一张截图回归。
 - 事件/IR 改动的三处同步 + `build-data`；分类保持诚实（域 API→`JAVA_HANDLER_REQUIRED`，非域未知→`UNSUPPORTED`）。
 - CI 必须绿（`.github/workflows/stage2-ci.yml` → `scripts/ci-build.bat`）。
@@ -164,6 +164,8 @@ scripts\ci-build.bat
 | UI 基座/范例 | `ui/WindowSkin.java`, `ui/MessageWindow.java`, `ui/menu/PauseMenuOverlay.java`, `MenuAssets.java`, `MenuFont.java`, `TrainerView.java` |
 | 地图/走步钩子 | `map/MapScreen.java`（`updateGrassRustle`/`checkStepEncounter`/`stepEggs`/`applyPlayerCharset`） |
 | 截图探针 | `runtime/lwjgl3/.../MenuCapture.java`, `MapRenderCapture.java`, `MessageCapture.java` |
+| 字库拼音输入（P4） | `tools/data-converter/index.js#parsePinyinTable`, `data/PinyinTable.java`, `ui/menu/NameEntryModel.java`, `ui/menu/TrainerSetupView.java` |
+| 原工程菜单布局对照 | `docs/stage3-menu-layout-reference.md` |
 | 计划/文档 | `docs/stage3-plan.md`, `docs/architecture.md`, `docs/event-runtime.md`, `docs/script-compiler.md` |
 
 ---
@@ -173,3 +175,33 @@ scripts\ci-build.bat
 - [ ] 能 `gradlew :lwjgl3:run` 看到开场（选角前空行走图，跑完变 `trchar000`）。
 - [ ] 读通 `PauseMenuOverlay` 的 open/update/render/Host 模式。
 - [ ] 明确 P4 子块顺序（建议 P4a 基座 → P4b/c/e 菜单 → P4f PC → P4d/g → P4h L15；P2d 可先或并行）。
+
+---
+
+## 9. 最新补丁（DeepSeek，工作区未提交；与 P4 一起提交）
+
+> gpt6 的 P4/P2d 仍在工作区，下面是本轮补的**修复**与**「字库」名字输入**实现。
+> 涉及文件：`event/EventInterpreter.java`、`event/EventInterpreterTest.java`、`ui/menu/TrainerSetupView.java`、
+> `ui/menu/NameEntryModel.java`(新)、`ui/menu/NameEntryModelTest.java`(新)、`data/PinyinTable.java`(新)、
+> `data/GameDatabase.java`、`tools/data-converter/index.js`、`ui/menu/P4MenuTest.java`。
+
+### 9.1 修复：Show / Move Picture 坐标错位（开场图片全偏）
+- 工程 `Interpreter#command_231/232` 参数顺序：`[number, name, origin, appointmentMode, x, y, zoomX, zoomY, opacity, blend]`。
+- 运行时原读 `x=p[3], y=p[4]`（把"坐标来源模式"当成了 x）→ 开场 `mapRegion0` 本应居中 `(336,224)`，实际画到 `(0,336)`。
+- 现读 `x=p[4], y=p[5]`；`p[3]==1` 时按变量 id（`$game_variables[p[4]/p[5]]`）。方法：`showPicture`/`movePicture`/`pictureCoordinate`。
+- 测试：`EventInterpreterTest.showPictureCoordinates`（并更新了两个用旧 9 参数格式的旧测试）。
+
+### 9.2 修复：选角色后事件卡死 + 接入「字库」名字输入
+- **根因**：libGDX 1.13.5 桌面 `DefaultLwjgl3Input.getTextInput` 是 no-op（源码注释 `// FIXME getTextInput does nothing` + `listener.canceled()`），所以 gpt6 的 `Gdx.input.getTextInput` 名字框在桌面**永不返回** → `MenuService.Kind.GENDER` 请求永不 `done` → 事件卡在原地。
+- **正解（已实现）**：移植工程 `字库` 插件（`class PBZ_IM_quanpin` 全拼字库 + `class PokemonEntryScene2` 选字 GUI）为**游戏内输入**：
+  - 数据：`tools/data-converter/index.js#parsePinyinTable` → `generated/text/pinyin.json`（**424 音节→汉字**，`yu`→50 字等），已注册 expectedOutputs。
+  - 运行时：`data/PinyinTable`（读 `text/pinyin.json`）+ `GameDatabase.pinyin()`（惰性）。
+  - 模型（无头，可测）：`ui/menu/NameEntryModel` —— 字母→拼音缓冲→该音节候选字（分页，每行 11 字 = `PokemonEntryScene2::MaxCharsPerLine`）→选字组合；退格先删拼音再删名字；长度上限。
+  - 视图：`TrainerSetupView` 两段（选性别 → 拼音输名字）：**字母键入、数字键选字、←→ 翻页、退格删除、回车完成、取消先清拼音再完成**；任何路径都能完成，**不会再卡**。
+- **视觉待补**：原工程那套选字网格/立绘皮肤（`Window_CharacterEntry` XSIZE=13/YSIZE=4）——照 `docs/stage3-menu-layout-reference.md` 对齐，属 P4 视觉。
+
+### 9.3 其它
+- `P4MenuTest.optionalSaveFieldsRoundTripAndLegacyBackfillsDex` 修复：测试 `setup()` 少了 `state.enterMap(...)`，且旧档 JSON 没带 `map`（`fromJson` 契约要求地图；与已提交的 `SaveManagerTest.rejectsBadDocuments` 一致）。
+- 玩家角色链（P-select，已提交 `8926116`）：`GameState.playerId`（-1=空行走图）/ `GENDER_SELECTOR` / `CHANGE_PLAYER` / `project.json runtime.players[PlayerA..H]` / 存档 `playerId`。
+- 参考文档：`docs/stage3-menu-layout-reference.md`（原工程各屏与自定义面板的坐标/素材对照表）。
+- 当前测试：Java **351/0**（含 `NameEntryModelTest` 3 项）；`build-data` 成功（translated **4661** / 96.4%）。
