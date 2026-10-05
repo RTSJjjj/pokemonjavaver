@@ -326,4 +326,9 @@ scripts\ci-build.bat
   - 队伍面板 `PokemonBoxPartySprite`：`overlay_party`(172×352) 在 `(182, height-352)`（选中"队伍"时滑入，否则在屏下）、`返回` 右对齐 `(182+86, +242)`、6 图标 `(182+[18,90,18,90,18,90], +[2,18,66,82,130,146])`；
   - 底部 `查看队伍: {n}` 右对齐 `(274,411)`、`退出` 右对齐 `(606,411)`。
 - 交互：`↑↓←→` 移动选择（`-1` 盒子名 / `-2` 队伍 / `-3` 退出 / `0..29` 槽）；`Z` 快换模式下拿起/放置/交换，否则开命令窗（`移动/交换/放置`、`概况`、`取出`、`道具`、`标记`、`提交`、`取消`，`pbShowCommands` 贴右下 + 消息窗）；`Shift` 切换快换；`X` 放下/返回。
-- 口径：工程 `Storage` 是**紧凑列表**（无固定 30 格/盒名/背景），故放置是**追加**、盒名用 `盒子 N`、背景 `box_<box%42>`；`概况/道具` 暂提示用宝可梦菜单/背包（跨屏待接）。**待补**：`概况` 直连详情、`道具` 直连背包、盒名/背景编辑、`提交`(放生)全套确认、DEPOSIT/WITHDRAW 三种模式入口。`MenuCapture` 增 `l1-pc*`。
+- **修正（用户反馈）**：
+  - 系统窗口皮肤应为 `MessageConfig.pbGetSystemFrame` = `$TextFrames[$PokemonSystem.frame]`，默认 `choice 1`（48×48 **白底**），**不是** `System.rxdata` 的 `001-Blue01`（深蓝）。`PauseMenuOverlay.loadSystemFrame()` 先取 `choice 1`；`MenuPanel.textColors(skin)` 按 `skin.dark` 选文字色（白底用深色 `90,82,82`/`165,165,173`），命令/消息窗、背包命令窗、队伍命令窗、详情 `pbOptions` 都改用之。
+  - `pbDrawShadowText(x,y,width,height,...)` 里 RGSS `draw_text` 会**在 height 矩形内垂直居中**（我们字体是顶端对齐）——盒名 `(xval,8,widthval,40)` 要 `8+(40-lineHeight)/2`。其它 `pbDrawTextPositions` 传的高度=文字高，顶端对齐即等价。
+  - `查看队伍` 是 align 2 = **居中**（`(274,411)`），原来画成右对齐了。
+  - PC 消息窗照 `pbDisplay/pbShowCommands`：`Window_UnformattedTextPokemon.newWithSize("",180,0,width-180,32)` + `pbBottomRight` ⇒ `(180, h-32, w-180, 32)`，命令窗在其正上方（`y -= 32`）。
+- **口径**：工程 `Storage` 是**紧凑列表**（无固定 30 格/盒名/背景），故放置是**追加**、盒名用 `盒子 N`、背景 `box_<box%42>`；`概况/道具` 暂提示用宝可梦菜单/背包（跨屏待接）。**待补**：`概况` 直连详情、`道具` 直连背包、盒名/背景编辑、`提交`(放生)全套确认、DEPOSIT/WITHDRAW 三种模式入口。`MenuCapture` 增 `l1-pc*`。
