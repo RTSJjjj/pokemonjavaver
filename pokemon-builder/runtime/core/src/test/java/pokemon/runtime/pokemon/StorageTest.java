@@ -46,4 +46,19 @@ class StorageTest {
         storage.clear();
         assertEquals(0, storage.count());
     }
+
+    @Test
+    @DisplayName("P1: storage matches the project's 200 boxes and refuses when every slot is full")
+    void matchesProjectCapacity() {
+        assertEquals(200, Storage.BOXES, "Settings::NUM_STORAGE_BOXES");
+        assertEquals(30, Storage.SLOTS);
+        Storage storage = new Storage();
+        int capacity = Storage.BOXES * Storage.SLOTS;
+        for (int i = 0; i < capacity; i++) {
+            assertTrue(storage.store(pokemon()), "slot " + i);
+        }
+        assertFalse(storage.store(pokemon()), "no room left");
+        assertEquals(capacity, storage.count());
+        assertEquals(Storage.BOXES, storage.usedBoxes());
+    }
 }

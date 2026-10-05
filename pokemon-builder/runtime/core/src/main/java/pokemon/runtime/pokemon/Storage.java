@@ -4,14 +4,15 @@ import com.badlogic.gdx.utils.Array;
 
 /**
  * Stage 3 / P1: the PC Pokemon storage, the Essentials {@code $PokemonStorage}
- * core. Thirty boxes of thirty slots hold the Pokemon that do not fit in the
- * party; boxes are created lazily so an empty save stays small. The PC UI
- * arrives in P4, but the storage itself is what {@code pbAddPokemon} and the
- * save system already need.
+ * core. {@code NUM_STORAGE_BOXES} boxes of thirty slots (the project's
+ * Settings) hold the Pokemon that do not fit in the party; boxes are created
+ * lazily so an empty save stays small. The PC UI arrives in P4, but the storage
+ * itself is what {@code pbAddPokemon} and the save system already need.
  */
 public final class Storage {
 
-    public static final int BOXES = 30;
+    /** Settings::NUM_STORAGE_BOXES (the original project uses 200). */
+    public static final int BOXES = 200;
     public static final int SLOTS = 30;
 
     private final Array<Array<Pokemon>> boxes = new Array<>();
