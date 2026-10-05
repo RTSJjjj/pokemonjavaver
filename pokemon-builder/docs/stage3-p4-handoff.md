@@ -251,3 +251,13 @@ scripts\ci-build.bat
   - `SaveSlots.Slot` 现已读取徽章数/图鉴数/时长/性别；`playSeconds` 按 double 读。
 - `MenuCapture` 现在有 Gradle 任务 `:lwjgl3:captureMenu`（`-PcaptureArgs=dataRoot|outputDir`）逐屏产出 PNG，便于 P4 每屏回归（已用 `l14-title-commands.png` 核对本屏；capture 里已 seed 玩家 `playerId=0` 与 BULBASAUR/CHARMANDER/SQUIRTLE 队伍）。
 - **已补 `pbSetParty`**：`SaveSlots.Slot` 另读 `playerId` 与 `trainer.party[].{species,gender,shiny,egg}`；`TitleScreen.drawPartySprites` 画训练家行走图（`Characters/<runtime.players[id].charset>`，取 `src_rect` 首帧 `w/4×h/4`，`x=208-frameW/2, y=height-64-frameH/2`）与队伍图标（`Icons/icon%03d[+f][+s]`，原点 Center=脚下 `(188+64i, 220)`、`oy=h*5/8`）；`MenuAssets` 加 `character()`/`icon()` 载入器。
+
+### 9.7 背包对齐 `BW Bag`（PScreen Bag Graphical Overhaul）
+- `BagView` 重写为 `BW Bag` 的 `PokemonBag_Scene#pbStartScene/pbRefresh*` 版式（不再用自造 `MenuPanel`）：
+  - 背景：滚动 `AnimatedPlane` `Pictures/Bag/bg_grid`（女 `bg_gridf`，576×336 平铺，`ox+=1`/帧）→ 背包图 `bag_<pocket>`（女且存在则 `bag_<pocket>_f`，`(-30,10)`）→ 外框 `bg`/`bg_f`（672×448）；
+  - 口袋图标：`icon_pocket`（28×28，`blt(2,2,src((pocket-1)*28,0,28,28))` 在 `(0,-3)` 的 186×32 sprite 上）；口袋名 `PokemonBag.pocketNames[pocket]` 右对齐 `(110,186)`；
+  - 物品窗 `Window_PokemonBag` `x=218-32+64=250, y=-8, w=326+32=358, h=80+9*32=368`，`ITEMSVISIBLE=9`、行高 32；行内容照 `drawItem`（+16/+16）：光标 `Bag/cursor`（314×34，`(baseX+12, y+2)`）、图标 `Icons/item%03d` 取 48×48 缩到 24×24（`(baseX+16, y+22)`）、名字 `(baseX+44, y+20)`、数量 `x%3d` 右对齐；重要道具（`pocket==8` 或 `fieldUse==4`）不显示数量、显示 `icon_register`；末行 `关闭背包`；
+  - 选中道具 48×48 图标 `(48,height-48)` Center 原点、说明文字 `(84,334)` `564×128`（`ITEMTEXTBASECOLOR 248,248,248`/阴影 `90,90,90`）；左上 `[Z]:手动 [Shift]:自动`（插件 `overlay2` 小字；因运行时系统字号更大改到 `x=34` 左对齐以免被裁）。
+- `BagModel`：`cursor` 可见 9 行、多一行 `关闭背包`（`selected()` 在末行返回 null → 关闭背包）。
+- 机制仍是 `使用/交给宝可梦/返回`（`ItemUse`/`PartyModel.giveItem`），未移植登录/丢弃/整理（插件 `A/SHIFT` 排序）——需要再说。
+- `PauseMenuOverlay` 加 `openAt(action)` 便于截图/测试直接进入某子界面；`MenuCapture` 增加 `l1-bag*` 三张（seed 了道具/队伍）。
