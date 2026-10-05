@@ -353,11 +353,15 @@ test("P0c: pbGet / $game_variables become typed variable values", () => {
   assert.deepEqual(direct.ir, { command: "SET_VARIABLE", id: 10, value: { variable: 4 } });
 });
 
-test("P0c: a battle / trade terminator keeps the block in the handler bucket", () => {
-  const result = compileBlock(essentials("pbGenPkmn",
+test("P0c/P2: a battle terminator now translates, a trade one stays pending", () => {
+  const wild = compileBlock(essentials("pbGenPkmn",
       "p=pbGenPkmn(:PIKACHU,5)\np.makeShiny\npbFreeWildBattle(p)"));
-  assert.equal(result.status, "JAVA_HANDLER_REQUIRED");
-  assert.match(result.reason, /Pokemon runtime/);
+  assert.equal(wild.status, "TRANSLATED");
+  assert.deepEqual(wild.ir.steps[2], { command: "FREE_WILD_BATTLE", local: "p" });
+
+  const trade = compileBlock(essentials("pbGenPkmn",
+      'p=pbGenPkmn(:PIKACHU,5)\np.makeShiny\npbStartTrade(pbGet(1),p,"x")'));
+  assert.equal(trade.status, "JAVA_HANDLER_REQUIRED");
 });
 
 test("P0c: a Pokemon script with a loop stays in the handler bucket", () => {
@@ -401,6 +405,26 @@ test("P1: $PokemonBag.pbStoreItem / pbDeleteItem drop the receiver", () => {
     { command: "REMOVE_ITEM", item: "CREDENTIALS", amount: 1 },
   );
 });
+
+test("P2: wild / trainer battle scripts become battle IR", () => {
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU, 12)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 12 },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 5 },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbTrainerBattle", 'pbTrainerBattle(:POKEMONTRAINER_Red,"Blue",1)')).ir,
+    { command: "TRAINER_BATTLE", trainerType: "POKEMONTRAINER_Red", trainerName: "Blue", version: 1, partner: false },
+  );
+  const free = compileBlock(essentials("pbGenPkmn",
+      "p=pbGenPkmn(:PIKACHU,5)\np.makeShiny\npbFreeWildBattle(p)"));
+  assert.equal(free.status, "TRANSLATED");
+  assert.deepEqual(free.ir.steps[2], { command: "FREE_WILD_BATTLE", local: "p" });
+});
+
 
 
 

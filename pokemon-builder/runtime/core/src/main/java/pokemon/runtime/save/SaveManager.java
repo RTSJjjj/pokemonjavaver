@@ -7,6 +7,7 @@ import com.badlogic.gdx.utils.ObjectIntMap;
 import pokemon.runtime.app.StoragePort;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
+import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.pokemon.TrainerState;
 import pokemon.runtime.state.GameSelfSwitches;
 import pokemon.runtime.state.GameState;
@@ -139,6 +140,7 @@ public final class SaveManager {
         }
         node.addChild("name", new JsonValue(pokemon.name == null ? "" : pokemon.name));
         node.addChild("level", new JsonValue(pokemon.level));
+        node.addChild("exp", new JsonValue(pokemon.exp));
         node.addChild("ivs", intArray(pokemon.ivs));
         node.addChild("evs", intArray(pokemon.evs));
         if (pokemon.nature != null) {
@@ -376,6 +378,8 @@ public final class SaveManager {
             }
         }
         pokemon.hp = node.getInt("hp", pokemon.maxHp());
+        pokemon.exp = node.getInt("exp",
+                PokemonStats.experienceForLevel(pokemon.growthRate(), pokemon.level));
         pokemon.status = node.getString("status", "");
         pokemon.gender = node.getInt("gender", pokemon.gender);
         pokemon.shiny = node.getBoolean("shiny", false);

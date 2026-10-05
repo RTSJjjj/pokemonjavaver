@@ -2,6 +2,8 @@ package pokemon.runtime.app;
 
 import com.badlogic.gdx.utils.Array;
 import pokemon.runtime.audio.AudioManager;
+import pokemon.runtime.battle.BattlePort;
+import pokemon.runtime.battle.HeadlessBattlePort;
 import pokemon.runtime.data.CommonEventData;
 import pokemon.runtime.data.EventCommand;
 import pokemon.runtime.data.GameDatabase;
@@ -36,6 +38,8 @@ public final class RuntimeContext {
     private final String dataRoot;
 
     private GameDatabase database;
+    /** P2: the battle runtime the event interpreter starts battles through. */
+    private BattlePort battlePort;
     private final InputManager inputManager = new InputManager();
     private final DefaultKeyBindings keyBindings = new DefaultKeyBindings();
     private final InputSampler inputSampler = new InputSampler(keyBindings);
@@ -390,6 +394,10 @@ public final class RuntimeContext {
             // P0c: the Pokemon construction IR commands need the PBS data.
             eventInterpreter.attachPbs(database.pbs());
         }
+        battlePort = new HeadlessBattlePort(gameState.trainer(),
+                () -> database == null ? null : database.pbs(),
+                this::whiteOut, new java.util.Random());
+        eventInterpreter.attachBattlePort(battlePort);
         if (database != null && database.system() != null) {
             // Named switches ("s:...") are script expressions, not booleans.
             gameState.switchNames(database.system().switches);
@@ -421,6 +429,22 @@ public final class RuntimeContext {
         }
     }
 
+    /**
+     * P2: a battle loss. The party is healed and, when the PokeCenter point is
+     * known (pbSetPokemonCenter), the player warps back to it; without a point
+     * the player simply keeps the map and walks on.
+     */
+    private void whiteOut() {
+        gameState.trainer().healParty();
+        if (gameState.trainer().hasPokemonCenter()) {
+            game.log("white-out: warping to the PokeCenter");
+            requestTransfer(gameState.trainer().healMapId, gameState.trainer().healX,
+                    gameState.trainer().healY, gameState.trainer().healDirection, 0);
+        } else {
+            game.log("white-out: no PokeCenter set; the party was healed");
+        }
+    }
+
     /** Common event lookup for CALL_COMMON_EVENT (project3 section 27). */
     private Array<EventCommand> commonEventCommands(int id) {
         GameDatabase current = database;
@@ -447,6 +471,12 @@ public final class RuntimeContext {
         if (database != null) {
             interpreter.attachPbs(database.pbs());
         }
+        if (battlePort == null) {
+            battlePort = new HeadlessBattlePort(gameState.trainer(),
+                    () -> database == null ? null : database.pbs(),
+                    this::whiteOut, new java.util.Random());
+        }
+        interpreter.attachBattlePort(battlePort);
         return interpreter;
     }
 

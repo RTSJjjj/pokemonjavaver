@@ -32,6 +32,8 @@ public final class Pokemon {
     public String item;
     public int happiness;
     public int stepsToHatch;
+    /** Cumulative experience (P2); level is kept in sync when it grows. */
+    public int exp;
     /** Original trainer name written by {@code p.ot = "..."} (P0c). */
     public String originalTrainer;
     /** Essence-battle rank written by {@code p.battleRank = n} (P0c). */
@@ -69,6 +71,7 @@ public final class Pokemon {
             }
         }
         this.hp = maxHp();
+        this.exp = PokemonStats.experienceForLevel(growthRate(), this.level);
     }
 
     public int baseStat(int index) {
@@ -129,7 +132,38 @@ public final class Pokemon {
 
     /** Experience to reach the current level (the level is the source of truth). */
     public int experience() {
-        return PokemonStats.experienceForLevel(growthRate(), level);
+        return exp;
+    }
+
+    /**
+     * Adds battle experience (P2) and levels the Pokemon up while the curve
+     * allows. Levelling refills HP to the new maximum, like a fresh level-up.
+     *
+     * @return true when the level changed
+     */
+    public boolean gainExperience(int amount) {
+        if (amount <= 0 || egg) {
+            return false;
+        }
+        exp += amount;
+        String growth = growthRate();
+        int previous = level;
+        int previousMax = maxHp();
+        while (level < 100 && exp >= PokemonStats.experienceForLevel(growth, level + 1)) {
+            level++;
+        }
+        if (level != previous) {
+            // A level-up raises the current HP by the maximum-HP increase (the
+            // project's behaviour), it does not fully heal the Pokemon.
+            hp = Math.min(maxHp(), hp + (maxHp() - previousMax));
+            return true;
+        }
+        return false;
+    }
+
+    /** Experience still needed to reach the next level (0 at level 100). */
+    public int experienceToNextLevel() {
+        return level >= 100 ? 0 : PokemonStats.experienceForLevel(growthRate(), level + 1) - exp;
     }
 
     public boolean fainted() {

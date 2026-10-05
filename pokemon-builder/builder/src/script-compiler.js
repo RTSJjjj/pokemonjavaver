@@ -282,6 +282,42 @@ export const HANDLERS = {
   pbTrainerEnd() {
     return { command: "TRAINER_END" };
   },
+  // ---- P2: wild / trainer battles ----
+  /** pbWildBattle(species, level[, ...]) starts a single wild battle. */
+  pbWildBattle(args) {
+    return {
+      command: "WILD_BATTLE",
+      species: args[0],
+      level: args.length > 1 ? args[1] : 5,
+    };
+  },
+  /** pbFreeWildBattle(species, level) is a wild battle from a species. */
+  pbFreeWildBattle(args) {
+    return {
+      command: "WILD_BATTLE",
+      species: args[0],
+      level: args.length > 1 ? args[1] : 5,
+    };
+  },
+  /** pbTrainerBattle(type, name[, version]) loads trainers.txt and battles. */
+  pbTrainerBattle(args) {
+    return {
+      command: "TRAINER_BATTLE",
+      trainerType: args[0],
+      trainerName: args.length > 1 ? args[1] : "",
+      version: args.length > 2 ? args[2] : 0,
+      partner: false,
+    };
+  },
+  pbDoubleTrainerBattle(args) {
+    return {
+      command: "TRAINER_BATTLE",
+      trainerType: args[0],
+      trainerName: args.length > 1 ? args[1] : "",
+      version: args.length > 2 ? args[2] : 0,
+      partner: true,
+    };
+  },
   pbBridgeOn() {
     return { command: "SET_BRIDGE", on: true };
   },
@@ -524,6 +560,10 @@ function pokemonStatement(statement, locals) {
   match = /^pbAddPokemon(Silent)?\(\s*([A-Za-z_]\w*)\s*(?:,\s*[^)]*)?\)$/.exec(text);
   if (match && locals.get(match[2]) === "pokemon") {
     return { ir: { command: "PARTY_ADD", local: match[2], silent: Boolean(match[1]) } };
+  }
+  match = /^pbFreeWildBattle\(\s*([A-Za-z_]\w*)\s*(?:,\s*[^)]*)?\)$/.exec(text);
+  if (match && locals.get(match[1]) === "pokemon") {
+    return { ir: { command: "FREE_WILD_BATTLE", local: match[1] } };
   }
   match = /^pbSet\(\s*([^,]+?)\s*,\s*(.+)\)$/s.exec(text);
   if (match) {

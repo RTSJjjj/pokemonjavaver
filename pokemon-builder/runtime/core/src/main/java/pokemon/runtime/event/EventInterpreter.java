@@ -4,6 +4,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
 import pokemon.runtime.audio.AudioManager;
+import pokemon.runtime.battle.BattlePort;
+import pokemon.runtime.battle.BattleResult;
 import pokemon.runtime.data.EventCommand;
 import pokemon.runtime.data.MoveRoute;
 import pokemon.runtime.input.GameAction;
@@ -69,6 +71,8 @@ public final class EventInterpreter {
     private pokemon.runtime.state.Inventory inventory;
     /** P0c: PBS data used by the Pokemon construction IR commands. */
     private PbsData pbs;
+    /** P2: runs wild / trainer battles started by event scripts. */
+    private BattlePort battlePort;
     /**
      * P0c: local variables of the Pokemon construction scripts
      * ({@code p = pbGenPkmn(...)}). They live for one compiled SEQUENCE, which
@@ -194,6 +198,11 @@ public final class EventInterpreter {
      */
     public void attachPbs(PbsData data) {
         this.pbs = data;
+    }
+
+    /** P2: the battle runtime the WILD_BATTLE / TRAINER_BATTLE steps call. */
+    public void attachBattlePort(BattlePort port) {
+        this.battlePort = port;
     }
 
     /** Called once per frame by the map screen. */
@@ -1186,6 +1195,50 @@ public final class EventInterpreter {
                 boolean toParty = state.trainer().addToParty(egg);
                 log.warn("received an egg of " + speciesName
                         + (toParty ? " (party)" : " (box)"));
+                break;
+            }
+            // ---- P2: wild / trainer battles ----
+            case "WILD_BATTLE": {
+                if (battlePort == null) {
+                    log.warn("WILD_BATTLE without a battle runtime; skipped");
+                    break;
+                }
+                String species = ir.getString("species", "");
+                int level = ir.getInt("level", 5);
+                BattleResult result = battlePort.wildBattle(species, level);
+                log.warn("wild battle vs " + species + " L" + level + " -> "
+                        + (result == null ? "not started" : result.outcome));
+                break;
+            }
+            case "FREE_WILD_BATTLE": {
+                if (battlePort == null) {
+                    log.warn("FREE_WILD_BATTLE without a battle runtime; skipped");
+                    break;
+                }
+                Pokemon foe = localPokemon(ir.getString("local", ""));
+                if (foe == null) {
+                    log.warn("FREE_WILD_BATTLE of an unknown local; skipped");
+                    break;
+                }
+                BattleResult result = battlePort.freeWildBattle(foe);
+                log.warn("free wild battle -> " + (result == null ? "not started" : result.outcome));
+                break;
+            }
+            case "TRAINER_BATTLE": {
+                if (battlePort == null || pbs == null) {
+                    log.warn("TRAINER_BATTLE without a battle runtime or PBS data; skipped");
+                    break;
+                }
+                PbsData.TrainerData trainer = pbs.trainer(
+                        ir.getString("trainerType", ""), ir.getString("trainerName", ""),
+                        ir.getInt("version", 0));
+                if (trainer == null) {
+                    log.warn("TRAINER_BATTLE unknown trainer; skipped");
+                    break;
+                }
+                BattleResult result = battlePort.trainerBattle(trainer);
+                log.warn("trainer battle vs " + trainer.name + " -> "
+                        + (result == null ? "not started" : result.outcome));
                 break;
             }
             default:

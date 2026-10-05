@@ -122,6 +122,19 @@ public final class PokemonStats {
     }
 
     /**
+     * Level for a cumulative experience total, by walking the growth curve up.
+     * Used by level-up; the cap is the project's {@code MAXIMUM_LEVEL} guard,
+     * kept at 100 here because the runtime does not read Settings yet.
+     */
+    public static int levelForExperience(String growthRate, int experience) {
+        int level = 1;
+        while (level < 100 && experienceForLevel(growthRate, level + 1) <= experience) {
+            level++;
+        }
+        return level;
+    }
+
+    /**
      * Gender from the PBS rate name and a random roll in [0, 1). The names are
      * the ones this project uses (AlwaysMale/AlwaysFemale/Genderless and the
      * three percentage spellings).

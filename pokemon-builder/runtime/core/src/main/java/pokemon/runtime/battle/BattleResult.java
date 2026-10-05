@@ -1,0 +1,36 @@
+package pokemon.runtime.battle;
+
+import pokemon.runtime.pokemon.Pokemon;
+
+/**
+ * Stage 3 / P2: how a headless battle ended. The event layer maps it back onto
+ * the party (a loss is the white-out / respawn case, a catch adds the Pokemon).
+ */
+public final class BattleResult {
+
+    public enum Outcome {
+        /** Every foe fainted. */
+        WIN,
+        /** Every player Pokemon fainted (white-out). */
+        LOSS,
+        /** The player fled (not used by the auto battle yet). */
+        ESCAPE,
+        /** A foe was caught (not used by the auto battle yet). */
+        CAUGHT,
+    }
+
+    public final Outcome outcome;
+    public final int turns;
+    /** The caught Pokemon for {@link Outcome#CAUGHT}, else null. */
+    public final Pokemon caught;
+
+    public BattleResult(Outcome outcome, int turns, Pokemon caught) {
+        this.outcome = outcome;
+        this.turns = turns;
+        this.caught = caught;
+    }
+
+    public boolean won() {
+        return outcome == Outcome.WIN || outcome == Outcome.CAUGHT;
+    }
+}
