@@ -18,7 +18,7 @@ import path from "node:path";
 
 import { sha1 } from "../../builder/src/util.js";
 
-export const CACHE_FORMAT = "pokemon-builder/build-cache/1";
+export const CACHE_FORMAT = "pokemon-builder/build-cache/2";
 
 export function cacheFilePath(cacheDir) {
   return cacheDir ? path.join(cacheDir, "cache.json") : null;

@@ -211,7 +211,7 @@ public final class MessageText {
 
     private static String clean(String raw, GameState state, String playerName) {
         String text = VARIABLE.matcher(raw)
-                .replaceAll(match -> String.valueOf(variableValue(state, match.group(1))));
+                .replaceAll(match -> Matcher.quoteReplacement(variableValue(state, match.group(1))));
         text = replaceName(text, playerName);
         text = SKIN.matcher(text).replaceAll("");
         text = SPEAKER.matcher(text).replaceAll("");
@@ -228,10 +228,17 @@ public final class MessageText {
         int i = 0;
         while (i < text.length()) {
             char ch = text.charAt(i);
+            if (ch == '\u0001') {
+                // \1: the quarter-second pause of pbMessageDisplay
+                // (Messages:1028); the window draws the whole page at once.
+                i++;
+                continue;
+            }
             if (ch == '\\') {
                 int next = i + 1;
                 if (next < text.length() && (text.charAt(next) == '!' || text.charAt(next) == '.'
-                        || text.charAt(next) == '|' || text.charAt(next) == '^')) {
+                        || text.charAt(next) == '|' || text.charAt(next) == '^'
+                        || text.charAt(next) == '1')) {
                     i += 2;
                     continue;
                 }
@@ -299,7 +306,7 @@ public final class MessageText {
     }
 
     /** \v[n] resolves through the state; without a state it reads as 0. */
-    private static int variableValue(GameState state, String id) {
-        return state == null ? 0 : state.variables().get(Integer.parseInt(id));
+    private static String variableValue(GameState state, String id) {
+        return state == null ? "0" : state.variables().text(Integer.parseInt(id));
     }
 }

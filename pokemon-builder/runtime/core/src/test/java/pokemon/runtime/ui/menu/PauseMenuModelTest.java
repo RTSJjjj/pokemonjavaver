@@ -2,37 +2,89 @@ package pokemon.runtime.ui.menu;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.state.GameState;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * L1: the pause menu only lists entries the stage-2 runtime can do; the
- * stage-3 entries of the project's plugin stay hidden.
+ * L1/P4: the pause menu follows the project's "Modular Menu" plugin order
+ * (Pokedex / PC / Pokemon / Bag / Trainer / Save / Load / Quit / Options /
+ * Exit); entries with no runtime feature (Habitat / Pokegear / Tasks / Debug)
+ * are omitted, and Pokemon is hidden while the party is empty.
  */
 class PauseMenuModelTest {
 
     @Test
-    @DisplayName("the stage-2 pause menu lists trainer/save/load/options/title/exit (L1)")
-    void stageTwoEntries() {
+    @DisplayName("the pause menu follows the plugin order (L1/P4)")
+    void pluginEntries() {
         GameState state = new GameState();
         state.playerName("测试家");
+        // The Pokedex / PC entries need $Trainer.pokedex / $Trainer.pokepc
+        // (Modular Menu:67/82).
+        state.trainer().pokedex = true;
+        state.trainer().pokepc = true;
         PauseMenuModel menu = new PauseMenuModel(state);
-        assertEquals(6, menu.size());
-        assertEquals(PauseMenuModel.Action.TRAINER, menu.entryAt(0).action);
-        assertEquals("测试家", menu.entryAt(0).label, "the trainer entry shows the player name");
-        assertEquals("menuTrainer", menu.entryAt(0).icon);
-        assertEquals(PauseMenuModel.Action.SAVE, menu.entryAt(1).action);
-        assertEquals(PauseMenuModel.Action.LOAD, menu.entryAt(2).action);
-        assertEquals(PauseMenuModel.Action.OPTIONS, menu.entryAt(3).action);
-        assertEquals(PauseMenuModel.Action.TITLE, menu.entryAt(4).action);
-        assertEquals(PauseMenuModel.Action.EXIT, menu.entryAt(5).action);
+        // No party yet: the Pokemon entry is hidden (the plugin's availability
+        // check is $Trainer.party.length > 0).
+        assertEquals(9, menu.size());
+        assertEquals(PauseMenuModel.Action.POKEDEX, menu.entryAt(0).action);
+        assertEquals("图鉴", menu.entryAt(0).label);
+        assertEquals(PauseMenuModel.Action.STORAGE, menu.entryAt(1).action);
+        assertEquals("寄存系统", menu.entryAt(1).label);
+        assertEquals("menuPC", menu.entryAt(1).icon);
+        assertEquals(PauseMenuModel.Action.BAG, menu.entryAt(2).action);
+        assertEquals(PauseMenuModel.Action.TRAINER, menu.entryAt(3).action);
+        assertEquals("测试家", menu.entryAt(3).label, "the trainer entry shows the player name");
+        assertEquals("menuTrainer", menu.entryAt(3).icon);
+        assertEquals(PauseMenuModel.Action.SAVE, menu.entryAt(4).action);
+        assertEquals(PauseMenuModel.Action.LOAD, menu.entryAt(5).action);
+        assertEquals(PauseMenuModel.Action.TITLE, menu.entryAt(6).action);
+        assertEquals("退出", menu.entryAt(6).label);
+        assertEquals(PauseMenuModel.Action.OPTIONS, menu.entryAt(7).action);
+        assertEquals(PauseMenuModel.Action.EXIT, menu.entryAt(8).action);
+        assertEquals("menuExit", menu.entryAt(8).icon);
+    }
+
+    @Test
+    @DisplayName("a party adds the Pokemon entry in the plugin position (P4)")
+    void partyEntry() {
+        GameState state = new GameState();
+        state.trainer().pokedex = true;
+        state.trainer().pokepc = true;
+        state.trainer().party.add(new Pokemon(null, 5, null));
+        PauseMenuModel menu = new PauseMenuModel(state);
+        assertEquals(10, menu.size());
+        assertEquals(PauseMenuModel.Action.POKEDEX, menu.entryAt(0).action);
+        assertEquals(PauseMenuModel.Action.STORAGE, menu.entryAt(1).action);
+        assertEquals(PauseMenuModel.Action.PARTY, menu.entryAt(2).action);
+        assertEquals("宝可梦", menu.entryAt(2).label);
+        assertEquals(PauseMenuModel.Action.BAG, menu.entryAt(3).action);
+    }
+
+    @Test
+    @DisplayName("the Pokedex / PC entries stay hidden until their flags are set (Modular Menu:67/82)")
+    void dexAndPcNeedTheirFlags() {
+        GameState state = new GameState();
+        PauseMenuModel menu = new PauseMenuModel(state);
+        for (int i = 0; i < menu.size(); i++) {
+            assertNotEquals(PauseMenuModel.Action.POKEDEX, menu.entryAt(i).action);
+            assertNotEquals(PauseMenuModel.Action.STORAGE, menu.entryAt(i).action);
+        }
+        state.trainer().pokedex = true;
+        PauseMenuModel dexOnly = new PauseMenuModel(state);
+        assertEquals(PauseMenuModel.Action.POKEDEX, dexOnly.entryAt(0).action);
+        assertEquals(PauseMenuModel.Action.BAG, dexOnly.entryAt(1).action,
+                "the PC entry still needs $Trainer.pokepc");
     }
 
     @Test
     @DisplayName("the cursor wraps in both directions (L1)")
     void cursorWraps() {
-        PauseMenuModel menu = new PauseMenuModel(new GameState());
+        GameState state = new GameState();
+        state.trainer().pokedex = true;
+        state.trainer().pokepc = true;
+        PauseMenuModel menu = new PauseMenuModel(state);
         assertEquals(0, menu.index());
         menu.move(-1);
         assertEquals(menu.size() - 1, menu.index());
@@ -40,6 +92,6 @@ class PauseMenuModelTest {
         assertEquals(0, menu.index());
         menu.move(2);
         assertEquals(2, menu.index());
-        assertEquals(PauseMenuModel.Action.LOAD, menu.selectedAction());
+        assertEquals(PauseMenuModel.Action.BAG, menu.selectedAction());
     }
 }

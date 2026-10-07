@@ -69,7 +69,7 @@ public final class PokemonGame extends Game {
         context.loadRuntimeConfig();
 
         // L1: the options screen remembers fullscreen; reapply it at boot.
-        if (context.settings().fullscreen && Gdx.graphics != null
+        if (context.settings().fullscreen() && Gdx.graphics != null
                 && !Gdx.graphics.isFullscreen()) {
             try {
                 Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
@@ -110,6 +110,9 @@ public final class PokemonGame extends Game {
         // The input manager is polled once per frame so that every system sees
         // the same frame snapshot (project3 sections 13, 14).
         context.inputManager().beginFrame();
+        if (getScreen() instanceof MapScreen) {
+            context.gameState().trainer().playSeconds += Math.max(0, Math.min(1, Gdx.graphics.getDeltaTime()));
+        }
         context.audioManager().update(Gdx.graphics.getDeltaTime()); // R6.24: BGM cue
         handleSystemKeys();
         super.render();
@@ -128,7 +131,11 @@ public final class PokemonGame extends Game {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
             toggleFullscreen();
         }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F5)) {
+        if ((context.battlePort() != null && context.battlePort().pending()) || context.menuService().pending() != null) return;
+        // The pause menu's party screen owns F5 (Input::F5 = 寄存系统).
+        boolean pauseMenuOpen = getScreen() instanceof pokemon.runtime.map.MapScreen
+                && ((pokemon.runtime.map.MapScreen) getScreen()).pauseMenuOpen();
+        if (!pauseMenuOpen && Gdx.input.isKeyJustPressed(Input.Keys.F5)) {
             saveQuick();
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F9)) {

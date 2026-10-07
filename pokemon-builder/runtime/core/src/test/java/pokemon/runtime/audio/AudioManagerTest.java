@@ -178,6 +178,67 @@ class AudioManagerTest {
     }
 
     @Test
+    @DisplayName("R12: a folder path and an extension are optional, like RGSS resolves them")
+    void resolvesFolderAndExtension() {
+        // PBS/metadata.txt names files ("Battle wild.mid"), and
+        // pbGetWildVictoryME prefixes "../../Audio/ME/"
+        // (PSystem_FileUtilities:581) - the manifest key carries neither.
+        attachBgms("Battle wild", "Battle wild.ogg", "Battle victory wild", "Battle victory wild.ogg");
+        manager.playBgm("Battle wild.mid", 100, 100);
+        assertTrue(calls.contains("music:Battle wild.ogg:play"), calls.toString());
+        assertEquals("Battle wild.mid", manager.currentBgmId(),
+                "the requested id is remembered as given, so a resume replays the same request");
+
+        calls.clear();
+        manager.playBgm("../../Audio/ME/Battle victory wild.ogg", 100, 100);
+        assertTrue(calls.contains("music:Battle victory wild.ogg:play"), calls.toString());
+        assertEquals("../../Audio/ME/Battle victory wild.ogg", manager.currentBgmId());
+    }
+
+    @Test
+    @DisplayName("Game_System bgm_pause / bgm_resume: the overworld track comes back where it stopped")
+    void pausesAndResumesBgm() {
+        attachBgms("theme", "theme.ogg", "Battle wild", "Battle wild.ogg");
+        manager.playBgm("theme", 60, 100);
+        FakeMusic theme = fakeMusics.get("theme.ogg");
+        theme.position = 42.5f;                 // the track has been playing a while
+        calls.clear();
+
+        manager.pauseBgm();                      // PField_Visuals:28
+        assertTrue(manager.bgmPaused());
+        assertEquals(List.of(), calls, "bgm_pause does not stop the stream, like RMXP");
+
+        manager.playBgm("Battle wild", 100, 100); // PField_Visuals:36
+        assertEquals("Battle wild", manager.currentBgmId());
+
+        calls.clear();
+        manager.resumeBgm();                      // PField_Visuals:113
+        assertFalse(manager.bgmPaused());
+        assertEquals("theme", manager.currentBgmId());
+        assertTrue(calls.contains("music:theme.ogg:play"), calls.toString());
+        assertTrue(calls.contains("music:theme.ogg:volume=0.6"),
+                "the memorized volume comes back: " + calls);
+        assertTrue(calls.contains("music:theme.ogg:seek=42.5"),
+                "bgm_resume replays from @bgm_position: " + calls);
+    }
+
+    @Test
+    @DisplayName("bgm_resume without a pause, and a pause that nothing replaced, stay quiet")
+    void resumeEdgeCases() {
+        attachBgms("theme", "theme.ogg");
+        manager.resumeBgm();
+        assertEquals(List.of(), calls);
+
+        manager.playBgm("theme", 100, 100);
+        calls.clear();
+        manager.pauseBgm();
+        manager.resumeBgm();
+        assertFalse(manager.bgmPaused());
+        assertEquals(List.of(), calls, "the same track never stopped playing");
+        assertEquals("theme", manager.currentBgmId());
+    }
+
+    @Test
     @DisplayName("dispose releases music and samples")
     void disposes() {
         manager.playSe("Door enter");

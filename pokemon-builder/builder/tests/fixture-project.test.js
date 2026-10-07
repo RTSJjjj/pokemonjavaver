@@ -73,8 +73,8 @@ test("the Small Test Project converts with the documented shape (R15 fixture)", 
   assert.equal(choiceCommands[2].parameters[4], 9, "second option sets VAR1 = 9");
   assert.equal(choiceCommands[4].parameters[1], 1, "first option switches SW2 on");
 
-  // Call Common Event (RMXP code 116) with common event 1.
-  assert.equal(byName("CallCommon").pages[0].commands[0].code, 116);
+  // Call Common Event (RMXP code 117) with common event 1.
+  assert.equal(byName("CallCommon").pages[0].commands[0].code, 117);
   assert.deepEqual(byName("CallCommon").pages[0].commands[0].parameters, [1]);
 
   const common = readJson(path.join(generatedDir, "common-events", "common-event-001.json"));

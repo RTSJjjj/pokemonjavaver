@@ -20,6 +20,21 @@ const essentials = (name, rubySource) => ({
   rubySource,
 });
 
+test("P4 PC and trade selection have explicit menu IR", () => {
+  assert.deepEqual(compileBlock(essentials("pbPokeCenterPC", "pbPokeCenterPC")).ir, { command: "OPEN_PC" });
+  assert.deepEqual(compileBlock(essentials("pbChoosePokemonForTrade", "pbChoosePokemonForTrade(1,2,:PIKACHU)")).ir,
+    { command: "CHOOSE_TRADE", variable: 1, nameVariable: 2, wanted: "PIKACHU" });
+});
+test("P4 trade retains local Pokemon and variable slot references", () => {
+  const result = compileBlock(essentials("pbGenPkmn", 'p=pbGenPkmn(:PIKACHU,20)\np.makeShiny\npbStartTrade(pbGet(1),p,_I("礼物"),_I("训练家"),0,906)'));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir.steps.at(-1), { command: "START_TRADE", index: { variable: 1 }, offered: { local: "p" }, nickname: "礼物", trainerName: "训练家" });
+});
+test("P4 unsupported dynamic trade arguments never become translated", () => {
+  const result = compileBlock(essentials("pbStartTrade", 'pbStartTrade(random_slot(),:PIKACHU,"A","B")'));
+  assert.notEqual(result.status, "TRANSLATED");
+});
+
 test("splitArguments keeps nested arrays and quoted commas intact", () => {
   assert.deepEqual(splitArguments(':A, 1, [1,2], "x,y"'), [":A", "1", "[1,2]", '"x,y"']);
 });
@@ -142,10 +157,10 @@ test("handler batch 2: cry pair / pbExclaim / boulder / floating plates (R6.30)"
   );
 
   // A cry block that then needs the Pokemon runtime stays handler-required.
-  const partner = compileBlock(essentials("pbCryFile",
-      'cry = pbCryFile(1001)\npbSEPlay(cry) if cry\npbRegisterPartner(:TAPUKOKO, "卡璞·鸣鸣")'));
-  assert.equal(partner.status, "JAVA_HANDLER_REQUIRED");
-  assert.match(partner.reason, /stage 3/);
+  const domain = compileBlock(essentials("pbCryFile",
+      'cry = pbCryFile(1001)\npbSEPlay(cry) if cry\npbCrystalWarp'));
+  assert.equal(domain.status, "JAVA_HANDLER_REQUIRED");
+  assert.match(domain.reason, /stage 3/);
 });
 
 test("self switch and temp switch commands carry their channel", () => {
@@ -203,10 +218,90 @@ test("non literal handler arguments are reported instead of leaking Ruby (R6.19)
   assert.equal(result.status, "UNSUPPORTED");
   assert.match(result.reason, /literal/);
   assert.equal(result.ir, undefined);
-  // A stage 3 domain API instead moves to the Java-handler bucket (section 25).
-  const domain = compileBlock(essentials("pbGetKeyItem", "pbGetKeyItem(PBItems::TOWNMAP)"));
+  // A stage 3 domain API whose argument is still Ruby moves to the
+  // Java-handler bucket (section 25).
+  const domain = compileBlock(essentials("pbGetKeyItem", "pbGetKeyItem(keyItemName(pbGet(3)))"));
   assert.equal(domain.status, "JAVA_HANDLER_REQUIRED");
   assert.equal(domain.ir, undefined);
+});
+
+test("R8: PBItems constants resolve to the internal name", () => {
+  assert.equal(parseValue("PBItems::TOWNMAP"), "TOWNMAP");
+  assert.equal(parseValue("PBSpecies::PIKACHU"), "PIKACHU");
+  const result = compileBlock(essentials("pbGetKeyItem", "pbGetKeyItem(PBItems::TOWNMAP,1)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, { command: "GIVE_KEY_ITEM", item: "TOWNMAP", amount: 1 });
+});
+
+test("R8: $Trainer badges / pokedex / pokepc assignments become IR", () => {
+  const badge = compileBlock(essentials("pbGetKeyItem",
+    'pbGetKeyItem("itemBadge0Key")\n$Trainer.badges[1] = true'));
+  assert.equal(badge.status, "TRANSLATED");
+  assert.deepEqual(badge.ir, {
+    command: "SEQUENCE",
+    steps: [
+      { command: "GIVE_KEY_ITEM", item: "itemBadge0Key", amount: 1 },
+      { command: "SET_BADGE", badge: 1, value: true },
+    ],
+  });
+  const dex = compileBlock(essentials("pbGetKeyItem",
+    '$Trainer.pokedex=true\npbGetKeyItem("itemDexFemaleKey")'));
+  assert.equal(dex.status, "TRANSLATED");
+  assert.deepEqual(dex.ir.steps[0], { command: "SET_TRAINER_FLAG", flag: "pokedex", value: true });
+  const pc = compileBlock(essentials("pbGetKeyItem", '$Trainer.pokepc = true\npbGetKeyItem("itemPCKey")'));
+  assert.equal(pc.status, "TRANSLATED");
+  assert.deepEqual(pc.ir.steps[0], { command: "SET_TRAINER_FLAG", flag: "pokepc", value: true });
+});
+
+test("R8: pbSet reads the $Trainer dex counters", () => {
+  const result = compileBlock(essentials("pbSet",
+    "pbSet(1,$Trainer.pokedexSeen)\npbSet(2,$Trainer.pokedexOwned)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, {
+    command: "SEQUENCE",
+    steps: [
+      { command: "SET_VARIABLE", id: 1, value: { trainerStat: "pokedexSeen" } },
+      { command: "SET_VARIABLE", id: 2, value: { trainerStat: "pokedexOwned" } },
+    ],
+  });
+});
+
+test("R8: boss_reward / BossRewards calls become their IR commands", () => {
+  assert.deepEqual(compileBlock(essentials("boss_reward", "boss_reward(5)")).ir,
+    { command: "BOSS_REWARD", rank: 5 });
+  assert.deepEqual(compileBlock(essentials("pokemon_reward", "BossRewards.pokemon_reward")).ir,
+    { command: "BOSS_POKEMON_REWARD" });
+  assert.deepEqual(compileBlock(essentials("gholdengo_money", "BossRewards.gholdengo_money")).ir,
+    { command: "BOSS_GHOLDENGO_MONEY" });
+  assert.deepEqual(compileBlock(essentials("blissey", "BossRewards.blissey")).ir,
+    { command: "BOSS_BLISSEY" });
+});
+
+test("R8: the gift scripts set trainerID / otgender / ballused", () => {
+  const result = compileBlock(essentials("pbGenPkmn",
+    "p=pbGenPkmn(:VOLTCAT,15)\np.iv=[31,31,31,31,31,31]\np.ballused=26\npbAddPokemon(p,1)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir.steps[2],
+    { command: "POKEMON_SET", local: "p", property: "ballused", value: 26 });
+});
+
+test("R8: partner registration becomes its IR commands (PField_Field:1399-1440)", () => {
+  assert.deepEqual(compileBlock(essentials("pbRegisterPartner", 'pbRegisterPartner(:CYAN,"阿青")')).ir,
+    { command: "REGISTER_PARTNER", trainerType: "CYAN", name: "阿青", partyId: 0 });
+  assert.deepEqual(compileBlock(essentials("pbRegisterPartner", 'pbRegisterPartner(:LEADER_Dragon,"未明",2)')).ir,
+    { command: "REGISTER_PARTNER", trainerType: "LEADER_Dragon", name: "未明", partyId: 2 });
+  assert.deepEqual(compileBlock(essentials("pbDeregisterPartner", "pbDeregisterPartner")).ir,
+    { command: "DEREGISTER_PARTNER" });
+});
+
+test("R8: the single-call pbAddPokemon becomes GIVE_POKEMON", () => {
+  assert.deepEqual(compileBlock(essentials("pbAddPokemon", "pbAddPokemon(:TURTWIG,5)")).ir,
+    { command: "GIVE_POKEMON", species: "TURTWIG", level: 5 });
+  // The Pokemon construction form still uses the local + PARTY_ADD.
+  const local = compileBlock(essentials("pbGenPkmn",
+    "p=pbGenPkmn(:VOLTCAT,15)\npbAddPokemon(p,1)"));
+  assert.equal(local.status, "TRANSLATED");
+  assert.deepEqual(local.ir.steps.at(-1), { command: "PARTY_ADD", local: "p", silent: false });
 });
 
 test("no-parentheses calls work (pbTrainerEnd, pbBridgeOn)", () => {
@@ -364,18 +459,93 @@ test("P0c/P2: a battle terminator now translates, a trade one stays pending", ()
   assert.equal(trade.status, "JAVA_HANDLER_REQUIRED");
 });
 
-test("P0c: a Pokemon script with a loop stays in the handler bucket", () => {
+test("P0d: a Pokemon script loop compiles to a REPEAT step", () => {
   const result = compileBlock(essentials("pbGenPkmn",
       "p=pbGenPkmn(:PIKACHU,5)\ncount=$Trainer.pokemonCount\nfor i in 0...count\npbAddPokemon(p,1)\nend"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir.steps[2], {
+    command: "REPEAT",
+    local: "i",
+    from: 0,
+    to: { local: "count" },
+    exclusive: true,
+    steps: [{ command: "PARTY_ADD", local: "p", silent: false }],
+  });
+});
+
+test("P0d: the catch ball-shake glue loop becomes a REPEAT sequence", () => {
+  const result = compileBlock(essentials("pbSet",
+      'count=$Trainer.pokemonCount\nfor i in 1..count\n  pbSet(6,i)\n  pbSEPlay("Battle ball shake")\n  pbWait(16)\nend'));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, {
+    command: "SEQUENCE",
+    steps: [
+      { command: "LOCAL_SET", local: "count", value: { trainerPokemonCount: true } },
+      {
+        command: "REPEAT",
+        local: "i",
+        from: 1,
+        to: { local: "count" },
+        steps: [
+          { command: "SET_VARIABLE", id: 6, value: { local: "i" } },
+          { command: "PLAY_SE", name: "Battle ball shake", volume: 100, pitch: 100 },
+          { command: "WAIT", frames: 16 },
+        ],
+      },
+    ],
+  });
+  assert.ok(!JSON.stringify(result.ir).includes("$Trainer"), "IR must not carry Ruby");
+
+  const inline = compileBlock(essentials("pbSet",
+      'for i in 1..$Trainer.pokemonCount\n  pbSet(6,i)\n  pbSEPlay("Battle ball shake")\n  pbWait(16)\nend'));
+  assert.equal(inline.status, "TRANSLATED");
+  assert.equal(inline.ir.command, "REPEAT");
+  assert.deepEqual(inline.ir.from, 1);
+  assert.deepEqual(inline.ir.to, { trainerPokemonCount: true });
+  assert.equal(inline.ir.exclusive, undefined);
+});
+
+test("P0d: a glue loop with a non-range iterator stays in the handler bucket", () => {
+  const result = compileBlock(essentials("pbSet",
+      "for pkmn in $Trainer.pokemonParty\npbSet(1,pkmn.name)\nend"));
   assert.equal(result.status, "JAVA_HANDLER_REQUIRED");
+});
+
+test("P0d: pbShowMap becomes SHOW_MAP with the plugin defaults (PScreen_RegionMap:431)", () => {
+  assert.deepEqual(
+    compileBlock(essentials("pbShowMap", "pbShowMap")).ir,
+    { command: "SHOW_MAP", region: -1, wallmap: true },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbShowMap", "pbShowMap(2,false)")).ir,
+    { command: "SHOW_MAP", region: 2, wallmap: false },
+  );
+  const dynamic = compileBlock(essentials("pbShowMap", "pbShowMap(pbGet(1))"));
+  assert.notEqual(dynamic.status, "TRANSLATED", "a dynamic region stays for the runtime");
+});
+
+test("P2: setBattleRule records battle rules for the next battle", () => {
+  assert.deepEqual(
+    compileBlock(essentials("setBattleRule", 'setBattleRule("double")')).ir,
+    { command: "BATTLE_RULE", rules: [{ rule: "double" }] },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("setBattleRule", 'setBattleRule("outcomeVar", 2)')).ir,
+    { command: "BATTLE_RULE", rules: [{ rule: "outcomeVar", value: 2 }] },
+  );
+  const chain = compileBlock(essentials("pbTrainerIntro",
+      'pbTrainerIntro(:BLACKBELT)\nsetBattleRule("double")'));
+  assert.equal(chain.status, "TRANSLATED");
+  assert.equal(chain.ir.command, "SEQUENCE");
+  assert.deepEqual(chain.ir.steps[0], { command: "TRAINER_INTRO", trainerType: "BLACKBELT" });
+  assert.deepEqual(chain.ir.steps[1], { command: "BATTLE_RULE", rules: [{ rule: "double" }] });
 });
 
 test("P1: pbSetPokemonCenter / pbStoreItem / myAddEgg become IR", () => {
   assert.deepEqual(
     compileBlock(essentials("pbSetPokemonCenter", "pbSetPokemonCenter")).ir,
     { command: "SET_POKEMON_CENTER" },
-  );
-  assert.deepEqual(
+  );  assert.deepEqual(
     compileBlock(essentials("pbStoreItem", "pbStoreItem(:POTION,2)")).ir,
     { command: "GIVE_ITEM", item: "POTION", amount: 2 },
   );
@@ -424,6 +594,34 @@ test("P2: wild / trainer battle scripts become battle IR", () => {
   assert.equal(free.status, "TRANSLATED");
   assert.deepEqual(free.ir.steps[2], { command: "FREE_WILD_BATTLE", local: "p" });
 
+  // R14 / PField_Battles:359-361: the three optional arguments are battle rules
+  // and must survive into the IR.
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU, 12, 7)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 12, outcomeVar: 7 },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU, 12, 1, false)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 12, canRun: false },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU, 12, 1, true, true)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 12, canLose: true },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU, 12, 3, false, true)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 12, outcomeVar: 3, canRun: false, canLose: true },
+  );
+  const freeOutcome = compileBlock(essentials("pbGenPkmn",
+      "p=pbGenPkmn(:PIKACHU,5)\npbFreeWildBattle(p, 9)"));
+  assert.deepEqual(freeOutcome.ir.steps[1],
+      { command: "FREE_WILD_BATTLE", local: "p", outcomeVar: 9 });
+  assert.deepEqual(
+    compileBlock(essentials("pbWildBattle", "pbWildBattle(:PIKACHU, 12, 1, false)")).ir,
+    { command: "WILD_BATTLE", species: "PIKACHU", level: 12, canRun: false },
+    "the default outcome variable is not written out",
+  );
+
   assert.deepEqual(
     compileBlock(essentials("pbRockSmashRandomEncounter", "pbRockSmashRandomEncounter")).ir,
     { command: "ROCK_SMASH_ENCOUNTER" },
@@ -441,6 +639,23 @@ test("P-select: pbGenderSelector / pbChangePlayer become player IR", () => {
   );
 });
 
+test("P3 berry: pbBerryPlant / pbPickBerry become BERRY_PLANT / BERRY_PICK", () => {
+  // pbBerryPlant is called without parentheses in the project's events.
+  assert.deepEqual(
+    compileBlock(essentials("pbBerryPlant", "pbBerryPlant")).ir,
+    { command: "BERRY_PLANT" },
+  );
+  assert.deepEqual(
+    compileBlock(essentials("pbPickBerry", "pbPickBerry(:CHERIBERRY,2)")).ir,
+    { command: "BERRY_PICK", berry: "CHERIBERRY", qty: 2 },
+  );
+  // The plugin's qty defaults to 1 (PField_BerryPlants:555).
+  assert.deepEqual(
+    compileBlock(essentials("pbPickBerry", "pbPickBerry(:ORANBERRY)")).ir,
+    { command: "BERRY_PICK", berry: "ORANBERRY", qty: 1 },
+  );
+});
+
 test("P3: p.giveRibbon becomes a POKEMON_CALL", () => {
   const result = compileBlock(essentials("pbGenPkmn",
       "p=pbGenPkmn(:PIKACHU,5)\np.giveRibbon(:EFFORT)"));
@@ -448,7 +663,6 @@ test("P3: p.giveRibbon becomes a POKEMON_CALL", () => {
   assert.deepEqual(result.ir.steps[1],
       { command: "POKEMON_CALL", local: "p", action: "giveRibbon", args: ["EFFORT"] });
 });
-
 
 
 

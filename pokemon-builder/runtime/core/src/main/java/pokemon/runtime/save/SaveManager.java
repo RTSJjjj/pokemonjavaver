@@ -8,6 +8,7 @@ import pokemon.runtime.app.StoragePort;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
+import pokemon.runtime.pokemon.Storage;
 import pokemon.runtime.pokemon.TrainerState;
 import pokemon.runtime.state.GameSelfSwitches;
 import pokemon.runtime.state.GameState;
@@ -63,7 +64,8 @@ public final class SaveManager {
 
         JsonValue variables = object();
         for (int id : state.variables().ids()) {
-            variables.addChild(String.valueOf(id), new JsonValue(state.variables().get(id)));
+            variables.addChild(String.valueOf(id), state.variables().isText(id)
+                    ? new JsonValue(state.variables().text(id)) : new JsonValue(state.variables().get(id)));
         }
         root.addChild("variables", variables);
 
@@ -76,6 +78,27 @@ public final class SaveManager {
             selfSwitches.addChild(entry);
         }
         root.addChild("selfSwitches", selfSwitches);
+
+        // Essentials $PokemonGlobal.eventvars (berry plants): the growth state
+        // has to survive the save exactly like the self switches.
+        JsonValue eventVarsJson = array();
+        for (long key : state.eventVars().keys()) {
+            int varMap = pokemon.runtime.state.GameEventVars.mapIdOf(key);
+            int varEvent = pokemon.runtime.state.GameEventVars.eventIdOf(key);
+            JsonValue entry = object();
+            entry.addChild("map", new JsonValue(varMap));
+            entry.addChild("event", new JsonValue(varEvent));
+            JsonValue values = array();
+            int[] stored = state.eventVars().get(varMap, varEvent);
+            if (stored != null) {
+                for (int value : stored) {
+                    values.addChild(new JsonValue(value));
+                }
+            }
+            entry.addChild("values", values);
+            eventVarsJson.addChild(entry);
+        }
+        root.addChild("eventVars", eventVarsJson);
 
         JsonValue items = object();
         for (ObjectIntMap.Entry<String> entry : state.inventory().counts()) {
@@ -106,7 +129,25 @@ public final class SaveManager {
         JsonValue node = object();
         node.addChild("name", new JsonValue(trainer.name == null ? "" : trainer.name));
         node.addChild("gender", new JsonValue(trainer.gender));
+        // R15: PokeBattle_Trainer:259-266 - the 32-bit id behind every wild
+        // Pokemon's @trainerID and the shiny formula.
+        node.addChild("id", new JsonValue(trainer.id));
         node.addChild("money", new JsonValue(trainer.money));
+        node.addChild("region", new JsonValue(trainer.region));
+        node.addChild("playSeconds", new JsonValue(trainer.playSeconds));
+        node.addChild("pokedex", new JsonValue(trainer.pokedex));
+        node.addChild("pokepc", new JsonValue(trainer.pokepc));
+        node.addChild("expPot", new JsonValue(trainer.expPot));
+        JsonValue seen = array(), owned = array(), badges = array();
+        for (String id : trainer.seen) seen.addChild(new JsonValue(id));
+        for (String id : trainer.owned) owned.addChild(new JsonValue(id));
+        for (int id : trainer.badges) badges.addChild(new JsonValue(id));
+        node.addChild("seen", seen); node.addChild("owned", owned); node.addChild("badges", badges);
+        JsonValue regions = object();
+        for (java.util.Map.Entry<Integer, Storage> region : trainer.regionalStorage.entrySet()) {
+            regions.addChild(String.valueOf(region.getKey()), storageJson(region.getValue()));
+        }
+        node.addChild("regionalStorage", regions);
         if (trainer.hasPokemonCenter()) {
             JsonValue heal = object();
             heal.addChild("map", new JsonValue(trainer.healMapId));
@@ -120,15 +161,45 @@ public final class SaveManager {
             party.addChild(pokemonJson(pokemon));
         }
         node.addChild("party", party);
-        JsonValue storage = array();
-        for (com.badlogic.gdx.utils.Array<Pokemon> box : trainer.storage.boxes()) {
-            JsonValue entries = array();
-            for (Pokemon pokemon : box) {
-                entries.addChild(pokemonJson(pokemon));
+        node.addChild("storage", storageJson(trainer.storage));
+        return node;
+    }
+
+    /**
+     * Pokemon_Storage: boxes keep their 30 fixed slots (each saved Pokemon carries its
+     * "slot"), plus the box name / wallpaper, the current box and the unlocked
+     * wallpapers. Boxes that were never touched are not written.
+     */
+    private JsonValue storageJson(Storage storage) {
+        JsonValue node = object();
+        node.addChild("currentBox", new JsonValue(storage.currentBox));
+        JsonValue unlocked = array();
+        boolean[] flags = storage.unlockedWallpapers();
+        for (int i = 0; i < flags.length; i++) if (flags[i]) unlocked.addChild(new JsonValue(i));
+        node.addChild("unlockedWallpapers", unlocked);
+        JsonValue boxes = array();
+        for (int index = 0; index < Storage.BOXES; index++) {
+            Storage.Box box = storage.boxIfCreated(index);
+            if (box == null) continue;
+            boolean renamed = !box.name.equals("盒子 " + (index + 1))
+                    || box.background != index % Storage.BASICWALLPAPERQTY;
+            if (box.empty() && !renamed) continue;
+            JsonValue entry = object();
+            entry.addChild("index", new JsonValue(index));
+            entry.addChild("name", new JsonValue(box.name));
+            entry.addChild("background", new JsonValue(box.background));
+            JsonValue slots = array();
+            for (int slot = 0; slot < box.length(); slot++) {
+                Pokemon pokemon = box.get(slot);
+                if (pokemon == null) continue;
+                JsonValue p = pokemonJson(pokemon);
+                p.addChild("slot", new JsonValue(slot));
+                slots.addChild(p);
             }
-            storage.addChild(entries);
+            entry.addChild("slots", slots);
+            boxes.addChild(entry);
         }
-        node.addChild("storage", storage);
+        node.addChild("boxes", boxes);
         return node;
     }
 
@@ -179,6 +250,18 @@ public final class SaveManager {
         }
         node.addChild("ot", new JsonValue(pokemon.originalTrainer == null ? "" : pokemon.originalTrainer));
         node.addChild("battleRank", new JsonValue(pokemon.battleRank));
+        node.addChild("personalID", new JsonValue(pokemon.personalID));
+        // R15: the full OT id (PokeBattle_Pokemon:39); publicID is its low half.
+        node.addChild("trainerID", new JsonValue(pokemon.trainerID));
+        node.addChild("publicID", new JsonValue(pokemon.publicID));
+        node.addChild("otGender", new JsonValue(pokemon.otGender));
+        node.addChild("ballused", new JsonValue(pokemon.ballused));
+        node.addChild("markings", new JsonValue(pokemon.markings));
+        node.addChild("obtainMap", new JsonValue(pokemon.obtainMap));
+        node.addChild("obtainLevel", new JsonValue(pokemon.obtainLevel));
+        node.addChild("obtainMode", new JsonValue(pokemon.obtainMode));
+        node.addChild("obtainText", new JsonValue(pokemon.obtainText == null ? "" : pokemon.obtainText));
+        node.addChild("pokerus", new JsonValue(pokemon.pokerus));
         return node;
     }
 
@@ -242,7 +325,9 @@ public final class SaveManager {
         JsonValue variables = root.get("variables");
         if (variables != null && variables.isObject()) {
             for (JsonValue value = variables.child; value != null; value = value.next) {
-                state.variables().set(Math.max(1, Integer.parseInt(value.name)), value.asInt());
+                int id = Math.max(1, Integer.parseInt(value.name));
+                if (value.isString()) state.variables().setText(id, value.asString());
+                else state.variables().set(id, value.asInt());
             }
         }
 
@@ -252,6 +337,23 @@ public final class SaveManager {
             for (JsonValue entry = selfSwitches.child; entry != null; entry = entry.next) {
                 state.selfSwitches().set(entry.getInt("map", 0), entry.getInt("event", 0),
                         entry.getString("channel", "A"), true);
+            }
+        }
+
+        state.eventVars().clear();
+        JsonValue eventVars = root.get("eventVars");
+        if (eventVars != null && eventVars.isArray()) {
+            for (JsonValue entry = eventVars.child; entry != null; entry = entry.next) {
+                JsonValue values = entry.get("values");
+                if (values == null || !values.isArray()) {
+                    continue;
+                }
+                int[] stored = new int[values.size];
+                int i = 0;
+                for (JsonValue value = values.child; value != null; value = value.next) {
+                    stored[i++] = value.asInt();
+                }
+                state.eventVars().set(entry.getInt("map", 0), entry.getInt("event", 0), stored);
             }
         }
 
@@ -305,15 +407,24 @@ public final class SaveManager {
     // ------------------------------------------------------------------
 
     private void loadTrainer(JsonValue node, TrainerState trainer) {
-        trainer.party.members().clear();
-        trainer.storage.clear();
-        trainer.healMapId = -1;
+        trainer.reset();
         if (node == null || !node.isObject()) {
             return; // a save written before P1
         }
         trainer.name = node.getString("name", trainer.name);
         trainer.gender = node.getInt("gender", trainer.gender);
+        trainer.id = node.getInt("id", trainer.id);
         trainer.money = node.getInt("money", 0);
+        trainer.region = Math.max(0, node.getInt("region", 0));
+        trainer.playSeconds = Math.max(0, node.getDouble("playSeconds", 0));
+        trainer.pokedex = node.getBoolean("pokedex", false);
+        trainer.pokepc = node.getBoolean("pokepc", false);
+        trainer.expPot = Math.max(0, node.getInt("expPot", 0));
+        JsonValue seen = node.get("seen"), owned = node.get("owned"), badges = node.get("badges");
+        if (seen != null && seen.isArray()) for (JsonValue id : seen) trainer.seen.add(id.asString());
+        if (owned != null && owned.isArray()) for (JsonValue id : owned) trainer.owned.add(id.asString());
+        trainer.seen.addAll(trainer.owned);
+        if (badges != null && badges.isArray()) for (JsonValue id : badges) trainer.badges.add(id.asInt());
         JsonValue heal = node.get("heal");
         if (heal != null && heal.isObject()) {
             trainer.setPokemonCenter(heal.getInt("map", -1), heal.getInt("x", 0),
@@ -325,21 +436,64 @@ public final class SaveManager {
                 Pokemon pokemon = readPokemon(entry);
                 if (pokemon != null) {
                     trainer.party.add(pokemon);
+                    trainer.registerOwned(pokemon);
                 }
             }
         }
-        JsonValue storage = node.get("storage");
-        if (storage != null && storage.isArray()) {
+        readStorage(node.get("storage"), trainer.storage, trainer);
+        JsonValue regions = node.get("regionalStorage");
+        if (regions != null && regions.isObject()) for (JsonValue region : regions) {
+            int id;
+            try { id = Integer.parseInt(region.name); } catch (NumberFormatException invalid) { continue; }
+            if (id <= 0) continue;
+            readStorage(region, trainer.storageForRegion(id), trainer);
+        }
+    }
+
+    /**
+     * Reads {@link #storageJson}. The previous format (an array of boxes, each an
+     * array of Pokemon with no slot numbers) is migrated by filling each box from
+     * its first slot in the saved order.
+     */
+    private void readStorage(JsonValue node, Storage storage, TrainerState trainer) {
+        if (node == null) return;
+        if (node.isArray()) {
             int boxIndex = 0;
-            for (JsonValue box = storage.child; box != null; box = box.next, boxIndex++) {
-                if (!box.isArray()) {
-                    continue;
-                }
+            for (JsonValue box = node.child; box != null && boxIndex < Storage.BOXES; box = box.next, boxIndex++) {
+                if (!box.isArray()) continue;
+                int slot = 0;
                 for (JsonValue entry = box.child; entry != null; entry = entry.next) {
                     Pokemon pokemon = readPokemon(entry);
-                    if (pokemon != null) {
-                        trainer.storage.box(boxIndex).add(pokemon);
+                    if (pokemon != null && slot < Storage.SLOTS) {
+                        storage.box(boxIndex).set(slot++, pokemon);
+                        trainer.registerOwned(pokemon);
                     }
+                }
+            }
+            return;
+        }
+        if (!node.isObject()) return;
+        storage.currentBox = Math.max(0, Math.min(node.getInt("currentBox", 0), Storage.BOXES - 1));
+        JsonValue unlocked = node.get("unlockedWallpapers");
+        if (unlocked != null && unlocked.isArray()) {
+            for (JsonValue value = unlocked.child; value != null; value = value.next) storage.unlockWallpaper(value.asInt());
+        }
+        JsonValue boxes = node.get("boxes");
+        if (boxes == null || !boxes.isArray()) return;
+        for (JsonValue entry = boxes.child; entry != null; entry = entry.next) {
+            int index = entry.getInt("index", -1);
+            if (index < 0 || index >= Storage.BOXES) continue;
+            Storage.Box box = storage.box(index);
+            box.name = entry.getString("name", box.name);
+            box.background = entry.getInt("background", box.background);
+            JsonValue slots = entry.get("slots");
+            if (slots == null || !slots.isArray()) continue;
+            for (JsonValue slotNode = slots.child; slotNode != null; slotNode = slotNode.next) {
+                Pokemon pokemon = readPokemon(slotNode);
+                int slot = slotNode.getInt("slot", -1);
+                if (pokemon != null && slot >= 0 && slot < Storage.SLOTS) {
+                    box.set(slot, pokemon);
+                    trainer.registerOwned(pokemon);
                 }
             }
         }
@@ -409,6 +563,19 @@ public final class SaveManager {
         pokemon.originalTrainer = originalTrainer == null || originalTrainer.isEmpty()
                 ? null : originalTrainer;
         pokemon.battleRank = node.getInt("battleRank", 0);
+        pokemon.personalID = node.getInt("personalID", 0);
+        // A v1..v4 save has no full id: the visible half is what it stored.
+        pokemon.trainerID = node.getInt("trainerID", node.getInt("publicID", 0));
+        pokemon.publicID = node.getInt("publicID", pokemon.trainerID & 0xFFFF);
+        pokemon.otGender = node.getInt("otGender", -1);
+        pokemon.ballused = node.getInt("ballused", 0);
+        pokemon.markings = node.getInt("markings", 0);
+        pokemon.obtainMap = node.getInt("obtainMap", 0);
+        pokemon.obtainLevel = node.getInt("obtainLevel", pokemon.level);
+        pokemon.obtainMode = node.getInt("obtainMode", 0);
+        String obtainText = node.getString("obtainText", null);
+        pokemon.obtainText = obtainText == null || obtainText.isEmpty() ? null : obtainText;
+        pokemon.pokerus = node.getInt("pokerus", 0);
         return pokemon;
     }
 

@@ -134,7 +134,7 @@ export function fixtureMap001() {
       ])],
       [int(4), mapEvent(4, "CallCommon", 13, 5, [
         eventPage(0, [
-          eventCommand(116, 0, [int(1)]), // Call Common Event 1 (RMXP code 116)
+          eventCommand(117, 0, [int(1)]), // Call Common Event 1 (RMXP code 117)
         ]),
       ])],
       [int(5), mapEvent(5, "ItemGiver", 3, 5, [

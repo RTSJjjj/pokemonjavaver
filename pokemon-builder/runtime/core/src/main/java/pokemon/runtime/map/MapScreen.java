@@ -72,10 +72,46 @@ public final class MapScreen extends ScreenAdapter {
     private final MapCharacter player;
     private final MovementController movement = new MovementController();
     private final MovementController.StepMover stepMover;
+    /**
+     * Game_Player:9,61-65: a blocked step plays the "Player bump" SE, at most
+     * once per 10 frames ({@code @bump_se = 40/4}); it counts down every frame
+     * (Game_Player:340).
+     */
+    private float bumpSe;
+    /** True when this frame's step attempt was blocked by collision. */
+    private boolean blockedStep;
+    /** P0d: the player was mid-jump last frame (landing detection). */
+    private boolean playerWasJumping;
+    /** PField_Field:1138: the ledge jump's dust plays on the landing frame. */
+    private boolean ledgeDustPending;
     private final EventInterpreter interpreter;
     private MessageWindow messageWindow;
     /** L1: the pause menu overlay (Modular Pause Menu visuals). */
     private PauseMenuOverlay pauseMenu;
+    private pokemon.runtime.battle.BattleScreen battleScreen;
+    /** PField_Visuals:123-125: {@code numFrames = 40*4/10}, alphaDiff = ceil(255/16). */
+    private static final int BATTLE_RETURN_FRAMES = 40 * 4 / 10;
+    private static final int BATTLE_RETURN_ALPHA_STEP =
+            (int) Math.ceil(255.0 / BATTLE_RETURN_FRAMES);
+    /** The post-battle fade's current alpha (255..0), or -1 when it is not running. */
+    private int battleReturnAlpha = -1;
+
+    /**
+     * The battle screen this map is currently hosting, or null (probe/debug:
+     * the lwjgl3 capture samples the battle's stages through it).
+     */
+    public pokemon.runtime.battle.BattleScreen activeBattleScreen() {
+        return battleScreen;
+    }
+    /**
+     * PField_Visuals:18 pbBattleAnimation / rocket:19: the battle entry
+     * animation (a VS screen or the default flash) runs over the map before the
+     * battle scene takes over.
+     */
+    private pokemon.runtime.battle.BattleEntryAnimation battleEntry;
+    private boolean battleEntryPlayed;
+    /** Graphics.snap_to_bitmap handed to the entry's KGC transition, once. */
+    private boolean entrySnapshotTaken;
 
     /** L6b: Trainer(N)/Counter(N) events of this map (line-of-sight triggers). */
     private final com.badlogic.gdx.utils.Array<SightTriggers.Sight> sightEvents =
@@ -83,6 +119,8 @@ public final class MapScreen extends ScreenAdapter {
     private final GraphicsLocator locator;
     private PictureLayer pictureLayer;
     private EventCharacters eventCharacters;
+    /** P3: the berry plant / moisture sprites of this map (PField_BerryPlants). */
+    private BerryPlantSprites berryPlants;
     private MoveRoutePlayer playerRoute;
     /** True while the running event page is an arrival door page (R6.15). */
     private boolean arrivalDoorPage;
@@ -207,6 +245,7 @@ public final class MapScreen extends ScreenAdapter {
         // selector picks one.
         applyPlayerCharset();
         mapData = data;
+        if (data.region >= 0) gameState.trainer().region = data.region;
         collectSightEvents(data);
         links = database.links();
         tileMap = new TileMap(data, database.tileset(data.tilesetId));
@@ -255,6 +294,8 @@ public final class MapScreen extends ScreenAdapter {
         pictureLayer = new PictureLayer(context.pictureService(), textures, locator);
         context.pictureService().clear(); // RMXP clears pictures when the map changes
         eventCharacters = new EventCharacters(mapData, tileMap, gameState);
+        berryPlants = new BerryPlantSprites(mapData, eventCharacters, gameState,
+                database == null ? null : database.pbs(), this::startTileAnimation, textures, locator);
         autoplayMapAudio();
         context.bindScreenPort(new MapPort() {
             @Override
@@ -268,6 +309,31 @@ public final class MapScreen extends ScreenAdapter {
                     playerRoute = new MoveRoutePlayer(route); // "character" = the player
                 } else {
                     eventCharacters.setMoveRoute(eventId, route);
+                }
+            }
+
+            @Override
+            public int[] getEventVariable(int eventId) {
+                return eventId < 0 || mapData == null ? null
+                        : gameState.eventVars().get(mapData.mapId, eventId);
+            }
+
+            @Override
+            public void setEventVariable(int eventId, int[] value) {
+                if (eventId < 0 || mapData == null) {
+                    return;
+                }
+                gameState.eventVars().set(mapData.mapId, eventId, value);
+            }
+
+            @Override
+            public void turnEvent(int eventId, int direction) {
+                if (eventCharacters == null) {
+                    return;
+                }
+                MapCharacter character = eventCharacters.character(eventId);
+                if (character != null) {
+                    character.face(direction);
                 }
             }
 
@@ -300,8 +366,7 @@ public final class MapScreen extends ScreenAdapter {
                     gameState.setPlayerPosition(player.x(), player.y(), player.direction());
                 } else {
                     eventCharacters.setLocation(eventId, x, y, direction);
-                }
-            }
+                }            }
 
             @Override
             public void setTransparent(int eventId, boolean transparent) {
@@ -327,6 +392,31 @@ public final class MapScreen extends ScreenAdapter {
                     }
                 } else {
                     eventCharacters.setTransparent(eventId, transparent);
+                }
+            }
+
+            @Override
+            public void eraseEvent(int eventId) {
+                // RMXP Erase Event (116): the event leaves the map until it is
+                // loaded again - no sprite, no blocking, no trigger.
+                if (eventCharacters != null && eventId >= 0) {
+                    eventCharacters.erase(eventId);
+                }
+            }
+
+            @Override
+            public void lockEvents(boolean locked) {
+                // pbGlobalLock / pbGlobalUnlock (Messages:223-234).
+                if (eventCharacters != null) {
+                    eventCharacters.setLocked(locked);
+                }
+            }
+
+            @Override
+            public void eraseRoute(int eventId) {
+                // pbTrainerEnd: Game_Event#erase_route (PField_Field:804).
+                if (eventCharacters != null) {
+                    eventCharacters.eraseRoute(eventId);
                 }
             }
 
@@ -503,6 +593,7 @@ public final class MapScreen extends ScreenAdapter {
 
     @Override
     public void render(float delta) {
+        context.sampleInput();
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         if (tileMap == null) {
@@ -511,7 +602,54 @@ public final class MapScreen extends ScreenAdapter {
         // R11: the letterboxed viewport of this frame (the clear above already
         // painted the bars black).
         viewport.apply();
-        context.sampleInput();
+        if (context.battlePort() instanceof pokemon.runtime.battle.InteractiveBattlePort
+                && context.battlePort().pending()) {
+            pokemon.runtime.battle.InteractiveBattlePort port =
+                    (pokemon.runtime.battle.InteractiveBattlePort) context.battlePort();
+            if (battleScreen == null && battleEntry == null && !battleEntryPlayed) {
+                // PField_Visuals:44-57: 0 outside, 1 inside, 2 cave, 3 water. The
+                // runtime only knows the metadata Outdoor flag, so it uses 0/1.
+                pokemon.runtime.data.MapData map = context.database() == null
+                        ? null : context.database().map(gameState.currentMapId());
+                int location = map == null || map.outdoor == null || map.outdoor ? 0 : 1;
+                entrySnapshotTaken = false;
+                beginBattleAudio(port.session());
+                battleEntry = new pokemon.runtime.battle.BattleEntryAnimation(context, port.session(), location);
+                return; // first frame of the entry
+            }
+            if (battleEntry != null) {
+                battleEntry.update(delta);
+                if (battleEntry.finished()) {
+                    battleEntry.dispose();
+                    battleEntry = null;
+                    battleEntryPlayed = true;
+                    entrySnapshotTaken = false;
+                }
+                // The world keeps drawing below the entry overlay this frame.
+            } else {
+                if (battleScreen == null) battleScreen = new pokemon.runtime.battle.BattleScreen(context,
+                        (pokemon.runtime.battle.InteractiveBattlePort) context.battlePort());
+                battleScreen.render(delta);
+                if (battleScreen.finished()) {
+                    battleScreen.dispose();
+                    battleScreen = null;
+                    battleEntryPlayed = false; // the next battle plays its entry again
+                    endBattleAudio();
+                    // PField_Visuals:122: viewport.color = Color.new(0,0,0,255) -
+                    // the scene's last frame was already black
+                    // (PokeBattle_Scene:301 pbFadeOutAndHide), so the map comes
+                    // back on black and lifts over the next 16 frames (:123-130).
+                    battleReturnAlpha = 255;
+                }
+                return;
+            }
+        }
+        if (pauseMenu != null && !pauseMenu.isOpen() && context.menuService().pending() != null) {
+            capturePauseMap();
+            pauseMenu.openRequest(context.menuService().pending());
+            renderPauseMenu();
+            return;
+        }
         // L1: the pause menu freezes the world (RMXP Scene_Map stops while the
         // menu is open) and owns the frame; X / Esc opens it on the map.
         boolean menuHandled = false;
@@ -527,13 +665,16 @@ public final class MapScreen extends ScreenAdapter {
                 return;
             }
             // The menu closed on this input: fall through to a normal world
-            // frame, but the same MENU press must not reopen it right away.
+            // frame, but the same press must not reopen it or reach a waiting
+            // event message in this frame (RMXP's Input.update runs per scene).
             menuHandled = true;
+            context.inputManager().consumePressed();
         }
         if (!menuHandled && pauseMenu != null && context.inputManager().wasPressed(GameAction.MENU)
                 && !context.messageService().visible()
                 && !(interpreter != null && interpreter.running())
                 && !context.transferPending()) {
+            capturePauseMap();
             pauseMenu.open();
             renderPauseMenu();
             return;
@@ -560,6 +701,13 @@ public final class MapScreen extends ScreenAdapter {
             base.add(player);
             bindEntities(base, locator);
         }
+        // P3: BerryPlantSprite#update - runs after the page refresh so a
+        // switch-driven page change cannot clobber the plant's sheet.
+        if (berryPlants != null && berryPlants.update()) {
+            Array<MapCharacter> base = new Array<>();
+            base.add(player);
+            bindEntities(base, locator);
+        }
         if (playerRoute != null && routeContext != null) {
             playerRoute.update(delta, player, routeContext);
             if (playerRoute.finished()) {
@@ -575,6 +723,7 @@ public final class MapScreen extends ScreenAdapter {
         // owns the input: RMXP updates every character before it runs commands,
         // and without this the hero is stuck mid-step forever (map353/EV006).
         boolean scriptDriven = playerRoute != null || context.transferPending()
+                || battleEntry != null
                 || (interpreter != null && interpreter.running());
         if (interpreter != null && interpreter.running()) {
             // An event is waiting for input / time: the player stands still (RMXP).
@@ -586,25 +735,44 @@ public final class MapScreen extends ScreenAdapter {
             // Controller advances interpolation too; never update the player twice per frame.
             int beforeX = player.x();
             int beforeY = player.y();
+            blockedStep = false;
+            movement.runStyle = context.settings().runstyle;
             movement.update(context.inputManager(), delta, player, stepMover);
+            // P0d: a jump's tile changed when it started; its step triggers
+            // run on the landing frame (Game_Character:833 requires !jumping?).
+            boolean playerLanded = playerWasJumping && !player.isJumping();
             gameState.setPlayerPosition(player.x(), player.y(), player.direction());
-            if (interpreter != null && context.inputManager().wasPressed(GameAction.CONFIRM)) {
+            if (interpreter != null && !player.isJumping()
+                    && context.inputManager().wasPressed(GameAction.CONFIRM)) {
                 startFacingEvent();
-            } else if (interpreter != null && !interpreter.running()) {
-                if (player.x() != beforeX || player.y() != beforeY) {
+            } else if (interpreter != null && !interpreter.running() && !player.isJumping()) {
+                if (player.x() != beforeX || player.y() != beforeY || playerLanded) {
                     // RMXP checks Player Touch (1) and Event Touch (2) together,
                     // and only on the frame the player stepped onto the tile.
                     startTouchEvent(player.x(), player.y()); // Player Touch: arrived
                     checkEventTouch();                       // Event Touch: same tile
                     checkSightTriggers();                    // L6b: Trainer(N)/Counter(N) sight
                 } else {
-                    startBlockedTouchEvent();                // Player Touch: walked into it
+                    boolean touched = startBlockedTouchEvent(); // Player Touch: walked into it
+                    // Game_Player#move_generic:84-88: only a step blocked by an
+                    // obstacle without a touch event plays the bump SE.
+                    if (blockedStep && !touched) {
+                        playBumpSe();
+                    }
                 }
             }
         }
         if (scriptDriven && player.isMoving()) {
             player.advance(delta);
             gameState.setPlayerPosition(player.x(), player.y(), player.direction());
+        }
+        playerWasJumping = player.isJumping();
+        if (ledgeDustPending && !player.isJumping()) {
+            // PField_Field:1138: pbLedge's dust, on the frame the jump landed.
+            ledgeDustPending = false;
+            if (context.mapPort() != null) {
+                context.mapPort().showTileAnimation(DUST_ANIMATION_ID, player.x(), player.y(), 1);
+            }
         }
         // R6.23: a step that left the map edge lands in the connected
         // neighbour (PokemonMapFactory#setCurrentMap).
@@ -613,6 +781,9 @@ public final class MapScreen extends ScreenAdapter {
             applyPlayerCharset(); // pbChangePlayer changed the walking graphic
         }
         updateGrassRustle(); // R6.28: Essentials field-movement rustle
+        if (bumpSe > 0f) {
+            bumpSe = Math.max(0f, bumpSe - delta); // Game_Player:340
+        }
         // R6.15/R6.33: the arrival door page must not show the hero before its
         // forced walk-out route really steps. On maps with several doors, every
         // door's arrival page is queued first (their tsOff?("A") conditions are
@@ -653,14 +824,36 @@ public final class MapScreen extends ScreenAdapter {
             view.renderer.render(batch, mapCamera, view.offsetX, view.offsetY);
         }
         prepareGroundAnimations();
-        renderer.render(batch, mapCamera, this::renderGroundAnimationsBefore);
+        if (berryPlants != null) {
+            berryPlants.beginRender();
+        }
+        renderer.render(batch, mapCamera, this::renderWorldDepth);
         renderAnimations(); // R6.27: Show Animation (207) sits on the toned map
         batch.setShader(null);
         renderFog();
         renderPictures();
         renderMessageWindow();
         renderScreenEffects();
+        renderBattleReturnFade();
         renderCaveTransition();
+        if (battleEntry != null) {
+            // PField_Visuals:18 pbBattleAnimation / rocket:19: the entry runs in
+            // a screen-space viewport above the map.
+            if (battleEntry.needsTransitionSnapshot() && !entrySnapshotTaken) {
+                captureEntrySnapshot();
+            }
+            float savedX = camera.position.x;
+            float savedY = camera.position.y;
+            camera.position.set(camera.viewportWidth / 2f, camera.viewportHeight / 2f, 0f);
+            camera.update();
+            batch.setProjectionMatrix(camera.combined);
+            batch.begin();
+            battleEntry.render(batch, viewWidth, viewHeight);
+            batch.end();
+            camera.position.set(savedX, savedY, 0f);
+            camera.update();
+            return;
+        }
         // Transfer Player (201): the fade option blacks the old map out first.
         // The swap waits for that fade, otherwise a door leaves the player in
         // front of a black window forever (the request must keep being polled).
@@ -779,13 +972,26 @@ public final class MapScreen extends ScreenAdapter {
     /**
      * Player Touch when the destination is blocked by the event itself: RMXP
      * doors are walked into, so a held direction towards the event starts it.
+     *
+     * @return true when an event started; then the bump SE stays silent
+     *         (Game_Player#move_generic:84-88)
      */
-    private void startBlockedTouchEvent() {
+    private boolean startBlockedTouchEvent() {
         var input = context.inputManager();
-        if (input.isDown(GameAction.UP) && startEvent(player.x(), player.y() - 1, EventTriggers.PLAYER_TOUCH)) return;
-        if (input.isDown(GameAction.DOWN) && startEvent(player.x(), player.y() + 1, EventTriggers.PLAYER_TOUCH)) return;
-        if (input.isDown(GameAction.LEFT) && startEvent(player.x() - 1, player.y(), EventTriggers.PLAYER_TOUCH)) return;
-        if (input.isDown(GameAction.RIGHT)) startEvent(player.x() + 1, player.y(), EventTriggers.PLAYER_TOUCH);
+        if (input.isDown(GameAction.UP) && startBlockedTouch(player.x(), player.y() - 1)) return true;
+        if (input.isDown(GameAction.DOWN) && startBlockedTouch(player.x(), player.y() + 1)) return true;
+        if (input.isDown(GameAction.LEFT) && startBlockedTouch(player.x() - 1, player.y())) return true;
+        if (input.isDown(GameAction.RIGHT)) return startBlockedTouch(player.x() + 1, player.y());
+        return false;
+    }
+
+    /**
+     * {@code check_event_trigger_touch} (Game_Player:305-327) starts both
+     * Player Touch (1) and Event Touch (2) pages on the blocked tile.
+     */
+    private boolean startBlockedTouch(int x, int y) {
+        return startEvent(x, y, EventTriggers.PLAYER_TOUCH)
+                || startEvent(x, y, EventTriggers.EVENT_TOUCH);
     }
 
     private boolean startEvent(int x, int y, int trigger) {
@@ -965,8 +1171,10 @@ public final class MapScreen extends ScreenAdapter {
             // R6.21: an event whose current page has no character sheet goes
             // back to the static path - a blank page draws nothing and a tile
             // page draws its tile, while the entity path would keep painting a
-            // stale sheet.
-            runtime[i] = character.characterName != null && !character.characterName.isEmpty();
+            // stale sheet. P3: a berry plant that owns the sheet stays on the
+            // entity path even when it hides the event (characterName null).
+            runtime[i] = (character.characterName != null && !character.characterName.isEmpty())
+                    || character.sheetOverridden;
         }
         renderer.setEntities(all, textures, locator);
         renderer.setRuntimeEvents(runtime);
@@ -1044,17 +1252,62 @@ public final class MapScreen extends ScreenAdapter {
         if (!tileMap.valid(x, y)) {
             MapLinks.Crossing crossing = links.crossing(mapData.mapId, x, y);
             if (crossing == null) {
+                blockedStep = true;
                 return false;
             }
             NeighborView view = neighbourFor(crossing.mapId);
             if (view == null || !Collision.canStepIntoNeighbour(gameState, view.tileMap,
                     view.data, character, crossing.x, crossing.y)) {
+                blockedStep = true;
                 return false;
             }
             return character.startMove(x, y, direction, true);
         }
-        return Collision.canStep(gameState, tileMap, mapData, character, direction)
-                && character.startMove(x, y, direction);
+        if (Collision.isFacingLedge(gameState, tileMap, mapData, character, direction)) {
+            // Game_Player#move_generic:74-75: pbLedge consumes the step even
+            // when the jump cannot land (PField_Field:1135-1145).
+            int[] landing = Collision.ledgeLanding(gameState, tileMap, mapData, character, direction);
+            if (landing != null) {
+                ledgeJump(character, direction, landing[0], landing[1]);
+            }
+            return true;
+        }
+        if (!Collision.canStep(gameState, tileMap, mapData, character, direction)) {
+            blockedStep = true;
+            return false;
+        }
+        return character.startMove(x, y, direction);
+    }
+
+    /**
+     * PField_Field#pbLedge:1135-1145 + pbJumpToward:1207-1228: the two-tile
+     * ledge jump, its "Player jump" SE (line 1217) and the dust animation at
+     * the landing tile (line 1138). The jump blocks further input until it
+     * lands ({@code Game_Character#jump}:652-661).
+     */
+    private void ledgeJump(MapCharacter character, int direction, int landX, int landY) {
+        character.face(direction);
+        // Game_Character:654: max(1, distance) * TILE * 3/8, distance = 2.
+        float peak = Math.max(1f, 2f) * TilesetGeometry.TILE_SIZE * 3f / 8f;
+        character.startJump(landX, landY, peak);
+        context.audioManager().playSe("Player jump", 100, 100);
+        // pbLedge adds the dust only after pbJumpToward waited for the landing
+        // (PField_Field:1138); the tile is already the landing tile, so the
+        // landing frame renders it there.
+        ledgeDustPending = true;
+    }
+
+    /**
+     * Game_Player#bump_into_object (Game_Player:61-65): a blocked step plays
+     * "Player bump" (Audio_Play:200), unless the 10-frame SE cooldown
+     * ({@code @bump_se = 40/4}) is still running.
+     */
+    private void playBumpSe() {
+        if (bumpSe > 0f) {
+            return;
+        }
+        bumpSe = 10f / 40f;
+        context.audioManager().playSe("Player bump", 100, 100);
     }
 
     /** The connection of the current map that touches {@code mapId}. */
@@ -1225,9 +1478,12 @@ public final class MapScreen extends ScreenAdapter {
             MapCamera nextCamera = new MapCamera(nextMap.width(), nextMap.height(),
                     viewWidth, viewHeight, clampFor(next));
             mapData = next;
+            if (next.region >= 0) gameState.trainer().region = next.region;
             tileMap = nextMap;
             renderer = nextRenderer;
             eventCharacters = nextCharacters;
+            berryPlants = new BerryPlantSprites(mapData, eventCharacters, gameState,
+                    database == null ? null : database.pbs(), this::startTileAnimation, textures, locator);
             mapCamera = nextCamera;
             // L6c: crossing a connection reuses this screen, so every piece of
             // map-bound state the constructor derives from the map must be
@@ -1320,7 +1576,82 @@ public final class MapScreen extends ScreenAdapter {
         return pauseMenu != null && pauseMenu.isOpen();
     }
 
+    /** L1 integration aid (capture tools): live character sheet of one event. */
+    public String eventSheet(int eventId) {
+        MapCharacter character = eventCharacters == null ? null : eventCharacters.character(eventId);
+        return character == null ? null : character.characterName;
+    }
+
     /** L1: draws the pause menu over the frozen map (logical screen space). */
+    /**
+     * {@code Graphics.snap_to_bitmap} for the battle entry's KGC transition
+     * ({@code Transitions:805+}): the frozen world screen, captured from the
+     * framebuffer after this frame's world pass and scaled to the logical
+     * screen. Mirrors {@code PauseMenuOverlay.captureBackground}.
+     */
+    private void captureEntrySnapshot() {
+        int sx = viewport.getScreenX();
+        int sy = viewport.getScreenY();
+        int sw = viewport.getScreenWidth();
+        int sh = viewport.getScreenHeight();
+        if (sw <= 0 || sh <= 0) {
+            return;
+        }
+        Pixmap source = Pixmap.createFromFrameBuffer(sx, sy, sw, sh);
+        // glReadPixels rows run bottom-up; flip them into screen order.
+        flipVertically(source);
+        Pixmap logical = new Pixmap(ScreenMetrics.LOGICAL_WIDTH, ScreenMetrics.LOGICAL_HEIGHT,
+                Pixmap.Format.RGBA8888);
+        try {
+            logical.setFilter(Pixmap.Filter.BiLinear);
+            logical.drawPixmap(source, 0, 0, sw, sh, 0, 0, logical.getWidth(),
+                    logical.getHeight());
+            Texture texture = new Texture(logical);
+            texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            battleEntry.setSnapshot(texture);
+            entrySnapshotTaken = true;
+        } finally {
+            source.dispose();
+            logical.dispose();
+        }
+    }
+
+    /** Reverses a pixmap's rows in place (glReadPixels returns them bottom-up). */
+    private static void flipVertically(Pixmap pixmap) {
+        int height = pixmap.getHeight();
+        int stride = pixmap.getWidth() * 4;   // RGBA8888 (createFromFrameBuffer)
+        java.nio.ByteBuffer buffer = pixmap.getPixels();
+        byte[] top = new byte[stride];
+        byte[] bottom = new byte[stride];
+        for (int y = 0; y < height / 2; y++) {
+            buffer.position(y * stride);
+            buffer.get(top, 0, stride);
+            buffer.position((height - 1 - y) * stride);
+            buffer.get(bottom, 0, stride);
+            buffer.position(y * stride);
+            buffer.put(bottom, 0, stride);
+            buffer.position((height - 1 - y) * stride);
+            buffer.put(top, 0, stride);
+        }
+        buffer.position(0);
+    }
+
+    private void capturePauseMap() {
+        batch.setProjectionMatrix(camera.combined);
+        renderPanorama();
+        applyWorldTone();
+        for (NeighborView view : neighbours.values()) view.renderer.render(batch, mapCamera, view.offsetX, view.offsetY);
+        prepareGroundAnimations();
+        if (berryPlants != null) {
+            berryPlants.beginRender();
+        }
+        renderer.render(batch, mapCamera, this::renderWorldDepth);
+        renderAnimations();
+        batch.setShader(null);
+        renderFog(); renderPictures(); renderScreenEffects();
+        pauseMenu.captureBackground(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
+    }
+
     private void renderPauseMenu() {
         // This screen's camera follows the player (world space). The menu is
         // drawn in logical screen coordinates, so recenter the camera for this
@@ -1343,11 +1674,51 @@ public final class MapScreen extends ScreenAdapter {
             return;
         }
         messageWindow.prepare(); // skin / cursor textures outside the batch
+        messageWindow.textSpeed = context.settings().textspeed;
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         messageWindow.render(batch, mapCamera.originX(), mapCamera.originY(),
                 mapCamera.viewPixelWidth(), mapCamera.viewPixelHeight());
         batch.end();
+    }
+
+    /**
+     * PField_Visuals:26-36: the battle start pauses the overworld BGM (so
+     * {@code bgm_resume} can bring it back at the same position) and plays the
+     * battle music. The BGM itself is chosen by the caller of
+     * {@code pbBattleAnimation} - {@code pbGetWildBattleBGM} for a wild battle
+     * (PField_Battles:329) and {@code pbGetTrainerBattleBGM} for a trainer one
+     * (:503).
+     */
+    private void beginBattleAudio(pokemon.runtime.battle.InteractiveBattlePort.Session session) {
+        pokemon.runtime.audio.AudioManager audio = context.audioManager();
+        if (audio == null || session == null) {
+            return;
+        }
+        audio.pauseBgm();
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        int mapId = gameState.currentMapId();
+        pokemon.runtime.audio.BattleMusic.Track bgm = session.trainerBattle
+                ? pokemon.runtime.audio.BattleMusic.trainerBattleBgm(pbs, mapId,
+                        gameState.nextBattleBGM(), session.trainerData)
+                : pokemon.runtime.audio.BattleMusic.wildBattleBgm(pbs, mapId,
+                        gameState.nextBattleBGM());
+        if (bgm != null && bgm.playable()) {
+            context.game().log("battle BGM: " + bgm.name);
+            audio.playBgm(bgm.name, bgm.volume, bgm.pitch);
+        }
+    }
+
+    /**
+     * PField_Visuals:112-119: when the battle is over the overworld BGM resumes
+     * where it stopped, and the pending battle audio is dropped.
+     */
+    private void endBattleAudio() {
+        pokemon.runtime.audio.AudioManager audio = context.audioManager();
+        if (audio != null) {
+            audio.resumeBgm();
+        }
+        gameState.clearNextBattleAudio();
     }
 
     /**
@@ -1525,6 +1896,29 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     /** Fade and flash overlays, drawn above pictures and the message window. */
+    /**
+     * {@code PField_Visuals:110-133} after the battle: {@code viewport.color =
+     * Color.new(0,0,0,255)}, then {@code numFrames = 40*4/10} frames of
+     * {@code color.alpha -= (255.0/numFrames).ceil}. The battle scene already
+     * left the screen black (PokeBattle_Scene:301 pbFadeOutAndHide), so this is
+     * the fade back to the overworld.
+     */
+    private void renderBattleReturnFade() {
+        if (battleReturnAlpha < 0) {
+            return;
+        }
+        if (battleReturnAlpha > 0) {
+            batch.setProjectionMatrix(camera.combined);
+            batch.begin();
+            batch.setColor(0f, 0f, 0f, Math.min(1f, battleReturnAlpha / 255f));
+            batch.draw(pixel, mapCamera.originX(), mapCamera.originY(),
+                    mapCamera.viewPixelWidth(), mapCamera.viewPixelHeight());
+            batch.setColor(com.badlogic.gdx.graphics.Color.WHITE);
+            batch.end();
+        }
+        battleReturnAlpha -= BATTLE_RETURN_ALPHA_STEP;
+    }
+
     private void renderScreenEffects() {
         ScreenEffects effects = context.screenEffects();
         float fade = Math.max(0f, Math.min(1f, effects.fade() / 255f));
@@ -1616,6 +2010,14 @@ public final class MapScreen extends ScreenAdapter {
             if (AnimationLayout.grassDepth(active.tileY) >= depth) break;
             renderAnimation(active);
             groundAnimationIndex++;
+        }
+    }
+
+    /** R6.28 grass rustle plus P3 berry moisture, both in map depth order. */
+    private void renderWorldDepth(int depth) {
+        renderGroundAnimationsBefore(depth);
+        if (berryPlants != null) {
+            berryPlants.renderMoisture(batch, depth);
         }
     }
 
@@ -2009,6 +2411,8 @@ public final class MapScreen extends ScreenAdapter {
     private static final int RUSTLE_GRASS = 2;
     private static final int RUSTLE_SOOT_GRASS = 14;
     private static final int GRASS_ANIMATION_ID = 1;
+    /** Settings:350: the dust the ledge jump leaves at its landing tile. */
+    private static final int DUST_ANIMATION_ID = 2;
     private final com.badlogic.gdx.utils.IntMap<int[]> lastEventTiles =
             new com.badlogic.gdx.utils.IntMap<>();
     private int[] lastPlayerTile = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE};
@@ -2025,7 +2429,13 @@ public final class MapScreen extends ScreenAdapter {
         if (eventCharacters == null) {
             return;
         }
-        if (lastPlayerTile[0] != player.x() || lastPlayerTile[1] != player.y()) {
+        // The tile changes the moment a step STARTS (MovementController's while
+        // loop sets the logical position up front), so this fires once per
+        // stepped-on tile - exactly like the plugin's onStepTaken. A jump's
+        // step is its landing (Game_Character:833 requires !jumping?), so the
+        // trigger waits while the player is airborne.
+        if (!player.isJumping()
+                && (lastPlayerTile[0] != player.x() || lastPlayerTile[1] != player.y())) {
             lastPlayerTile[0] = player.x();
             lastPlayerTile[1] = player.y();
             rustleAt(player.x(), player.y());
@@ -2073,6 +2483,7 @@ public final class MapScreen extends ScreenAdapter {
         com.badlogic.gdx.utils.Array<pokemon.runtime.pokemon.Pokemon> hatched =
                 gameState.trainer().party.stepEggs();
         for (pokemon.runtime.pokemon.Pokemon egg : hatched) {
+            gameState.trainer().registerOwned(egg);
             context.game().log("egg hatched: "
                     + (egg.species == null ? "?" : egg.species.name));
         }
@@ -2105,10 +2516,33 @@ public final class MapScreen extends ScreenAdapter {
             context.game().log("wild encounter: " + encounter.species + " L" + encounter.level);
         }
         context.battlePort().wildBattle(encounter.species, encounter.level);
+        applyBattleEnvironment();
+        // The step that triggered this is still sliding (the logical tile moved
+        // when the step started). Snap it so the battle opens on the destination
+        // tile and the player does not finish the step afterwards.
+        player.teleport(player.x(), player.y());
+    }
+
+    /**
+     * PField_Battles:146-151 + :181-188 + PokeBattle_BattleCommon:104-107: a
+     * wild battle opened by walking reads the map's MetadataEnvironment (Dusk
+     * Ball time / Dive Ball environment) and the "不可捕捉" switch before the
+     * battle scene starts.
+     */
+    private void applyBattleEnvironment() {
+        context.battlePort().setSwitchSource(id -> gameState.switches().get(id));
+        context.battlePort().setObtainMap(mapData.mapId);
+        context.battlePort().setFatefulEncounter(gameState.switches().get(32));
+        pokemon.runtime.pokemon.PbsData.Metadata metadata =
+                context.pbsData() == null ? null : context.pbsData().mapMetadata(mapData.mapId);
+        context.battlePort().setBattleEnvironment(
+                pokemon.runtime.battle.CaptureCalculator.environmentId(
+                        metadata == null ? null : metadata.environment));
     }
 
     @Override
     public void resize(int width, int height) {
+        if (battleScreen != null) battleScreen.resize(width, height);
         // R11: FitViewport fits the logical resolution into the window with
         // letterboxing, so any window size or aspect ratio keeps the pixel art
         // unstretched (the camera position is owned by followPlayer()).
@@ -2131,6 +2565,7 @@ public final class MapScreen extends ScreenAdapter {
             pauseMenu.dispose();
             pauseMenu = null;
         }
+        if (battleScreen != null) { battleScreen.dispose(); battleScreen = null; }
         batch.dispose();
         textures.dispose();
     }

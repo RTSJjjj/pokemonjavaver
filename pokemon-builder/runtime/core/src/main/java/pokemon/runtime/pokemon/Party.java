@@ -113,6 +113,9 @@ public final class Party {
         for (Pokemon pokemon : members) {
             boolean damaged = pokemon.hp < pokemon.maxHp();
             boolean statused = pokemon.status != null && !pokemon.status.isEmpty();
+            for (Pokemon.MoveSlot move : pokemon.moves) {
+                if (move.pp != move.maxPp) { move.pp = move.maxPp; changed = true; }
+            }
             if (damaged || statused) {
                 pokemon.hp = pokemon.maxHp();
                 pokemon.status = "";

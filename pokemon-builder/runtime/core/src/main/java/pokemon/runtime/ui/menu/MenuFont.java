@@ -42,6 +42,14 @@ public final class MenuFont implements Disposable {
                     new FreeTypeFontGenerator.FreeTypeFontParameter();
             parameter.size = size;
             parameter.incremental = true; // CJK glyphs are added on demand
+            // RGSS draws text anti-aliased and unhinted: a stroke of the 12px-grid
+            // FusionPixelMono at 20-22px is ~1.7px, so it shows as one solid pixel plus
+            // one partial pixel and the 2px pbDrawShadowText copies sit right against it.
+            // 1-bit (mono) rendering turned every stroke into a solid 2px bar and left
+            // the shadow detached ("ghosting"), so the glyphs are anti-aliased like the
+            // original (measured against the plugin screenshots).
+            parameter.hinting = FreeTypeFontGenerator.Hinting.None;
+            parameter.mono = false;
             parameter.minFilter = Texture.TextureFilter.Nearest;
             parameter.magFilter = Texture.TextureFilter.Nearest;
             font = generator.generateFont(parameter);
@@ -58,6 +66,15 @@ public final class MenuFont implements Disposable {
 
     public BitmapFont font() {
         return font;
+    }
+
+    /**
+     * The font's line height in pixels (0 when missing). Text drawn with
+     * {@code y == lineHeight()} sits exactly on the bottom edge, because the
+     * menu font anchors at the top of the text and draws downwards.
+     */
+    public float lineHeight() {
+        return font == null ? 0f : font.getData().lineHeight;
     }
 
     /** Width of {@code text} in pixels (0 when the font is missing). */
@@ -79,12 +96,27 @@ public final class MenuFont implements Disposable {
         if (font == null || text == null || text.isEmpty()) {
             return;
         }
-        font.setColor(shadow);
-        font.draw(batch, text, x + 2f, y - 2f);
+        // pbDrawShadowText draws the shadow THREE times - at (+2,0), (0,+2) and
+        // (+2,+2) - and the base last. A single diagonal copy (what this used to
+        // do) leaves the strokes looking thin and lets the background show
+        // through, so all three are drawn here too.
+        if (shadowEnabled) {
+            font.setColor(shadow);
+            font.draw(batch, text, x + 2f, y);
+            font.draw(batch, text, x, y - 2f);
+            font.draw(batch, text, x + 2f, y - 2f);
+        }
         font.setColor(main);
         font.draw(batch, text, x, y);
         font.setColor(Color.WHITE);
     }
+
+    /**
+     * Menu text shadow: ON, like {@code pbDrawShadowText}. The ghosting
+     * experiment is over - run with {@code -Dpokemon.menu.shadow=false} to
+     * render the base text only.
+     */
+    public static boolean shadowEnabled = !"false".equalsIgnoreCase(System.getProperty("pokemon.menu.shadow"));
 
     /** Draws text centred on {@code centerX}. */
     public void drawCentered(SpriteBatch batch, String text, float centerX, float y) {

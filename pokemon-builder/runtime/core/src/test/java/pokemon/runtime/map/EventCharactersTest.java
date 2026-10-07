@@ -44,6 +44,27 @@ class EventCharactersTest {
     }
 
     @Test
+    @DisplayName("Erase Event drops the pages, sheet and blocking for this map visit (116)")
+    void eraseEvent() {
+        MapData data = mapData();
+        GameState state = new GameState();
+        state.enterMap(data.mapId, 0, 0);
+        EventCharacters events = new EventCharacters(data, new TileMap(data, null), state);
+        long version = state.version();
+
+        events.erase(2);
+
+        assertNull(EventPages.resolve(state, data.mapId, data.events.get(0)),
+                "no page resolves after erase");
+        MapCharacter npc = events.character(2);
+        assertNull(npc.characterName, "the sprite is gone");
+        assertTrue(npc.through, "erased events no longer block");
+        assertNotEquals(version, state.version(), "the page caches are told to re-resolve");
+        assertNotNull(EventPages.resolve(state, data.mapId, data.events.get(1)),
+                "other events keep their pages");
+    }
+
+    @Test
     @DisplayName("every event gets a runtime character; tile pages keep no sheet (R6.26)")
     void createsRuntimeCharacters() {
         MapData data = mapData();

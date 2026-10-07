@@ -13,6 +13,13 @@ public final class GameVariables {
     private static final Integer ZERO = 0;
 
     private final IntMap<Integer> values = new IntMap<>();
+    private final IntMap<String> texts = new IntMap<>();
+    public String text(int id) { requireId(id); return texts.get(id, String.valueOf(get(id))); }
+    public boolean isText(int id) { return texts.containsKey(id); }
+    public Object value(int id) { return isText(id) ? texts.get(id) : get(id); }
+    public void setText(int id, String value) {
+        requireId(id); values.remove(id); texts.put(id, value == null ? "" : value); version.bump();
+    }
     private final StateVersion version;
 
     GameVariables(StateVersion version) {
@@ -27,6 +34,7 @@ public final class GameVariables {
 
     public void set(int id, int value) {
         requireId(id);
+        if (texts.remove(id) != null) version.bump();
         int previous = values.get(id, ZERO);
         if (previous == value) {
             return;
@@ -41,24 +49,26 @@ public final class GameVariables {
 
     /** Ids of the variables that hold a non-zero value, ascending. */
     public int[] ids() {
-        int[] ids = new int[values.size];
+        int[] ids = new int[values.size + texts.size];
         int index = 0;
         for (IntMap.Entry<Integer> entry : values) {
             ids[index++] = entry.key;
         }
+        for (IntMap.Entry<String> entry : texts) ids[index++] = entry.key;
         Arrays.sort(ids);
         return ids;
     }
 
     public int size() {
-        return values.size;
+        return values.size + texts.size;
     }
 
     public void clear() {
-        if (values.size == 0) {
+        if (values.size == 0 && texts.size == 0) {
             return;
         }
         values.clear();
+        texts.clear();
         version.bump();
     }
 

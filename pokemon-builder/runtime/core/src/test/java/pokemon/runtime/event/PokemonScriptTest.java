@@ -199,6 +199,37 @@ class PokemonScriptTest {
         return false;
     }
 
+    @Test
+    @DisplayName("P0d: $Trainer.pokemonCount skips eggs and drives the ball-shake loop")
+    void pokemonCountSkipsEggs(@TempDir Path tempDir) throws Exception {
+        PbsData pbs = PbsData.parse(syntheticPbs(tempDir));
+        interpreter.attachPbs(pbs);
+        Pokemon first = new Pokemon(pbs.species("BULBASAUR"), 5, pbs);
+        Pokemon second = new Pokemon(pbs.species("BULBASAUR"), 5, pbs);
+        Pokemon egg = new Pokemon(pbs.species("BULBASAUR"), 5, pbs);
+        egg.egg = true;
+        state.trainer().addToParty(first);
+        state.trainer().addToParty(second);
+        state.trainer().addToParty(egg);
+        assertEquals(3, state.trainer().partyCount(), "the party still holds the egg");
+        assertEquals(2, state.trainer().pokemonCount(),
+                "PokeBattle_Trainer:131-135 counts only non-eggs");
+
+        // The compiled catch block: count = $Trainer.pokemonCount; for i in 1..count ...
+        scriptIr.put("shake", new JsonReader().parse(
+                "{\"command\":\"SEQUENCE\",\"steps\":["
+                        + "{\"command\":\"LOCAL_SET\",\"local\":\"count\","
+                        + "\"value\":{\"trainerPokemonCount\":true}},"
+                        + "{\"command\":\"REPEAT\",\"local\":\"i\",\"from\":1,"
+                        + "\"to\":{\"local\":\"count\"},"
+                        + "\"steps\":[{\"command\":\"SET_VARIABLE\",\"id\":6,"
+                        + "\"value\":{\"local\":\"i\"}}]}]}"));
+        interpreter.start(program(script("shake")), 1, 5);
+        interpreter.update(0f);
+        assertFalse(interpreter.running());
+        assertEquals(2, state.variables().get(6), "two shakes for two non-egg members");
+    }
+
     private static EventCommand script(String blockId) {
         EventCommand command = cmd(0, 355, 0, array("p=pbGenPkmn(:BULBASAUR,5)"));
         command.scriptBlockId = blockId;

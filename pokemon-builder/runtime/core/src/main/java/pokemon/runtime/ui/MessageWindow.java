@@ -59,6 +59,12 @@ public final class MessageWindow implements Disposable {
     /** Last measured line width (GlyphLayout is reused by BitmapFont#draw). */
     private final GlyphLayout layout = new GlyphLayout();
 
+    /** 文字速度 (PScreen_Options): 0=slow, 1=normal, 2=fast. */
+    public int textSpeed = 1;
+    /** The char-by-char reveal (MessageConfig::pbGetSystemTextSpeed). */
+    private int revealedChars;
+    private String revealKey = "";
+
     public MessageWindow(MessageService messages, File fontFile,
                          TextureRepository textures, GraphicsLocator locator) {
         this.messages = messages;
@@ -161,6 +167,7 @@ public final class MessageWindow implements Disposable {
     private void drawLines(SpriteBatch batch, WindowSkin skin, MessagePalette palette,
                            float windowX, float windowY, float windowHeight,
                            float windowWidth) {
+        updateReveal();
         float contentX = windowX + (skin != null ? skin.geometry.trimStartX : 16f);
         float contentWidth = windowWidth - (skin != null ? skin.geometry.borderX : 32f);
         float contentTop = windowY + windowHeight - (skin != null ? skin.geometry.trimStartY : 16f);
@@ -168,6 +175,7 @@ public final class MessageWindow implements Disposable {
         // <ac> persists across line breaks (the source keeps an alignment
         // stack until </ac>), which is how the notice pages centre every line.
         boolean centered = false;
+        int remaining = revealedChars;
         for (int i = 0; i < messages.lines().size; i++) {
             String line = messages.lines().get(i);
             String lower = line.toLowerCase();
@@ -184,7 +192,14 @@ public final class MessageWindow implements Disposable {
             float x = centered ? contentX + Math.max(0f, (contentWidth - lineWidth) / 2f) : contentX;
             float y = contentTop - i * LINE_HEIGHT;
             for (Run run : runs) {
-                drawRun(batch, run, x, y);
+                String visible = run.text;
+                if (remaining < visible.length()) {
+                    visible = remaining <= 0 ? "" : visible.substring(0, remaining);
+                }
+                remaining -= run.text.length();
+                if (!visible.isEmpty()) {
+                    drawRun(batch, new Run(visible, run.base, run.shadow), x, y);
+                }
                 layout.setText(font, run.text);
                 x += layout.width;
             }
@@ -192,6 +207,37 @@ public final class MessageWindow implements Disposable {
                 centered = false;
             }
         }
+    }
+
+    /**
+     * MessageConfig::pbGetSystemTextSpeed: reveals the text a few characters per
+     * frame (slow waits a frame between characters, fast shows three at a time).
+     */
+    private void updateReveal() {
+        StringBuilder key = new StringBuilder();
+        for (String line : messages.lines()) {
+            key.append(line).append('\n');
+        }
+        key.append('|').append(messages.speaker());
+        String current = key.toString();
+        if (!current.equals(revealKey)) {
+            revealKey = current;
+            revealedChars = 0;
+        }
+        int total = 0;
+        for (String line : messages.lines()) {
+            total += line.length();
+        }
+        if (revealedChars >= total) {
+            return;
+        }
+        int step;
+        switch (textSpeed) {
+            case 0: step = (Gdx.graphics.getFrameId() % 3 == 0) ? 1 : 0; break;
+            case 2: step = 3; break;
+            default: step = 1; break;
+        }
+        revealedChars = Math.min(total, revealedChars + Math.max(1, step));
     }
 
     private void drawRun(SpriteBatch batch, Run run, float x, float y) {

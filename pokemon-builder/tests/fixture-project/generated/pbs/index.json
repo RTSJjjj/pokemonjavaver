@@ -12,7 +12,8 @@
     "natures": 25,
     "tmMoves": 0,
     "encounters": 0,
-    "trainers": 0
+    "trainers": 0,
+    "townMapRegions": 0
   },
   "files": {
     "pokemon": "pbs/pokemon.json",
@@ -25,6 +26,8 @@
     "natures": "pbs/natures.json",
     "tm": "pbs/tm.json",
     "encounters": "pbs/encounters.json",
-    "trainers": "pbs/trainers.json"
+    "trainers": "pbs/trainers.json",
+    "berryPlants": "pbs/berryplants.json",
+    "townMap": "pbs/townmap.json"
   }
 }

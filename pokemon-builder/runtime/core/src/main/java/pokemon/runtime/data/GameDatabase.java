@@ -45,6 +45,8 @@ public final class GameDatabase {
     /** Stage 3 / P0: PBS tables (species, moves, items, ...), loaded lazily. */
     private PbsData pbs;
     private boolean pbsLoaded;
+    private PinyinTable pinyin;
+    private boolean pinyinLoaded;
 
     private final ObjectMap<Integer, MapData> mapCache = new ObjectMap<>();
     private final ObjectMap<Integer, CommonEventData> commonEventCache = new ObjectMap<>();
@@ -215,6 +217,18 @@ public final class GameDatabase {
             pbsLoaded = true;
         }
         return pbs;
+    }
+
+    /**
+     * P4: the in-game pinyin name table ({@code generated/text/pinyin.json}).
+     * Loaded on first use like {@link #pbs()}.
+     */
+    public PinyinTable pinyin() {
+        if (!pinyinLoaded) {
+            pinyin = PinyinTable.load(dataRoot);
+            pinyinLoaded = true;
+        }
+        return pinyin;
     }
 
     public int mapCount() {

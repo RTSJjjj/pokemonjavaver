@@ -22,6 +22,7 @@ public final class PauseMenuModel {
         TITLE,
         /** Quit the application. */
         EXIT
+        , PARTY, BAG, POKEDEX, STORAGE
     }
 
     public static final class Entry {
@@ -43,12 +44,29 @@ public final class PauseMenuModel {
         String name = state == null || state.playerName() == null || state.playerName().isEmpty()
                 ? "训练家"
                 : state.playerName();
+        // Order, labels and icons follow the project's "Modular Menu" plugin
+        // (MenuHandlers.addEntry): Pokedex / PC / Pokemon / Bag / Trainer /
+        // Save / Load / Quit / Options / Exit. Entries the runtime has no
+        // feature for (Habitat / Pokegear / Tasks / Debug) are omitted, and a
+        // few are hidden by their availability check, exactly like the plugin:
+        // the Pokedex needs $Trainer.pokedex (Modular Menu:67) and the PC needs
+        // $Trainer.pokepc (Modular Menu:82).
+        if (state != null && state.trainer().pokedex) {
+            entries.add(new Entry(Action.POKEDEX, "图鉴", "menuPokedex"));
+        }
+        if (state != null && state.trainer().pokepc) {
+            entries.add(new Entry(Action.STORAGE, "寄存系统", "menuPC"));
+        }
+        if (state != null && state.trainer().partyCount() > 0) {
+            entries.add(new Entry(Action.PARTY, "宝可梦", "menuPokemon"));
+        }
+        entries.add(new Entry(Action.BAG, "背包", "menuBag"));
         entries.add(new Entry(Action.TRAINER, name, "menuTrainer"));
         entries.add(new Entry(Action.SAVE, "保存", "menuSave"));
         entries.add(new Entry(Action.LOAD, "读档", "menuLoad"));
+        entries.add(new Entry(Action.TITLE, "退出", "menuQuit"));
         entries.add(new Entry(Action.OPTIONS, "设置", "menuOptions"));
-        entries.add(new Entry(Action.TITLE, "回到标题", "menuQuit"));
-        entries.add(new Entry(Action.EXIT, "退出游戏", "menuexit"));
+        entries.add(new Entry(Action.EXIT, "退出游戏", "menuExit"));
     }
 
     public int size() {

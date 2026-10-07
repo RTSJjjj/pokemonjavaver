@@ -33,6 +33,13 @@ tasks.register('captureMap', JavaExec) {
     if (project.hasProperty('captureArgs')) args project.property('captureArgs').split('\\|')
 }
 
+tasks.register('captureMenu', JavaExec) {
+    description = 'Captures the title / start / pause menu screens to PNGs (args: dataRoot|outputDir).'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'pokemon.runtime.lwjgl3.MenuCapture'
+    if (project.hasProperty('captureArgs')) args project.property('captureArgs').split('\\|')
+}
+
 // ---------------------------------------------------------------------------
 // R12 / project3 section 45: one runnable JAR.
 // ---------------------------------------------------------------------------

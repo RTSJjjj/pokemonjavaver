@@ -165,4 +165,24 @@ public final class PokemonStats {
         return "AlwaysMale".equals(genderRate) || "AlwaysFemale".equals(genderRate)
                 || "Genderless".equals(genderRate);
     }
+
+    /**
+     * PBGenderRates.genderByte (PBGenderRates:11-23): the threshold a Pokemon's
+     * personal id is compared against to pick a mixed species' gender.
+     */
+    public static int genderByte(String genderRate) {
+        if (genderRate == null) {
+            return 255;
+        }
+        switch (genderRate) {
+            case "AlwaysMale": return 0;
+            case "FemaleOneEighth": return 32;
+            case "Female25Percent": return 64;
+            case "Female50Percent": return 128;
+            case "Female75Percent": return 192;
+            case "FemaleSevenEighths": return 224;
+            case "AlwaysFemale": return 254;
+            default: return 255;   // Genderless
+        }
+    }
 }

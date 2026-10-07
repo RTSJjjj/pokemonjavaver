@@ -136,6 +136,38 @@ public final class Collision {
     }
 
     /**
+     * Game_Player#move_generic:74-75 + PField_Field#pbLedge:1135-1145: a ledge
+     * tile the player can step onto is never walked on - the step becomes the
+     * two-tile ledge jump instead. True when the facing tile is a ledge
+     * ({@code PBTerrain::Ledge = 1}) and passable from this side; the jump may
+     * still fail on its landing.
+     */
+    public static boolean isFacingLedge(GameState state, TileMap map, MapData data,
+                                        MapCharacter character, int direction) {
+        int ledgeX = targetX(character.x(), direction);
+        int ledgeY = targetY(character.y(), direction);
+        return map.valid(ledgeX, ledgeY)
+                && map.terrainTag(ledgeX, ledgeY, true) == TileMap.TERRAIN_LEDGE
+                && canStep(state, map, data, character, direction);
+    }
+
+    /**
+     * The landing tile of the ledge jump, or null when it is blocked
+     * ({@code pbJumpToward} then returns false, but pbLedge still consumes the
+     * step). Only the landing tile matters; the ledge in between is jumped
+     * over ({@code Game_Character#jump}:649 {@code passable?(new_x,new_y,0)}).
+     */
+    public static int[] ledgeLanding(GameState state, TileMap map, MapData data,
+                                     MapCharacter character, int direction) {
+        int ledgeX = targetX(character.x(), direction);
+        int ledgeY = targetY(character.y(), direction);
+        int landX = ledgeX + (ledgeX - character.x());
+        int landY = ledgeY + (ledgeY - character.y());
+        return canLand(state, map, data, character, landX, landY)
+                ? new int[] {landX, landY} : null;
+    }
+
+    /**
      * R6.23: MapFactory#isPassable? for a step off the current map's edge.
      * RMXP checks the neighbour cell with {@code d = 0} (passable in at least
      * one direction), ignores the current map's own side and then rejects a

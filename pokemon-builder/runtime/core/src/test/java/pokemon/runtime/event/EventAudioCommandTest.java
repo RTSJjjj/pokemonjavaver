@@ -32,6 +32,7 @@ class EventAudioCommandTest {
 
     private final List<String> calls = new ArrayList<>();
     private final List<String> warnings = new ArrayList<>();
+    private final GameState state = new GameState();
     private AudioManager audio;
     private EventInterpreter interpreter;
 
@@ -117,7 +118,7 @@ class EventAudioCommandTest {
             Files.write(file.toPath(), "fake".getBytes(StandardCharsets.UTF_8));
         }
         setUpAudio(dataRoot);
-        interpreter = new EventInterpreter(new GameState(), new MessageService(), new InputManager(),
+        interpreter = new EventInterpreter(state, new MessageService(), new InputManager(),
                 audio, id -> null, null, new PictureService(), warnings::add);
     }
 
@@ -153,6 +154,30 @@ class EventAudioCommandTest {
         assertTrue(calls.isEmpty());
         assertEquals(1, warnings.size());
         assertTrue(warnings.get(0).contains("Play SE without an audio file"), warnings.toString());
+    }
+
+    @Test
+    @DisplayName("R12: Change Battle BGM (132) / ME (133) set $PokemonGlobal.nextBattleBGM")
+    void changeBattleAudioCommands() {
+        // PField_Field:882-890 keeps the parameter in the global metadata and
+        // plays nothing now; the next battle start reads it back.
+        interpreter.start(program(
+                cmd(0, 132, 0, array(audioFile("Battle roaming", 100, 100))),
+                cmd(1, 133, 0, array(audioFile("Roaming ME", 100, 100)))), 3, 1);
+        interpreter.update(0f);
+        assertEquals(InterpreterState.FINISHED, interpreter.state());
+        assertEquals("Battle roaming", state.nextBattleBGM());
+        assertEquals("Roaming ME", state.nextBattleME());
+        assertEquals(List.of(), calls, "neither command plays anything");
+    }
+
+    @Test
+    @DisplayName("R12: an empty battle audio parameter clears it, like assigning nil")
+    void changeBattleAudioClear() {
+        state.nextBattleBGM("Battle roaming");
+        interpreter.start(program(cmd(0, 132, 0, array(audioFile("", 100, 100)))), 3, 1);
+        interpreter.update(0f);
+        assertNull(state.nextBattleBGM());
     }
 
     /** {"class":"RPG::AudioFile","name":..,"volume":..,"pitch":..} */

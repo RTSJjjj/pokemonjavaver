@@ -17,6 +17,11 @@ public final class BattleResult {
         ESCAPE,
         /** A foe was caught (not used by the auto battle yet). */
         CAUGHT,
+        /**
+         * {@code pbDecisionOnDraw} (Battle_StartAndEnd:585): both sides are out
+         * of able Pokemon, so {@code pbJudge} returns 5 (:590).
+         */
+        DRAW,
     }
 
     public final Outcome outcome;

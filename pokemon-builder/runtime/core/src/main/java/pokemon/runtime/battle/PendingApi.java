@@ -37,47 +37,37 @@ public final class PendingApi {
 
     /** {@code Battler#ability} (PokeBattle_Battler:11 {@code attr_accessor :ability}). */
     public static String ability(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:11 attr_accessor :ability");
+        return battler.ability;
     }
 
     /** {@code Battler#abilityActive?} (PokeBattle_Battler:379, default {@code ignoreFainted=false}). */
     public static boolean abilityActive(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:379 abilityActive?");
+        return battler.abilityActive();
     }
 
     /** {@code Battler#abilityName} (PokeBattle_Battler:211 {@code PBAbilities.getName(@ability)}). */
     public static String abilityName(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:211 abilityName");
+        return battler.abilityName();
     }
 
     /** {@code Battler#battle} (PokeBattle_Battler:3 {@code attr_reader :battle}). */
     public static Battle battle(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:3 attr_reader :battle");
-    }
-
-    /** {@code Battler#canHeal?} (PokeBattle_Battler:684). */
-    public static boolean canHeal(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:684 canHeal?");
-    }
-
-    /** {@code Battler#damageState.typeMod} (PokeBattle_Battler:42 {@code attr_accessor :damageState}). */
-    public static int damageStateTypeMod(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:42 damageState.typeMod");
+        return battler.battle;
     }
 
     /** {@code Battler#effects} (PokeBattle_Battler:23 {@code attr_accessor :effects}). */
     public static EffectMap effects(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:23 attr_accessor :effects");
+        return battler.effects;
     }
 
     /** {@code Battle#field.weather} (PokeBattle_ActiveField:3 {@code attr_accessor :effects}; weather lives on {@code PokeBattle_Battle#field}). */
     public static int fieldWeather(Battle battle) {
-        throw new UnsupportedOperationException("M0 待接线: battle.field.weather (PokeBattle_ActiveField)");
+        return battle.field.weather;
     }
 
     /** {@code Battler#hasActiveAbility?} (PokeBattle_Battler:387, default {@code ignoreFainted=false}). */
     public static boolean hasActiveAbility(Battler battler, String ability) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:387 hasActiveAbility?");
+        return battler.hasActiveAbility(ability);
     }
 
     /**
@@ -87,7 +77,7 @@ public final class PendingApi {
      * internal names in this runtime.
      */
     public static boolean isConst(String val, String typeConstant) {
-        throw new UnsupportedOperationException("M0 待接线: PSystem_Utilities:205 isConst? / PBTypes");
+        return typeConstant.equals(val);
     }
 
     /**
@@ -112,52 +102,9 @@ public final class PendingApi {
         throw new UnsupportedOperationException("M0 待接线: BattleHandlers:635 is_a?(PokeBattle_PledgeMove) = function code 106/107/108 (Move_Effects_Generic:708, Move_Effects_100-17F:106/122/138)");
     }
 
-    /** {@code Battler#item} (PokeBattle_Battler:69 {@code attr_reader :item}). */
-    public static String item(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:69 attr_reader :item");
-    }
-
-    /** {@code Battler#nature} (PokeBattle_Battler:137 {@code @pokemon ? @pokemon.nature : 0}). */
-    public static int nature(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:137 nature");
-    }
-
     /** {@code PBItems.getName(item)} (Compiler_PBS:446 generates {@code def self.getName(id)}). */
     public static String PBItems_getName(String item) {
         throw new UnsupportedOperationException("M0 待接线: PBItems.getName (Compiler_PBS:446)");
-    }
-
-    /** {@code PBNatures.getStatRaised(id)} (PBNatures:63-67). */
-    public static int PBNatures_getStatRaised(int nature) {
-        throw new UnsupportedOperationException("M0 待接线: PBNatures:63 getStatRaised");
-    }
-
-    /** {@code PBNatures.getStatLowered(id)} (PBNatures:69-73). */
-    public static int PBNatures_getStatLowered(int nature) {
-        throw new UnsupportedOperationException("M0 待接线: PBNatures:69 getStatLowered");
-    }
-
-    /** {@code PBTypes.resistant?(attackType)} (PBTypes_Extra:73, single-argument form). */
-    public static boolean PBTypes_resistant(int attackType) {
-        throw new UnsupportedOperationException("M0 待接线: PBTypes_Extra:73 resistant?");
-    }
-
-    /** {@code Battler#pbCanConfuseSelf?} (Battler_Statuses:527). */
-    public static boolean pbCanConfuseSelf(Battler battler, boolean showMessages) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_Statuses:527 pbCanConfuseSelf?");
-    }
-
-    /**
-     * {@code Battler#pbCanConsumeBerry?} (Battler_AbilityAndItem:152,
-     * {@code alwaysCheckGluttony=true} by default).
-     */
-    public static boolean pbCanConsumeBerry(Battler battler, String item, boolean alwaysCheckGluttony) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_AbilityAndItem:152 pbCanConsumeBerry?");
-    }
-
-    /** {@code Battler#pbCanRaiseStatStage?(stat,user)} (Battler_StatStages:9). */
-    public static boolean pbCanRaiseStatStage(Battler battler, int stat, Battler user) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_StatStages:9 pbCanRaiseStatStage?");
     }
 
     /** {@code Battle#pbCommonAnimation(name,user)} (PokeBattle_Battle:797). */
@@ -167,57 +114,37 @@ public final class PendingApi {
 
     /** {@code Battler#pbConfuse} (Battler_Statuses:531, {@code msg=nil}). */
     public static void pbConfuse(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_Statuses:531 pbConfuse");
+        battler.pbConfuse();
     }
 
     /** {@code Battle#pbDisplay} (PokeBattle_Battle:773). */
     public static void pbDisplay(Battle battle, String message) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:773 pbDisplay");
+        battle.display(message);
     }
 
     /** {@code Battle#pbHideAbilitySplash} (PokeBattle_Battle:810). */
     public static void pbHideAbilitySplash(Battle battle, Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:810 pbHideAbilitySplash");
-    }
-
-    /** {@code Battler#pbRaiseStatStage(stat,increment,user)} (Battler_StatStages:47). */
-    public static boolean pbRaiseStatStage(Battler battler, int stat, int increment, Battler user) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_StatStages:47 pbRaiseStatStage");
-    }
-
-    /** {@code Battler#pbRaiseStatStageByCause(stat,increment,user,cause)} (Battler_StatStages:74). */
-    public static boolean pbRaiseStatStageByCause(Battler battler, int stat, int increment, Battler user, String cause) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_StatStages:74 pbRaiseStatStageByCause");
+        battle.hideAbilitySplash(battler);
     }
 
     /** {@code Battler#pbRecoverHP(amt)} (Battler_ChangeSelf:19). */
     public static int pbRecoverHP(Battler battler, int amount) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:19 pbRecoverHP");
+        return battler.pbRecoverHP(amount);
     }
 
     /** {@code Battle#pbShowAbilitySplash(battler)} (PokeBattle_Battle:801). */
     public static void pbShowAbilitySplash(Battle battle, Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:801 pbShowAbilitySplash");
-    }
-
-    /** {@code Battle#pbStartWeather(user,newWeather,fixedDuration)} (PokeBattle_Battle:679). */
-    public static void pbStartWeather(Battle battle, Battler user, int newWeather, boolean fixedDuration) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:679 pbStartWeather");
+        battle.showAbilitySplash(battler);
     }
 
     /** {@code Battler#pbThis} (PokeBattle_Battler:214, default {@code lowerCase=false}). */
     public static String pbThis(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:214 pbThis");
+        return battler.pbThis();
     }
 
     /** {@code Battler#pbThis(true)} (PokeBattle_Battler:214). */
     public static String pbThis(Battler battler, boolean lowerCase) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:214 pbThis(lowerCase)");
-    }
-
-    /** {@code Battler#damageState.berryWeakened = true} (BattleHandlers:653). */
-    public static void setDamageStateBerryWeakened(Battler battler, boolean value) {
-        throw new UnsupportedOperationException("M0 待接线: BattleHandlers:653 damageState.berryWeakened=");
+        return battler.pbThis(lowerCase);
     }
 
     /**
@@ -258,5 +185,124 @@ public final class PendingApi {
     /** {@code Battler#pbDrowse(user,msg)} (Arceus:863). */
     public static void pbDrowse(Battler battler, String msg) {
         throw new UnsupportedOperationException("M0 待接线: Arceus:863 pbDrowse");
+    }
+
+    /**
+     * {@code pbGetEvolvedFormData(target.pokemon.fSpecies,true)} (Pokemon_Evolution:138-148):
+     * the {@code [[Method,parameter,species],...]} list of a species' evolutions.
+     * Takes the Battler because this runtime's {@code Pokemon} has no
+     * {@code fSpecies}. Only the length is read (EVIOLITE,
+     * BattleHandlers_Items:910-911).
+     */
+    public static java.util.List<Object[]> pbGetEvolvedFormData(Battler target, boolean ignoreNone) {
+        throw new UnsupportedOperationException("M0 待接线: Pokemon_Evolution:138-148 pbGetEvolvedFormData");
+    }
+
+    /**
+     * {@code battle.rules["souldewclause"]} (PokeBattle_Battle:71/:148, written by
+     * {@code setRule}, PBattle_OrgBattleRules:986). This runtime has no battle
+     * rules map yet; only SOULDEW reads it (BattleHandlers_Items:981).
+     */
+    public static boolean battleRules(Battle battle, String rule) {
+        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:148 battle.rules");
+    }
+
+    /**
+     * {@code b.pbCanConfuse?(battler,true,self)} (Arceus:3884) - a PLUGIN DEFECT
+     * rather than missing wiring: {@code Battler#pbCanConfuse?} is
+     * {@code (user=nil,showMessages=true,move=nil,selfInflicted=false)}
+     * (Battler_Statuses:488) and the third argument here is {@code self}, i.e. the
+     * handler proc, handed over where a move belongs. The 3-argument call shape is
+     * kept; it is NOT rewritten as the runtime's 4-argument
+     * {@code Battler.pbCanConfuse} with a substituted value, because that would
+     * invent a {@code move}.
+     */
+    public static boolean pbCanConfuse(Battler battler, Battler user, boolean showMessages) {
+        throw new UnsupportedOperationException("M0 待接线: Arceus:3884 pbCanConfuse?(user,showMessages,self)");
+    }
+
+    /**
+     * {@code b.pbCanSleep?(battler,true,self)} (Arceus:3896) - same plugin defect
+     * as {@link #pbCanConfuse}: {@code Battler#pbCanSleep?} is
+     * {@code (user,showMessages,move=nil,ignoreStatus=false)}
+     * (Battler_Statuses:318) and the third argument is the handler proc.
+     */
+    public static boolean pbCanSleep(Battler battler, Battler user, boolean showMessages) {
+        throw new UnsupportedOperationException("M0 待接线: Arceus:3896 pbCanSleep?(user,showMessages,self)");
+    }
+
+    /**
+     * {@code battler.pbHeldItemTriggerCheck(battler.recycleItem,true)}
+     * (BattleHandlers_Abilities:3317, CUDCHEW). Ruby passes an item <em>id</em>
+     * there, while this runtime's {@code Battler.item}/{@code recycleItem} are
+     * internal-name Strings; the landed
+     * {@code Battler.pbHeldItemTriggerCheck(int,boolean)} turns a non-zero id into
+     * {@code String.valueOf(id)} (a fake item name), so the name-based overload is
+     * the only faithful spelling until that lands.
+     */
+    public static void pbHeldItemTriggerCheck(Battler battler, String forcedItemName, boolean fling) {
+        battler.pbHeldItemTriggerCheck(forcedItemName, fling);
+    }
+
+    /**
+     * {@code battler.form=(battler.form==0) ? 1 : 0} (BattleHandlers_Abilities:2312,
+     * HUNGERSWITCH): this runtime's {@code Battler.form()} is read-only (it reads
+     * {@code pokemon.form.form}), and changing the form is state, not presentation.
+     */
+    public static void setForm(Battler battler, int form) {
+        throw new UnsupportedOperationException("M0 待接线: BattleHandlers_Abilities:2312 battler.form=");
+    }
+
+    /**
+     * {@code battler.pbItemOpposingStatGainCheck(statUps)}
+     * (Battler_AbilityAndItem:334), the held-item half of
+     * {@code AbilityOnOpposingStatGain}: OPPORTUNIST (BattleHandlers_Abilities:3229)
+     * and its Mirror Herb loop (:3236) both call it. It is a real
+     * {@code Battler} method in the plugin, not a defect.
+     */
+    public static void pbItemOpposingStatGainCheck(Battler battler, java.util.List<int[]> statUps) {
+        throw new UnsupportedOperationException("M0 待接线: Battler_AbilityAndItem:334 pbItemOpposingStatGainCheck");
+    }
+
+    /**
+     * {@code Battler#pbSleep(msg=nil)} (Battler_Statuses:354-356):
+     * {@code pbInflictStatus(PBStatuses::SLEEP,pbSleepDuration,msg)}, where
+     * {@code pbSleepDuration} (:362-366) is
+     * {@code duration = 2+@battle.pbRandom(3) if duration<=0} then
+     * {@code duration = (duration/2).floor if hasActiveAbility?(:EARLYBIRD)}.
+     * Needed by EFFECTSPORE (BattleHandlers_Abilities:1551).
+     */
+    public static void pbSleep(Battler battler, String msg) {
+        battler.pbSleep(msg);
+    }
+
+    /**
+     * {@code Battler#pbChangeTypes(newType)} (Battler_ChangeSelf:285 - the section
+     * defines it TWICE, :157 and :285, and the later one wins, see
+     * stage4-m0b-battler-api-notes.md §F.5). Needed by COLORCHANGE
+     * (BattleHandlers_Abilities:2034).
+     */
+    public static void pbChangeTypes(Battler battler, String newType) {
+        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:285 pbChangeTypes");
+    }
+
+    /**
+     * {@code Battler#isCommander?} (PokeBattle_Battler:866-869):
+     * {@code commander = @effects[PBEffects::Commander]; return commander && commander.length == 1}
+     * - true for the rider (a 1-element array) rather than the host (2 elements).
+     * Needed by COMMANDER (BattleHandlers_Abilities:3000).
+     */
+    public static boolean isCommander(Battler battler) {
+        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:866-869 isCommander?");
+    }
+
+    /**
+     * {@code PokeBattle_Move#pp} (PokeBattle_Move.rb:11 {@code attr_accessor :pp},
+     * set from {@code move.pp} at :38): the move's CURRENT PP. This runtime keeps
+     * the current PP on the owner's {@code Pokemon.MoveSlot.pp}, not on
+     * {@link BattleMove}. Needed by CURSEDBODY (BattleHandlers_Abilities:1491).
+     */
+    public static int movePp(BattleMove move) {
+        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Move.rb:11/#pp (PP 存于 Pokemon.MoveSlot.pp)");
     }
 }

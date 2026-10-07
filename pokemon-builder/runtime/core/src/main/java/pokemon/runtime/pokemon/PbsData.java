@@ -29,8 +29,17 @@ public final class PbsData {
     /** Dex id -> internal name (the order of pokemon.txt). */
     public final ObjectMap<String, String> speciesById = new ObjectMap<>();
     public final ObjectMap<String, SpeciesForm> forms = new ObjectMap<>();
+    /** Data/berry_plants.dat: item id -> [hoursPerStage, dryingPerHour, minYield, maxYield]. */
+    public final java.util.Map<Integer, int[]> berryPlants = new java.util.HashMap<>();
+    /** PScreen_RegionMap: generated/pbs/townmap.json (Data/town_map.dat). */
+    public TownMap townMap;
+    /** PBS/metadata.txt: the "[000]" global section and one record per map. */
+    private Metadata globalMetadata = new Metadata();
+    private final java.util.HashMap<Integer, Metadata> mapMetadata = new java.util.HashMap<>();
     public final ObjectMap<String, Move> moves = new ObjectMap<>();
     public final ObjectMap<String, Item> items = new ObjectMap<>();
+    /** Item id -> item, built on first use (PBItems' numeric lookups). */
+    private com.badlogic.gdx.utils.IntMap<Item> itemsById;
     public final ObjectMap<String, Ability> abilities = new ObjectMap<>();
     public final ObjectMap<String, TypeInfo> types = new ObjectMap<>();
     public final ObjectMap<String, TrainerType> trainerTypes = new ObjectMap<>();
@@ -171,7 +180,24 @@ public final class PbsData {
         public String description;
         public int fieldUse;
         public int battleUse;
+        /** ITEM_TYPE (PItem_Items:12): 3/4 = Poke Ball, 5 = berry, 6 = key item, 7 = stone, 8 = fossil. */
+        public int type;
+        /** ITEM_MACHINE: the move a TM/HM teaches. */
+        public String machine;
         public Array<String> extra = new Array<>();
+
+        /**
+         * {@code pbIsPokeBall?} (PItem_Items:89-92): ITEM_TYPE 3, or 4 for a
+         * Snag Ball (which this project keeps behind the Snag Machine).
+         */
+        public boolean isPokeBall() {
+            return type == 3 || type == 4;
+        }
+
+        /** {@code pbIsBerry?} (PItem_Items:99-102). */
+        public boolean isBerry() {
+            return type == 5;
+        }
     }
 
     public static final class Ability {
@@ -185,6 +211,16 @@ public final class PbsData {
         public int id;
         public String internalName;
         public String name;
+        /**
+         * types.txt {@code IsPseudoType} (Compiler_PBS:345 {@code [3,"b"]}).
+         * The compiler's pseudo list also holds every id missing from
+         * types.txt (Compiler_PBS:420-422), which this per-type flag cannot
+         * express: a consumer must treat "id absent from types.json" as pseudo
+         * too ({@code PBTypes.isPseudoType?}, PBTypes_Extra:34-36).
+         */
+        public boolean pseudoType;
+        /** types.txt {@code IsSpecialType} (Compiler_PBS:346 {@code [4,"b"]}). */
+        public boolean specialType;
         public Array<String> weaknesses = new Array<>();
         public Array<String> resistances = new Array<>();
         public Array<String> immunities = new Array<>();
@@ -195,7 +231,16 @@ public final class PbsData {
         public String internalName;
         public String name;
         public int baseMoney;
-        public String skill;
+        /**
+         * trainertypes.txt column 4: the battle BGM of
+         * {@code pbGetTrainerBattleBGM} (PSystem_FileUtilities:627,
+         * {@code data[4]}).
+         */
+        public String battleBgm;
+        /** Column 5: the victory ME of {@code pbGetTrainerVictoryME} (:676). */
+        public String victoryMe;
+        /** {@code pbPlayTrainerIntroME}: the intro ME (trainertypes column 6). */
+        public String introMe;
         public Array<String> fields = new Array<>();
     }
 
@@ -321,6 +366,21 @@ public final class PbsData {
         return internalName == null ? null : items.get(internalName);
     }
 
+    /**
+     * {@code PBItems.getName(id)} / {@code getID(PBItems, id)}: the item of a
+     * numeric id. Built lazily because the event scripts store item ids in
+     * event variables and berry plants (PField_BerryPlants:338, 496).
+     */
+    public Item itemById(int id) {
+        if (itemsById == null) {
+            itemsById = new com.badlogic.gdx.utils.IntMap<>();
+            for (Item item : items.values()) {
+                itemsById.put(item.id, item);
+            }
+        }
+        return itemsById.get(id);
+    }
+
     public Ability ability(String internalName) {
         return internalName == null ? null : abilities.get(internalName);
     }
@@ -404,6 +464,211 @@ public final class PbsData {
     // Loading
     // ------------------------------------------------------------------
 
+    /**
+     * Data/berry_plants.dat, emitted as generated/pbs/berryplants.json: the per
+     * item row {@code [hoursPerStage, dryingPerHour, minYield, maxYield]}.
+     */
+    private static void readBerryPlants(PbsData data, JsonValue root) {
+        if (root == null || !root.isObject()) {
+            return;
+        }
+        JsonValue byId = root.get("byId");
+        if (byId == null || !byId.isObject()) {
+            return;
+        }
+        for (JsonValue entry = byId.child; entry != null; entry = entry.next) {
+            int id;
+            try {
+                id = Integer.parseInt(entry.name);
+            } catch (NumberFormatException invalid) {
+                continue;
+            }
+            if (!entry.isArray() || entry.size < 4) {
+                continue;
+            }
+            int[] values = new int[entry.size];
+            int i = 0;
+            for (JsonValue value = entry.child; value != null; value = value.next) {
+                values[i++] = value.asInt();
+            }
+            data.berryPlants.put(id, values);
+        }
+    }
+
+    /**
+     * {@code pbGetBerryPlantData(item)} (PField_BerryPlants:19-23): the item's
+     * row, or the plugin's {@code [3,15,2,5]} fallback.
+     */
+    public int[] berryPlantData(int itemId) {
+        int[] values = berryPlants.get(itemId);
+        return values == null ? new int[] { 3, 15, 2, 5 } : values;
+    }
+
+    /**
+     * The region map behind {@code pbShowMap} (PScreen_RegionMap). Regions are
+     * indexed like {@code @mapdata}; a region may be null when the .dat has a
+     * gap.
+     */
+    public static final class TownMap {
+        public final Array<TownMapRegion> regions = new Array<>();
+
+        public int size() {
+            return regions.size;
+        }
+
+        public TownMapRegion region(int index) {
+            return index < 0 || index >= regions.size ? null : regions.get(index);
+        }
+    }
+
+    /** {@code @mapdata[region]}: name, image file and its points. */
+    public static final class TownMapRegion {
+        public String name = "";
+        /** "mapRegion0.png" - Graphics/Pictures (PScreen_RegionMap:119). */
+        public String filename = "";
+        public final Array<TownMapPoint> points = new Array<>();
+
+        /** The first point at (x,y), like the plugin's linear search (204-217). */
+        public TownMapPoint pointAt(int x, int y) {
+            for (TownMapPoint point : points) {
+                if (point.x == x && point.y == y) {
+                    return point;
+                }
+            }
+            return null;
+        }
+    }
+
+    /** One {@code Point=} record: x, y, place name, description, heal spot. */
+    public static final class TownMapPoint {
+        public int x;
+        public int y;
+        public String name = "";
+        public String description = "";
+        /** null = the CSV field was empty (PScreen_RegionMap:258-270). */
+        public Integer healMapId;
+        public Integer healX;
+        public Integer healY;
+        public Integer switchId;
+
+        public boolean isHealingSpot() {
+            return healMapId != null && healX != null && healY != null;
+        }
+    }
+
+    private static void readTownMap(PbsData data, JsonValue root) {
+        if (root == null) {
+            return;
+        }
+        TownMap map = new TownMap();
+        JsonValue regions = root.get("regions");
+        if (regions != null && regions.isArray()) {
+            for (JsonValue entry = regions.child; entry != null; entry = entry.next) {
+                if (entry.isNull()) {
+                    map.regions.add(null);
+                    continue;
+                }
+                TownMapRegion region = new TownMapRegion();
+                region.name = entry.getString("name", "");
+                region.filename = entry.getString("filename", "");
+                JsonValue points = entry.get("points");
+                if (points != null && points.isArray()) {
+                    for (JsonValue pointNode = points.child; pointNode != null; pointNode = pointNode.next) {
+                        TownMapPoint point = new TownMapPoint();
+                        point.x = pointNode.getInt("x", 0);
+                        point.y = pointNode.getInt("y", 0);
+                        point.name = pointNode.getString("name", "");
+                        point.description = pointNode.getString("description", "");
+                        point.healMapId = intOrNull(pointNode, "healMapId");
+                        point.healX = intOrNull(pointNode, "healX");
+                        point.healY = intOrNull(pointNode, "healY");
+                        point.switchId = intOrNull(pointNode, "switchId");
+                        region.points.add(point);
+                    }
+                }
+                map.regions.add(region);
+            }
+        }
+        data.townMap = map;
+    }
+
+    private static Integer intOrNull(JsonValue node, String name) {
+        JsonValue value = node.get(name);
+        return value == null || value.isNull() || !value.isNumber() ? null : value.asInt();
+    }
+
+    /**
+     * One PBS/metadata.txt section (Misc_Data:36-115). A {@code null} field
+     * means the key is absent, which is when {@code pbGetMetadata} returns nil
+     * and the caller falls through to its default. The battle BGM / ME fields
+     * keep the raw string ("Battle wild.mid"): {@code pbStringToAudioFile}
+     * (Audio_Play:1-14) parses "file:volume:pitch" at play time.
+     */
+    public static final class Metadata {
+        public String wildBattleBGM;
+        public String trainerBattleBGM;
+        public String wildVictoryME;
+        public String trainerVictoryME;
+        public String wildCaptureME;
+        /**
+         * MetadataEnvironment (Misc_Data:113): the PBEnvironment name the map
+         * declares ("Cave", "Underwater", ...). {@code pbPrepareBattle:181-183}
+         * turns {@code Cave} into battle time 2 and {@code pbGetEnvironment}
+         * (:194-217) starts from it.
+         */
+        public String environment;
+    }
+
+    /**
+     * {@code pbGetMetadata(map_id, ...)} (Data_Cache) for the map's own
+     * section, or null when the map has none. Every battle music lookup checks
+     * the map first and the global "[000]" section second
+     * (PSystem_FileUtilities:546-699).
+     */
+    public Metadata mapMetadata(int mapId) {
+        return mapId <= 0 ? null : mapMetadata.get(mapId);
+    }
+
+    /** {@code pbGetMetadata(0, ...)}: the "[000]" section, never null. */
+    public Metadata globalMetadata() {
+        return globalMetadata;
+    }
+
+    private static void readMetadata(PbsData data, JsonValue root) {
+        Metadata global = metadataRecord(child(root, "global"));
+        if (global != null) {
+            data.globalMetadata = global;
+        }
+        JsonValue maps = child(root, "maps");
+        if (maps == null || !maps.isObject()) {
+            return;
+        }
+        for (JsonValue node = maps.child; node != null; node = node.next) {
+            int id;
+            try {
+                id = Integer.parseInt(node.name);
+            } catch (NumberFormatException invalid) {
+                continue;
+            }
+            Metadata record = metadataRecord(node);
+            if (record != null) data.mapMetadata.put(id, record);
+        }
+    }
+
+    private static Metadata metadataRecord(JsonValue node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        Metadata record = new Metadata();
+        record.wildBattleBGM = node.getString("wildBattleBGM", null);
+        record.trainerBattleBGM = node.getString("trainerBattleBGM", null);
+        record.wildVictoryME = node.getString("wildVictoryME", null);
+        record.trainerVictoryME = node.getString("trainerVictoryME", null);
+        record.wildCaptureME = node.getString("wildCaptureME", null);
+        record.environment = node.getString("environment", null);
+        return record;
+    }
+
     /** Loads {@code generated/pbs/*.json}; missing documents stay empty. */
     public static PbsData parse(File dataRoot) {
         PbsData data = new PbsData();
@@ -427,11 +692,13 @@ public final class PbsData {
         readTm(data, read(pbs, "tm.json"));
         readEncounters(data, read(pbs, "encounters.json"));
         readTrainers(data, read(pbs, "trainers.json"));
+        readBerryPlants(data, read(pbs, "berryplants.json"));
+        readTownMap(data, read(pbs, "townmap.json"));
+        readMetadata(data, read(pbs, "metadata.json"));
         return data;
     }
 
-    private static JsonValue read(File pbsDir, String name) {
-        File file = new File(pbsDir, name);
+    private static JsonValue read(File pbsDir, String name) {        File file = new File(pbsDir, name);
         if (!file.isFile()) {
             return null;
         }
@@ -649,6 +916,8 @@ public final class PbsData {
             item.description = node.getString("description", "");
             item.fieldUse = node.getInt("fieldUse", 0);
             item.battleUse = node.getInt("battleUse", 0);
+            item.type = node.getInt("type", 0);
+            item.machine = node.getString("machine", null);
             item.extra = stringArray(child(node, "extra"));
             data.items.put(item.internalName, item);
         }
@@ -679,6 +948,8 @@ public final class PbsData {
             type.internalName = node.getString("internalName", node.name);
             type.id = node.getInt("id", -1);
             type.name = node.getString("name", type.internalName);
+            type.pseudoType = node.getBoolean("pseudoType", false);
+            type.specialType = node.getBoolean("specialType", false);
             type.weaknesses = stringArray(child(node, "weaknesses"));
             type.resistances = stringArray(child(node, "resistances"));
             type.immunities = stringArray(child(node, "immunities"));
@@ -697,7 +968,9 @@ public final class PbsData {
             trainerType.id = node.getInt("id", -1);
             trainerType.name = node.getString("name", trainerType.internalName);
             trainerType.baseMoney = node.getInt("baseMoney", 0);
-            trainerType.skill = node.getString("skill", null);
+            trainerType.battleBgm = node.getString("battleBgm", null);
+            trainerType.victoryMe = node.getString("victoryMe", null);
+            trainerType.introMe = node.getString("introMe", null);
             trainerType.fields = stringArray(child(node, "fields"));
             data.trainerTypes.put(trainerType.internalName, trainerType);
         }

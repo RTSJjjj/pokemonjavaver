@@ -30,7 +30,7 @@ class SaveSlotsTest {
             new SaveManager().save(new StoragePort(), "1", state);
 
             var slots = SaveSlots.list(new StoragePort(), null);
-            assertEquals(4, slots.size, "slots 1/2/3 + quick");
+            assertEquals(8, slots.size, "MANUAL_SLOTS: 存档1..存档8");
             assertEquals("1", slots.get(0).id);
             assertTrue(slots.get(0).exists);
             assertEquals("小测", slots.get(0).playerName);
@@ -39,7 +39,7 @@ class SaveSlotsTest {
             assertTrue(slots.get(0).describe().contains("小测"));
             assertFalse(slots.get(1).exists);
             assertEquals("空档", slots.get(1).describe());
-            assertEquals("快速存档", slots.get(3).label);
+            assertEquals("存档4", slots.get(3).label);
         } finally {
             if (previous == null) {
                 System.clearProperty("user.home");

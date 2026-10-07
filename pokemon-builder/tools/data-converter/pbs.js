@@ -12,6 +12,107 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { marshalLoad } from "../../builder/src/marshal.js";
+
+/**
+ * Data/berry_plants.dat: the per-item berry growth table
+ * {@code [hoursPerStage, dryingPerHour, minYield, maxYield]} indexed by item id
+ * (PField_BerryPlants#pbGetBerryPlantData). Missing entries fall back to
+ * [3,15,2,5] at runtime, so an unreadable file simply yields an empty table.
+ */
+function buildBerryPlants(projectPath) {
+  const file = path.join(projectPath, "Data", "berry_plants.dat");
+  if (!fs.existsSync(file)) return {};
+  let data;
+  try {
+    data = marshalLoad(fs.readFileSync(file));
+  } catch {
+    return {};
+  }
+  const byId = {};
+  if (Array.isArray(data)) {
+    data.forEach((value, id) => {
+      if (value) byId[id] = value;
+    });
+  }
+  return byId;
+}
+
+/**
+ * The marshal reader hands strings back as raw bytes (latin1), so the UTF-8
+ * payload of the project's Chinese texts has to be re-decoded. Already valid
+ * text (ASCII, or a future UTF-8 reader) is returned unchanged.
+ */
+function marshalText(value) {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  const decoded = Buffer.from(text, "latin1").toString("utf8");
+  return decoded.includes("\uFFFD") ? text : decoded;
+}
+
+/**
+ * Data/town_map.dat + PBS/townmap.txt: the region map behind pbShowMap
+ * (PScreen_RegionMap). The .dat is {@code sections[region] = [nil, filename,
+ * points]} (Compiler_PBS#pbCompileTownMap:92); a point is {@code [x, y,
+ * placeName, placeDescription, healMapId, healX, healY, switchId]} from the
+ * CSV schema "uussUUUU" (Compiler_PBS:57). Region names are not in the .dat -
+ * the compiler puts them into MessageTypes::RegionNames from the txt "Name="
+ * lines (Compiler_PBS:80,93), so the names are read from the same text file.
+ */
+function buildTownMap(projectPath) {
+  const regions = [];
+  const datFile = path.join(projectPath, "Data", "town_map.dat");
+  if (fs.existsSync(datFile)) {
+    let data = null;
+    try {
+      data = marshalLoad(fs.readFileSync(datFile));
+    } catch {
+      data = null;
+    }
+    if (Array.isArray(data)) {
+      for (const section of data) {
+        if (!Array.isArray(section)) {
+          regions.push(null);
+          continue;
+        }
+        const points = Array.isArray(section[2]) ? section[2] : [];
+        regions.push({
+          filename: marshalText(section[1]),
+          points: points.filter(Array.isArray).map((point) => ({
+            x: Number(point[0]) || 0,
+            y: Number(point[1]) || 0,
+            name: marshalText(point[2]),
+            description: marshalText(point[3]),
+            healMapId: point[4] === null || point[4] === undefined ? null : Number(point[4]),
+            healX: point[5] === null || point[5] === undefined ? null : Number(point[5]),
+            healY: point[6] === null || point[6] === undefined ? null : Number(point[6]),
+            switchId: point[7] === null || point[7] === undefined ? null : Number(point[7]),
+          })),
+        });
+      }
+    }
+  }
+  const names = [];
+  const text = readPbs(projectPath, "townmap.txt");
+  if (text !== null) {
+    let current = -1;
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      const header = /^\[(\d+)\]$/.exec(line);
+      if (header) {
+        current = Number(header[1]);
+        continue;
+      }
+      const name = /^Name\s*=\s*(.*)$/.exec(line);
+      if (name && current >= 0) names[current] = name[1].trim();
+    }
+  }
+  const merged = regions.map((region, index) => region === null
+    ? null
+    : { name: names[index] || "", filename: region.filename, points: region.points });
+  return { regions: merged, total: merged.filter(Boolean).length };
+}
+
 /** Reads a PBS file or null when it (or the whole PBS/ folder) is missing. */
 function readPbs(projectPath, name) {
   const file = path.join(projectPath, "PBS", name);
@@ -100,6 +201,22 @@ const floatOrNull = (value) => {
   return value !== undefined && value !== "" && Number.isFinite(n) ? n : null;
 };
 const at = (record, index) => (record[index] === undefined ? "" : record[index]);
+
+// Compiler:368-376 csvBoolean! (schema letter "b", Compiler:542-543) is the
+// plugin's own boolean reader: it tests the loose regexes below, in this order,
+// and raises on anything else. "1", "true", "yes", "y" -> true; "0", "false",
+// "no", "n" -> false. The builder must never abort a whole build over one
+// malformed flag, so an unrecognised token keeps the documented default
+// (false) instead of raising.
+const CSV_BOOLEAN_TRUE = /^1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Yy]$/;
+const CSV_BOOLEAN_FALSE = /^0|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Nn]$/;
+const booleanField = (value) => {
+  if (value === undefined || value === null) return false;
+  const field = String(value);
+  if (CSV_BOOLEAN_TRUE.test(field)) return true;
+  if (CSV_BOOLEAN_FALSE.test(field)) return false;
+  return false;
+};
 
 /** Moves learnset "1,TACKLE,3,GROWL" -> [{ level, move }]. */
 function parseMoveset(value) {
@@ -288,6 +405,11 @@ export function parseItems(text) {
       description: at(record, 6) || "",
       fieldUse: intOrNull(at(record, 7)),
       battleUse: intOrNull(at(record, 8)),
+      // Compiler_PBS:551-573 "vnssuusuuUN": column 9 is ITEM_TYPE
+      // (PItem_Items:12), the field pbIsPokeBall? / pbIsBerry? / pbIsMail?
+      // read; column 10 is the machine's move (TM/HM).
+      type: intOrNull(at(record, 9)),
+      machine: at(record, 10) || null,
       extra: record.slice(9).filter((x) => x !== ""),
     };
   }
@@ -322,6 +444,18 @@ export function parseTypes(text) {
       id,
       internalName,
       name: section.fields.get("name") || internalName,
+      // Compiler_PBS:340-350: types[id] = [id, Name, InternalName,
+      // IsPseudoType, IsSpecialType, Weaknesses, Resistances, Immunities]
+      // ("IsPseudoType" => [3,"b"], "IsSpecialType" => [4,"b"]), both optional
+      // booleans that default to false (Compiler_PBS:365).
+      // Compiler_PBS:397/420-422 collect the pseudo types: every id with
+      // IsPseudoType=true plus every id missing from types.txt (the compiler's
+      // types.compact! drops the nil slots, so a gap in the numbering is a
+      // pseudo type too). Compiler_PBS:424 collects the special types from
+      // IsSpecialType only. PBTypes.isPseudoType?/isSpecialType?
+      // (PBTypes_Extra:34-40) read those two lists.
+      pseudoType: booleanField(section.fields.get("ispseudotype")),
+      specialType: booleanField(section.fields.get("isspecialtype")),
       weaknesses: list(section.fields.get("weaknesses")),
       resistances: list(section.fields.get("resistances")),
       immunities: list(section.fields.get("immunities")),
@@ -342,7 +476,12 @@ export function parseTrainerTypes(text) {
       internalName,
       name: at(record, 2) || internalName,
       baseMoney: intOrNull(at(record, 3)) || 0,
-      skill: at(record, 4) || null,
+      // The CSV schema is "unsUSSSeUS" (Compiler_PBS:1374): 4 = battle BGM
+      // (pbGetTrainerBattleBGM:627), 5 = victory ME (pbGetTrainerVictoryME:676),
+      // 6 = intro ME (pbPlayTrainerIntroME:612), 7 = gender.
+      battleBgm: at(record, 4) || null,
+      victoryMe: at(record, 5) || null,
+      introMe: at(record, 6) || null,
       fields: record.slice(5),
     };
   }
@@ -537,6 +676,82 @@ export function buildNatures() {
   }));
 }
 
+/**
+ * PBS/metadata.txt (Misc_Data:36-115, {@code PokemonMetadata}): the "[000]"
+ * global section plus one section per map.
+ *
+ * <p>Only the keys this runtime models are kept, and they are kept as the raw
+ * strings the file holds, because {@code pbStringToAudioFile} (Audio_Play:1-14)
+ * parses "file:volume:pitch" at play time and RGSS resolves the extension
+ * itself: the four lookups of PSystem_FileUtilities:546-699
+ * ({@code pbGetWildBattleBGM} / {@code pbGetWildVictoryME} /
+ * {@code pbGetTrainerBattleBGM} / {@code pbGetTrainerVictoryME}) plus
+ * {@code pbGetWildCaptureME} (:585), and the five per-map fields the map IR
+ * already consumed (Outdoor / SnapEdges / MapPosition / BattleBack).</p>
+ *
+ * <p>The other keys of {@code NonGlobalTypes} (HealingSpot, Weather, DiveMap,
+ * DarkMap, SafariMap, Dungeon, MapSize, Environment, ShowArea, Bicycle,
+ * BicycleAlways) and of {@code GlobalTypes} (Home, SurfBGM, BicycleBGM,
+ * PlayerA-H) are not modelled yet.</p>
+ *
+ * @returns {{ global: object, maps: Map<number, object> }} map id 0 is the
+ *   global section ({@code pbGetMetadata(0,...)}), never a map record.
+ */
+export function parseMetadata(projectPath) {
+  const global = {};
+  const maps = new Map();
+  const text = readPbs(projectPath, "metadata.txt");
+  if (text === null) return { global, maps };
+  // The same key names mean different metadata indices in the two dialects:
+  // "WildBattleBGM" is MetadataWildBattleBGM (2) under "[000]" and
+  // MetadataMapWildBattleBGM (14) under a map section (Misc_Data:74-115).
+  const audioKeys = ["wildBattleBGM", "trainerBattleBGM", "wildVictoryME",
+    "trainerVictoryME", "wildCaptureME"];
+  for (const section of parseIniSections(text)) {
+    if (!/^\d+$/.test(section.header)) continue;
+    const id = Number(section.header);
+    const isGlobal = id === 0;
+    const record = isGlobal ? global : maps.get(id) || {};
+    for (const key of audioKeys) {
+      const value = section.fields.get(key.toLowerCase());
+      if (value) record[key] = value;
+    }
+    if (!isGlobal) {
+      const flag = (key) => {
+        const value = section.fields.get(key);
+        return value === undefined ? undefined
+          : value.toLowerCase() === "true" || value === "1" || value.toLowerCase() === "yes";
+      };
+      const outdoor = flag("outdoor");
+      if (outdoor !== undefined) record.outdoor = outdoor;
+      const snapEdges = flag("snapedges");
+      if (snapEdges !== undefined) record.snapEdges = snapEdges;
+      const position = section.fields.get("mapposition");
+      if (position !== undefined) {
+        const parts = position.split(",").map((value) => Number(value.trim()));
+        if (parts.length >= 3 && parts.every((value) => Number.isInteger(value) && value >= 0)) {
+          record.mapPosition = parts.slice(0, 3);
+          // MetadataMapPosition's first field is the region of the region map.
+          record.region = parts[0];
+        }
+      }
+      const battleBack = section.fields.get("battleback");
+      if (battleBack) record.battleBack = battleBack;
+      // MetadataEnvironment (NonGlobalTypes, Misc_Data:113): the battle's
+      // environment, which pbGetEnvironment (PField_Battles:194-217) starts
+      // from, and which pbPrepareBattle:181-183 reads to make Dusk Balls work
+      // in caves.
+      const environment = section.fields.get("environment");
+      if (environment) record.environment = environment;
+      // A section that only carries keys this runtime does not model yet stays
+      // out of the file, so "total" counts the maps that actually say
+      // something.
+      if (Object.keys(record).length > 0) maps.set(id, record);
+    }
+  }
+  return { global, maps };
+}
+
 /** True when any PBS file exists (a project may not use PBS at all). */
 export function hasPbs(projectPath) {
   try {
@@ -582,6 +797,13 @@ export function buildPbsIr(projectPath) {
     trainers: trainers.total,
   };
 
+  const berryPlants = buildBerryPlants(projectPath);
+  const townMap = buildTownMap(projectPath);
+  const metadata = parseMetadata(projectPath);
+
+  counts.townMapRegions = townMap.total;
+  counts.metadataMaps = metadata.maps.size;
+
   const output = {
     "pbs/index.json": { format: "pokemon-builder/pbs/1", kind: "pbsIndex", counts,
       files: {
@@ -589,6 +811,8 @@ export function buildPbsIr(projectPath) {
         items: "pbs/items.json", abilities: "pbs/abilities.json", types: "pbs/types.json",
         trainerTypes: "pbs/trainertypes.json", natures: "pbs/natures.json", tm: "pbs/tm.json",
         encounters: "pbs/encounters.json", trainers: "pbs/trainers.json",
+        berryPlants: "pbs/berryplants.json", townMap: "pbs/townmap.json",
+        metadata: "pbs/metadata.json",
       } },
     "pbs/pokemon.json": { format: "pokemon-builder/pbs/1", kind: "pbsPokemon",
       total: counts.species, byId: pokemon.byId, species: pokemon.species },
@@ -606,6 +830,18 @@ export function buildPbsIr(projectPath) {
       total: counts.encounters, byMap: encounters.byMap },
     "pbs/trainers.json": { format: "pokemon-builder/pbs/1", kind: "pbsTrainers",
       total: counts.trainers, order: trainers.order, trainers: trainers.byKey },
+    "pbs/berryplants.json": { format: "pokemon-builder/pbs/1", kind: "pbsBerryPlants",
+      total: Object.keys(berryPlants).length, byId: berryPlants },
+    "pbs/townmap.json": { format: "pokemon-builder/pbs/1", kind: "pbsTownMap",
+      total: townMap.total, regions: townMap.regions },
+    "pbs/metadata.json": { format: "pokemon-builder/pbs/1", kind: "pbsMetadata",
+      total: metadata.maps.size,
+      // "[000]": the global section (pbGetMetadata(0,...)).
+      global: metadata.global,
+      // Map id -> record; a key is absent when the file does not define it,
+      // which is exactly when pbGetMetadata returns nil.
+      maps: Object.fromEntries([...metadata.maps.entries()].sort((a, b) => a[0] - b[0])),
+    },
   };
   return { output, counts };
 }

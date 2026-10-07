@@ -8,13 +8,13 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * R6.18: the jump state machine of {@link MapCharacter}. RGSS moves the tile
  * position immediately and glides the sprite with a parabola; the durations
- * come from this project's engine (12.8 quarter-pixels per 40 fps frame,
- * REAL_RES_Y twice REAL_RES_X).
+ * come from this project's engine (12.8 sub-pixels per 40 fps frame;
+ * {@code Game_Map:34-37} makes REAL_RES_X and REAL_RES_Y both 128).
  */
 class MapCharacterJumpTest {
 
     @Test
-    @DisplayName("horizontal jumps take 10 frames, vertical ones 20 (RGSS speeds)")
+    @DisplayName("one tile takes 10 frames in every direction (RGSS speeds)")
     void durations() {
         MapCharacter character = new MapCharacter(2, 2, 8, 8, "npc");
         character.startJump(3, 2, 12f);
@@ -25,10 +25,17 @@ class MapCharacterJumpTest {
 
         MapCharacter vertical = new MapCharacter(2, 2, 8, 8, "npc");
         vertical.startJump(2, 3, 12f);
-        vertical.update(0.4f);
-        assertTrue(vertical.isJumping(), "a vertical tile takes 0.5 s");
-        vertical.update(0.2f);
+        vertical.update(0.24f);
+        assertTrue(vertical.isJumping(), "a vertical tile takes 0.25 s too");
+        vertical.update(0.02f);
         assertFalse(vertical.isJumping());
+
+        MapCharacter twoTiles = new MapCharacter(2, 2, 8, 8, "npc");
+        twoTiles.startJump(2, 4, 24f);
+        twoTiles.update(0.49f);
+        assertTrue(twoTiles.isJumping(), "two tiles take 0.5 s");
+        twoTiles.update(0.02f);
+        assertFalse(twoTiles.isJumping());
     }
 
     @Test

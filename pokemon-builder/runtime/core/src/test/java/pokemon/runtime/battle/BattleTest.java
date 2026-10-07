@@ -28,6 +28,14 @@ class BattleTest {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battler hero = new Battler(new Pokemon(data.species("HERO"), 50, data), false);
         Battler foe = new Battler(new Pokemon(data.species("FOE"), 2, data), true);
+
+        // §4: DamageCalc now runs the plugin's pbCalcDamage / pbCalcDamageMultipliers,
+        // which read @battle for weather, abilities, items and side effects. These
+        // tests exercise the formula in isolation, so they attach a battle (a real
+        // battle is what the plugin always has at this point).
+        Battle readBattle = new Battle(data, new Random(0), (u, t, m) -> 0);
+        hero.battle = readBattle;
+        foe.battle = readBattle;
         BattleMove slash = new BattleMove(data.move("SLASH"));
 
         // 648 base * 1.5 STAB * [0.85,1.0] random => 826..972.
@@ -49,8 +57,25 @@ class BattleTest {
         // with GHOST; the synthetic chart has SPOOK for that.
         Battler spook = new Battler(new Pokemon(data.species("SPOOK"), 5, data), true);
         Battler hero = new Battler(new Pokemon(data.species("HERO"), 50, data), false);
+
+        // §4: DamageCalc now runs the plugin's pbCalcDamage / pbCalcDamageMultipliers,
+        // which read @battle for weather, abilities, items and side effects. These
+        // tests exercise the formula in isolation, so they attach a battle (a real
+        // battle is what the plugin always has at this point).
+        Battle readBattle = new Battle(data, new Random(0), (u, t, m) -> 0);
+        ghost.battle = readBattle;
+        spook.battle = readBattle;
+        hero.battle = readBattle;
         BattleMove slash = new BattleMove(data.move("SLASH"));
-        assertEquals(0, DamageCalc.compute(hero, spook, slash, data, new Random(1)));
+        // Type immunity is enforced UPSTREAM, not by pbCalcDamage: the plugin's
+        // Move_Usage_Calculations:292 `[(damage * multipliers[FINAL_DMG_MULT]).round,1].max`
+        // floors at 1 even when the type modifier is 0, because an immune target never
+        // reaches pbCalcDamage (Battler_UseMove_SuccessChecks:531-533 returns first, and
+        // Battle#execute returns before calling this helper). So assert the chart is
+        // immune and that the formula's own floor holds - compute() is not the gate.
+        assertEquals(0f, data.effectiveness("NORMAL", spook.types()), "NORMAL vs GHOST is immune");
+        assertTrue(DamageCalc.compute(hero, spook, slash, data, new Random(1)) >= 1,
+                "pbCalcDamage floors at 1; immunity is handled upstream");
         assertTrue(DamageCalc.compute(hero, ghost, slash, data, new Random(1)) > 0);
     }
 
@@ -72,6 +97,88 @@ class BattleTest {
         assertEquals(0, foe.hp, "the foe fainted and its HP persisted");
         assertTrue(hero.hp > 0);
         assertTrue(hero.exp > expBefore, "the winner gained experience");
+    }
+
+    @Test
+    @DisplayName("P8: the exp award follows pbGainExpOne (Battle_ExpAndMoveLearning:99-198)")
+    void expAwardFollowsThePluginFormula(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon hero = new Pokemon(data.species("HERO"), 50, data);
+        Pokemon foe = new Pokemon(data.species("FOE"), 2, data);
+
+        Battle battle = new Battle(data, new Random(7), null).addPlayer(hero).addFoe(foe);
+        assertEquals(BattleResult.Outcome.WIN, battle.run(100).outcome);
+
+        assertEquals(1, battle.lastExpAwards.size, "one participant is awarded");
+        Battle.ExpAward award = battle.lastExpAwards.first();
+        assertTrue(award.expGained >= 1, "the scaled formula still grants at least 1");
+        assertEquals(50, award.oldLevel);
+        assertFalse(award.segments.isEmpty(), "the bar plays at least one segment");
+        int[] segment = award.segments.first();
+        assertEquals(PokemonStats.experienceForLevel("Medium", 50), segment[0],
+                "levelMinExp");
+        assertEquals(PokemonStats.experienceForLevel("Medium", 51), segment[1],
+                "levelMaxExp");
+    }
+
+    @Test
+    @DisplayName("P8: the level lock turns a capped gain into exp-pot exp (Battle_ExpAndMoveLearning:167-186)")
+    void levelLockFeedsTheExpPot(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon hero = new Pokemon(data.species("HERO"), 30, data);
+        Pokemon foe = new Pokemon(data.species("FOE"), 2, data);
+
+        Battle battle = new Battle(data, new Random(7), null).addPlayer(hero).addFoe(foe);
+        battle.levelLockOn = true;
+        battle.badges = new java.util.HashSet<>();     // no badges -> capped at 25
+        assertEquals(BattleResult.Outcome.WIN, battle.run(100).outcome);
+
+        assertEquals(1, battle.lastExpAwards.size);
+        Battle.ExpAward award = battle.lastExpAwards.first();
+        assertEquals(0, award.expGained, "the gain is capped");
+        assertTrue(award.potGain >= 1, "the capped exp goes to the pot instead");
+        assertTrue(award.segments.isEmpty(), "no exp bar segment for a capped gain");
+    }
+
+    @Test
+    @DisplayName("P8: a super-shiny gains 1.2x exp (Battle_ExpAndMoveLearning:161)")
+    void superShinyBonus(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon plain = new Pokemon(data.species("HERO"), 50, data);
+        Pokemon shiny = new Pokemon(data.species("HERO"), 50, data);
+        shiny.superShiny = true;
+
+        Battle a = new Battle(data, new Random(1), null)
+                .addPlayer(plain).addFoe(new Pokemon(data.species("BIGEXP"), 2, data));
+        Battle b = new Battle(data, new Random(1), null)
+                .addPlayer(shiny).addFoe(new Pokemon(data.species("BIGEXP"), 2, data));
+        a.run(100);
+        b.run(100);
+
+        int plainGain = a.lastExpAwards.first().expGained;
+        int shinyGain = b.lastExpAwards.first().expGained;
+        assertEquals((int) Math.floor(plainGain * 1.2), shinyGain,
+                "the super-shiny gains 1.2x");
+    }
+
+    @Test
+    @DisplayName("P8: a level-up records its move for the settlement (pbLearnMove)")
+    void moveLearningIsDeferred(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon hero = new Pokemon(data.species("HERO"), 5, data);
+        hero.exp = PokemonStats.experienceForLevel("Medium", 6) - 1;
+        Pokemon foe = new Pokemon(data.species("BIGEXP"), 2, data);
+
+        Battle battle = new Battle(data, new Random(3), null).addPlayer(hero).addFoe(foe);
+        assertEquals(BattleResult.Outcome.WIN, battle.run(100).outcome);
+        assertTrue(hero.level >= 6, "levelled up to " + hero.level);
+        assertEquals(1, battle.lastExpAwards.size);
+        Battle.ExpAward award = battle.lastExpAwards.first();
+        assertFalse(award.movesToLearn.isEmpty(), "SHADOW is learned at level 6");
+        for (Pokemon.MoveSlot slot : hero.moves) {
+            assertTrue(slot.move == null || !"SHADOW".equals(slot.move.internalName),
+                    "the settlement learns it, not the battle");
+        }
     }
 
     @Test
@@ -160,7 +267,7 @@ class BattleTest {
                 + "\"HERO\":{\"id\":1,\"internalName\":\"HERO\",\"name\":\"Hero\","
                 + "\"types\":[\"NORMAL\"],\"baseStats\":[100,100,100,100,100,100],"
                 + "\"growthRate\":\"Medium\",\"baseExp\":200,\"abilities\":[\"OVERGROW\"],"
-                + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"}]},"
+                + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"},{\"level\":6,\"move\":\"SHADOW\"}]},"
                 + "\"FOE\":{\"id\":2,\"internalName\":\"FOE\",\"name\":\"Foe\","
                 + "\"types\":[\"NORMAL\"],\"baseStats\":[1,1,1,1,1,1],"
                 + "\"growthRate\":\"Medium\",\"baseExp\":20,\"abilities\":[],"

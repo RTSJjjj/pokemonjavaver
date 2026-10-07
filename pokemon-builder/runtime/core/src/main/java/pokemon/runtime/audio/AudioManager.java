@@ -40,6 +40,8 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
 
     private final ObjectMap<String, Music> musics = new ObjectMap<>();
     private final ObjectMap<String, Sound> sounds = new ObjectMap<>();
+    /** The SE samples currently sounding (pbSEStop stops them all). */
+    private final java.util.LinkedHashSet<Sound> activeSe = new java.util.LinkedHashSet<>();
     private AudioManifestData manifest;
     private File dataRoot;
     private Backend backend = GDX_BACKEND;
@@ -48,6 +50,19 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     private String currentBgmId;
     private float currentVolume = 1f;
     private float currentBgsVolume = 1f;
+    /** Raw (unfactored) volume / pitch of the running BGM, for {@link #pauseBgm()}. */
+    private int currentBgmVolumePercent = 100;
+    private int currentBgmPitch = 100;
+
+    // Game_System:85-103 bgm_pause / bgm_resume: the overworld BGM is
+    // memorized (with its play position) before a battle and replayed when the
+    // battle is over. pbBattleAnimation:26-30 captures getPlayingBGM, pauses,
+    // and :112-114 resumes afterwards.
+    private boolean bgmPaused;
+    private String pausedBgmId;
+    private int pausedBgmVolume = 100;
+    private int pausedBgmPitch = 100;
+    private float pausedBgmPosition;
 
     // L8.1: a tagged BGM ships as [loop segment] + [intro segment]. The intro
     // plays once, then the loop segment starts and loops as a whole file.
@@ -72,6 +87,8 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     private float fadeRemaining;
     private Music incomingBgm;
     private float incomingVolume;
+    private int incomingVolumePercent = 100;
+    private int incomingPitch = 100;
     private float cueRemaining;
 
     public void setBackend(Backend backend) {
@@ -135,6 +152,14 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         intro(logicalId);
     }
 
+    /**
+     * {@code FileTest.audio_exist?("Audio/BGM/"+name)} (Game_System:69): whether
+     * the manifest has a playable file for this BGM. A miss is logged.
+     */
+    public boolean bgmExists(String logicalId) {
+        return logicalId != null && !logicalId.isEmpty() && fileOf(logicalId, "BGM") != null;
+    }
+
     public void playBgm(String logicalId, int volume, int pitch) {
         if (logicalId == null || logicalId.isEmpty() || logicalId.equals(currentBgmId)) {
             return;
@@ -146,6 +171,8 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         }
         currentVolume = volume(volume) * bgmFactor;
         currentBgmId = logicalId;
+        currentBgmVolumePercent = volume;
+        currentBgmPitch = pitch;
         startLoopOrIntro(logicalId, loop, currentVolume);
     }
 
@@ -181,6 +208,8 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         fadeRemaining = fadeSeconds;
         incomingBgm = music;
         incomingVolume = volume(volume) * bgmFactor;
+        incomingVolumePercent = volume;
+        incomingPitch = pitch;
         cueRemaining = fadeSeconds * CUE_START_RATIO;
         currentBgm = null;
         currentBgmId = logicalId;
@@ -194,6 +223,8 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
             if (cueRemaining <= 0f) {
                 Music music = incomingBgm;
                 incomingBgm = null;
+                currentBgmVolumePercent = incomingVolumePercent;
+                currentBgmPitch = incomingPitch;
                 startLoopOrIntro(currentBgmId, music, incomingVolume);
             }
         }
@@ -275,7 +306,43 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
 
     private AudioManifestData.Entry entryOf(String logicalId) {
         AudioManifestData.Entry entry = manifest.find(logicalId);
-        return entry == null ? findIgnoringCase(logicalId) : entry;
+        if (entry != null) {
+            return entry;
+        }
+        entry = findIgnoringCase(logicalId);
+        if (entry != null) {
+            return entry;
+        }
+        // RGSS resolves an audio name through the file system, so a folder
+        // path and an extension are both optional there: the metadata of
+        // PBS/metadata.txt names files ("Battle wild.mid"), and
+        // pbGetWildVictoryME / pbGetTrainerVictoryME / pbGetWildCaptureME even
+        // prefix "../../Audio/ME/" to force the ME folder
+        // (PSystem_FileUtilities:581/601/697) - which the manifest key does
+        // not carry, because the builder indexes by base name.
+        String bare = baseName(logicalId);
+        if (bare == null || bare.equals(logicalId)) {
+            return null;
+        }
+        entry = manifest.find(bare);
+        return entry == null ? findIgnoringCase(bare) : entry;
+    }
+
+    /** "…/Audio/ME/Battle victory wild.ogg" -> "Battle victory wild". */
+    private static String baseName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String base = name.replace('\\', '/');
+        int slash = base.lastIndexOf('/');
+        if (slash >= 0) {
+            base = base.substring(slash + 1);
+        }
+        int dot = base.lastIndexOf('.');
+        if (dot > 0) {
+            base = base.substring(0, dot);
+        }
+        return base;
     }
 
     /** Drops a running fade (a script command or a new cue wins). */
@@ -319,6 +386,82 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         currentBgmId = null;
     }
 
+    /**
+     * {@code Game_System#bgm_pause} (Game_System:85-90): memorizes the running
+     * track and its position. The stream itself keeps playing, exactly like
+     * RMXP - the next BGM replaces it, and {@link #resumeBgm()} brings the
+     * memorized one back.
+     */
+    public void pauseBgm() {
+        if (bgmPaused || currentBgm == null || currentBgmId == null) {
+            return;
+        }
+        pausedBgmId = currentBgmId;
+        pausedBgmVolume = currentBgmVolumePercent;
+        pausedBgmPitch = currentBgmPitch;
+        pausedBgmPosition = Math.max(0f, currentBgm.getPosition());
+        bgmPaused = true;
+    }
+
+    /**
+     * {@code Game_System#bgm_resume(bgm)} (Game_System:97-103): replays the
+     * memorized track from the position it was paused at. A resume without a
+     * pause does nothing, and the pause is cleared either way.
+     */
+    public void resumeBgm() {
+        if (!bgmPaused) {
+            return;
+        }
+        bgmPaused = false;
+        String id = pausedBgmId;
+        float position = pausedBgmPosition;
+        pausedBgmId = null;
+        pausedBgmPosition = 0f;
+        if (id == null || id.isEmpty()) {
+            return;
+        }
+        if (id.equals(currentBgmId) && currentBgm != null) {
+            return; // nothing replaced it: it never stopped playing
+        }
+        playBgm(id, pausedBgmVolume, pausedBgmPitch);
+        if (currentBgm != null && position > 0f) {
+            currentBgm.setPosition(position);
+        }
+    }
+
+    /** Whether {@link #pauseBgm()} is waiting for a {@link #resumeBgm()}. */
+    public boolean bgmPaused() {
+        return bgmPaused;
+    }
+
+    /**
+     * {@code pbBGMFade(1.0)} ({@code PokeBattle_Scene:300}) is
+     * {@code pbBGMStop(x)} (Audio_Play:71), which for {@code x>0.0} falls
+     * through to {@code Game_System#bgm_fade(time)} (Game_System:111-115):
+     * {@code @playing_bgm = nil} and {@code Audio.bgm_fade((time*1000).floor)},
+     * so the running BGM fades out over {@code seconds} and then stops.
+     * {@link #update(float)} already advances the fade (:223-231).
+     * {@code timeInSeconds<=0.0} (and no {@code bgm_fade} receiver) takes
+     * {@code pbBGMStop}'s {@code bgm_stop} branch (Audio_Play:78-80).
+     */
+    public void fadeBgm(float seconds) {
+        if (seconds <= 0f) {                                    // Audio_Play:75
+            stopBgm();                                          // Game_System:105-109
+            return;
+        }
+        if (currentBgm == null) {
+            return;                                             // nothing to fade
+        }
+        // Game_System:114 Audio.bgm_fade: reuse cueBgm's fade state (:196-208).
+        cancelTransition();
+        fadingBgm = currentBgm;
+        fadingVolume = currentVolume;
+        fadeDuration = seconds;
+        fadeRemaining = seconds;
+        currentBgm = null;                                      // Game_System:113
+        currentBgmId = null;
+    }
+
     public void stopBgs() {
         if (currentBgs != null) {
             currentBgs.stop();
@@ -350,6 +493,17 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         play(logicalId, "SE", volume, pitch);
     }
 
+    /**
+     * {@code pbSEStop} (Audio_Play:223-231) / {@code Game_System#se_stop}: stops
+     * every sound effect that is currently playing.
+     */
+    public void stopSe() {
+        for (Sound sound : activeSe) {
+            sound.stop();
+        }
+        activeSe.clear();
+    }
+
     // ------------------------------------------------------------------
     // R6.30: cries (pbCryFile)
     // ------------------------------------------------------------------
@@ -377,6 +531,22 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         return resolveCryKey(base);
     }
 
+    /**
+     * {@code pbPlayCry(pokemon)} (PSystem_FileUtilities:476): volume 90, the
+     * species' cry. The summary / Pokédex / trainer card play this when they
+     * open a Pokemon, mirroring the plugin's own call points.
+     */
+    public void playCry(int species) {
+        playCry(species, 90, 100);
+    }
+
+    public void playCry(int species, int volume, int pitch) {
+        String cry = species <= 0 ? null : resolveCry(species);
+        if (cry != null) {
+            playSe(cry, volume, pitch);
+        }
+    }
+
     private String resolveCryKey(String base) {
         for (String candidate : new String[] { base + "Cry_0", base + "Cry" }) {
             if (manifest.find(candidate) != null || findIgnoringCase(candidate) != null) {
@@ -386,12 +556,74 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         return null;
     }
 
+    /**
+     * {@code pbCryFile(pokemon,form=0)} (PSystem_FileUtilities:509-539) for a
+     * Pokemon object: the species' constant name first, the
+     * {@code %03d} species id second, each with the Pokemon's own form appended
+     * and then without it. {@code pbResolveAudioSE} checks the four extensions
+     * the manifest already folded into one key.
+     */
+    public String resolveCryFile(int species, String speciesName, int form) {
+        if (!ready() || species <= 0) {
+            return null;
+        }
+        String number = String.format(java.util.Locale.ROOT, "%03d", species);
+        for (String candidate : new String[] {
+                speciesName == null ? null : speciesName + "Cry_" + form,   // :513
+                number + "Cry_" + form,                                     // :515
+                speciesName == null ? null : speciesName + "Cry",           // :517
+                number + "Cry" }) {                                         // :519
+            if (candidate == null) {
+                continue;
+            }
+            if (manifest.find(candidate) != null || findIgnoringCase(candidate) != null) {
+                return candidate;
+            }
+        }
+        return null;                                                        // :538
+    }
+
     private void play(String logicalId, String type, int volume, int pitch) {
         Sound sound = sound(logicalId, type);
         if (sound == null) {
             return;
         }
         sound.play(volume(volume) * seFactor, pitch(pitch), 0f);
+        if ("SE".equals(type)) {
+            activeSe.add(sound);
+        }
+    }
+
+    /**
+     * {@code sePlayTime}'s cache: {@link SoundLength} parses a file once, keyed
+     * by its absolute path (two manifest ids can resolve to the same file).
+     */
+    private final ObjectMap<String, Float> sePlayTimes = new ObjectMap<>();
+
+    /**
+     * {@code pbResolveAudioSE} + {@code getPlayTime} (PSystem_FileUtilities:441-469):
+     * how long an SE file runs, in seconds.
+     *
+     * <p>{@code pbCryFrameLength} needs it to know how long a Pokemon's cry lasts
+     * ({@code playtime = getPlayTime(pkmnwav)}), which decides how long
+     * {@code BattlerFaintAnimation} waits before playing "Pkmn faint"
+     * (PokeBattle_SceneAnimations:672-675).</p>
+     *
+     * @return the duration in seconds, or -1 when the file cannot be resolved
+     */
+    public float sePlayTime(String logicalId) {
+        File file = fileOf(logicalId, "SE");
+        if (file == null) {
+            return -1f;
+        }
+        String key = file.getAbsolutePath();
+        Float cached = sePlayTimes.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        float seconds = SoundLength.duration(file);
+        sePlayTimes.put(key, seconds);
+        return seconds;
     }
 
     // ------------------------------------------------------------------

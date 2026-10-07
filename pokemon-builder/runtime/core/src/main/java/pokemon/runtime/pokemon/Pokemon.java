@@ -28,6 +28,8 @@ public final class Pokemon {
     public String status = "";
     public int gender = PokemonStats.GENDERLESS;
     public boolean shiny;
+    /** PokeBattle_Pokemon:335 {{@code superShiny?}}: the rare shiny variant. */
+    public boolean superShiny;
     public boolean egg;
     public String item;
     public int happiness;
@@ -41,6 +43,32 @@ public final class Pokemon {
     /** Essence-battle rank written by {@code p.battleRank = n} (P0c). */
     public int battleRank;
 
+    // --- Essentials PokeBattle_Pokemon fields the Summary screen shows ---
+    /** 32-bit personality value (nature/characteristic/IV tie-break seed). */
+    public int personalID;
+    /**
+     * {@code @trainerID} (PokeBattle_Pokemon:39): the original trainer's full
+     * 32-bit id. The visible half is {@link #publicID}, and the whole value is
+     * what the shiny formula XORs with the personality value
+     * (PokeBattle_Pokemon:314-321).
+     */
+    public int trainerID;
+    /** Trainer ID shown on the summary ({@code trainerID & 0xFFFF}, :67-69). */
+    public int publicID;
+    /** OT gender: 0 male, 1 female, -1 unknown (base colour). */
+    public int otGender = -1;
+    /** Ball the Pokemon was caught in (icon_ball_%02d). */
+    public int ballused;
+    /** Marking bits (6 marks, bit 0..5). */
+    public int markings;
+    public int obtainMap;
+    public int obtainLevel;
+    /** 0 met, 1 hatched, 2 traded, 3 fateful, 4 fateful. */
+    public int obtainMode;
+    public String obtainText;
+    /** PokeRus stage: 0 none, 1 infected, 2 cured. */
+    public int pokerus;
+
     /** One known move with its current PP (up to 4 by the time battle lands). */
     public static final class MoveSlot {
         public PbsData.Move move;
@@ -51,6 +79,7 @@ public final class Pokemon {
         public MoveSlot(PbsData.Move move) {
             this.move = move;
             this.maxPp = move == null ? 0 : move.pp;
+            this.pp = this.maxPp;
         }
     }
 
@@ -68,6 +97,7 @@ public final class Pokemon {
                     PbsData.Move move = data.move(learn.move);
                     if (move != null) {
                         moves.add(new MoveSlot(move));
+                        if (moves.size > 4) moves.removeIndex(0);
                     }
                 }
             }
@@ -174,5 +204,183 @@ public final class Pokemon {
 
     public boolean genderless() {
         return gender == PokemonStats.GENDERLESS;
+    }
+
+    /**
+     * PokeBattle_Pokemon:166-177: the gender the data boxes and menus show.
+     * Single-gender species come from their rate; a mixed species uses an
+     * explicit male/female (the plugin's {@code @genderflag}, set from
+     * trainers.txt in this runtime), and every other Pokemon derives it from
+     * its personal id (PBGenderRates:11-23).
+     */
+    public int displayGender() {
+        return effectiveGender();
+    }
+
+    /**
+     * {@code gender} (PokeBattle_Pokemon:166-177): the sole option for an
+     * all-male / all-female / genderless species, otherwise the explicit flag
+     * ({@code @genderflag}, this field), otherwise the personality value's low
+     * byte against the species' gender threshold (PBGenderRates:11-23).
+     */
+    public int effectiveGender() {
+        String rate = genderRate();
+        if (PokemonStats.singleGender(rate)) {
+            return PokemonStats.gender(rate, 0f);
+        }
+        if (gender == PokemonStats.MALE || gender == PokemonStats.FEMALE) {
+            return gender;
+        }
+        return (personalID & 0xFF) < PokemonStats.genderByte(rate)
+                ? PokemonStats.FEMALE : PokemonStats.MALE;
+    }
+
+    // ------------------------------------------------------------------
+    // Mega Evolution / Primal Reversion (Pokemon_MegaEvolution)
+    // ------------------------------------------------------------------
+
+    /** True when the current form is a Mega form (it has an unmegaForm). */
+    public boolean isMega() {
+        return form != null && form.unmegaForm != null;
+    }
+
+    /** {@code getMegaForm}: the form index whose MegaStone the Pokemon holds. */
+    public int megaFormIndex(PbsData data) {
+        if (data == null || species == null) {
+            return 0;
+        }
+        int current = form == null ? 0 : form.form;
+        for (int i = 1; i < 40; i++) {
+            PbsData.SpeciesForm candidate = data.form(species.internalName, i);
+            if (candidate == null || candidate.megaStone == null || candidate.megaStone.isEmpty()) {
+                continue;
+            }
+            if (item == null || !item.equalsIgnoreCase(candidate.megaStone)) {
+                continue;
+            }
+            int unmega = candidate.unmegaForm == null ? 0 : candidate.unmegaForm;
+            if (current == unmega) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    public boolean hasMegaForm(PbsData data) {
+        int index = megaFormIndex(data);
+        return index > 0 && index != (form == null ? 0 : form.form);
+    }
+
+    /** {@code makeMega}: switch to the Mega form (keeps the base species). */
+    public void makeMega(PbsData data) {
+        int index = megaFormIndex(data);
+        if (index > 0) {
+            setForm(data, index);
+        }
+    }
+
+    public void makeUnmega(PbsData data) {
+        if (isMega()) {
+            setForm(data, form.unmegaForm == null ? 0 : form.unmegaForm);
+        }
+    }
+
+    /**
+     * {@code pbRecordFirstMoves} (PokeBattle_Pokemon:524-527): the moves the
+     * Pokemon knew when it was obtained, which the move relearner offers back
+     * (PScreen_MoveRelearner:21-22). {@code PokeBattle_BattleCommon:156} calls
+     * it on a successful capture.
+     */
+    public final Array<String> firstMoves = new Array<>();
+
+    public void recordFirstMoves() {
+        firstMoves.clear();
+        for (MoveSlot slot : moves) {
+            if (slot != null && slot.move != null && slot.move.internalName != null) {
+                firstMoves.add(slot.move.internalName);
+            }
+        }
+    }
+
+    /**
+     * {@code @trainerID = value}: the visible half follows the full id, like the
+     * plugin's derived {@code publicID} (:67-69).
+     */
+    public void setTrainerID(int value) {
+        this.trainerID = value;
+        this.publicID = value & 0xFFFF;
+    }
+
+    /** Settings:44 {@code SHINY_POKEMON_CHANCE}. */
+    public static final int SHINY_POKEMON_CHANCE = 32;
+
+    /**
+     * {@code shiny?} (PokeBattle_Pokemon:314-321):
+     * {@code a = personalID ^ trainerID; d = (a & 0xFFFF) ^ ((a >> 16) & 0xFFFF);
+     * d < SHINY_POKEMON_CHANCE}.
+     */
+    public static boolean isShiny(int personalID, int trainerID) {
+        int a = personalID ^ trainerID;
+        int d = (a & 0xFFFF) ^ ((a >> 16) & 0xFFFF);
+        return d < SHINY_POKEMON_CHANCE;
+    }
+
+    /**
+     * {@code @personalID = rand(256) | rand(256)&lt;&lt;8 | ... }
+     * (PokeBattle_Pokemon:919-922): four independent bytes.
+     */
+    public static int newPersonalID(java.util.Random random) {
+        java.util.Random source = random == null ? new java.util.Random() : random;
+        return source.nextInt(256)
+                | (source.nextInt(256) << 8)
+                | (source.nextInt(256) << 16)
+                | (source.nextInt(256) << 24);
+    }
+
+    /** Mega form name (the form's formName, or "超级{species}"). */
+    public String megaName() {
+        if (form != null && form.formName != null && !form.formName.isEmpty()) {
+            return form.formName;
+        }
+        return "超级" + (species == null ? "" : species.name);
+    }
+
+    /** Groudon/Kyogre revert with the Red/Blue Orb (Primal Reversion). */
+    public boolean hasPrimalForm() {
+        return isSpecies("GROUDON") || isSpecies("KYOGRE");
+    }
+
+    public boolean isPrimal() {
+        return hasPrimalForm() && form != null && form.form == 1 && form.unmegaForm != null;
+    }
+
+    public void makePrimal(PbsData data) {
+        if (isSpecies("GROUDON") && "REDORB".equals(item)) {
+            setForm(data, 1);
+        } else if (isSpecies("KYOGRE") && "BLUEORB".equals(item)) {
+            setForm(data, 1);
+        }
+    }
+
+    public void makeUnprimal(PbsData data) {
+        if (isPrimal()) {
+            setForm(data, 0);
+        }
+    }
+
+    private boolean isSpecies(String name) {
+        return species != null && species.internalName != null
+                && name.equalsIgnoreCase(species.internalName);
+    }
+
+    /** Applies a form index; index 0 is the base species (form = null). */
+    public void setForm(PbsData data, int index) {
+        form = index <= 0 || data == null || species == null
+                ? null : data.form(species.internalName, index);
+        if (form != null && form.abilities != null && form.abilities.size > 0) {
+            ability = form.abilities.get(0);
+        } else if (species != null && species.abilities.size > 0) {
+            ability = species.abilities.get(0);
+        }
     }
 }

@@ -16,21 +16,27 @@ import static org.junit.jupiter.api.Assertions.*;
 class GameSettingsTest {
 
     @Test
-    @DisplayName("volume rows adjust in 10% steps and clamp at 0/100 (L1)")
+    @DisplayName("volume rows adjust in 5% steps and clamp at 0/100 (L1)")
     void adjustClamps() {
         GameSettings settings = new GameSettings();
-        assertEquals("90%", settings.adjust(GameSettings.Row.BGM_VOLUME, -1));
-        assertEquals(90, settings.bgmVolume);
-        for (int i = 0; i < 20; i++) {
-            settings.adjust(GameSettings.Row.BGM_VOLUME, -1);
+        settings.setValue(GameSettings.Option.BGM,
+                settings.step(GameSettings.Option.BGM, settings.value(GameSettings.Option.BGM), -1));
+        assertEquals(95, settings.bgmVolume);
+        for (int i = 0; i < 30; i++) {
+            settings.setValue(GameSettings.Option.BGM,
+                    settings.step(GameSettings.Option.BGM, settings.value(GameSettings.Option.BGM), -1));
         }
         assertEquals(0, settings.bgmVolume, "never below 0");
-        for (int i = 0; i < 20; i++) {
-            settings.adjust(GameSettings.Row.BGM_VOLUME, 1);
+        for (int i = 0; i < 30; i++) {
+            settings.setValue(GameSettings.Option.BGM,
+                    settings.step(GameSettings.Option.BGM, settings.value(GameSettings.Option.BGM), 1));
         }
         assertEquals(100, settings.bgmVolume, "never above 100");
-        assertEquals("开", settings.adjust(GameSettings.Row.FULLSCREEN, 1));
-        assertEquals("关", settings.adjust(GameSettings.Row.FULLSCREEN, 1));
+        // 超级进化规则: 传统模式 <-> ZA模式.
+        settings.setValue(GameSettings.Option.BATTLE_RULE,
+                settings.step(GameSettings.Option.BATTLE_RULE, 0, 1));
+        assertEquals(1, settings.battleRule);
+        assertEquals("ZA模式", settings.display(GameSettings.Option.BATTLE_RULE));
     }
 
     @Test
@@ -44,14 +50,16 @@ class GameSettingsTest {
             settings.bgmVolume = 40;
             settings.seVolume = 70;
             settings.bgsVolume = 0;
-            settings.fullscreen = true;
+            settings.screensize = 3;
+            settings.battleRule = 1;
             settings.save(new StoragePort());
 
             GameSettings loaded = GameSettings.load(new StoragePort());
             assertEquals(40, loaded.bgmVolume);
             assertEquals(70, loaded.seVolume);
             assertEquals(0, loaded.bgsVolume);
-            assertTrue(loaded.fullscreen);
+            assertTrue(loaded.fullscreen());
+            assertEquals(1, loaded.battleRule, "the ZA rule survives");
             assertEquals(0.4f, loaded.bgmFactor(), 0.001f);
         } finally {
             if (previous == null) {
@@ -74,7 +82,7 @@ class GameSettingsTest {
         try {
             GameSettings loaded = GameSettings.load(new StoragePort());
             assertEquals(100, loaded.bgmVolume);
-            assertFalse(loaded.fullscreen);
+            assertFalse(loaded.fullscreen());
         } finally {
             if (previous == null) {
                 System.clearProperty("user.home");

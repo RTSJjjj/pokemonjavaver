@@ -47,9 +47,27 @@ class RuntimePortForwardingTest {
         context.loadRuntimeConfig();
 
         List<String> calls = new ArrayList<>();
+        final int[][] screenVariable = new int[1][];
         context.bindScreenPort(new MapPort() {
             @Override
             public void transfer(int mapId, int x, int y, int direction) {
+            }
+
+            @Override
+            public int[] getEventVariable(int eventId) {
+                calls.add("getVar:" + eventId);
+                return screenVariable[0];
+            }
+
+            @Override
+            public void setEventVariable(int eventId, int[] value) {
+                calls.add("setVar:" + eventId + ":" + java.util.Arrays.toString(value));
+                screenVariable[0] = value == null ? null : value.clone();
+            }
+
+            @Override
+            public void turnEvent(int eventId, int direction) {
+                calls.add("turn:" + eventId + ":" + direction);
             }
 
             @Override
@@ -205,6 +223,18 @@ class RuntimePortForwardingTest {
         context.eventInterpreter().update(0f);
         assertEquals(pokemon.runtime.event.InterpreterState.WAIT_MOVEMENT,
                 context.eventInterpreter().state(), "210 waits for the screen");
+
+        // P3 regression: the berry plants read / write the event variable and
+        // turn the event through the same port; a dropped forward made planting
+        // impossible (the write went into the default no-op).
+        assertNull(context.mapPort().getEventVariable(9), "no variable yet");
+        context.mapPort().setEventVariable(9, new int[] { 1, 395, 0, 7, 100, 0, 0, 0 });
+        assertArrayEquals(new int[] { 1, 395, 0, 7, 100, 0, 0, 0 },
+                context.mapPort().getEventVariable(9));
+        context.mapPort().turnEvent(9, 2);
+        assertTrue(calls.contains("getVar:9"), calls.toString());
+        assertTrue(calls.contains("setVar:9:[1, 395, 0, 7, 100, 0, 0, 0]"), calls.toString());
+        assertTrue(calls.contains("turn:9:2"), calls.toString());
     }
 
     /** A 355 script command pointing at an IR block, like the compiler emits. */

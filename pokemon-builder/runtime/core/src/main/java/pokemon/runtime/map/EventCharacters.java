@@ -28,6 +28,12 @@ public final class EventCharacters {
     /** One autonomous route player per event that uses move type 3 (custom). */
     private final MoveRoutePlayer[] autonomous;
     private final java.util.Random random = new java.util.Random();
+    /**
+     * {@code pbGlobalLock}: while locked, no event starts autonomous movement
+     * ({@code Game_Character#update_command} skips {@code update_command_new}
+     * when {@code lock?}); forced routes keep running (Messages:223-234).
+     */
+    private boolean locked;
 
     public EventCharacters(MapData data, TileMap map, GameState state) {
         this.data = data;
@@ -74,8 +80,7 @@ public final class EventCharacters {
     }
 
     /** Change Transparent Flag (208): hides the sprite and disables blocking. */
-    public void setTransparent(int eventId, boolean value) {
-        int index = indexOf(eventId);
+    public void setTransparent(int eventId, boolean value) {        int index = indexOf(eventId);
         if (index < 0) {
             return;
         }
@@ -94,6 +99,47 @@ public final class EventCharacters {
         } else {
             page.graphic.opacity = savedOpacity[index];
             page.movement.through = savedThrough[index];
+        }
+    }
+
+    /**
+     * RMXP {@code Game_Event#erase}: the event disappears for the rest of this
+     * map visit - no sprite, no blocking, no trigger. Dropping its pages makes
+     * every resolver ({@code EventPages.resolve}) answer "no page", which the
+     * renderer, collision and the trigger checks already treat as inactive; a
+     * map reload restores the pages. The version bump makes the renderer's
+     * page cache re-resolve on the next frame.
+     */
+    public void erase(int eventId) {
+        int index = indexOf(eventId);
+        if (index < 0) {
+            return;
+        }
+        MapData.EventData event = data.events.get(index);
+        event.pages.clear();
+        activePages[index] = null;
+        players[index] = null;
+        autonomous[index] = null;
+        MapCharacter character = characters.get(index);
+        if (character != null) {
+            character.characterName = null;
+            character.runningCharacterName = null;
+            character.sheetOverridden = false;
+            character.through = true;
+        }
+        state.touch();
+    }
+
+    /** {@code pbGlobalLock} / {@code pbGlobalUnlock} (Messages:223-234). */
+    public void setLocked(boolean value) {
+        this.locked = value;
+    }
+
+    /** {@code pbTrainerEnd}: {@code Game_Event#erase_route} (PField_Field:804). */
+    public void eraseRoute(int eventId) {
+        int index = indexOf(eventId);
+        if (index >= 0) {
+            players[index] = null;
         }
     }
 
@@ -152,7 +198,7 @@ public final class EventCharacters {
                 if (player.finished()) {
                     players[i] = null;
                 }
-            } else {
+            } else if (!locked) {
                 updateAutonomous(i, character, delta, context);
             }
             // RMXP advances every character each frame, so a step an event

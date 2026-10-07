@@ -28,6 +28,12 @@ public final class HeadlessBattlePort implements BattlePort {
     private final Supplier<PbsData> pbs;
     private final WhiteoutHandler whiteout;
     private final Random random;
+    /** The last finished battle (the interpreter's outcome variable). */
+    private BattleResult lastResult;
+    /** setBattleRule("canLose"): suppress the white-out for the next battle. */
+    private boolean canLose;
+    /** setBattleRule("canRun") / pbWildBattle's canRun: the next battle only. */
+    private boolean canRun = true;
 
     public HeadlessBattlePort(TrainerState trainer, Supplier<PbsData> pbs,
                               WhiteoutHandler whiteout, Random random) {
@@ -84,36 +90,80 @@ public final class HeadlessBattlePort implements BattlePort {
             return null; // no Pokemon to send out
         }
         Battle battle = new Battle(data, random, null);
+        battle.setCanRun(canRun);
         for (Pokemon member : trainer.party.members()) {
             battle.addPlayer(member);
         }
         for (Pokemon foe : foes) {
+            trainer.registerSeen(foe);
             battle.addFoe(foe);
         }
         BattleResult result = battle.run(MAX_TURNS);
-        if (result.outcome == BattleResult.Outcome.LOSS && whiteout != null) {
+        lastResult = result;
+        for (Pokemon member : trainer.party.members()) trainer.registerOwned(member);
+        // PField_Battles:619-658 pbAfterBattle, then Events.onEndBattle
+        // (:684-708) - the same order as the interactive port.
+        BattleAftermath.pbAfterBattle(trainer, data, result, canLose);
+        boolean whiteOut = BattleAftermath.onEndBattle(trainer, data, random, result, canLose);
+        if (whiteOut && whiteout != null) {
             whiteout.whiteout();
         }
+        canLose = false;
+        canRun = true;
         return result;
     }
 
-    /** Wild Pokemon: random IVs and nature, like Essentials' generator. */
-    Pokemon wildPokemon(PbsData.Species species, int level, PbsData data) {
-        Pokemon pokemon = new Pokemon(species, level, data);
-        int[] ivs = new int[6];
-        for (int i = 0; i < ivs.length; i++) {
-            ivs[i] = random.nextInt(32);
-        }
-        pokemon.ivs = ivs;
-        pokemon.hp = pokemon.maxHp();
-        if (data.natures.size > 0) {
-            pokemon.nature = data.natures.get(random.nextInt(data.natures.size));
-        }
-        return pokemon;
+    @Override
+    public BattleResult lastResult() {
+        return lastResult;
+    }
+
+    @Override
+    public void setCanLose(boolean value) {
+        this.canLose = value;
+    }
+
+    @Override
+    public void setCanRun(boolean value) {
+        this.canRun = value;
+    }
+
+    /**
+     * Wild Pokemon: {@code pbGenerateWildPokemon} (PField_Encounters:417-463) -
+     * personality value, IVs, ability slot, nature, gender, held item, Pokérus
+     * and shininess all come from the plugin's rolls.
+     */
+    public Pokemon wildPokemon(PbsData.Species species, int level, PbsData data) {
+        return pokemon.runtime.pokemon.WildGenerator.generate(data, species, level, trainer,
+                bag, obtainMap, fatefulEncounter, random);
+    }
+
+    /** The bag, for the Shiny Charm's extra shiny rolls (":436-442"); may be null. */
+    private pokemon.runtime.state.Inventory bag;
+
+    public void setBag(pokemon.runtime.state.Inventory value) {
+        this.bag = value;
+    }
+
+    /** {@code $game_map.map_id} for {@code @obtainMap} (:951). */
+    private int obtainMap;
+
+    public void setObtainMap(int value) {
+        this.obtainMap = value;
+    }
+
+    /**
+     * {@code $game_switches[FATEFUL_ENCOUNTER_SWITCH]} (Settings:32) makes the
+     * encounter "fateful" (:954-955).
+     */
+    private boolean fatefulEncounter;
+
+    public void setFatefulEncounter(boolean value) {
+        this.fatefulEncounter = value;
     }
 
     /** Trainer party member from trainers.txt. */
-    Pokemon trainerPokemon(PbsData.TrainerPokemon member, PbsData data) {
+    public Pokemon trainerPokemon(PbsData.TrainerPokemon member, PbsData data) {
         PbsData.Species species = data.species(member.species);
         if (species == null) {
             return null;

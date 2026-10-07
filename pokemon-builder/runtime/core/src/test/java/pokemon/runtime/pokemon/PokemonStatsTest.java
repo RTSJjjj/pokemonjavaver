@@ -65,6 +65,19 @@ class PokemonStatsTest {
         assertFalse(PokemonStats.singleGender("Female50Percent"));
     }
 
+    @Test
+    @DisplayName("genderByte follows PBGenderRates:11-23")
+    void genderBytes() {
+        assertEquals(0, PokemonStats.genderByte("AlwaysMale"));
+        assertEquals(32, PokemonStats.genderByte("FemaleOneEighth"));
+        assertEquals(64, PokemonStats.genderByte("Female25Percent"));
+        assertEquals(128, PokemonStats.genderByte("Female50Percent"));
+        assertEquals(192, PokemonStats.genderByte("Female75Percent"));
+        assertEquals(224, PokemonStats.genderByte("FemaleSevenEighths"));
+        assertEquals(254, PokemonStats.genderByte("AlwaysFemale"));
+        assertEquals(255, PokemonStats.genderByte("Genderless"));
+    }
+
     private static PbsData.Nature nature(String name, String up, String down) {
         PbsData.Nature nature = new PbsData.Nature();
         nature.name = name;

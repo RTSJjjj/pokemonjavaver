@@ -18,6 +18,12 @@ public final class MapCharacter {
     private int mapHeight;
 
     public String characterName;
+    /**
+     * P3: a runtime system (the berry plant sprites) owns this event's sheet.
+     * An empty {@link #characterName} then hides the event instead of falling
+     * back to the page graphic, mirroring RMXP's {@code character_name = ""}.
+     */
+    public boolean sheetOverridden;
     public String runningCharacterName;
     private boolean running;
     public boolean through;
@@ -165,9 +171,9 @@ public final class MapCharacter {
      * position changes immediately, the sprite glides to the landing tile with
      * a parabola whose peak is {@code max(1, sqrt(dx²+dy²)) * TILE * 3/8}, and
      * a jump in place only bobs. Speed follows this project's RGSS engine
-     * (12.8 quarter-pixels per 40 fps frame, {@code REAL_RES_Y} twice
-     * {@code REAL_RES_X}): a horizontal tile takes 10 frames (0.25 s), a
-     * vertical one 20 frames (0.5 s).
+     * (12.8 sub-pixels per 40 fps frame; {@code Game_Map:34-37} makes
+     * {@code REAL_RES_X} and {@code REAL_RES_Y} both 128): one tile takes
+     * 10 frames (0.25 s) in every direction.
      */
     public void startJump(int targetX, int targetY, float peakPixels) {
         jumpFromX = x;
@@ -178,7 +184,7 @@ public final class MapCharacter {
         jumpElapsed = 0f;
         int dx = Math.abs(targetX - x);
         int dy = Math.abs(targetY - y);
-        int units = Math.max(dx, dy * 2);
+        int units = Math.max(dx, dy);
         jumpDuration = (units <= 0 ? 1 : units) * 10f / 40f;
         x = targetX;
         y = targetY;

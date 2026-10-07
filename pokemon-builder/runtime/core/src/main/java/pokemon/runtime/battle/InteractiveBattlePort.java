@@ -199,6 +199,12 @@ public final class InteractiveBattlePort implements BattlePort {
          */
         private final Array<Battle.RoundEvent> engineEvents = new Array<>();
         /**
+         * pbThrowPokeBall's own scene calls (:93-164) in order: its lines and
+         * the throw animation. Played before the engine's events - the
+         * opponent's move that follows a failed throw.
+         */
+        private final Array<Battle.RoundEvent> ballEvents = new Array<>();
+        /**
          * The whole action as the scene must play it: this port's own lines
          * ({@link #log}), then {@link #engineEvents}, then the closing line
          * ({@link #message} as set by {@link #endMessage()}). Built by
@@ -623,7 +629,10 @@ public final class InteractiveBattlePort implements BattlePort {
         }
         public boolean item(String id, int target) {
             if (result != null || !inventory.has(id)) return false;
-            if ("POKEBALL".equals(id) || "GREATBALL".equals(id) || "ULTRABALL".equals(id) || "MASTERBALL".equals(id)) return ball(id);
+            // Every Poke Ball (items of pocket type 3/4), not only the first four.
+            PbsData ballData = data.get();
+            PbsData.Item ballItem = ballData == null ? null : ballData.item(id);
+            if (ballItem != null && ballItem.isPokeBall()) return ball(id);
             if (target < 0 || target >= battle.playerParty().size) return false;
             Battler battler = battle.playerParty().get(target);
             PbsData.Item item = data.get().item(id);
@@ -676,9 +685,13 @@ public final class InteractiveBattlePort implements BattlePort {
                 return true;
             }
             String throwLine = trainer.name + "扔出了" + item.name + "！";        // :93-97
+            int ballType = BallTypes.ballType(pbs, item.internalName);        // pbGetBallType
             // :100-103: a trainer's Pokemon bats the ball away.
             if (trainerBattle) {
-                message = throwLine + MESSAGE_BREAK + "训练家打飞了球\n不要做小偷！";
+                ballEvents.add(Battle.RoundEvent.message(throwLine, true));     // :94-97 pbDisplayBrief
+                ballEvents.add(Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_DEFLECT,
+                        ballType, 0, false, target.index));                      // :101 pbThrowAndDeflect
+                message = "训练家打飞了球\n不要做小偷！";
                 return true;
             }
             // :104-107: $game_switches[60], "不可捕捉的野外对战".
@@ -689,20 +702,31 @@ public final class InteractiveBattlePort implements BattlePort {
             inventory.remove(id, 1);                                          // Battle_Action_UseItem:35
             CaptureCalculator.Context capture = captureContext(pbs, target);
             int shakes = CaptureCalculator.shakes(capture, item.internalName);  // :111-114
+            // :94-97 pbDisplayBrief, then :114 @scene.pbThrow(ball,numShakes,...).
+            ballEvents.add(Battle.RoundEvent.message(throwLine, true));
+            ballEvents.add(Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_THROW,
+                    ballType, shakes, false, target.index));
             if (shakes == 4) {                                                // :129-163
                 CaptureCalculator.onCatch(pbs, item.internalName, target.pokemon);
-                target.pokemon.ballused = BallTypes.ballType(pbs, item.internalName);
+                target.pokemon.ballused = ballType;
                 target.pokemon.makeUnmega(pbs);
                 target.pokemon.recordFirstMoves();
-                message = throwLine + MESSAGE_BREAK
-                        + "太好了！\n捉到了" + target.pokemon.name + "！";
+                // :130-131 pbDisplayBrief, then @scene.pbThrowSuccess; the ball is
+                // hidden once the Pokemon is stored (:161).
+                ballEvents.add(Battle.RoundEvent.message(
+                        "太好了！\n捉到了" + target.pokemon.name + "！", true));
+                ballEvents.add(Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_SUCCESS,
+                        ballType, 4, false, target.index));
                 // :134-138: a capture still awards exp (GAIN_EXP_FOR_CAPTURE,
                 // Settings:165).
                 battle.awardCaptureExperience();
                 trainer.addToParty(target.pokemon);
                 result = new BattleResult(BattleResult.Outcome.CAUGHT, battle.turns(), target.pokemon);
             } else {
-                message = throwLine + MESSAGE_BREAK + shakeMessage(shakes);     // :116-128
+                message = shakeMessage(shakes);                                 // :116-128
+                // The outcome line comes before the opponent's move.
+                ballEvents.add(Battle.RoundEvent.portMessage(message).asPaused());
+                message = null;
                 // The opponent still acts this round (Battle_Phase_Attack:105-193).
                 foeTurn();
                 return true;
@@ -800,6 +824,7 @@ public final class InteractiveBattlePort implements BattlePort {
             for (String line : log) {
                 events.add(Battle.RoundEvent.portMessage(line));
             }
+            events.addAll(ballEvents);
             events.addAll(engineEvents);
             if (message != null && !message.isEmpty()) {
                 events.add(Battle.RoundEvent.portMessage(message));
@@ -814,6 +839,7 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
+            ballEvents.clear();
             message = out.toString();
             if (battle.zaMode) {
                 // ZA模式 pbEndOfRoundPhase: show the player's super energy.

@@ -10,6 +10,9 @@ import pokemon.runtime.input.GameAction;
 public final class MovementController {
 
     private int lastDirection;
+    private boolean runToggle;
+    /** 0 = hold to run, 1 = toggle auto-run (PScreen_Options 跑步键). */
+    public int runStyle;
 
     /**
      * @param input     frame input snapshot
@@ -19,7 +22,14 @@ public final class MovementController {
      */
     public void update(InputManager input, float delta, MapCharacter character, StepMover mover) {
         if (!Float.isFinite(delta) || delta <= 0f) return;
-        character.running(input.isDown(GameAction.RUN));
+        if (runStyle == 1) {
+            if (input.wasPressed(GameAction.RUN)) {
+                runToggle = !runToggle;
+            }
+            character.running(runToggle);
+        } else {
+            character.running(input.isDown(GameAction.RUN));
+        }
         int direction = heldDirection(input);
         lastDirection = direction;
         float remaining = delta;

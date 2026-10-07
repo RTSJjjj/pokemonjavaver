@@ -71,10 +71,16 @@ public final class DayNightTone {
         return outdoor == null || outdoor;
     }
 
-    /** The tone for the player's current local time. */
+    /**
+     * The tone for the player's current local time. The
+     * {@code -Dpokemon.daynight.hour} test hook pins the hour here as well as
+     * in {@link #test(String)}, so a capture taken at a different wall-clock
+     * time is still comparable; the minute stays real, because
+     * {@code getToneInternal} interpolates into the next hour by it.
+     */
     public static float[] now() {
         java.time.LocalTime time = java.time.LocalTime.now();
-        return at(time.getHour(), time.getMinute());
+        return at(currentHour(), time.getMinute());
     }
 
     /**
@@ -98,6 +104,56 @@ public final class DayNightTone {
     /** The raw table entry of an hour (tests / tools). */
     public static float[] hourlyTone(int hour) {
         return HOURLY_TONES[Math.floorMod(hour, 24)].clone();
+    }
+
+    /**
+     * {@code PBDayNight.isDay?} and friends (PBDayNight:87+), evaluated for the
+     * player's local hour. NOTE: the project computes its "hour" from the
+     * minute ({@code (time.min*24/60.0).round}), which looks like a typo in the
+     * source; this runtime uses the real hour (same as {@code EventPages}).
+     */
+    public static boolean test(String name) {
+        return test(name, currentHour());
+    }
+
+    /** Test hook: {@code -Dpokemon.daynight.hour=10} pins the day/night hour. */
+    private static int currentHour() {
+        String property = System.getProperty("pokemon.daynight.hour");
+        if (property != null) {
+            try {
+                return Math.floorMod(Integer.parseInt(property.trim()), 24);
+            } catch (NumberFormatException ignored) {
+                // fall through to the real clock
+            }
+        }
+        return java.time.LocalTime.now().getHour();
+    }
+
+    public static boolean test(String name, int hour) {
+        switch (name) {
+            case "isDay?":
+                return hour >= 6 && hour < 18;
+            case "isNight?":
+                return hour >= 18 || hour < 6;
+            case "isMorning?":
+                return hour >= 6 && hour < 9;
+            case "isBeforeNoon?":
+                return hour >= 9 && hour < 11;
+            case "isAtNoon?":
+                return hour >= 11 && hour < 13;
+            case "isAfternoon?":
+                return hour >= 13 && hour < 18;
+            case "isDusk?":
+                return hour == 18;
+            case "isEvening?":
+                return hour >= 19 && hour < 22;
+            case "isMidnight?":
+                return hour >= 22 || hour < 3;
+            case "isDawn?":
+                return hour >= 3 && hour < 6;
+            default:
+                return false;
+        }
     }
 
     private static float blend(float from, float to, float t) {

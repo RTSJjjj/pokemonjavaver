@@ -138,12 +138,19 @@ public final class BattleAnimationData {
         File dir = new File(dataRoot, "battle-animations");
         File index = new File(dir, "index.json");
         if (!index.isFile()) {
+            // Stage 4: a packaged data root that predates battle-animations (or a
+            // build that skipped it) used to fail SILENTLY here - every common
+            // animation (stat changes, status animations) and every move animation
+            // simply did not play, with nothing in the log to say why.
+            System.err.println("[battle-animations] missing " + index
+                    + " - no battle animation will play; re-run the builder (build-data/build-pc)");
             return new BattleAnimationData(dir, null);
         }
         try {
             String text = new String(Files.readAllBytes(index.toPath()), StandardCharsets.UTF_8);
             return new BattleAnimationData(dir, new JsonReader().parse(text));
         } catch (IOException | RuntimeException error) {
+            System.err.println("[battle-animations] cannot read " + index + ": " + error);
             return new BattleAnimationData(dir, null);
         }
     }

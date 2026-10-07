@@ -60,7 +60,7 @@
     },
     {
       "file": "pbs/index.json",
-      "bytes": 686
+      "bytes": 789
     },
     {
       "file": "pbs/pokemon.json",
@@ -107,6 +107,14 @@
       "bytes": 111
     },
     {
+      "file": "pbs/berryplants.json",
+      "bytes": 95
+    },
+    {
+      "file": "pbs/townmap.json",
+      "bytes": 94
+    },
+    {
       "file": "common-events/common-event-001.json",
       "bytes": 380
     },
@@ -129,6 +137,10 @@
     {
       "file": "system.json",
       "bytes": 480
+    },
+    {
+      "file": "text/pinyin.json",
+      "bytes": 94
     },
     {
       "file": "animations.json",
@@ -159,11 +171,11 @@
       "bytes": 322
     }
   ],
-  "totalBytes": 345278,
+  "totalBytes": 345664,
   "durations": {
     "scanMs": 3,
-    "eventsMs": 1,
-    "convertMs": 34
+    "eventsMs": 2,
+    "convertMs": 31
   },
   "warnings": [],
   "incremental": {

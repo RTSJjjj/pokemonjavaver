@@ -149,13 +149,18 @@ public final class DisplaySettings {
         return Math.max(1, Math.min(4, Math.min(byWidth, byHeight)));
     }
 
-    /** R6.21: the window never opens smaller than its historical 672x488 unit. */
+    /**
+     * The window opens at an integer multiple of the logical resolution, so the
+     * game fills it exactly: the old 672x488 unit letterboxed the 672x448
+     * framing and left black bars that covered the bottom overlay text (title /
+     * pause menu).
+     */
     private int windowUnitWidth() {
-        return Math.max(logicalWidth, ScreenMetrics.WINDOW_WIDTH);
+        return logicalWidth;
     }
 
     private int windowUnitHeight() {
-        return Math.max(logicalHeight, ScreenMetrics.WINDOW_HEIGHT);
+        return logicalHeight;
     }
 
     /** Reads "1280x720" (also accepts 1280X720 / 1280*720). */

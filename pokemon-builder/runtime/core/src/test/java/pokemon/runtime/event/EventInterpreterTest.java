@@ -279,6 +279,34 @@ class EventInterpreterTest {
     }
 
     @Test
+    @DisplayName("party-size script conditions read the live party")
+    void partySizeScriptConditions() {
+        interpreter.start(program(
+                cmd(0, 111, 0, array(12, "$Trainer.party.length>0")),
+                cmd(1, 121, 1, array(1, 1, 0)),
+                cmd(2, 412, 0, null)), 1, 5);
+        interpreter.update(0f);
+        assertFalse(state.switches().get(1), "an empty party must not satisfy party.length>0");
+        assertTrue(warnings.isEmpty(), () -> "unexpected warnings: " + warnings);
+
+        pokemon.runtime.pokemon.PbsData pbs =
+                pokemon.runtime.pokemon.PbsData.parse(new java.io.File("__no_pbs__"));
+        pokemon.runtime.pokemon.PbsData.Species species = new pokemon.runtime.pokemon.PbsData.Species();
+        species.internalName = "TEST"; species.name = "测试";
+        species.baseStats = new int[] {50, 50, 50, 50, 50, 50}; species.rareness = 255;
+        pbs.species.put("TEST", species);
+        state.trainer().party.add(new pokemon.runtime.pokemon.Pokemon(species, 5, pbs));
+
+        interpreter.start(program(
+                cmd(0, 111, 0, array(12, "$Trainer.party.length>0")),
+                cmd(1, 121, 1, array(1, 1, 0)),
+                cmd(2, 412, 0, null)), 1, 5);
+        interpreter.update(0f);
+        assertTrue(state.switches().get(1), "one party member must satisfy party.length>0");
+        assertTrue(warnings.isEmpty(), () -> "unexpected warnings: " + warnings);
+    }
+
+    @Test
     @DisplayName("complex script conditions are reported and treated as false")
     void complexScriptConditionIsReported() {
         interpreter.start(program(
@@ -316,18 +344,18 @@ class EventInterpreterTest {
     void commonEvents() {
         commonEvents.put(7, program(
                 cmd(0, 121, 0, array(7, 7, 0)),
-                cmd(1, 116, 0, array(8))));
+                cmd(1, 117, 0, array(8))));
         commonEvents.put(8, program(cmd(0, 121, 0, array(8, 8, 0))));
-        commonEvents.put(9, program(cmd(0, 116, 0, array(9))));
+        commonEvents.put(9, program(cmd(0, 117, 0, array(9))));
 
-        interpreter.start(program(cmd(0, 116, 0, array(7))), 1, 5);
+        interpreter.start(program(cmd(0, 117, 0, array(7))), 1, 5);
         interpreter.update(0f);
         assertTrue(state.switches().get(7));
         assertTrue(state.switches().get(8));
         assertEquals(InterpreterState.FINISHED, interpreter.state());
 
         warnings.clear();
-        interpreter.start(program(cmd(0, 116, 0, array(9))), 1, 5);
+        interpreter.start(program(cmd(0, 117, 0, array(9))), 1, 5);
         interpreter.update(0f);
         assertEquals(InterpreterState.FINISHED, interpreter.state());
         assertTrue(warnings.stream().anyMatch(w -> w.contains("recursive")));
@@ -514,7 +542,7 @@ class EventInterpreterTest {
     @DisplayName("Show Picture and Erase Picture drive the picture service")
     void showAndErasePicture() {
         interpreter.start(program(
-                cmd(0, 231, 0, array(1, "【立绘】南晓", 0, 0, 0, 100, 100, 255, 0)),
+                cmd(0, 231, 0, array(1, "【立绘】南晓", 0, 0, 0, 0, 100, 100, 255, 0)),
                 cmd(1, 101, 0, array("你好")),
                 cmd(2, 235, 0, array(1))), 1, 5);
         interpreter.update(0f);
@@ -532,7 +560,7 @@ class EventInterpreterTest {
     void movePictureWithWait() {
         pictures.show(4, "pic", 0, 0, 0, 100, 100, 255, 0);
         interpreter.start(program(
-                cmd(0, 232, 0, array(4, 10, 0, 50, 60, 0, 100, 100, 255, 0, 1)),
+                cmd(0, 232, 0, array(4, 10, 0, 0, 50, 60, 100, 100, 255, 0, 1)),
                 cmd(1, 121, 0, array(1, 1, 0))), 1, 5);
         interpreter.update(0f);
         assertEquals(InterpreterState.WAIT_TIME, interpreter.state());
@@ -594,6 +622,30 @@ class EventInterpreterTest {
         interpreter.update(0f);
         interpreter.update(0f);
         assertFalse(interpreter.running());
+    }
+
+    @Test
+    @DisplayName("Show Picture reads x/y from p[4]/p[5] (the project's command_231 order)")
+    void showPictureCoordinates() {
+        // [number, name, origin, mode, x, y, zoomX, zoomY, opacity, blend]
+        interpreter.start(program(cmd(0, 231, 0,
+                array(8, "mapRegion0", 1, 0, 336, 224, 100, 100, 255, 0))), 1, 5);
+        interpreter.update(0f);
+        PictureService.Picture picture = pictures.get(8);
+        assertNotNull(picture);
+        assertEquals(1, picture.origin);
+        assertEquals(336f, picture.x, "x is p[4], not p[3]");
+        assertEquals(224f, picture.y, "y is p[5], not p[4]");
+        assertEquals(255f, picture.opacity);
+
+        // mode 1: x/y are variable ids (project command_231)
+        state.variables().set(10, 111);
+        state.variables().set(11, 222);
+        interpreter.start(program(cmd(1, 231, 0,
+                array(9, "pic", 1, 1, 10, 11, 100, 100, 255, 0))), 1, 5);
+        interpreter.update(0f);
+        assertEquals(111f, pictures.get(9).x);
+        assertEquals(222f, pictures.get(9).y);
     }
 
     @Test

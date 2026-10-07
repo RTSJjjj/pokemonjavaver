@@ -153,30 +153,8 @@ public final class EventPages {
     }
 
     static boolean dayNight(String test, int hour) {
-        switch (test) {
-            case "isDay?":
-                return hour >= 6 && hour < 18;
-            case "isNight?":
-                return hour >= 18 || hour < 6;
-            case "isMorning?":
-                return hour >= 6 && hour < 9;
-            case "isBeforeNoon?":
-                return hour >= 9 && hour < 11;
-            case "isAtNoon?":
-                return hour >= 11 && hour < 13;
-            case "isAfternoon?":
-                return hour >= 13 && hour < 18;
-            case "isDusk?":
-                return hour == 18;
-            case "isEvening?":
-                return hour >= 19 && hour < 22;
-            case "isMidnight?":
-                return hour >= 22 || hour < 3;
-            case "isDawn?":
-                return hour >= 3 && hour < 6;
-            default:
-                return false;
-        }
+        // Single source of truth with DayNightTone (the tone table's own phases).
+        return pokemon.runtime.map.DayNightTone.test(test, hour);
     }
 
     private static void record(GameState state, int mapId, MapData.EventData event, int pageIndex) {

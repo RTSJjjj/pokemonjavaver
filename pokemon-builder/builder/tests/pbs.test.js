@@ -7,7 +7,9 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 import {
   buildNatures,
@@ -17,6 +19,7 @@ import {
   parseEncounters,
   parseIniSections,
   parseItems,
+  parseMetadata,
   parsePokemon,
   parsePokemonForms,
   parseTmCompatibility,
@@ -138,10 +141,16 @@ test("moves/items/abilities/trainertypes normalize their CSV columns", () => {
   const abilities = parseAbilities("1,STENCH,恶臭,释放臭气\n");
   assert.equal(abilities.STENCH.name, "恶臭");
 
-  const trainerTypes = parseTrainerTypes("0,POKEMONTRAINER_Red,训练家,60,Battle trainer,,,Male,,\n");
+  const trainerTypes = parseTrainerTypes(
+    "0,POKEMONTRAINER_Red,训练家,60,Battle trainer,,,Male,,\n"
+    + "85,LEADER_BUG,道馆馆主,200,Battle Gym Leader,Battle victory leader,,Female,,\n");
   assert.equal(trainerTypes.POKEMONTRAINER_Red.name, "训练家");
   assert.equal(trainerTypes.POKEMONTRAINER_Red.baseMoney, 60);
-  assert.equal(trainerTypes.POKEMONTRAINER_Red.skill, "Battle trainer");
+  // Compiler_PBS:1374 "unsUSSSeUS": 4 = battle BGM (pbGetTrainerBattleBGM:627),
+  // 5 = victory ME (pbGetTrainerVictoryME:676), 6 = intro ME.
+  assert.equal(trainerTypes.POKEMONTRAINER_Red.battleBgm, "Battle trainer");
+  assert.equal(trainerTypes.POKEMONTRAINER_Red.victoryMe, null);
+  assert.equal(trainerTypes.LEADER_BUG.victoryMe, "Battle victory leader");
 });
 
 test("types.txt and tm.txt keep the type chart and TM compatibility", () => {
@@ -151,13 +160,91 @@ Name = 普通
 InternalName = NORMAL
 Weaknesses = FIGHTING
 Immunities = GHOST
+[9]
+Name = 无
+InternalName = QMARKS
+IsPseudoType = true
+[10]
+Name = 火
+InternalName = FIRE
+IsSpecialType = 1
 `);
   assert.deepEqual(types.NORMAL.immunities, ["GHOST"]);
   assert.deepEqual(types.NORMAL.weaknesses, ["FIGHTING"]);
+  // Compiler_PBS:345-346 map IsPseudoType -> [3,"b"] and IsSpecialType ->
+  // [4,"b"]; PBTypes_Extra:34-40 read them back as the pseudo/special lists.
+  assert.equal(types.NORMAL.pseudoType, false, "an absent flag defaults to false");
+  assert.equal(types.NORMAL.specialType, false, "an absent flag defaults to false");
+  assert.equal(types.QMARKS.pseudoType, true);
+  assert.equal(types.QMARKS.specialType, false);
+  assert.equal(types.FIRE.pseudoType, false);
+  assert.equal(types.FIRE.specialType, true, 'Compiler:370 accepts "1" for a "b" field');
 
   const tm = parseTmCompatibility("[MEGAHORN]\nABSOL,BOUFFALANT\n[BUGBUZZ]\nBUTTERFREE\n");
   assert.deepEqual(tm.MEGAHORN, ["ABSOL", "BOUFFALANT"]);
   assert.deepEqual(tm.BUGBUZZ, ["BUTTERFREE"]);
+});
+
+/**
+ * PBS/metadata.txt of the reference project: the "[000]" global section plus
+ * one section per map (Misc_Data:36-115). The battle BGM / ME live in both,
+ * with different metadata indices, so the parser must keep them apart.
+ */
+test("metadata.txt keeps the global [000] section and the per-map records", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "pb-metadata-"));
+  try {
+    mkdirSync(path.join(root, "PBS"), { recursive: true });
+    writeFileSync(path.join(root, "PBS", "metadata.txt"), [
+      "# See the documentation on the wiki",
+      "[000]",
+      "PlayerA = POKEMONTRAINER_Red,trchar000",
+      "TrainerVictoryME = Battle victory trainer.ogg",
+      "WildVictoryME = Battle victory wild.ogg",
+      "TrainerBattleBGM = Battle trainer.mid",
+      "WildBattleBGM = Battle wild.mid",
+      "[002]",
+      "# 茶月镇",
+      "BattleBack = field",
+      "MapPosition = 0,22,9",
+      "Outdoor = true",
+      "WildBattleBGM = Route 1",
+      "[003]",
+      "MapPosition = 0,22,9",
+      "[004]",
+      "Dungeon = true",
+    ].join("\n"), "utf8");
+
+    const { global, maps } = parseMetadata(root);
+    assert.deepEqual(global, {
+      wildBattleBGM: "Battle wild.mid",
+      trainerBattleBGM: "Battle trainer.mid",
+      wildVictoryME: "Battle victory wild.ogg",
+      trainerVictoryME: "Battle victory trainer.ogg",
+    }, "map id 0 is the global section, never a map record");
+    assert.equal(maps.has(0), false);
+    assert.deepEqual(maps.get(2), {
+      wildBattleBGM: "Route 1",
+      outdoor: true,
+      mapPosition: [0, 22, 9],
+      region: 0,
+      battleBack: "field",
+    });
+    assert.deepEqual(maps.get(3), { mapPosition: [0, 22, 9], region: 0 });
+    assert.equal(maps.has(4), false, "a section with no modelled key stays out");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("metadata.txt tolerates a missing PBS folder", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "pb-nometa-"));
+  try {
+    const { global, maps } = parseMetadata(root);
+    assert.deepEqual(global, {});
+    assert.equal(maps.size, 0, "no metadata.txt means no map is outdoor");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("the nature table is the 25 standard natures", () => {
@@ -183,11 +270,34 @@ test("the real reference project PBS parses when it is available", (t) => {
   assert.ok(counts.items >= 900, "items floor: " + counts.items);
   assert.ok(counts.abilities >= 300, "abilities floor: " + counts.abilities);
   assert.ok(counts.types >= 18, "types floor: " + counts.types);
+  // types.txt IsPseudoType / IsSpecialType (Compiler_PBS:345-346, :397/:424):
+  // the reference project has exactly one pseudo type ([9] QMARKS, line 64)
+  // and 12 special types.
+  const typeChart = output["pbs/types.json"].types;
+  assert.equal(typeChart.QMARKS.pseudoType, true);
+  assert.equal(typeChart.QMARKS.specialType, false);
+  assert.equal(typeChart.STELLAR.pseudoType, false);
+  assert.equal(typeChart.STELLAR.specialType, false);
+  assert.equal(Object.values(typeChart).filter((type) => type.pseudoType).length, 1);
+  assert.equal(Object.values(typeChart).filter((type) => type.specialType).length, 12);
   assert.equal(counts.natures, 25);
   assert.ok(counts.encounters >= 100, "encounters floor: " + counts.encounters);
   assert.ok(counts.trainers >= 300, "trainers floor: " + counts.trainers);
   assert.deepEqual(output["pbs/pokemon.json"].species.BULBASAUR.types, ["GRASS", "POISON"]);
   assert.ok(output["pbs/pokemon.json"].species.EEVEE.evolutions.length >= 5);
+  // R12: the battle BGM / victory ME of PBS/metadata.txt reach the runtime
+  // through generated/pbs/metadata.json (PSystem_FileUtilities:546-699).
+  const metadata = output["pbs/metadata.json"];
+  assert.equal(metadata.kind, "pbsMetadata");
+  assert.equal(metadata.global.wildBattleBGM, "Battle wild.mid");
+  assert.equal(metadata.global.trainerBattleBGM, "Battle trainer.mid");
+  assert.equal(metadata.global.wildVictoryME, "Battle victory wild.ogg");
+  assert.equal(metadata.global.trainerVictoryME, "Battle victory trainer.ogg");
+  assert.equal(metadata.total, counts.metadataMaps);
+  assert.ok(counts.metadataMaps >= 100, "metadata maps floor: " + counts.metadataMaps);
+  assert.equal(metadata.maps["2"].battleBack, "field");
+  assert.equal(metadata.maps["2"].outdoor, true);
+  assert.equal(output["pbs/index.json"].files.metadata, "pbs/metadata.json");
 });
 
 test("P2: encounters.txt maps density triples and per-method tables", () => {

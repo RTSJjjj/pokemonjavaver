@@ -80,4 +80,31 @@ class DayNightToneTest {
         assertFalse(DayNightTone.shades(Boolean.FALSE), "rooms keep a neutral tone");
         assertTrue(DayNightTone.shades(null), "old data keeps the previous behaviour");
     }
+
+    @Test
+    @DisplayName("-Dpokemon.daynight.hour pins the ambient tone too, not just isDay?")
+    void pinnedHourDrivesTheAmbientTone() {
+        // R12: the capture probe compares screenshots taken at different
+        // wall-clock times, so the documented pin has to cover the tone the map
+        // layer actually applies - not only the isDay?/isNight? predicates.
+        String previous = System.getProperty("pokemon.daynight.hour");
+        try {
+            System.setProperty("pokemon.daynight.hour", "12");
+            java.time.LocalTime now = java.time.LocalTime.now();
+            assertArrayEquals(DayNightTone.at(12, now.getMinute()), DayNightTone.now(), 0.01f,
+                    "noon is the neutral tone whatever the real clock says");
+
+            System.setProperty("pokemon.daynight.hour", "2");
+            float[] night = DayNightTone.now();
+            assertEquals(-90f, night[0], 0.01f);
+            assertEquals(-90f, night[1], 0.01f);
+            assertTrue(night[3] > 0f, "the pinned hour desaturates like the real one");
+        } finally {
+            if (previous == null) {
+                System.clearProperty("pokemon.daynight.hour");
+            } else {
+                System.setProperty("pokemon.daynight.hour", previous);
+            }
+        }
+    }
 }

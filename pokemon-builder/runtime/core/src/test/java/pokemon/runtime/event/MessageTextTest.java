@@ -77,6 +77,16 @@ class MessageTextTest {
     }
 
     @Test
+    @DisplayName("the \\1 quarter-second pause is stripped (Messages:1028)")
+    void stripsPauseControl() {
+        MessageText.Parsed escaped = MessageText.parse(lines("土壤又变得松软。\u0001"), state());
+        assertEquals("土壤又变得松软。", escaped.lines.first());
+
+        MessageText.Parsed literal = MessageText.parse(lines("字面\\1尾"), state());
+        assertEquals("字面尾", literal.lines.first());
+    }
+
+    @Test
     @DisplayName("wrapping counts half-width units and keeps colours on both halves")
     void wrapByUnits() {
         Array<String> plain = lines("一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十");

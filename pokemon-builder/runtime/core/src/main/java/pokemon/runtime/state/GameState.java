@@ -22,6 +22,8 @@ public final class GameState {
     private final GameVariables variables = new GameVariables(version);
     private final GameSelfSwitches selfSwitches = new GameSelfSwitches(version);
     private final GameTempSwitches tempSwitches = new GameTempSwitches(version);
+    /** Essentials {@code $PokemonGlobal.eventvars} (R7: berry plants). */
+    private final GameEventVars eventVars = new GameEventVars(version);
     private final TemporaryEventState temporary = new TemporaryEventState();
     private final Inventory inventory = new Inventory();
     /** Quest plugin state (plugin batch 1). */
@@ -35,11 +37,29 @@ public final class GameState {
     /** Essentials {@code $PokemonGlobal.followerToggled} (the follower sprite needs a party). */
     private boolean followerToggled;
     /**
+     * Essentials {@code $PokemonTemp.battleRules} (PField_Battles): the rules
+     * setBattleRule records for the next battle. Temp state, never saved.
+     */
+    private final BattleRules battleRules = new BattleRules();
+    /**
      * Essentials {@code $PokemonMap.strengthUsed} (R6.30): set when the
      * Strength field move is used. It gates boulder pushing; the field move
      * itself needs the party / badges and arrives with stage 3.
      */
     private boolean pokemonMapStrengthUsed;
+    /**
+     * PField_Field:1399-1416: {@code $PokemonGlobal.partner} =
+     * [trainerType, name, id, party]; null when no partner is registered.
+     */
+    public static final class Partner {
+        public String trainerType;
+        public String name;
+        public int id;
+        public final com.badlogic.gdx.utils.Array<pokemon.runtime.pokemon.Pokemon> party =
+                new com.badlogic.gdx.utils.Array<>();
+    }
+
+    private Partner partner;
 
     private int mapId = -1;
     private int playerX;
@@ -62,6 +82,15 @@ public final class GameState {
         return version.value();
     }
 
+    /**
+     * Marks every page cache stale (the renderer's event graphics and the map
+     * screen's entity refresh). Erase Event (RMXP 116) changes an event's pages
+     * without touching a switch, so it has to announce that explicitly.
+     */
+    public void touch() {
+        version.bump();
+    }
+
     public GameSwitches switches() {
         return switches;
     }
@@ -74,12 +103,27 @@ public final class GameState {
         return selfSwitches;
     }
 
+    /** {@code $PokemonTemp.battleRules} (PField_Battles:19). */
+    public BattleRules battleRules() {
+        return battleRules;
+    }
+
     /**
      * Essentials temp switches (R6.11): transient per (map, event, channel)
      * flags read by the named switches {@code s:tsOn?("A")} / {@code s:tsOff?("A")}.
      */
     public GameTempSwitches tempSwitches() {
         return tempSwitches;
+    }
+
+    /**
+     * Essentials {@code $PokemonGlobal.eventvars} (Game_Event:80-87): the map
+     * interpreter's {@code getVariable}/{@code setVariable} table. Unlike the
+     * temp switches it is NOT rebuilt on map setup - the berry plants keep
+     * their growth state here for as long as the save lives.
+     */
+    public GameEventVars eventVars() {
+        return eventVars;
     }
 
     /**
@@ -160,6 +204,15 @@ public final class GameState {
         this.followerToggled = value;
     }
 
+    /** PField_Field:1411/1435: the registered partner trainer, or null. */
+    public Partner partner() {
+        return partner;
+    }
+
+    public void partner(Partner value) {
+        this.partner = value;
+    }
+
     /**
      * R6.30: {@code $PokemonMap.strengthUsed} - boulders only move while the
      * Strength field move is active. The flag is part of the save so a loaded
@@ -171,6 +224,51 @@ public final class GameState {
 
     public void pokemonMapStrengthUsed(boolean value) {
         this.pokemonMapStrengthUsed = value;
+    }
+
+    /**
+     * Essentials {@code $PokemonGlobal.nextBattleBGM} / {@code nextBattleME} /
+     * {@code nextBattleCaptureME} (PField_Battles:5-7). The event commands
+     * "Change Battle BGM" (132) and "Change Battle ME" (133) write them
+     * (PField_Field:882-890), and {@code pbGetWildBattleBGM} /
+     * {@code pbGetTrainerBattleBGM} / {@code pbGetWildVictoryME} give them
+     * priority over every metadata source (PSystem_FileUtilities:547/566/619).
+     * Temp state: {@code pbBattleAnimation} clears all three once the battle is
+     * over (PField_Visuals:116-118).
+     */
+    private String nextBattleBGM;
+    private String nextBattleME;
+    private String nextBattleCaptureME;
+
+    public String nextBattleBGM() {
+        return nextBattleBGM;
+    }
+
+    public void nextBattleBGM(String value) {
+        this.nextBattleBGM = value;
+    }
+
+    public String nextBattleME() {
+        return nextBattleME;
+    }
+
+    public void nextBattleME(String value) {
+        this.nextBattleME = value;
+    }
+
+    public String nextBattleCaptureME() {
+        return nextBattleCaptureME;
+    }
+
+    public void nextBattleCaptureME(String value) {
+        this.nextBattleCaptureME = value;
+    }
+
+    /** PField_Visuals:116-118: every pending battle audio is dropped. */
+    public void clearNextBattleAudio() {
+        nextBattleBGM = null;
+        nextBattleME = null;
+        nextBattleCaptureME = null;
     }
 
     public int currentMapId() {
@@ -226,6 +324,11 @@ public final class GameState {
 
     public void playerName(String name) {
         this.playerName = name;
+        // Essentials has one player name ($Trainer.name); keep the trainer in
+        // step so the gift messages and the battle's outsider check agree.
+        if (name != null && !name.isEmpty()) {
+            trainer.name = name;
+        }
     }
 
     /**
@@ -239,11 +342,16 @@ public final class GameState {
         variables.clear();
         selfSwitches.clear();
         tempSwitches.clear();
+        eventVars.clear();
         temporary.clear();
         inventory.clear();
+        trainer.reset();
+        playerId = -1;
         quests.clear();
         followerToggled = false;
         pokemonMapStrengthUsed = false;
+        partner = null;
+        clearNextBattleAudio();
         mapId = -1;
         playerX = 0;
         playerY = 0;

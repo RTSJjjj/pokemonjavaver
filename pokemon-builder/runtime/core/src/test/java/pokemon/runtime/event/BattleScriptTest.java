@@ -35,6 +35,8 @@ class BattleScriptTest {
     private ScriptIr scriptIr;
     private final List<String> warnings = new ArrayList<>();
     private final List<String> calls = new ArrayList<>();
+    /** The finished battle, like a real port's lastResult (BattlePort:30-32). */
+    private final BattleResult[] finished = new BattleResult[1];
 
     @BeforeEach
     void setUp() {
@@ -42,6 +44,7 @@ class BattleScriptTest {
         state.enterMap(1, 0, 0);
         warnings.clear();
         calls.clear();
+        finished[0] = null;
         scriptIr = ScriptIr.empty();
         interpreter = new EventInterpreter(state, new MessageService(), new InputManager(), null,
                 id -> null, null, new PictureService(), warnings::add);
@@ -50,21 +53,77 @@ class BattleScriptTest {
             @Override
             public BattleResult wildBattle(String species, int level) {
                 calls.add("wild:" + species + ":" + level);
-                return new BattleResult(BattleResult.Outcome.WIN, 1, null);
+                return finish(new BattleResult(BattleResult.Outcome.WIN, 1, null));
             }
 
             @Override
             public BattleResult freeWildBattle(Pokemon foe) {
                 calls.add("free:" + foe.species.internalName);
-                return new BattleResult(BattleResult.Outcome.WIN, 1, null);
+                return finish(new BattleResult(BattleResult.Outcome.WIN, 1, null));
             }
 
             @Override
             public BattleResult trainerBattle(PbsData.TrainerData trainer) {
                 calls.add("trainer:" + trainer.type + ":" + trainer.name + ":" + trainer.version);
-                return new BattleResult(BattleResult.Outcome.WIN, 1, null);
+                return finish(new BattleResult(BattleResult.Outcome.WIN, 1, null));
+            }
+
+            @Override
+            public BattleResult lastResult() {
+                return finished[0];
+            }
+
+            @Override
+            public void setCanRun(boolean value) {
+                calls.add("canRun:" + value);
+            }
+
+            @Override
+            public void setCanLose(boolean value) {
+                calls.add("canLose:" + value);
+            }
+
+            @Override
+            public void setDisablePokeBalls(boolean value) {
+                calls.add("disablePokeBalls:" + value);
             }
         });
+    }
+
+    /** Records the battle a synchronous test port just finished. */
+    private BattleResult finish(BattleResult result) {
+        finished[0] = result;
+        return result;
+    }
+
+    @Test
+    @DisplayName("R14: a wild battle writes its outcome variable and applies its arguments")
+    void wildBattleShell() {        scriptIr.put("block1", new JsonReader().parse(
+                "{\"command\":\"SEQUENCE\",\"steps\":["
+                        + "{\"command\":\"WILD_BATTLE\",\"species\":\"FOE\",\"level\":12,"
+                        + "\"outcomeVar\":7,\"canRun\":false,\"canLose\":true}]}"));
+        interpreter.start(program(script("block1")), 1, 5);
+        interpreter.update(0f);
+        // The fake port finishes immediately, so the decision is written on the
+        // next update (PField_Battles:510-516).
+        interpreter.update(0f);
+
+        assertTrue(calls.contains("canRun:false"), calls.toString());
+        assertTrue(calls.contains("canLose:true"), calls.toString());
+        assertEquals(1, state.variables().get(7),
+                "PField_Battles:343 writes the decision into the outcome variable");
+    }
+
+    @Test
+    @DisplayName("R14: a plain wild battle still writes variable 1, the plugin's default")
+    void wildBattleDefaultOutcomeVariable() {
+        scriptIr.put("block1", new JsonReader().parse(
+                "{\"command\":\"SEQUENCE\",\"steps\":["
+                        + "{\"command\":\"WILD_BATTLE\",\"species\":\"FOE\",\"level\":12}]}"));
+        interpreter.start(program(script("block1")), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        assertEquals(1, state.variables().get(1));
     }
 
     @Test

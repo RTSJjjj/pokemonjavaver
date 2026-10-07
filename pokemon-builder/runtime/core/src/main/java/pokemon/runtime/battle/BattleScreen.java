@@ -170,6 +170,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * bars follow the events ({@code animateHP(oldHP,newHP)}) instead.
      */
     private final int[] heldHp = { -1, -1 };
+    /**
+     * The player's exp bar fill while the round plays: the engine applies the
+     * exp when the foe faints / is captured, but the bar only moves in the exp
+     * stage ({@code pbGainExp}, after the round's animations). -1 = follow the
+     * Pokemon.
+     */
+    private float heldExp = -1f;
 
     private static final class Message {
         final String text;
@@ -222,6 +229,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
          * a {@code PBAnimationPlayerX} plays a move or common animation.
          */
         MOVE_ANIM,
+        /**
+         * Scene_Animations:348-399 pbThrow / pbThrowAndDeflect / pbThrowSuccess /
+         * pbHideCaptureBall: the Poké Ball thrown at the foe, and the capture's end.
+         */
+        BALL,
         /** PokeBattle_Scene:296-303 pbEndBattle's fade before the scene is dropped. */
         END_BATTLE
     }
@@ -1636,6 +1648,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         roundPlayback = true;
+        holdPlayerExp();
         // The data boxes start from the HP each battler had before its first
         // HP change of the round (the engine already applied them all).
         for (Battle.RoundEvent event : events) {
@@ -1651,6 +1664,22 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 queue.add(new Message(cleanMessage(event.text), event.paused, event.brief, null));
             } else {
                 queue.add(new Message("", false, false, event));
+            }
+        }
+    }
+
+    /** Pins the player's exp bar to the fill it had before this round's exp award. */
+    private void holdPlayerExp() {
+        heldExp = -1f;
+        com.badlogic.gdx.utils.Array<Battle.ExpAward> awards = session.battle.lastExpAwards;
+        Battler player = session.battle.player();
+        if (awards == null || player == null) return;
+        for (Battle.ExpAward award : awards) {
+            if (award.pokemon == player.pokemon && award.segments.size > 0) {
+                int[] first = award.segments.get(0);
+                int range = first[1] - first[0];
+                heldExp = range <= 0 ? 0f : Math.max(0f, Math.min(1f, (first[2] - first[0]) / (float) range));
+                return;
             }
         }
     }
@@ -1725,6 +1754,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // EXP_GAIN (or any animation stage) first, otherwise its own update
         // keeps the input and pbShowCommands' window never sees it.
         stage = Stage.BATTLE;
+        heldExp = -1f;
         if (beginEorSwitch()) {
             return;
         }
@@ -2106,6 +2136,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 // PokeBattle_Battle:793-799 @scene.pbAnimation / @scene.pbCommonAnimation
                 beginAnimation(event.anim);
                 return;
+            case BALL_THROW:
+                beginBallThrow(event.ball, false);
+                return;
+            case BALL_DEFLECT:
+                beginBallThrow(event.ball, true);
+                return;
+            case BALL_SUCCESS:
+                beginBallSuccess(event.ball);
+                return;
             case BGM:
                 // Move_Usage:288 pbBGMPlay(name) -> Audio_Play:52-58 ->
                 // Game_System:50-52/65-83 bgm_play_internal: :69 only plays when
@@ -2116,6 +2155,66 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             default:
                 resumeRound();
         }
+    }
+
+    /** 0 = the throw animation runs, 1 = the capture jingle's wait, 2 = the ball and data box hiding. */
+    private int ballPhase;
+    /** {@code pbThrowSuccess}'s frame counter (Scene_Animations:364-369). */
+    private int ballWaitTicks;
+    private int ballTargetIdx;
+
+    /**
+     * {@code pbThrow} (Scene_Animations:348-358) / {@code pbThrowAndDeflect}
+     * (:389-399): the Poké Ball animation plays until it is done.
+     */
+    private void beginBallThrow(Battle.RoundEvent.BallCall call, boolean deflect) {
+        briefMessage = false;                                      // :349 / :390
+        Battler target = battler(call.idxTarget);
+        if (target == null) {
+            resumeRound();
+            return;
+        }
+        animations.add(deflect
+                ? new BattleAnimations.PokeballThrowDeflectAnimation(this, call.ballType, target)
+                : new BattleAnimations.PokeballThrowCaptureAnimation(this, call.ballType,
+                        call.shakes, call.critical, target));
+        ballPhase = 0;
+        stage = Stage.BALL;
+    }
+
+    /**
+     * {@code pbThrowSuccess} (Scene_Animations:360-371) and then
+     * {@code pbHideCaptureBall} (:373-387).
+     */
+    private void beginBallSuccess(Battle.RoundEvent.BallCall call) {
+        briefMessage = false;                                      // :362
+        ballTargetIdx = call.idxTarget;
+        playCaptureMe();                                           // :363 pbMEPlay(pbGetWildCaptureME)
+        ballWaitTicks = 0;
+        ballPhase = 1;
+        stage = Stage.BALL;
+    }
+
+    private void updateBall() {
+        if (ballPhase == 1) {
+            if (ballWaitTicks < 40 * 7 / 2) {                      // :368 3.5 seconds
+                return;
+            }
+            // :373-387 the data box and the capture ball disappear together.
+            animations.add(new BattleAnimations.DataBoxDisappearAnimation(this, ballTargetIdx));
+            animations.add(new BattleAnimations.CaptureBallFadeAnimation(this,
+                    sprites.get("captureBall")));
+            ballPhase = 2;
+            return;
+        }
+        if (!animations.isEmpty()) {
+            return;                                                // :353-356 / :381-385
+        }
+        if (ballPhase == 2) {
+            sprites.remove("captureBall");
+        }
+        ballPhase = 0;
+        resumeRound();
     }
 
     /** Game_System:65-72 for a name from the battle (volume/pitch 100, Audio_Play:27-28). */
@@ -2549,6 +2648,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             playVictoryMe(false);
         }
         stage = Stage.EXP_GAIN;
+        heldExp = -1f;
         expPhase = ExpPhase.MESSAGE;
         expAwardIndex = 0;
         expSegmentIndex = 0;
@@ -2997,6 +3097,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             if (moveAnim != null && stage == Stage.MOVE_ANIM) {
                 moveAnimTick();
             }
+            if (stage == Stage.BALL && ballPhase == 1) {
+                ballWaitTicks++;
+            }
         }
 
         // ---- battle intro (Scene_Animations:5 pbBattleIntroAnimation) ----
@@ -3045,6 +3148,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // ---- pbAnimationCore's loop (Scene_Animations:568-574) ----
         if (stage == Stage.MOVE_ANIM) {
             updateMoveAnim();
+            return;
+        }
+        // ---- pbThrow / pbThrowSuccess (Scene_Animations:348-387) ----
+        if (stage == Stage.BALL) {
+            updateBall();
             return;
         }
 
@@ -3098,10 +3206,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 if (bagItem != null) {
                     if (!session.item(bagItem, Math.max(0, bagTarget))) session.message = "现在无法使用这个道具。";
                     queueSessionEvents();
-                    if (session.result != null
-                            && session.result.outcome == BattleResult.Outcome.CAUGHT) {
-                        playCaptureMe();
-                    }
                     bagItem = null; bagTarget = -1;
                 }
                 go(0);
@@ -3241,7 +3345,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // pbHitAndHPLossAnimation / pbHPChanged / pbFaintBattler run with the
         // message box up, a brief line lingering in it (PokeBattle_Scene:130-134).
         if ((stage == Stage.HIT || stage == Stage.HP_CHANGE || stage == Stage.FAINT
-                || stage == Stage.MOVE_ANIM) && window == MESSAGE_BOX) {
+                || stage == Stage.MOVE_ANIM || stage == Stage.BALL) && window == MESSAGE_BOX) {
             drawMessageWindow(batch, w, h);
         }
         if (stage == Stage.BATTLE || stage == Stage.OPENING || stage == Stage.EXP_GAIN) {
@@ -3493,6 +3597,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             int shownHp = b == null ? 0 : (heldHp[side] >= 0 ? heldHp[side] : b.hp);
             float hpTarget = b == null || b.maxHp() <= 0 ? 1f : Math.max(0f, shownHp / (float) b.maxHp());
             float expTarget = b == null || b.pokemon == null ? 0f : expFraction(b.pokemon);
+            if (side == 0 && heldExp >= 0f) {
+                expTarget = heldExp;
+            }
             if (!barsReady) { hpShown[side] = hpTarget; expShown[side] = expTarget; hpTo[side] = hpTarget; expTo[side] = expTarget; continue; }
             if (Math.abs(hpTarget - hpTo[side]) > 1e-4f) { hpFrom[side] = hpShown[side]; hpTo[side] = hpTarget; hpT[side] = 0f; }
             if (hpT[side] < 1f) {
@@ -3587,7 +3694,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (expBar != null && !foe) {
             float frac = expShown[side];
             float ew = Math.round(frac * 160f / 2f) * 2f;
-            if (ew > 0) batch.draw(expBar, baseX + 48f, h - (topY + 66f) - 4f, ew, 4f);
+            // Crop the 160x4 strip like the HP bar does, so the cells keep their width.
+            if (ew > 0) batch.draw(expBar, baseX + 48f, h - (topY + 66f) - 4f, ew, 4f,
+                    0, 0, (int) ew, expBar.getHeight(), false, false);
         }
         // ---- the rest of imagePos, blitted by pbDrawImagePositions (:276) ----
         Pokemon iconPkmn = b.pokemon;

@@ -13,11 +13,13 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.data.GameDatabase;
+import pokemon.runtime.data.ProjectInfo;
 import pokemon.runtime.data.TitleData;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
 import pokemon.runtime.map.GraphicsLocator;
 import pokemon.runtime.map.MapScreen;
+import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.state.GameState;
 import pokemon.runtime.ui.WindowSkin;
 
@@ -45,10 +47,19 @@ public final class TitleScreen extends ScreenAdapter {
         OPTIONS
     }
 
-    private static final String[] COMMANDS = { "继续之前的故事", "新的故事", "设置", "退出游戏" };
+    private static final String[] COMMANDS = { "继续之前的故事", "新的冒险", "选项", "退出游戏" };
     private static final float COMMAND_ROW = 44f;
-    private static final Color FOOTER_MAIN = new Color(248f / 255f, 248f / 255f, 248f / 255f, 1f);
-    private static final Color FOOTER_SHADOW = new Color(64f / 255f, 64f / 255f, 64f / 255f, 1f);
+    // PScreen_Load TEXTCOLOR / TEXTSHADOWCOLOR (the continue panel labels).
+    private static final Color FOOTER_MAIN = new Color(232f / 255f, 232f / 255f, 232f / 255f, 1f);
+    private static final Color FOOTER_SHADOW = new Color(136f / 255f, 136f / 255f, 136f / 255f, 1f);
+    // PScreen_Load MALETEXTCOLOR / FEMALETEXTCOLOR (the trainer name).
+    private static final Color MALE_MAIN = new Color(56f / 255f, 160f / 255f, 248f / 255f, 1f);
+    private static final Color MALE_SHADOW = new Color(56f / 255f, 104f / 255f, 168f / 255f, 1f);
+    private static final Color FEMALE_MAIN = new Color(240f / 255f, 72f / 255f, 88f / 255f, 1f);
+    private static final Color FEMALE_SHADOW = new Color(160f / 255f, 64f / 255f, 64f / 255f, 1f);
+    // 004_MSF_UI_Load's 20px tips bitmap: (248,248,248,128) / (88,88,88,128).
+    private static final Color TIPS_MAIN = new Color(248f / 255f, 248f / 255f, 248f / 255f, 128f / 255f);
+    private static final Color TIPS_SHADOW = new Color(88f / 255f, 88f / 255f, 88f / 255f, 128f / 255f);
     private static final Color MESSAGE_MAIN = new Color(1f, 216f / 255f, 0f, 1f);
     private static final Color MESSAGE_SHADOW = new Color(216f / 255f, 128f / 255f, 0f, 1f);
     private static final Color DISABLED_MAIN = new Color(0.55f, 0.55f, 0.55f, 1f);
@@ -83,6 +94,9 @@ public final class TitleScreen extends ScreenAdapter {
     private State state = State.SPLASH;
     private int command;
     private boolean hasSaves;
+    /** The four save slots and the one the continue panel is showing. */
+    private Array<SaveSlots.Slot> slots = new Array<>();
+    private int slotIndex;
     private String message;
     /** Screen requested by new game / continue; applied after batch.end(). */
     private Screen pendingSwitch;
@@ -326,13 +340,16 @@ public final class TitleScreen extends ScreenAdapter {
         Texture logo1 = assets.modular("", "logo1");
         Texture logo2 = assets.modular("", "logo2");
         float logoBottomY = height - logoY; // RGSS bottom anchor -> libGDX y
-        float logoLeft = logoX - (logo1 != null ? logo1.getWidth() / 2f
-                : logo2 != null ? logo2.getWidth() / 2f : 0f);
+        // Each logo part is centred on logoX by its own width (the plugin sets
+        // ox = bitmap.width/2 on both); logo1 is the upper part (bottom at
+        // logoY), logo2 the lower part (top at logoY), so they meet at logoY.
+        float logo1Left = logoX - (logo1 != null ? logo1.getWidth() / 2f : 0f);
+        float logo2Left = logoX - (logo2 != null ? logo2.getWidth() / 2f : 0f);
         if (logo1 != null) {
-            batch.draw(logo1, logoLeft, logoBottomY);
+            batch.draw(logo1, logo1Left, logoBottomY);
         }
         if (logo2 != null) {
-            batch.draw(logo2, logoLeft, logoBottomY - logo2.getHeight());
+            batch.draw(logo2, logo2Left, logoBottomY - logo2.getHeight());
         }
         if (logoShine && logo1 != null) {
             Texture mask = assets.modular("", "logo3");
@@ -340,7 +357,7 @@ public final class TitleScreen extends ScreenAdapter {
                 float shine = anim.shineX();
                 if (shine >= 0f && shine + 16f <= mask.getWidth()) {
                     int sx = Math.round(shine);
-                    batch.draw(mask, logoLeft + sx, logoBottomY, sx, 0, 16, mask.getHeight());
+                    batch.draw(mask, logo1Left + sx, logoBottomY, sx, 0, 16, mask.getHeight());
                 }
             }
         }
@@ -358,10 +375,11 @@ public final class TitleScreen extends ScreenAdapter {
             }
         }
         if (!data.footerLeft.isEmpty()) {
-            smallFont.draw(batch, data.footerLeft, 2f, 8f, FOOTER_MAIN, FOOTER_SHADOW);
+            smallFont.draw(batch, data.footerLeft, 2f, smallFont.lineHeight() + 4f, FOOTER_MAIN, FOOTER_SHADOW);
         }
         if (!data.footerRight.isEmpty()) {
-            smallFont.drawRight(batch, data.footerRight, width - 2f, 8f, FOOTER_MAIN, FOOTER_SHADOW);
+            smallFont.drawRight(batch, data.footerRight, width - 2f, smallFont.lineHeight() + 4f,
+                    FOOTER_MAIN, FOOTER_SHADOW);
         }
         renderSplashMessage(width, height);
         if (!anim.introFinished()) {
@@ -392,6 +410,17 @@ public final class TitleScreen extends ScreenAdapter {
     private int messageDebug;
 
     private void renderCommands(InputManager input, float width, float height) {
+        boolean continueSelected = hasSaves && command == 0;
+        if (continueSelected && slots.size > 1) {
+            if (input.wasPressed(GameAction.LEFT)) {
+                slotIndex = Math.floorMod(slotIndex - 1, slots.size);
+                MenuSe.cursor(context.audioManager());
+            }
+            if (input.wasPressed(GameAction.RIGHT)) {
+                slotIndex = Math.floorMod(slotIndex + 1, slots.size);
+                MenuSe.cursor(context.audioManager());
+            }
+        }
         if (input.wasPressed(GameAction.UP)) {
             command = Math.floorMod(command - 1, COMMANDS.length);
             MenuSe.cursor(context.audioManager());
@@ -401,12 +430,15 @@ public final class TitleScreen extends ScreenAdapter {
             MenuSe.cursor(context.audioManager());
         }
         if (input.wasPressed(GameAction.CONFIRM)) {
-            if (command == 0 && !hasSaves) {
-                MenuSe.buzzer(context.audioManager());
-            } else if (command == 0) {
-                MenuSe.decision(context.audioManager());
-                loadView.refresh(context.storage(), database);
-                state = State.LOAD;
+            if (command == 0) {
+                SaveSlots.Slot slot = currentSlot();
+                if (slot == null || !slot.exists) {
+                    MenuSe.buzzer(context.audioManager());
+                } else {
+                    MenuSe.decision(context.audioManager());
+                    loadSlot(slot);
+                    return;
+                }
             } else if (command == 1) {
                 MenuSe.decision(context.audioManager());
                 startNewGame();
@@ -424,24 +456,204 @@ public final class TitleScreen extends ScreenAdapter {
             state = State.TITLE;
         }
 
-        float windowWidth = 320f;
-        float windowHeight = COMMANDS.length * COMMAND_ROW + 48f;
-        float x = (width - windowWidth) / 2f;
-        float y = 56f;
-        if (skin != null) {
-            skin.draw(batch, x, y, windowWidth, windowHeight);
+        // Visuals of the project's 004_MSF_UI_Load: the loadbg background plus
+        // the loadPanels sheet (continue slot 408x222, normal rows 408x46, each
+        // with a selected variant at +222 / +46). Panel x=144, y from 32,
+        // stepping 224 (continue) / 48 (normal).
+        Texture loadbg = assets.graphic("Pictures", "loadbg");
+        if (loadbg != null) {
+            batch.draw(loadbg, 0f, 0f, width, height);
         }
+        Texture panels = assets.graphic("Pictures", "loadPanels");
+        SaveSlots.Slot slot = currentSlot();
+        float panelX = 144f;
+        float panelTop = 32f;
         for (int i = 0; i < COMMANDS.length; i++) {
-            float rowY = y + windowHeight - 40f - i * COMMAND_ROW;
-            boolean current = i == command;
-            boolean disabled = i == 0 && !hasSaves;
-            font.draw(batch, current ? "▶" : "  ", x + 24f, rowY);
-            if (disabled) {
-                font.draw(batch, COMMANDS[i], x + 64f, rowY, DISABLED_MAIN, FOOTER_SHADOW);
+            boolean isContinue = i == 0 && hasSaves && slot != null;
+            float panelH = isContinue ? 222f : 46f;
+            float y = height - panelTop - panelH;
+            if (panels != null) {
+                int srcY = isContinue ? (i == command ? 222 : 0) : (i == command ? 490 : 444);
+                batch.draw(panels, panelX, y, 0f, 0f, 408f, panelH, 1f, 1f, 0f,
+                        0, srcY, 408, (int) panelH, false, false);
+            }
+            float top = height - panelTop;
+            if (isContinue) {
+                drawContinuePanel(slot, panelX, top);
             } else {
-                font.draw(batch, COMMANDS[i], x + 64f, rowY);
+                // 004_MSF_UI_Load: normal rows draw the title at (16*2, line_y[0]*2).
+                boolean disabled = i == 0 && !hasSaves;
+                if (disabled) {
+                    font.draw(batch, COMMANDS[i], panelX + 32f, top - 10f, DISABLED_MAIN, FOOTER_SHADOW);
+                } else {
+                    font.draw(batch, COMMANDS[i], panelX + 32f, top - 10f, FOOTER_MAIN, FOOTER_SHADOW);
+                }
+            }
+            panelTop += isContinue ? 224f : 48f;
+        }
+        if (hasSaves && slot != null) {
+            drawPartySprites(slot, height);
+        }
+        // The tips bitmap is a 20px strip at the top, shown only while the
+        // continue row is selected (004_MSF_UI_Load: pbChoose).
+        if (continueSelected && slot != null && slot.exists) {
+            smallFont.draw(batch, "[←]/[→]:切换存档插槽", 0f, height - 2f, TIPS_MAIN, TIPS_SHADOW);
+        }
+    }
+
+    /**
+     * The continue panel is a bitmap drawn on by its own sprite, so the textpos
+     * are panel relative: line_y = [10, 64, 96, 128] (top origin), labels at
+     * x=28 / 268 and their values right aligned at 248 / 388, the name at
+     * (112, 56) and the map name right aligned at 388/10 (004_MSF_UI_Load).
+     */
+    private void drawContinuePanel(SaveSlots.Slot slot, float panelX, float top) {
+        font.draw(batch, continueTitle(slot), panelX + 28f, top - 10f, FOOTER_MAIN, FOOTER_SHADOW);
+        String name = slot.playerName == null || slot.playerName.isEmpty() ? "训练家" : slot.playerName;
+        Color nameMain = FOOTER_MAIN;
+        Color nameShadow = FOOTER_SHADOW;
+        if (slot.gender == 1) {
+            nameMain = FEMALE_MAIN;
+            nameShadow = FEMALE_SHADOW;
+        } else if (slot.gender == 0) {
+            nameMain = MALE_MAIN;
+            nameShadow = MALE_SHADOW;
+        }
+        font.draw(batch, name, panelX + 112f, top - 56f, nameMain, nameShadow);
+        if (slot.mapName != null && !slot.mapName.isEmpty()) {
+            font.drawRight(batch, slot.mapName, panelX + 388f, top - 10f, FOOTER_MAIN, FOOTER_SHADOW);
+        }
+        font.draw(batch, "徽章：", panelX + 268f, top - 64f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.drawRight(batch, String.valueOf(slot.badges), panelX + 388f, top - 64f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.draw(batch, "图鉴：", panelX + 268f, top - 96f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.drawRight(batch, String.valueOf(slot.seen), panelX + 388f, top - 96f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.draw(batch, "时长：", panelX + 28f, top - 96f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.drawRight(batch, duration(slot.playSeconds), panelX + 248f, top - 96f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.draw(batch, "保存时间：", panelX + 28f, top - 128f, FOOTER_MAIN, FOOTER_SHADOW);
+        font.drawRight(batch, relativeTime(slot.savedAtMillis), panelX + 248f, top - 128f,
+                FOOTER_MAIN, FOOTER_SHADOW);
+    }
+
+    /** The continue row's title: "←自动保存→" / "←存档N→" (004_MSF_UI_Load). */
+    private static String continueTitle(SaveSlots.Slot slot) {
+        if (slot == null || !slot.exists) {
+            return "空档";
+        }
+        if ("quick".equals(slot.id)) {
+            return "←自动保存→";
+        }
+        return "←存档" + slot.id + "→";
+    }
+
+    private SaveSlots.Slot currentSlot() {
+        return slots.size == 0 ? null : slots.get(slotIndex);
+    }
+
+    /**
+     * 004_MSF_UI_Load's {@code pbSetParty}: the trainer's walking charset (first
+     * frame) and the party's Pokemon icons, all in absolute screen coordinates.
+     */
+    private void drawPartySprites(SaveSlots.Slot slot, float height) {
+        if (slot == null || !slot.exists) {
+            return;
+        }
+        // pbSetParty: x = 56*2 - cw/8 + 32 + 64, y = 32*2 - ch/8, src_rect the
+        // first frame (cw/4 x ch/4).
+        String charset = playerCharset(slot.playerId);
+        Texture sheet = charset == null ? null : assets.character(charset);
+        if (sheet != null && sheet.getWidth() >= 4 && sheet.getHeight() >= 4) {
+            int frameW = sheet.getWidth() / 4;
+            int frameH = sheet.getHeight() / 4;
+            batch.draw(sheet, 208f - frameW / 2f, height - 64f - frameH / 2f, frameW, frameH,
+                    0, 0, frameW, frameH, false, false);
+        }
+        // PokemonIconSprite at x = (46+32*i)*2 + 32 + 64, y = 110*2, origin
+        // Center (ox = w/2, oy = h*5/8), first frame only.
+        for (int i = 0; i < slot.party.size; i++) {
+            Texture icon = partyIcon(slot.party.get(i));
+            if (icon == null || icon.getHeight() <= 0) {
+                continue;
+            }
+            int size = icon.getHeight();
+            float originX = 188f + 64f * i;
+            batch.draw(icon, originX - size / 2f, height - 220f + size * 5f / 8f - size, size, size,
+                    0, 0, size, size, false, false);
+        }
+    }
+
+    /** The trainer's charset name from the project's metaID table (PlayerA..H). */
+    private String playerCharset(int playerId) {
+        ProjectInfo.RuntimeProfile profile =
+                database == null || database.project() == null ? null : database.project().runtime;
+        if (profile == null) {
+            return null;
+        }
+        if (playerId >= 0) {
+            ProjectInfo.PlayerGraphic graphic = profile.player(playerId);
+            if (graphic != null && graphic.charset != null && !graphic.charset.isEmpty()) {
+                return graphic.charset;
             }
         }
+        return profile.playerCharset == null || profile.playerCharset.isEmpty() ? null : profile.playerCharset;
+    }
+
+    /**
+     * Graphics/Icons/icon&lt;species&gt;&lt;f?&gt;&lt;s?&gt; (&lt;egg&gt;): the
+     * project's numeric id first, then the internal name (pbCheckPokemonIconFiles).
+     */
+    private Texture partyIcon(SaveSlots.Slot.PartyEntry entry) {
+        if (entry == null || entry.species == null || entry.species.isEmpty()) {
+            return null;
+        }
+        String suffix = (entry.gender == 1 ? "f" : "") + (entry.shiny ? "s" : "");
+        String extra = entry.egg ? "egg" : "";
+        Texture icon = null;
+        PbsData data = context.pbsData();
+        PbsData.Species species = data == null ? null : data.species(entry.species);
+        if (species != null) {
+            icon = assets.icon(String.format("icon%03d%s%s", species.id, suffix, extra));
+        }
+        if (icon == null) {
+            icon = assets.icon("icon" + entry.species + suffix + extra);
+        }
+        if (icon == null && entry.egg) {
+            icon = assets.icon("iconEgg");
+        }
+        return icon;
+    }
+
+    /** "N小时M分钟" / "M分钟" (PScreen_Load's play-time line). */
+    private static String duration(int seconds) {
+        int hours = seconds / 3600;
+        int minutes = (seconds / 60) % 60;
+        return hours > 0 ? hours + "小时" + minutes + "分钟" : minutes + "分钟";
+    }
+
+    /** "刚刚 / N分钟前 / N小时前 / N天前 / N个月前 / N年前". */
+    private static String relativeTime(long millis) {
+        if (millis <= 0) {
+            return "未知";
+        }
+        long delta = Math.max(0, System.currentTimeMillis() - millis) / 1000L;
+        if (delta < 60) {
+            return "刚刚";
+        }
+        if (delta < 3600) {
+            return (delta / 60) + "分钟前";
+        }
+        if (delta < 86400) {
+            return (delta / 3600) + "小时前";
+        }
+        if (delta < 86400L * 30) {
+            return (delta / 86400) + "天前";
+        }
+        if (delta < 86400L * 365) {
+            return (delta / (86400L * 30)) + "个月前";
+        }
+        if (delta < 86400L * 365 * 2) {
+            return (delta / (86400L * 365)) + "年前";
+        }
+        return "很久之前";
     }
 
     private void renderLoad(InputManager input, float width, float height) {
@@ -456,22 +668,30 @@ public final class TitleScreen extends ScreenAdapter {
 
     private void renderOptions(InputManager input, float width, float height) {
         OptionsView.Result result = optionsView.update(input, context.audioManager());
-        optionsView.render(batch, assets, font, skin);
+        optionsView.render(batch, assets, font, skin, skin);
         if (result == OptionsView.Result.BACK) {
             state = State.COMMANDS;
         }
     }
 
     private void refreshSaves() {
+        slots = SaveSlots.list(context.storage(), database);
         hasSaves = false;
-        for (SaveSlots.Slot slot : SaveSlots.list(context.storage(), database)) {
-            if (slot.exists) {
-                hasSaves = true;
-                break;
+        int newest = -1;
+        for (int i = 0; i < slots.size; i++) {
+            SaveSlots.Slot slot = slots.get(i);
+            if (!slot.exists) {
+                continue;
+            }
+            hasSaves = true;
+            if (newest < 0 || slot.savedAtMillis > slots.get(newest).savedAtMillis) {
+                newest = i;
             }
         }
+        // SaveData.get_newest_slot: show the most recent save first.
+        slotIndex = newest < 0 ? 0 : newest;
         if (!hasSaves) {
-            command = 1; // 新的故事 is the only usable entry without saves
+            command = 1; // 新的冒险 is the only usable entry without saves
         }
     }
 
@@ -482,7 +702,10 @@ public final class TitleScreen extends ScreenAdapter {
     }
 
     private void loadSelected() {
-        SaveSlots.Slot slot = loadView.selected();
+        loadSlot(loadView.selected());
+    }
+
+    private void loadSlot(SaveSlots.Slot slot) {
         if (slot == null) {
             return;
         }

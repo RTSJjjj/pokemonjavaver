@@ -554,7 +554,7 @@ test("build-data reuses cached units on the second run", () => {
   assert.match(first.out, /BUILD DATA SUCCESS/);
 
   const cache = JSON.parse(readFileSync(path.join(root, "build", "cache.json"), "utf8"));
-  assert.equal(cache.format, "pokemon-builder/build-cache/1");
+  assert.equal(cache.format, "pokemon-builder/build-cache/2");
   assert.equal(cache.project, project);
   assert.ok(cache.units["map:1"]);
 

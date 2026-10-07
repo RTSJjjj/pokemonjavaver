@@ -33,6 +33,15 @@ public final class MapData {
      * makes the connected maps scroll seamlessly.
      */
     public Boolean snapEdges;
+    /** MapPosition region for the region-local PC (-1 retains current region). */
+    public int region = -1;
+    /**
+     * MetadataMapPosition "region,x,y" (Misc_Data:100): where this map sits on
+     * the region map; null when PBS/metadata.txt has no MapPosition line.
+     */
+    public int[] mapPosition;
+    /** MetadataBattleBack ("field"/"city"/...); null keeps the default. */
+    public String battleBack;
     public AudioRef bgm;
     public AudioRef bgs;
     public Array<Encounter> encounters = new Array<>();
@@ -54,6 +63,12 @@ public final class MapData {
         data.outdoor = outdoor == null ? null : outdoor.asBoolean();
         JsonValue snapEdges = root.get("snapEdges");
         data.snapEdges = snapEdges == null ? null : snapEdges.asBoolean();
+        data.region = root.getInt("region", -1);
+        JsonValue position = root.get("mapPosition");
+        data.mapPosition = position == null || !position.isArray() || position.size < 3
+                ? null
+                : new int[] { position.get(0).asInt(), position.get(1).asInt(), position.get(2).asInt() };
+        data.battleBack = root.getString("battleBack", null);
         data.bgm = AudioRef.parse(root.get("bgm"));
         data.bgs = AudioRef.parse(root.get("bgs"));
 

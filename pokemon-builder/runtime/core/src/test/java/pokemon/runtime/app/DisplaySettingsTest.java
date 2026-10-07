@@ -35,14 +35,14 @@ class DisplaySettingsTest {
     }
 
     @Test
-    @DisplayName("the project's screen size is the default and the window keeps its size (R6.21)")
+    @DisplayName("the project's screen size is the default and the window fits it (no letterbox)")
     void projectLogicalKeepsTheWindow() {
         DisplaySettings settings = DisplaySettings.defaults().withProjectLogical(672, 448);
         assertEquals(672, settings.logicalWidth);
         assertEquals(448, settings.logicalHeight, "the render follows the project's own size");
         int[] onFullHd = settings.resolveWindow(1920, 1080);
-        assertEquals(2 * ScreenMetrics.WINDOW_WIDTH, onFullHd[0], "the window keeps 672x488 x2");
-        assertEquals(2 * ScreenMetrics.WINDOW_HEIGHT, onFullHd[1]);
+        assertEquals(2 * 672, onFullHd[0], "the window is an integer multiple of the project framing");
+        assertEquals(2 * 448, onFullHd[1], "no 672x488 unit, so no black letterbox bars");
     }
 
     @Test

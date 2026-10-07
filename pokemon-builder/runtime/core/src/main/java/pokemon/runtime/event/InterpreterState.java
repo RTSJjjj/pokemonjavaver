@@ -8,5 +8,7 @@ public enum InterpreterState {
     WAIT_MESSAGE,
     WAIT_MOVEMENT,
     WAIT_TRANSFER,
+    /** P3: a berry plant interaction is playing (pbBerryPlant / pbPickBerry). */
+    WAIT_BERRY,
     FINISHED
 }

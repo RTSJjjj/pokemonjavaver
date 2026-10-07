@@ -44,6 +44,10 @@ export function splitArguments(text) {
 export function parseValue(text) {
   const value = text.trim();
   if (value.startsWith(":")) return value.slice(1);
+  // R8: Essentials constants (PBItems::TOWNMAP) resolve to the internal name;
+  // the runtime looks the id up in its own PBS data.
+  const constant = /^(?:PBItems|PBSpecies|PBTypes|PBAbilities|PBMoves|PBTrainers|PBStatuses)::([A-Za-z_]\w*)$/.exec(value);
+  if (constant) return constant[1];
   if (/^-?\d+$/.test(value)) return Number(value);
   if (value === "true" || value === "false") return value === "true";
   if (value === "nil") return null;
@@ -239,12 +243,41 @@ function rewriteCryStatements(statements) {
  */
 function rewriteGlobalReceivers(statements) {
   return statements.map((statement) =>
-    statement.replace(/^\s*\$PokemonBag\.(pbStoreItem|pbDeleteItem)\s*\(/, "$1("));
+    statement
+      .replace(/^\s*\$PokemonBag\.(pbStoreItem|pbDeleteItem)\s*\(/, "$1(")
+      // R8: the boss reward module calls (Boss_reward:80-346).
+      .replace(/^\s*BossRewards\.(pokemon_reward|blissey|gholdengo_money)\s*$/, "$1()"));
 }
 
 /** The statements of one block, after the project rewrites (R6.30 / P1). */
 function blockStatements(block) {
   return rewriteGlobalReceivers(rewriteCryStatements(callStatements(block)));
+}
+
+/**
+ * PField_Battles:359-361: pbWildBattle's optional arguments are battle rules -
+ * {@code setBattleRule("outcomeVar",n) if outcomeVar!=1},
+ * {@code setBattleRule("cannotRun") if !canRun},
+ * {@code setBattleRule("canLose") if canLose}. Only the arguments the script
+ * actually wrote reach the IR; the runtime keeps the defaults (outcome variable
+ * 1, can run, cannot lose).
+ */
+function addWildBattleOptions(command, args, from) {
+  // setBattleRule("outcomeVar",outcomeVar) if outcomeVar!=1 (:359): the default
+  // 1 is not written as a rule, so it stays out of the IR too.
+  if (args.length > from && args[from] !== null && args[from] !== undefined) {
+    const outcomeVar = Number(args[from]);
+    if (Number.isFinite(outcomeVar) && outcomeVar !== 1) command.outcomeVar = outcomeVar;
+  }
+  // setBattleRule("cannotRun") if !canRun (:360): only a false canRun is a rule.
+  if (args.length > from + 1 && args[from + 1] === false) {
+    command.canRun = false;
+  }
+  // setBattleRule("canLose") if canLose (:361).
+  if (args.length > from + 2 && args[from + 2] === true) {
+    command.canLose = true;
+  }
+  return command;
 }
 
 export const HANDLERS = {
@@ -287,26 +320,52 @@ export const HANDLERS = {
   pbGenderSelector() {
     return { command: "GENDER_SELECTOR" };
   },
+  pbPokeCenterPC() { return { command: "OPEN_PC" }; },
+  pbChoosePokemonForTrade(args) {
+    if (!Number.isInteger(args[0]) || args[0] < 1 || !Number.isInteger(args[1]) || args[1] < 1 || typeof args[2] !== "string")
+      throw new Error("Trade selection requires variable ids and a species");
+    return { command: "CHOOSE_TRADE", variable: args[0], nameVariable: args[1], wanted: args[2] };
+  },
+  pbStartTrade(args) {
+    const value = arg => {
+      if (!arg || typeof arg !== "object" || !arg.script) return arg;
+      const variable = /^pbGet\(\s*(\d+)\s*\)$/.exec(arg.script);
+      if (variable) return { variable: Number(variable[1]) };
+      if (/^[a-z_]\w*$/.test(arg.script)) return { local: arg.script };
+      throw new Error("Unsupported trade argument: " + arg.script);
+    };
+    if (args.length < 4 || typeof args[2] !== "string" || typeof args[3] !== "string") throw new Error("Trade requires literal nickname and trainer name");
+    return { command: "START_TRADE", index: value(args[0]), offered: value(args[1]), nickname: args[2], trainerName: args[3] };
+  },
   /** pbChangePlayer(id) sets the walking graphic from metadata PlayerA+id. */
   pbChangePlayer(args) {
     return { command: "CHANGE_PLAYER", playerId: args[0] };
   },
   // ---- P2: wild / trainer battles ----
-  /** pbWildBattle(species, level[, ...]) starts a single wild battle. */
+  /**
+   * pbWildBattle(species, level, outcomeVar=1, canRun=true, canLose=false)
+   * (PField_Battles:351-368): the three optional arguments become battle rules
+   * (setBattleRule) and are consumed when the battle starts; the decision lands
+   * in the outcome variable (variable 1 by default).
+   */
   pbWildBattle(args) {
-    return {
+    const command = {
       command: "WILD_BATTLE",
       species: args[0],
       level: args.length > 1 ? args[1] : 5,
     };
+    addWildBattleOptions(command, args, 2);
+    return command;
   },
   /** pbFreeWildBattle(species, level) is a wild battle from a species. */
   pbFreeWildBattle(args) {
-    return {
+    const command = {
       command: "WILD_BATTLE",
       species: args[0],
       level: args.length > 1 ? args[1] : 5,
     };
+    addWildBattleOptions(command, args, 2);
+    return command;
   },
   /** pbTrainerBattle(type, name[, version]) loads trainers.txt and battles. */
   pbTrainerBattle(args) {
@@ -326,6 +385,28 @@ export const HANDLERS = {
       version: args.length > 2 ? args[2] : 0,
       partner: true,
     };
+  },
+
+  /**
+   * PField_Battles:60-77: value-taking rules consume the next argument
+   * (terrain/weather/environment/environ/backdrop/battleback/base/outcome/
+   * outcomevar); everything else is a flag.
+   */
+  setBattleRule(args) {
+    const valueRules = new Set(["terrain", "weather", "environment", "environ",
+      "backdrop", "battleback", "base", "outcome", "outcomevar"]);
+    const rules = [];
+    for (let i = 0; i < args.length; i++) {
+      const rule = args[i];
+      if (typeof rule !== "string") throw new Error("setBattleRule expects literal rule names");
+      if (valueRules.has(rule.toLowerCase())) {
+        if (i + 1 >= args.length) throw new Error("setBattleRule " + rule + " needs a value");
+        rules.push({ rule, value: args[++i] });
+      } else {
+        rules.push({ rule });
+      }
+    }
+    return { command: "BATTLE_RULE", rules };
   },
   pbBridgeOn() {
     return { command: "SET_BRIDGE", on: true };
@@ -367,6 +448,42 @@ export const HANDLERS = {
     const items = Array.isArray(args[0]) ? args[0] : args;
     return { command: "OPEN_MART", items };
   },
+  // ---- R8: the boss reward system (Boss_reward:3-348) ----
+  boss_reward(args) {
+    return { command: "BOSS_REWARD", rank: args.length > 0 ? args[0] : 5 };
+  },
+  /**
+   * R8: the single-call form {@code pbAddPokemon(:TURTWIG,5)}
+   * (PSystem_PokemonUtilities:67-83); the Pokemon construction scripts pass a
+   * local instead and are handled by the P0c dialect.
+   */
+  pbAddPokemon(args) {
+    if (typeof args[0] !== "string" || typeof args[1] !== "number") {
+      throw new Error("pbAddPokemon needs a species literal and a level here");
+    }
+    return { command: "GIVE_POKEMON", species: args[0], level: args[1] };
+  },
+  pokemon_reward() {
+    return { command: "BOSS_POKEMON_REWARD" };
+  },
+  blissey() {
+    return { command: "BOSS_BLISSEY" };
+  },
+  gholdengo_money() {
+    return { command: "BOSS_GHOLDENGO_MONEY" };
+  },
+  // ---- R8: partner trainers (PField_Field:1399-1440) ----
+  pbRegisterPartner(args) {
+    return {
+      command: "REGISTER_PARTNER",
+      trainerType: args[0],
+      name: args.length > 1 ? args[1] : "",
+      partyId: args.length > 2 ? args[2] : 0,
+    };
+  },
+  pbDeregisterPartner() {
+    return { command: "DEREGISTER_PARTNER" };
+  },
   pbCut() {
     return { command: "FIELD_MOVE", move: "CUT" };
   },
@@ -375,6 +492,14 @@ export const HANDLERS = {
   },
   pbMessage(args) {
     return { command: "SHOW_TEXT", text: args[0] };
+  },
+  pbShowMap(args) {
+    // PScreen_RegionMap:431: pbShowMap(region=-1, wallmap=true).
+    return {
+      command: "SHOW_MAP",
+      region: args.length > 0 ? args[0] : -1,
+      wallmap: args.length > 1 ? args[1] : true,
+    };
   },
   // ---- handler batch 1: field audio / waits / cave transitions (R6.26) ----
   pbSEPlay(args) {
@@ -467,6 +592,27 @@ export const HANDLERS = {
       text: args.length > 1 ? args[1] : null,
     };
   },
+  // ---- P3: berry plants (PField_BerryPlants:313-590) ----
+  /**
+   * {@code pbBerryPlant} plays the whole plot interaction (plant / water /
+   * harvest); the runtime's BERRY_PLANT stepper carries every message and
+   * number from the plugin.
+   */
+  pbBerryPlant() {
+    return { command: "BERRY_PLANT" };
+  },
+  /**
+   * {@code pbPickBerry(berry,qty=1)}: a preset ripe plot, picked through the
+   * same stepper (BERRY_PICK) which resets the soil and sets self switch A
+   * (PField_BerryPlants:555-590).
+   */
+  pbPickBerry(args) {
+    return {
+      command: "BERRY_PICK",
+      berry: args[0],
+      qty: args.length > 1 ? args[1] : 1,
+    };
+  },
 };
 
 /** Simple conditions the runtime can already answer (R6.1). */
@@ -500,6 +646,8 @@ const POKEMON_METHODS = new Set([
 const POKEMON_PROPERTIES = new Set([
   "iv", "ev", "form", "ot", "name", "battleRank", "shiny", "item", "nature",
   "happiness", "stepsToHatch",
+  // R8: the gift scripts also set the trainer id, the OT gender and the ball.
+  "trainerID", "otgender", "ballused",
 ]);
 
 /**
@@ -519,11 +667,21 @@ function parseScriptValue(text, locals) {
   if (/^\$Trainer\.pokemonCount$/.test(value)) {
     return { trainerPokemonCount: true };
   }
+  // PokeBattle_Trainer:177/192: the dex counters used by pbSet.
+  const trainerStat = /^\$Trainer\.(pokedexSeen|pokedexOwned)$/.exec(value);
+  if (trainerStat) {
+    return { trainerStat: trainerStat[1] };
+  }
   const localProperty = /^([A-Za-z_]\w*)\.([A-Za-z_]\w*)$/.exec(value);
   if (localProperty && locals.get(localProperty[1]) === "pokemon") {
     return { local: localProperty[1], property: localProperty[2] };
   }
   if (locals.get(value) === "pokemon") {
+    return { local: value };
+  }
+  if (/^[A-Za-z_]\w*$/.test(value) && locals.has(value)) {
+    // P0d: a plain value local (`count = $Trainer.pokemonCount`) or the loop
+    // variable of a compiled `for`; the runtime reads it back by name.
     return { local: value };
   }
   return parseValue(value);
@@ -575,9 +733,21 @@ function pokemonStatement(statement, locals) {
   if (match && locals.get(match[2]) === "pokemon") {
     return { ir: { command: "PARTY_ADD", local: match[2], silent: Boolean(match[1]) } };
   }
-  match = /^pbFreeWildBattle\(\s*([A-Za-z_]\w*)\s*(?:,\s*[^)]*)?\)$/.exec(text);
-  if (match && locals.get(match[1]) === "pokemon") {
-    return { ir: { command: "FREE_WILD_BATTLE", local: match[1] } };
+  const freeWild = /^pbFreeWildBattle\(\s*([A-Za-z_]\w*)\s*((?:,\s*[^,()]+)*)\)$/.exec(text);
+  if (freeWild && locals.get(freeWild[1]) === "pokemon") {
+    // FreeWildBattle:2-8: pbFreeWildBattle(pkmn, outcomeVar=1, canRun=true,
+    // canLose=false) - the same three optional arguments as pbWildBattle.
+    const command = { command: "FREE_WILD_BATTLE", local: freeWild[1] };
+    const extra = (freeWild[2] || "").split(",").slice(1)
+      .map((arg) => arg.trim()).filter((arg) => arg !== "")
+      .map((arg) => {
+        if (arg === "true") return true;
+        if (arg === "false") return false;
+        if (arg === "nil") return null;
+        const number = Number(arg);
+        return Number.isFinite(number) ? number : arg;
+      });
+    return { ir: addWildBattleOptions(command, extra, 0) };
   }
   match = /^pbSet\(\s*([^,]+?)\s*,\s*(.+)\)$/s.exec(text);
   if (match) {
@@ -592,6 +762,24 @@ function pokemonStatement(statement, locals) {
 }
 
 /**
+ * R8: the $Trainer assignments of the badge / dex scripts
+ * ({@code $Trainer.badges[1] = true}, {@code $Trainer.pokedex = true},
+ * {@code $Trainer.pokepc = true}) become their own IR commands.
+ */
+function trainerStatement(statement) {
+  const text = statement.trim();
+  let match = /^\$Trainer\.badges\[\s*(\d+)\s*\]\s*=\s*(true|false)$/.exec(text);
+  if (match) {
+    return { ir: { command: "SET_BADGE", badge: Number(match[1]), value: match[2] === "true" } };
+  }
+  match = /^\$Trainer\.(pokedex|pokepc)\s*=\s*(true|false)$/.exec(text);
+  if (match) {
+    return { ir: { command: "SET_TRAINER_FLAG", flag: match[1], value: match[2] === "true" } };
+  }
+  return null;
+}
+
+/**
  * P0c: translates one statement of a Pokemon construction script, falling back
  * to the flat HANDLERS table for the plain API calls that appear next to the
  * local variables ({@code pbSEPlay}, {@code pbWait}, ...).
@@ -600,6 +788,8 @@ function pokemonStatement(statement, locals) {
 function translateStatement(statement, locals, block) {
   const pokemon = pokemonStatement(statement, locals);
   if (pokemon) return pokemon;
+  const trainer = trainerStatement(statement);
+  if (trainer) return trainer;
   const stepName = statementName(statement);
   const args = statementArguments(statement);
   const stepHandler = stepName === null ? null : HANDLERS[stepName];
@@ -611,6 +801,54 @@ function translateStatement(statement, locals, block) {
   } catch (error) {
     return { error: error.message };
   }
+}
+
+/**
+ * P0d: the event-glue dialect of the catch scripts - local assignments,
+ * {@code pbSet} / {@code pbSEPlay} / {@code pbWait} and the Ruby counted loop
+ * {@code for i in <from>..<to> ... end} (the ball-shake block of every catch
+ * common event). A loop becomes one REPEAT IR step whose body may wait
+ * (pbWait) between iterations; {@code ...} is the exclusive range.
+ * @returns {Array<object>|null} the steps, or null when a statement is outside
+ *          this dialect (the whole block stays in the Java-handler bucket)
+ */
+function compileGlueStatements(statements, locals, block) {
+  const steps = [];
+  for (let i = 0; i < statements.length; i++) {
+    const text = statements[i].trim();
+    const loop = /^for\s+([A-Za-z_]\w*)\s+in\s+(.+?)\.\.(\.)?(.+)$/.exec(text);
+    if (loop) {
+      let depth = 1;
+      let end = i + 1;
+      for (; end < statements.length; end++) {
+        const candidate = statements[end].trim();
+        if (/^for\b/.test(candidate)) depth++;
+        else if (candidate === "end") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      if (end >= statements.length) return null; // unbalanced loop
+      const exclusive = loop[3] !== undefined;
+      locals.set(loop[1], "value");
+      const body = compileGlueStatements(statements.slice(i + 1, end), locals, block);
+      if (body === null || body.length === 0) return null;
+      const from = parseScriptValue(loop[2], locals);
+      const to = parseScriptValue(loop[4], locals);
+      if (containsScriptPayload(from) || containsScriptPayload(to)) return null;
+      const repeat = { command: "REPEAT", local: loop[1], from, to, steps: body };
+      if (exclusive) repeat.exclusive = true;
+      steps.push(repeat);
+      i = end;
+      continue;
+    }
+    if (text === "end") return null; // stray `end`
+    const outcome = translateStatement(statements[i], locals, block);
+    if (outcome === null || outcome.todo || outcome.error !== undefined) return null;
+    if (containsScriptPayload(outcome.ir)) return null;
+    steps.push(outcome.ir);
+  }
+  return steps;
 }
 
 /**
@@ -651,21 +889,15 @@ export function compileBlock(block) {
   // own pass; any statement it cannot translate keeps the block in the stage 3
   // "needs a Java handler" bucket.
   const statements = blockStatements(block);
-  if (statements.some((statement) => /pbGenPkmn\s*\(|PokeBattle_Pokemon\.new\s*\(|pbSet\s*\(/.test(statement))) {
+  if (statements.some((statement) =>
+    /pbGenPkmn\s*\(|PokeBattle_Pokemon\.new\s*\(|pbSet\s*\(|\$Trainer\.(?:badges|pokedex|pokepc|pokedexSeen|pokedexOwned)/.test(statement))) {
     if (statements.length === 0) {
       return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
     }
     const locals = new Map();
-    const steps = [];
-    for (const statement of statements) {
-      const outcome = translateStatement(statement, locals, block);
-      if (outcome === null || outcome.todo || outcome.error !== undefined) {
-        return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
-      }
-      if (containsScriptPayload(outcome.ir)) {
-        return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
-      }
-      steps.push(outcome.ir);
+    const steps = compileGlueStatements(statements, locals, block);
+    if (steps === null) {
+      return { ...entry, status: "JAVA_HANDLER_REQUIRED", reason: "needs the Pokemon runtime (stage 3 domain)" };
     }
     const ir = steps.length === 1 ? steps[0] : { command: "SEQUENCE", steps };
     return { ...entry, status: "TRANSLATED", ir };

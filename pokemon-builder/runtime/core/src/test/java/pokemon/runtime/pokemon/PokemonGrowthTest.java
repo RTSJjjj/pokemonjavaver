@@ -17,6 +17,27 @@ import static org.junit.jupiter.api.Assertions.*;
 class PokemonGrowthTest {
 
     @Test
+    @DisplayName("P3/PokeBattle_Pokemon:166-177: displayGender derives a mixed species' gender")
+    void derivedGender(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        PbsData.Species species = data.species("STAGE1");
+        species.genderRate = "Female50Percent";
+        Pokemon pokemon = new Pokemon(species, 5, data);
+        // (personalID & 0xFF) < 128 -> female, otherwise male (PBGenderRates:11-23).
+        pokemon.personalID = 0x100 | 0x10;
+        assertEquals(PokemonStats.FEMALE, pokemon.displayGender());
+        pokemon.personalID = 0x100 | 0x90;
+        assertEquals(PokemonStats.MALE, pokemon.displayGender());
+        // An explicit male/female (the plugin's @genderflag) wins over the id.
+        pokemon.gender = PokemonStats.MALE;
+        assertEquals(PokemonStats.MALE, pokemon.displayGender());
+        // Single-gender species ignore both.
+        PbsData.Species always = data.species("STAGE2");
+        always.genderRate = "Genderless";
+        assertEquals(PokemonStats.GENDERLESS, new Pokemon(always, 5, data).displayGender());
+    }
+
+    @Test
     @DisplayName("P3: a level-up learns the move of the new level")
     void learnsMoveOnLevelUp(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));

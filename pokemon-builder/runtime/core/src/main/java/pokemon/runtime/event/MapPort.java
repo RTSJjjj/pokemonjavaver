@@ -73,6 +73,28 @@ public interface MapPort {
     }
 
     /**
+     * Essentials {@code Interpreter#getVariable} (PField_Field:827): the event
+     * variable of event N, or null when it has none. The berry plants keep
+     * their whole growth state here.
+     */
+    default int[] getEventVariable(int eventId) {
+        return null;
+    }
+
+    /** Essentials {@code Interpreter#setVariable} (PField_Field:836). */
+    default void setEventVariable(int eventId, int[] value) {
+    }
+
+    /**
+     * Essentials {@code Game_Character#turn_down/left/right/up}: the berry
+     * plants encode their growth stage in the event's facing
+     * (PField_BerryPlants:325-331 - down planted/sprouted, left taller,
+     * right flowering, up berries). Directions are RMXP's 2/4/6/8.
+     */
+    default void turnEvent(int eventId, int direction) {
+    }
+
+    /**
      * Essentials {@code get_character(N).onEvent?} - true when the <em>player</em>
      * stands on character N's tile ({@code Game_Event#onEvent?} compares
      * {@code $game_player} with the receiver). 0 = the running event, -1 = the
@@ -81,6 +103,19 @@ public interface MapPort {
      */
     default boolean playerOnCharacter(int characterId) {
         return false;
+    }
+
+    /**
+     * Essentials {@code pbGlobalLock} / {@code pbGlobalUnlock} (Messages:223-234):
+     * every map event stops its autonomous movement (forced routes keep
+     * running) until the matching unlock - the trainer intro uses it around the
+     * battle, so NPCs freeze while the intro plays.
+     */
+    default void lockEvents(boolean locked) {
+    }
+
+    /** Essentials {@code pbTrainerEnd} (PField_Field:801-805): erase the route. */
+    default void eraseRoute(int eventId) {
     }
 
     /**
