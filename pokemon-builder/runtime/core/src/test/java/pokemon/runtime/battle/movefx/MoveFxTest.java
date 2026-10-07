@@ -193,12 +193,9 @@ class MoveFxTest {
         // §4 wiring: the three type-calculation bodies are transcribed now
         // (Move_Usage_Calculations.rb:14-29 / 34-71 / 73-103) - see
         // typeBodiesAreTranscribed below - so they are no longer in this list.
-        assertPending("pbAccuracyCheck (:112-143)",
-                () -> effect.pbAccuracyCheck(null, null, null));
-        assertPending("pbCalcAccuracyModifiers (:145-183)",
-                () -> effect.pbCalcAccuracyModifiers(null, null, null, null));
-        assertPending("pbIsCritical? (:196-229)",
-                () -> effect.pbIsCritical(null, null, null));
+        // Stage 5 / 2c2: pbAccuracyCheck (:112-143), pbCalcAccuracyModifiers
+        // (:145-183) and pbIsCritical? (:196-229) are transcribed now - see
+        // MoveCalculationsTest - so they are no longer in this list.
         assertPending("pbCalcDamage (:252-295)",
                 () -> effect.pbCalcDamage(null, null, null, 1));
         assertPending("pbCalcDamageMultipliers (:296-546)",
