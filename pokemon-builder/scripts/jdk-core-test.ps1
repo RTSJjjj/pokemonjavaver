@@ -1,7 +1,7 @@
 # Gradle-free build + test of runtime/core (for environments where Gradle fails
 # with "Unable to establish loopback connection").
-# Usage: powershell -File scripts\jdk-core-test.ps1 [-Filter <class-name-substring>] [-NoRun]
-param([string]$Filter = '', [switch]$NoRun)
+# Usage: powershell -File scripts\jdk-core-test.ps1 [-Filter <class-name-substring>] [-NoRun] [-ExcludeTests <test file names that do not compile yet>]
+param([string]$Filter = '', [switch]$NoRun, [string[]]$ExcludeTests = @())
 $ErrorActionPreference = 'Stop'
 $java = 'C:\Users\Administrator\AppData\Roaming\.minecraft\runtime\java-runtime-delta\bin\java.exe'
 $g = 'C:\Users\Administrator\.gradle\caches\modules-2\files-2.1'
@@ -16,12 +16,12 @@ $mainOut = "$out\main"; $testOut = "$out\test"
 Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $mainOut, $testOut | Out-Null
 $cp = ($libs -join ';')
-function Compile($srcDir, $dest, $classpath) {
+function Compile($srcDir, $dest, $classpath, $exclude = @()) {
     $list = "$out\" + (Split-Path $dest -Leaf) + '.txt'
     # Relative paths keep the argfile pure ASCII (the repo path has CJK characters).
     Push-Location $srcDir
     try {
-        Get-ChildItem . -Recurse -Filter *.java | ForEach-Object { '"' + ((Resolve-Path -Relative $_.FullName) -replace '\\', '/') + '"' } | Set-Content $list -Encoding ASCII
+        Get-ChildItem . -Recurse -Filter *.java | Where-Object { $exclude -notcontains $_.Name } | ForEach-Object { '"' + ((Resolve-Path -Relative $_.FullName) -replace '\\', '/') + '"' } | Set-Content $list -Encoding ASCII
         & $java -m jdk.compiler/com.sun.tools.javac.Main -encoding UTF-8 -nowarn -d $dest -cp $classpath "@$list"
         if ($LASTEXITCODE -ne 0) { throw "javac failed for $srcDir" }
     } finally { Pop-Location }

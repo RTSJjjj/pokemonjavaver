@@ -3834,9 +3834,11 @@ public final class MoveEffects_180_1FF {
         /** {@code pbEffectAgainstTarget(user,target)} (:2455-2461). */
         @Override
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
-            // 登记: :2456 user.reborn? 与 :2460 user.setCanRebirth —— Battler 尚无这两个方法
-            //       （PokeBattle_Battler:769-779 的 reborn?/setCanRebirth/setReborn，属下一批）
-            //       无法判定「已经复活过」，也无法打复活标记 → 本 handler 空实现
+            if (user.reborn()) {                                              // :2456
+                user.battle.display("但是" + user.pbThis(true) + "无法再次复活了");   // :2457
+                return;                                                       // :2458
+            }
+            user.setCanRebirth(true);                                         // :2460
         }
     }
 

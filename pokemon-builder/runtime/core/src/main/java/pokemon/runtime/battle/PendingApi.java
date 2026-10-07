@@ -164,7 +164,7 @@ public final class PendingApi {
 
     /** {@code Battle#pbStartTerrain(user,newTerrain,fixedDuration=true)} (PokeBattle_Battle:741). */
     public static void pbStartTerrain(Battle battle, Battler user, int terrain) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:741 pbStartTerrain");
+        battle.pbStartTerrain(user, terrain);
     }
 
     /** {@code Battler#pbCanFrostbiteSynchronize?(target)} (Arceus:846). */

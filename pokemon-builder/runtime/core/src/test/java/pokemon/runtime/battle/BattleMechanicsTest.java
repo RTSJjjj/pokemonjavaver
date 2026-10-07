@@ -30,7 +30,7 @@ class BattleMechanicsTest {
         Battle battle = new Battle(data, new Random(1), (user, target, moves) -> indexOf(moves, "TOXIC"))
                 .addPlayer(hero).addFoe(foe);
         battle.step();
-        assertEquals("POISON", foe.status, "the foe is badly poisoned");
+        assertEquals("POISON", battle.foe().status, "the foe is badly poisoned");
         int hpAfterToxic = foe.hp;
         battle.step();
         assertTrue(foe.hp < hpAfterToxic, "poison chipped " + hpAfterToxic + " -> " + foe.hp);
@@ -103,7 +103,7 @@ class BattleMechanicsTest {
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
                 + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20,\"target\":\"NearOther\"},"
                 + "\"TOXIC\":{\"id\":2,\"internalName\":\"TOXIC\",\"name\":\"Toxic\","
-                + "\"function\":\"006\",\"power\":0,\"type\":\"POISON\",\"category\":\"Status\",\"accuracy\":90,\"pp\":10,\"target\":\"NearOther\"},"
+                + "\"function\":\"006\",\"power\":0,\"type\":\"POISON\",\"category\":\"Status\",\"accuracy\":0,\"pp\":10,\"target\":\"NearOther\"},"
                 + "\"SWORDSDANCE\":{\"id\":3,\"internalName\":\"SWORDSDANCE\",\"name\":\"Swords Dance\","
                 + "\"function\":\"02E\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"accuracy\":0,\"pp\":20,\"target\":\"NearOther\"},"
                 + "\"QUICKATTACK\":{\"id\":4,\"internalName\":\"QUICKATTACK\",\"name\":\"Quick Attack\","

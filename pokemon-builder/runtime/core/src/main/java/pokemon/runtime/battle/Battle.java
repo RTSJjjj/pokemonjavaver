@@ -128,6 +128,8 @@ public final class Battle {
      * {@code pbSetUpSides:121-127} would put in slot 3 - cannot occur here.
      */
     public void refreshFieldIndices() {
+        for (int i = 0; i < playerParty.size; i++) playerParty.get(i).pokemonIndex = i;   // Battler_Initialize:96 @pokemonIndex = idxParty
+        for (int i = 0; i < foeParty.size; i++) foeParty.get(i).pokemonIndex = i;
         for (Battler battler : playerParty) {
             battler.index = -1;
             battler.battle = this;                                // M0: @battle (PokeBattle_Battler:216)
@@ -319,6 +321,55 @@ public final class Battle {
     public boolean priorityTrickRoom;
     /** {@code @rules} (PokeBattle_Battle:148 {@code = {}}): battle rules; empty unless a setup fills it. */
     public final java.util.Map<String, Object> rules = new java.util.HashMap<>();
+
+    /** {@code @can_rebirth} / {@code @rebirth} (PokeBattle_Battle:164-165): one flag per party slot per side. */
+    public final boolean[][] canRebirth = new boolean[2][6];
+    public final boolean[][] rebirth = new boolean[2][6];
+
+    /** {@code @customTerrainSeedBatch} / {@code @customTerrainSeedSymbiosisQueue} (场地:633-643). */
+    public boolean customTerrainSeedBatch;
+    public final java.util.List<Battler> customTerrainSeedSymbiosisQueue = new java.util.ArrayList<>();
+
+    /** {@code pbQueueCustomTerrainSeedSymbiosis(battler)} (场地:638-643). */
+    public void pbQueueCustomTerrainSeedSymbiosis(Battler battler) {
+        if (!customTerrainSeedSymbiosisQueue.contains(battler)) {  // 场地:640
+            customTerrainSeedSymbiosisQueue.add(battler);          // 场地:641
+        }
+    }
+
+    /** {@code pbStartTerrain(user,newTerrain,fixedDuration=true)} (PokeBattle_Battle:741-769 + the 场地 wrappers). */
+    public void pbStartTerrain(Battler user, int newTerrain) {
+        BattleEndOfRoundPhase.pbStartTerrain(this, user, newTerrain, true);
+    }
+
+    public void pbStartTerrain(Battler user, int newTerrain, boolean fixedDuration) {
+        BattleEndOfRoundPhase.pbStartTerrain(this, user, newTerrain, fixedDuration);
+    }
+
+    /** {@code pbAbleCount(idxBattler=0)} (PokeBattle_Battle:327-338): able Pokemon in the party of {@code idxBattler}. */
+    public int pbAbleCount(int idxBattler) {
+        int count = 0;                                             // :328
+        for (Battler pkmn : partyOf(idxBattler)) {                 // :329
+            if (pkmn != null && !pkmn.fainted() && !pkmn.pokemon.egg) count += 1;   // :330 pkmn.able?
+        }
+        return count;                                              // :336
+    }
+
+    /** {@code pbThisEx(idxBattler,idxParty)} (PokeBattle_Battle:637-651). */
+    public String pbThisEx(int idxBattler, int idxParty) {
+        Array<Battler> party = partyOf(idxBattler);                // :638
+        Battler pkmn = party.get(idxParty);
+        if ((idxBattler & 1) != 0) {                               // :639 opposes?(idxBattler)
+            if (trainerBattle) return "对手的" + pkmn.name();          // :640
+            int rank = pkmn.pokemon.battleRank;                    // :641
+            if (rank > 1) {                                        // :642
+                if (rank > 2) return "强大的" + pkmn.name();           // :643
+                return "特殊的" + pkmn.name();                         // :644
+            }
+            return "野生的" + pkmn.name();                           // :646
+        }
+        return pkmn.name();                                        // :649 (the player owns the whole side)
+    }
 
     /** {@code maxBattlerIndex} (PokeBattle_Battle): singles has battlers 0 and 1. */
     public int maxBattlerIndex() {
@@ -954,104 +1005,16 @@ public final class Battle {
         return fielded;
     }
 
-    /** End of round (pbEndOfRoundPhase): poison / burn damage, flinch clears. */
+    /** {@code pbEndOfRoundPhase} (Battle_Phase_EndOfRound:211-827), then the ZA mode's energy tick (ZA模式:236-266). */
     private void endOfTurn() {
         endOfRoundMessages.clear();
-        Array<Battler> fielded = fieldedBySpeed();
-        // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:287-326
-        //     Grassy Terrain + Healer/Hydration/Shed Skin + Black Sludge/Leftovers,
-        //     then Operation / Aqua Ring / Ingrain. The plugin runs the healing stage
-        //     (:287) BEFORE the poison (:390) and burn (:423) stages, hence this
-        //     position. (insert-only; the rest of the 60+ stage roster is in
-        //     docs/stage4-eor-roster.md)
-        BattleEndOfRound.pbEORHealing(this, fielded);
-        // ↑↑↑ end of inserted wiring
-        for (Battler battler : fielded) {
-            poisonDamage(battler);
-        }
-        for (Battler battler : fielded) {
-            burnDamage(battler);
-        }
-        // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:685-701
-        //     the field-effect countdowns (Trick Room / Gravity / Water Sport /
-        //     Mud Sport / Wonder Room / Magic Room), each with its end message.
-        //     (insert-only)
-        BattleEndOfRound.pbEORFieldCountdowns(this);
-        // ↑↑↑ end of inserted wiring
-        // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:725-738
-        //     Slow Start's end message + Bad Dreams/Moody/Speed Boost +
-        //     Flame Orb/Sticky Barb/Toxic Orb + Harvest/Pickup. (insert-only)
-        BattleEndOfRound.pbEOREffect(this, fielded);
-        // ↑↑↑ end of inserted wiring
-        for (Battler battler : fielded) {
-            battler.effects.set(PBEffects.Battler.Flinch, false);        // Battle_Phase_EndOfRound:760
-        }
+        BattleEndOfRoundPhase.pbEndOfRoundPhase(this);
         endOfRoundZa();
     }
 
-    /** Battle_Phase_EndOfRound:390-422. */
-    private void poisonDamage(Battler battler) {
-        if (battler.fainted() || !"POISON".equals(battler.status)) {
-            return;
-        }
-        // :394-397: the counter only grows while the Pokemon is badly poisoned.
-        if (battler.toxic > 0) {
-            battler.toxic = Math.min(15, battler.toxic + 1);
-        }
-        int rank = battler.pokemon == null ? 0 : battler.pokemon.battleRank;
-        int damage;
-        if (rank > 2) {                                   // :412-413
-            damage = battler.toxic == 0 ? battler.maxHp() / 40
-                    : battler.maxHp() * battler.toxic / 160;
-        } else {                                          // :414-415
-            damage = battler.toxic == 0 ? battler.maxHp() / 8
-                    : battler.maxHp() * battler.toxic / 16;
-        }
-        // :417 b.pbContinueStatus { b.pbReduceHP(dmg,false) } -> Battler_Statuses:443-466:
-        // :462 pbCommonAnimation("Poison"/"Toxic") - NOT TRANSLATED (animation player);
-        // :463 yield -> pbReduceHP (Battler_ChangeSelf:5-17), whose :14
-        // pbHPChanged(self,oldHP,false) animates the data box's HP bar.
-        int oldHP = battler.hp;
-        battler.hp = Math.max(0, battler.hp - Math.max(1, damage));   // :8 amt = 1 if amt<1
-        battler.syncHp();
-        roundEvents.add(RoundEvent.hpChanged(battler.index, oldHP, battler.hp));   // Battler_ChangeSelf:14
-        // :464 @battle.pbDisplay(msg) (:448-450).
-        eorDisplay(battler.thisName() + "因为中毒受到了伤害！");
-        faintFromStatus(battler);                                      // :420 b.pbFaint if b.fainted?
-    }
-
-    /**
-     * {@code pbTakeEffectDamage} (Battler_ChangeSelf:50-58) ends with
-     * {@code pbFaint if fainted?} (:56), so indirect damage that knocks the
-     * Pokemon out shows its line and plays its faint animation too.
-     */
-    private void faintFromStatus(Battler battler) {
-        if (!battler.fainted() || battler.faintedFlag) {           // :66-70
-            return;
-        }
-        endOfRoundMessages.add(battler.thisName() + "倒下了！");       // :71 (end-of-round lines)
-        roundEvents.add(RoundEvent.message(battler.thisName() + "倒下了！", true));   // :71 pbDisplayBrief
-        roundEvents.add(RoundEvent.faint(battler.index));            // :73 pbFaintBattler
-        battler.faintedFlag = true;                                  // :74 -> Battler_Initialize:157
-        battler.cureStatus();                                        // :76-77
-    }
-
-    /** Battle_Phase_EndOfRound:423-436: NEWEST_BATTLE_MECHANICS halves the burn. */
-    private void burnDamage(Battler battler) {
-        if (battler.fainted() || !"BURN".equals(battler.status)) {
-            return;
-        }
-        int rank = battler.pokemon == null ? 0 : battler.pokemon.battleRank;
-        int damage = rank > 2 ? battler.maxHp() / 40                  // :427-428
-                : (NEWEST_BATTLE_MECHANICS ? battler.maxHp() / 16 : battler.maxHp() / 8);
-        // :433 b.pbContinueStatus { b.pbReduceHP(dmg,false) }: :462 the "Burn"
-        // common animation is NOT TRANSLATED; :463 pbReduceHP -> :14 pbHPChanged.
-        int oldHP = battler.hp;
-        battler.hp = Math.max(0, battler.hp - Math.max(1, damage));
-        battler.syncHp();
-        roundEvents.add(RoundEvent.hpChanged(battler.index, oldHP, battler.hp));   // Battler_ChangeSelf:14
-        eorDisplay(battler.thisName() + "因为灼伤受到了伤害！");        // Battler_Statuses:452/:464
-        faintFromStatus(battler);                                      // :436 b.pbFaint if b.fainted?
+    /** {@code pbEndOfRoundPhase}. */
+    public void pbEndOfRoundPhase() {
+        BattleEndOfRoundPhase.pbEndOfRoundPhase(this);
     }
 
     private static int clamp(int value, int lo, int hi) {
@@ -1523,8 +1486,19 @@ public final class Battle {
         if (d != 0) decision = d;
     }
 
-    /** {@code pbJudgeCheckpoint(user,move=nil); end} (Battle_StartAndEnd:547). */
+    /** {@code pbJudgeCheckpoint(user,move=nil)} (PokeBattle_Clauses:25-37). */
     public void pbJudgeCheckpoint(Battler user, BattleMove move) {
+        if (pbAllFainted(0) && pbAllFainted(1)) {                                    // :26
+            if (rules.get("drawclause") != null) {                                   // :27
+                if (!(move != null && "0DD".equals(move.function()))) {              // :28 Not a draw if fainting occurred due to Liquid Ooze
+                    decision = user.opposes(0) ? 1 : 2;                              // :29 win / loss
+                }
+            } else if (rules.get("modifiedselfdestructclause") != null) {            // :31
+                if (move != null && "0E0".equals(move.function())) {                 // :32 Self-Destruct
+                    decision = user.opposes(0) ? 1 : 2;                              // :33
+                }
+            }
+        }
     }
 
     /**
@@ -1867,6 +1841,7 @@ public final class Battle {
     public void display(String msg) {
         roundMessages.add(msg);
         roundEvents.add(RoundEvent.message(msg, false));
+        if (endOfRound) endOfRoundMessages.add(msg);               // the lines of pbEndOfRoundPhase
     }
 
     /**
@@ -1877,6 +1852,7 @@ public final class Battle {
     public void displayBrief(String msg) {
         roundMessages.add(msg);
         roundEvents.add(RoundEvent.message(msg, true));
+        if (endOfRound) endOfRoundMessages.add(msg);               // the lines of pbEndOfRoundPhase
     }
 
     /**

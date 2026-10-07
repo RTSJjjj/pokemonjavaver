@@ -892,6 +892,20 @@ public final class Battler {
             b.effects.set(PBEffects.Battler.SyrupyUser, -1);           // :354
         }
         mirrorHerbUsed = false;                                        // :356
+        // ---- Arceus:38-53 (__pla__pbInitEffects) ----
+        if (batonPass) {                                               // Arceus:40
+            // 登记: Arceus:41-44 swaps @attack/@defense and @spatk/@spdef when PowerShift is passed;
+            //   this runtime has no stat write accessors on Battler (see MoveEffects_000_07F setAttack stubs).
+        } else {
+            effects.set(PBEffects.Battler.VictoryDance, false);        // Arceus:46
+            effects.set(PBEffects.Battler.PowerShift, false);          // Arceus:47
+        }
+        effects.set(PBEffects.Battler.StoneAxe, -1);                   // Arceus:50
+        effects.set(PBEffects.Battler.CeaselessEdge, -1);              // Arceus:51
+        effects.set(PBEffects.Battler.GlaiveRush, 0);                  // Arceus:52
+        // ---- 场地:485-489 (capture_net_pbInitEffects) ----
+        effects.set(PBEffects.Battler.CaptureNet, false);              // 场地:487
+        effects.set(PBEffects.Battler.CaptureNetUser, -1);             // 场地:488
     }
 
     // ---------------------------------------------------------------------
@@ -1502,6 +1516,11 @@ public final class Battler {
 
     /** {@code pbConsumeItem(recoverable,symbiosis,belch)} (Battler_AbilityAndItem:170-180)。 */
     public void pbConsumeItem(boolean recoverable, boolean symbiosis, boolean belch) {
+        boolean customSeed = "BUGLURESEED".equals(item) || "COLDSEED".equals(item);   // 场地:683-686
+        if (customSeed && symbiosis && battle.customTerrainSeedBatch) {              // 场地:688-689
+            battle.pbQueueCustomTerrainSeedSymbiosis(this);                          // 场地:690
+            symbiosis = false;                                                       // 场地:693-694 not now: wait for the other seeds
+        }
         if (recoverable) {                                              // :172
             setRecycleItem(item);                                       // :173
             effects.set(PBEffects.Battler.PickupItem, item == null ? 0 : item); // :174
@@ -4421,5 +4440,227 @@ public final class Battler {
      */
     public boolean movedThisRound() {
         return lastRoundMoved == battle.turnCount();                     // :705
+    }
+
+    // ==================================================================
+    // Stage 5 / 3b: pieces of Battle_Phase_EndOfRound
+    // ==================================================================
+
+    /** {@code @originalZygardeForm} (Battler_ChangeSelf:408 {@code ||=}); null = nil. */
+    public Integer originalZygardeForm;
+
+    /**
+     * {@code shadowPokemon?}: Shadow Pokemon are not modelled in this runtime (same
+     * registration as {@link #inHyperMode()}), so no battler is one.
+     */
+    public boolean shadowPokemon() {
+        return false;
+    }
+
+    /** {@code takesSandstormDamage?} (PokeBattle_Battler:632-639)。 */
+    public boolean takesSandstormDamage() {
+        if (!takesIndirectDamage(false)) return false;                                   // :633
+        if (pbHasType("GROUND") || pbHasType("ROCK") || pbHasType("STEEL")) return false;   // :634
+        if (inTwoTurnAttack("0CA", "0CB")) return false;                                 // :635 Dig, Dive
+        if (hasActiveAbility(new String[]{"OVERCOAT", "SANDFORCE", "SANDRUSH", "SANDVEIL", "DIVINEPACT"})) return false;   // :636
+        if (hasActiveItem("SAFETYGOGGLES")) return false;                                // :637
+        return true;                                                                     // :638
+    }
+
+    /** {@code takesHailDamage?} (PokeBattle_Battler:641-648)。 */
+    public boolean takesHailDamage() {
+        if (!takesIndirectDamage(false)) return false;                                   // :642
+        if (pbHasType("ICE")) return false;                                              // :643
+        if (inTwoTurnAttack("0CA", "0CB")) return false;                                 // :644
+        if (hasActiveAbility(new String[]{"OVERCOAT", "ICEBODY", "SNOWCLOAK", "DIVINEPACT"})) return false;   // :645
+        if (hasActiveItem("SAFETYGOGGLES")) return false;                                // :646
+        return true;                                                                     // :647
+    }
+
+    /** {@code takesShadowSkyDamage?} (PokeBattle_Battler:650-654)。 */
+    public boolean takesShadowSkyDamage() {
+        if (fainted()) return false;                                                     // :651
+        if (shadowPokemon()) return false;                                               // :652
+        return true;                                                                     // :653
+    }
+
+    /** {@code canRebirth?} / {@code setCanRebirth} / {@code reborn?} / {@code setReborn} (PokeBattle_Battler:765-779)。 */
+    public boolean canRebirth() {
+        return battle.canRebirth[index & 1][pokemonIndex];                               // :766
+    }
+
+    public void setCanRebirth(boolean b) {
+        battle.canRebirth[index & 1][pokemonIndex] = b;                                  // :770
+    }
+
+    public boolean reborn() {
+        return battle.rebirth[index & 1][pokemonIndex];                                  // :774
+    }
+
+    public void setReborn() {
+        battle.rebirth[index & 1][pokemonIndex] = true;                                  // :778
+    }
+
+    /** {@code pbTakeEffectDamage(amt,show_anim=true){|hp_lost| }} (Battler_ChangeSelf:50-58)。 */
+    public void pbTakeEffectDamage(int amt, java.util.function.IntConsumer block) {
+        droppedBelowHalfHP = false;                                                      // :51
+        int hpLost = pbReduceHP(amt, true, true, true);                                  // :52
+        if (block != null) block.accept(hpLost);                                         // :53 Show message
+        pbItemHPHealCheck(0, false);                                                     // :54
+        pbAbilitiesOnDamageTaken(hp, -1);                                                // :55 (the plugin passes @hp as oldHP, so the half-HP check never fires)
+        if (fainted()) pbFaint();                                                        // :56
+        droppedBelowHalfHP = false;                                                      // :57
+    }
+
+    /** {@code pbCanSleepYawn?} (Battler_Statuses:322-352)。 */
+    public boolean pbCanSleepYawn() {
+        if (status != null && !status.isEmpty()) return false;                           // :323
+        if (affectedByTerrain()) {                                                       // :324
+            if (battle.field.terrain == PBBattleTerrains.Electric) return false;         // :325
+            if (battle.field.terrain == PBBattleTerrains.Misty) return false;            // :326
+        }
+        if (!hasActiveAbility("SOUNDPROOF")) {                                           // :328
+            for (Battler b : battle.eachBattler()) {                                     // :329
+                if (b.effects.intVal(PBEffects.Battler.Uproar) > 0) return false;        // :330
+            }
+        }
+        if (BattleHandlers.triggerStatusImmunityAbilityNonIgnorable(ability, this, PBStatuses.SLEEP)) {   // :333
+            return false;                                                                // :334
+        }
+        if (abilityActive() && BattleHandlers.triggerStatusImmunityAbility(ability, this, PBStatuses.SLEEP)) {   // :339
+            return false;                                                                // :340
+        }
+        final boolean[] allyBlocks = {false};
+        eachAlly(b -> {                                                                  // :342
+            if (!b.abilityActive()) return;                                              // :343
+            if (!BattleHandlers.triggerStatusImmunityAllyAbility(b.ability, this, PBStatuses.SLEEP)) return;   // :344
+            allyBlocks[0] = true;                                                        // :345
+        });
+        if (allyBlocks[0]) return false;
+        if (pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0) return false;      // :350
+        return true;                                                                     // :351
+    }
+
+    /** {@code pbCheckForm(endOfRound=false)} (Battler_ChangeSelf:350-417)。 */
+    public void pbCheckForm(boolean endOfRound) {
+        if (fainted() || effects.truthy(PBEffects.Battler.Transform)) return;            // :351
+        // Form changes upon entering battle and when the weather changes
+        if (!endOfRound) pbCheckFormOnWeatherChange();                                   // :353
+        // 登记: :354 pbCheckFormOnTerrainChange is not transcribed in this runtime.
+        // Darmanitan - Zen Mode
+        if (isSpecies("DARMANITAN") && "ZENMODE".equals(ability)) {                      // :356
+            if (hp <= maxHp() / 2) {                                                     // :357
+                if (form() != 2 && form() != 3) {                                        // :358
+                    PendingApi.pbShowAbilitySplash(battle, this);                        // :359
+                    PendingApi.pbHideAbilitySplash(battle, this);                        // :360
+                    if (form() == 0) pbChangeFormTransform(2, abilityName() + "启动了！");   // :361
+                    if (form() == 1) pbChangeFormTransform(3, abilityName() + "启动了！");   // :361
+                }
+            } else if (form() != 0 && form() != 1) {                                     // :364
+                PendingApi.pbShowAbilitySplash(battle, this);                            // :365
+                PendingApi.pbHideAbilitySplash(battle, this);                            // :366
+                if (form() == 2) pbChangeFormTransform(0, abilityName() + "启动了！");       // :367
+                if (form() == 3) pbChangeFormTransform(1, abilityName() + "启动了！");       // :368
+            }
+        }
+        // Minior - Shields Down
+        if (isSpecies("MINIOR") && "SHIELDSDOWN".equals(ability)) {                      // :372
+            if (hp > maxHp() / 2) {                                                      // :373 Turn into Meteor form
+                int newForm = form() >= 7 ? form() - 7 : form();                         // :374
+                if (form() != newForm) {                                                 // :375
+                    PendingApi.pbShowAbilitySplash(battle, this);                        // :376
+                    PendingApi.pbHideAbilitySplash(battle, this);                        // :377
+                    pbChangeFormTransform(newForm, abilityName() + "被打破了！");            // :378
+                } else if (!endOfRound) {                                                // :379
+                    battle.display(abilityName() + "被打破了！");                          // :380
+                }
+            } else if (form() < 7) {                                                     // :382 Turn into Core form
+                PendingApi.pbShowAbilitySplash(battle, this);                            // :383
+                PendingApi.pbHideAbilitySplash(battle, this);                            // :384
+                pbChangeFormTransform(form() + 7, abilityName() + "启动了！");              // :385
+            }
+        }
+        // Wishiwashi - Schooling
+        if (isSpecies("WISHIWASHI") && "SCHOOLING".equals(ability)) {                    // :389
+            if (level() >= 20 && hp > maxHp() / 4) {                                     // :390
+                if (form() != 1) {                                                       // :391
+                    PendingApi.pbShowAbilitySplash(battle, this);                        // :392
+                    PendingApi.pbHideAbilitySplash(battle, this);                        // :393
+                    pbChangeFormTransform(1, pbThis() + "的伙伴们聚集起来了！");            // :394
+                }
+            } else if (form() != 0) {                                                    // :396
+                PendingApi.pbShowAbilitySplash(battle, this);                            // :397
+                PendingApi.pbHideAbilitySplash(battle, this);                            // :398
+                pbChangeFormTransform(0, pbThis() + "的伙伴们离去了！");                    // :399
+            }
+        }
+        // Zygarde - Power Construct
+        if (isSpecies("ZYGARDE") && "POWERCONSTRUCT".equals(ability)) {                  // :404
+            if (form() >= 0 && form() <= 3) {                                            // :406
+                if (originalZygardeForm == null) originalZygardeForm = form();           // :408 ||=
+                int newForm = 4;                                                         // :410
+                battle.display(pbThis() + "感觉到许多人的存在！");                          // :411
+                PendingApi.pbShowAbilitySplash(battle, this);                            // :412
+                PendingApi.pbHideAbilitySplash(battle, this);                            // :413
+                pbChangeFormTransform(newForm, "变成了完全体形态！");                        // :414
+            }
+        }
+    }
+
+    private static boolean sameTypes(Array<String> a, Array<String> b) {
+        if (a.size != b.size) return false;
+        for (int k = 0; k < a.size; k++) if (!a.get(k).equals(b.get(k))) return false;
+        return true;
+    }
+
+    private void mimicryTo(String type, String typeNameCn) {
+        if (fainted()) return;
+        Array<String> newTypes = new Array<>();
+        newTypes.add(type);
+        if (!sameTypes(pbTypes(), newTypes)) {
+            pbChangeTypes(newTypes);
+            PendingApi.pbShowAbilitySplash(battle, this);
+            PendingApi.pbHideAbilitySplash(battle, this);
+            battle.display(pbThis() + "变成了" + typeNameCn + "属性！");
+        }
+    }
+
+    /**
+     * {@code pbCheckFormOnTerrainChange} (Battler_ChangeSelf:316-345) under the 场地 wrappers
+     * (Cold :434-451 around Bug Lure :214-231).
+     */
+    public void pbCheckFormOnTerrainChange() {
+        if (battle.field.terrain == PBBattleTerrains.Cold && hasActiveAbility("MIMICRY")) {   // 场地:436
+            mimicryTo("ICE", "冰");                                                          // 场地:438-445
+            return;                                                                          // 场地:447
+        }
+        if (battle.field.terrain == PBBattleTerrains.BugLure && hasActiveAbility("MIMICRY")) {   // 场地:216
+            mimicryTo("BUG", "虫");                                                          // 场地:218-225
+            return;                                                                          // 场地:227
+        }
+        if (fainted()) return;                                                               // :317
+        if (hasActiveAbility("MIMICRY")) {                                                   // :318
+            Array<String> newTypes = pbTypes();                                              // :319
+            Array<String> originalTypes = new Array<>();                                     // :320 [type1,type2] | []
+            Array<String> pt = pokemon.types();
+            for (String t : pt) if (!originalTypes.contains(t, false)) originalTypes.add(t);
+            switch (battle.field.terrain) {                                                  // :321
+                case PBBattleTerrains.Electric: newTypes = new Array<>(new String[]{"ELECTRIC"}); break;   // :322
+                case PBBattleTerrains.Grassy: newTypes = new Array<>(new String[]{"GRASS"}); break;       // :323
+                case PBBattleTerrains.Misty: newTypes = new Array<>(new String[]{"FAIRY"}); break;        // :324
+                case PBBattleTerrains.Psychic: newTypes = new Array<>(new String[]{"PSYCHIC"}); break;    // :325
+                default: newTypes = new Array<>(originalTypes); break;                       // :326
+            }
+            if (!sameTypes(pbTypes(), newTypes)) {                                           // :328
+                pbChangeTypes(newTypes);                                                     // :329
+                PendingApi.pbShowAbilitySplash(battle, this);                                // :330
+                PendingApi.pbHideAbilitySplash(battle, this);                                // :331
+                if (!sameTypes(newTypes, originalTypes)) {                                   // :332
+                    battle.display(pbThis() + "'s type changed to " + PBTypes.getName(battle.pbs(), newTypes.get(0)) + "!");   // :334
+                } else {
+                    battle.display(pbThis() + " returned back to normal!");                  // :341
+                }
+            }
+        }
     }
 }

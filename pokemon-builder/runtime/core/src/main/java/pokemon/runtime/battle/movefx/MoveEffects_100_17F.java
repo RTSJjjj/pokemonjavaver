@@ -3785,7 +3785,7 @@ public final class MoveEffects_100_17F {
      * 的 AI 子系统，本批都未建模。照抄调用形状，不造替代实现。</p>
      */
     private static void pbStartTerrain(Battle battle, Battler user, int newTerrain, boolean fixedDuration) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:741-769 pbStartTerrain（登记：演出+场地子系统未建模）");
+        battle.pbStartTerrain(user, newTerrain, fixedDuration);
     }
 
     // __APPEND_MARKER__

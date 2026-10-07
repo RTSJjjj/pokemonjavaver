@@ -139,15 +139,16 @@ class EndOfRoundTest {
 
         // The engine works on the battler's HP, which syncs back to the Pokemon.
         fielded.hp = maxHp;
-        fielded.toxic = 1;                     // badly poisoned (PBEffects::Toxic)
+        fielded.setStatusCount(1);             // badly poisoned: statusCount>0 (:394), the counter is PBEffects::Toxic
+        fielded.effects.set(PBEffects.Battler.Toxic, 1);
         battle.step();
-        assertEquals(2, fielded.toxic, "the counter grows before the damage (:395)");
+        assertEquals(2, fielded.effects.intVal(PBEffects.Battler.Toxic), "the counter grows before the damage (:395)");
         assertEquals(maxHp - Math.max(1, maxHp * 2 / 16), player.hp, "n/16 with n = 2");
 
-        fielded.toxic = 15;
+        fielded.effects.set(PBEffects.Battler.Toxic, 15);
         fielded.hp = maxHp;
         battle.step();
-        assertEquals(15, fielded.toxic, "the counter is capped at 15 (:396)");
+        assertEquals(15, fielded.effects.intVal(PBEffects.Battler.Toxic), "the counter is capped at 15 (:396)");
         assertEquals(maxHp - Math.max(1, maxHp * 15 / 16), player.hp);
     }
 

@@ -61,15 +61,7 @@ public final class BattleEndOfRound {
      * registered: the runtime has no such helper.
      */
     public static void pbEORCountDownFieldEffect(Battle battle, int effect, String msg) {
-        if (battle.field.effects.intVal(effect) > 0) {                   // :21
-            battle.field.effects.decrement(effect);                      // :22
-            if (battle.field.effects.intVal(effect) == 0) {              // :23
-                battle.display(msg);                                     // :24
-                // :25-27 if effect==PBEffects::MagicRoom
-                //          pbPriority(true).each { |b| b.pbItemTerrainStatBoostCheck }
-                // 登记: Battler#pbItemTerrainStatBoostCheck is not ported.
-            }
-        }
+        BattleEndOfRoundPhase.pbEORCountDownFieldEffect(battle, effect, msg);
     }
 
     /**
