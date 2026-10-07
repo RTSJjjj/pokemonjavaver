@@ -4663,4 +4663,72 @@ public final class Battler {
             }
         }
     }
+
+    // ==================================================================
+    // Arceus:84-175 Frostbite / Drowsy (PLA_STATUS_MODE_FROSTBITE = PLA_STATUS_MODE_DROWSY = 0, Arceus:14-15)
+    // ==================================================================
+
+    /** {@code frostbitten?} (Arceus:87-89)。 */
+    public boolean frostbitten() {
+        return "FROSTBITE".equals(status);                                           // :88
+    }
+
+    /** {@code pbCanFrostbite?(user,showMessages,move=nil)} (Arceus:91-98)。 */
+    public boolean pbCanFrostbite(Battler user, boolean showMessages, BattleMove move) {
+        return pbCanInflictStatus(PBStatuses.FROSTBITE, user, showMessages, move, false);   // :96 (mode 0)
+    }
+
+    /** {@code pbCanFrostbiteSynchronize?(target)} (Arceus:100-103)。 */
+    public boolean pbCanFrostbiteSynchronize(Battler target) {
+        return pbCanSynchronizeStatus(PBStatuses.FROSTBITE, target);                 // :102 (mode 0)
+    }
+
+    /** {@code pbFrostbite(user=nil,msg=nil)} (Arceus:105-112)。 */
+    public void pbFrostbite(Battler user, String msg) {
+        pbInflictStatus(PBStatuses.FROSTBITE, 0, msg, user);                         // :110 (mode 0)
+    }
+
+    /** {@code drowsy?} (Arceus:150-152)。 */
+    public boolean drowsy() {
+        return "DROWSY".equals(status);                                              // :151
+    }
+
+    /** {@code pbCanDrowse?(user,showMessages,move=nil)} (Arceus:154-161)。 */
+    public boolean pbCanDrowse(Battler user, boolean showMessages, BattleMove move) {
+        return pbCanInflictStatus(PBStatuses.DROWSY, user, showMessages, move, false);   // :159 (mode 0)
+    }
+
+    /** {@code pbCanDrowseSynchronize?(target)} (Arceus:163-166)。 */
+    public boolean pbCanDrowseSynchronize(Battler target) {
+        return pbCanSynchronizeStatus(PBStatuses.DROWSY, target);                    // :165 (mode 0)
+    }
+
+    /** {@code pbDrowse(user=nil,msg=nil)} (Arceus:168-175)。 */
+    public void pbDrowse(Battler user, String msg) {
+        pbInflictStatus(PBStatuses.DROWSY, 0, msg, user);                            // :173 (mode 0)
+    }
+
+    /** {@code form=(value)} (PokeBattle_Battler:64-67)。 */
+    public void setForm(int value) {
+        if (pbs != null && pokemon != null) {
+            pokemon.setForm(pbs, value);                                             // :66 @pokemon.form = value
+        }
+    }
+
+    /**
+     * {@code pbItemOpposingStatGainCheck(statUps,item_to_use=0)} (Battler_AbilityAndItem:333-340).
+     * 登记 (plugin defect): :338 passes {@code item_to_use==0} (a boolean) as {@code forcedItem} of
+     * {@code pbHeldItemTriggered}, whose :222 {@code forcedItem<=0} then raises NoMethodError on
+     * {@code true}/{@code false}. Reaching it - the handler returned true - therefore raises here too.
+     */
+    public void pbItemOpposingStatGainCheck(java.util.List<int[]> statUps) {
+        if (fainted()) return;                                                       // :334
+        if (!itemActive()) return;                                                   // :335 item_to_use == 0
+        String itm = item;                                                           // :336
+        Boolean ret = BattleHandlers.triggerItemOnOpposingStatGain(itm, this, battle, statUps, false);   // :337 !item_to_use == !0 == false
+        if (ret != null && ret) {
+            throw new UnsupportedOperationException(
+                    "插件缺陷: Battler_AbilityAndItem:338 pbHeldItemTriggered(itm, true, false) - forcedItem<=0 对布尔值 NoMethodError");
+        }
+    }
 }

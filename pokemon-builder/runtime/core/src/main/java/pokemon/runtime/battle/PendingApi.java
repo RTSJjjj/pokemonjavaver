@@ -99,7 +99,8 @@ public final class PendingApi {
      */
     public static boolean isPledgeMove(BattleMove move) {
         // Wiring: BattleMove.isPledgeMove() == "106"/"107"/"108".equals(function()).
-        throw new UnsupportedOperationException("M0 待接线: BattleHandlers:635 is_a?(PokeBattle_PledgeMove) = function code 106/107/108 (Move_Effects_Generic:708, Move_Effects_100-17F:106/122/138)");
+        String f = move.function();                                    // PokeBattle_PledgeMove = function 106/107/108
+        return "106".equals(f) || "107".equals(f) || "108".equals(f);
     }
 
     /** {@code PBItems.getName(item)} (Compiler_PBS:446 generates {@code def self.getName(id)}). */
@@ -169,22 +170,22 @@ public final class PendingApi {
 
     /** {@code Battler#pbCanFrostbiteSynchronize?(target)} (Arceus:846). */
     public static boolean pbCanFrostbiteSynchronize(Battler battler, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:846 pbCanFrostbiteSynchronize?");
+        return battler.pbCanFrostbiteSynchronize(target);
     }
 
     /** {@code Battler#pbFrostbite(user,msg)} (Arceus:852). */
     public static void pbFrostbite(Battler battler, String msg) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:852 pbFrostbite");
+        battler.pbFrostbite(null, msg);
     }
 
     /** {@code Battler#pbCanDrowseSynchronize?(target)} (Arceus:856). */
     public static boolean pbCanDrowseSynchronize(Battler battler, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:856 pbCanDrowseSynchronize?");
+        return battler.pbCanDrowseSynchronize(target);
     }
 
     /** {@code Battler#pbDrowse(user,msg)} (Arceus:863). */
     public static void pbDrowse(Battler battler, String msg) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:863 pbDrowse");
+        battler.pbDrowse(null, msg);
     }
 
     /**
@@ -204,7 +205,7 @@ public final class PendingApi {
      * rules map yet; only SOULDEW reads it (BattleHandlers_Items:981).
      */
     public static boolean battleRules(Battle battle, String rule) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:148 battle.rules");
+        return battle.rules.get(rule) != null && !Boolean.FALSE.equals(battle.rules.get(rule));   // Ruby truthiness of @rules[rule]
     }
 
     /**
@@ -250,7 +251,7 @@ public final class PendingApi {
      * {@code pokemon.form.form}), and changing the form is state, not presentation.
      */
     public static void setForm(Battler battler, int form) {
-        throw new UnsupportedOperationException("M0 待接线: BattleHandlers_Abilities:2312 battler.form=");
+        battler.setForm(form);
     }
 
     /**
@@ -261,7 +262,7 @@ public final class PendingApi {
      * {@code Battler} method in the plugin, not a defect.
      */
     public static void pbItemOpposingStatGainCheck(Battler battler, java.util.List<int[]> statUps) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_AbilityAndItem:334 pbItemOpposingStatGainCheck");
+        battler.pbItemOpposingStatGainCheck(statUps);
     }
 
     /**
@@ -293,7 +294,7 @@ public final class PendingApi {
      * Needed by COMMANDER (BattleHandlers_Abilities:3000).
      */
     public static boolean isCommander(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:866-869 isCommander?");
+        return battler.isCommander();
     }
 
     /**

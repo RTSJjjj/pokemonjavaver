@@ -2,7 +2,6 @@ package pokemon.runtime.battle;
 
 import pokemon.runtime.battle.movefx.MoveEffect;
 import pokemon.runtime.battle.movefx.MoveEffectRegistry;
-import pokemon.runtime.battle.movefx.MoveFxPendingApi;
 
 /**
  * Stage 4 / L1': the {@code BattleHandlers_Items.rb} registrations assigned to

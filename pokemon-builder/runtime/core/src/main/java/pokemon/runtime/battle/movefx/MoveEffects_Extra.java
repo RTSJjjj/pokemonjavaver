@@ -762,22 +762,22 @@ public final class MoveEffects_Extra {
 
     /** {@code Battler#pbCanFrostbite?(user,showMessages,move)} (Arceus:91-104). */
     private static boolean canFrostbite(Battler target, Battler user, boolean showMessages, BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:91 pbCanFrostbite?");
+        return target.pbCanFrostbite(user, showMessages, move);
     }
 
     /** {@code Battler#pbFrostbite(user=nil,msg=nil)} (Arceus:105-116). */
     private static void frostbite(Battler target, Battler user, String msg) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:105 pbFrostbite");
+        target.pbFrostbite(user, msg);
     }
 
     /** {@code Battler#pbCanDrowse?(user,showMessages,move)} (Arceus:154-167). */
     private static boolean canDrowse(Battler target, Battler user, boolean showMessages, BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:154 pbCanDrowse?");
+        return target.pbCanDrowse(user, showMessages, move);
     }
 
     /** {@code Battler#pbDrowse(user=nil,msg=nil)} (Arceus:168-180). */
     private static void drowse(Battler target, Battler user, String msg) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:168 pbDrowse");
+        target.pbDrowse(user, msg);
     }
 
     /**
@@ -797,7 +797,7 @@ public final class MoveEffects_Extra {
 
     /** {@code @battle.pbStartTerrain(user,terrain)} (场地:134/:352; PokeBattle_Battle:741). */
     private static void startTerrain(Battler user, int terrain) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:741 pbStartTerrain");
+        user.battle.pbStartTerrain(user, terrain);
     }
 
     /** {@code b.pbReduceHP(i.hp/2,false)} (Pokemon_ShadowPokemon:593) - the plugin's NameError line. */

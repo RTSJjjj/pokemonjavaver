@@ -3632,7 +3632,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battler#mega?} (PokeBattle_Battler:148). 本运行时缺此方法。 */
     private static boolean mega(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:148 mega?");
+        return battler.isMega();
     }
 
     /** {@code Battler#canChangeType?} (PokeBattle_Battler:585-589). 本运行时缺此方法。 */
@@ -3688,7 +3688,7 @@ public final class MoveEffects_100_17F {
      * 本运行时缺此方法。
      */
     private static int pbReduceHP(Battler battler, int amount, boolean anim, boolean registerDamage) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:5-17 pbReduceHP(4 参)");
+        return battler.pbReduceHP(amount, anim, registerDamage, true);
     }
 
     /** {@code PBMoves.getName(id)} (Compiler_PBS:446 生成的名称表). 本运行时缺此方法。 */

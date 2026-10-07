@@ -347,6 +347,17 @@ public final class Battle {
         BattleEndOfRoundPhase.pbStartTerrain(this, user, newTerrain, fixedDuration);
     }
 
+    /**
+     * {@code pbFindBattler(idxParty,idxBattlerOther=0)} (PokeBattle_Battle:631-634): the battler that is
+     * the party entry {@code idxParty}, on the side of {@code idxBattlerOther}.
+     */
+    public Battler pbFindBattler(int idxParty, int idxBattlerOther) {
+        for (Battler b : eachSameSideBattler(idxBattlerOther)) {   // :632
+            if (b.pokemonIndex == idxParty) return b;              // :632
+        }
+        return null;                                               // :633
+    }
+
     /** {@code pbAbleCount(idxBattler=0)} (PokeBattle_Battle:327-338): able Pokemon in the party of {@code idxBattler}. */
     public int pbAbleCount(int idxBattler) {
         int count = 0;                                             // :328

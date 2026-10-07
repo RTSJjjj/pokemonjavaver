@@ -7,6 +7,7 @@ import pokemon.runtime.battle.Battle;
 import pokemon.runtime.battle.BattleMove;
 import pokemon.runtime.battle.BattleSide;
 import pokemon.runtime.battle.Battler;
+import pokemon.runtime.battle.BattlerTargeting;
 import pokemon.runtime.battle.PBEffects;
 import pokemon.runtime.battle.PBEnvironment;
 import pokemon.runtime.battle.PBBattleTerrains;
@@ -182,7 +183,7 @@ public final class MoveEffects_000_07F {
      * it is reproduced, not corrected.</p>
      */
     private static Battler pbFindBattler(Battle battle, int idxParty, Battler idxBattlerOther) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:631-638 pbFindBattler");
+        return battle.pbFindBattler(idxParty, idxBattlerOther.index);   // eachSameSideBattler takes a Battler's index (:632)
     }
 
     /** {@code Battler#moves[i] = move} ({@code attr_accessor :moves}, PokeBattle_Battler:12). */
@@ -197,13 +198,13 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#form=} (Move_Effects_000-07F.rb:2664-2665). */
     private static void setForm(Battler battler, int value) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_000-07F.rb:2664 user.form= (Battler 无 form 写访问器)");
+        battler.setForm(value);
     }
 
     /** {@code Battler#pbAddTarget(targets,user,target,move,showMessage)} (Move_Effects_000-07F.rb:2536). */
     private static void battlerPbAddTarget(Battler battler, Array<Battler> targets, Battler target, BattleMove move,
                                            boolean showMessage) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_000-07F.rb:2536 pbAddTarget(targets,user,target,self,false)");
+        BattlerTargeting.pbAddTarget(battler, targets, battler, target, move, showMessage, false);   // Battler_UseMove_Targeting:243 (5th arg is nearOnly)
     }
 
     /**
@@ -214,7 +215,7 @@ public final class MoveEffects_000_07F {
      * not corrected.</p>
      */
     private static void pbChangeTypesWithBattler(Battler user, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_000-07F.rb:2072 pbChangeTypes(target) (插件传的是 Battler)");
+        user.pbChangeTypes(target);
     }
 
     /** Ruby {@code Array#==} for {@code user.pbTypes==target.pbTypes} (Move_Effects_000-07F.rb:2062). */

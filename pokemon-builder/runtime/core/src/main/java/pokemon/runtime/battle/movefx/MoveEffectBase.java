@@ -92,7 +92,16 @@ public class MoveEffectBase implements MoveEffect {
         if (type == null) {
             type = move.type();                          // :77 thisType = @type if !thisType
         }
-        return !MoveFxPendingApi.PBTypes_isSpecialType(type);  // :78
+        return !isSpecialTypeByType(type);  // :78
+    }
+
+    /**
+     * {@code PBTypes.isSpecialType?(type)} (PBTypes_Extra.rb:38-40) for the pre-Gen-4 category rule
+     * ({@code MOVE_CATEGORY_PER_MOVE} false). This project sets it true, so the two callers return
+     * before reaching it; the type table lookup needs a PbsData the move does not carry.
+     */
+    private static boolean isSpecialTypeByType(String type) {
+        throw new UnsupportedOperationException("M0 待接线: PBTypes_Extra.rb:38 isSpecialType? (unreachable while MOVE_CATEGORY_PER_MOVE)");
     }
 
     /** {@code specialMove?(thisType=nil)} (PokeBattle_Move.rb:83-88). */
@@ -108,7 +117,7 @@ public class MoveEffectBase implements MoveEffect {
         if (type == null) {
             type = move.type();                          // :87
         }
-        return MoveFxPendingApi.PBTypes_isSpecialType(type);   // :88
+        return isSpecialTypeByType(type);   // :88
     }
 
     /** {@code damagingMove?} (PokeBattle_Move.rb:90). */
