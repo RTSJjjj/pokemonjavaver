@@ -190,6 +190,10 @@ public final class InteractiveBattlePort implements BattlePort {
         if (session == null || session.result == null) return;
         BattleResult result = session.result; session = null;
         lastResult = result;
+        // pbRecordAndStoreCaughtPokemon (PokeBattle_BattleCommon:55-63): a Pokemon the engine caught (pbThrowPokeBall)
+        // joins the party; the port's own ball() path has already added its own.
+        // 登记: the box messages of pbStorePokemon (:11-38) and the Pokedex entry page (:48-52) are not modelled.
+        if (result.caught != null && !trainer.party.members().contains(result.caught, true)) trainer.addToParty(result.caught);
         for (Pokemon p : trainer.party.members()) trainer.registerOwned(p);
         // PField_Battles:619-658 pbAfterBattle runs before Events.onEndBattle
         // (:656), which is where the white-out lives (:701-706).
@@ -292,6 +296,7 @@ public final class InteractiveBattlePort implements BattlePort {
             battle.badges = trainer.badges;
             battle.setCryPlayer(cryPlayer);       // Battler_UseMove_SuccessChecks:318-319
             battle.scene = new CoroutineScene();   // @scene
+            battle.captureHooks = new BallHooks(); // pbThrowPokeBall's outside world (PokeBattle_BattleCommon:68-232)
             int foeCount = 0;
             for (Array<Pokemon> team : teams) foeCount += team.size;
             // PField_Battles:303-318 / :459-487: the partner trainer joins when there is room for one.
@@ -579,6 +584,36 @@ public final class InteractiveBattlePort implements BattlePort {
             endMessage();
         }
 
+        /** What {@link Battle#pbThrowPokeBall} asks of the player's side: name, ball names, the Bag and {@code pbCaptureCalc}. */
+        private final class BallHooks implements Battle.CaptureHooks {
+            @Override public String playerName() {
+                return trainer.name;                                                    // pbPlayer.name
+            }
+
+            @Override public String itemName(String ball) {
+                PbsData.Item item = data.get().item(ball);
+                return item == null ? ball : item.name;                                 // PBItems.getName(ball)
+            }
+
+            @Override public int ballType(String ball) {
+                return BallTypes.ballType(data.get(), ball);                            // pbGetBallType
+            }
+
+            @Override public void deleteItem(String ball) {
+                inventory.remove(ball, 1);                                              // $PokemonBag.pbDeleteItem(ball,1)
+            }
+
+            @Override public int pbCaptureCalc(Battler target, String ball, int rareness) {
+                CaptureCalculator.Context capture = captureContext(data.get(), target);
+                if (rareness >= 0) capture.rareness = rareness;                         // PokeBattle_BattleCommon:174 `if !rareness`
+                return CaptureCalculator.shakes(capture, ball);
+            }
+
+            @Override public void onCatch(String ball, Pokemon pkmn) {
+                CaptureCalculator.onCatch(data.get(), ball, pkmn);                      // BallHandlers.onCatch
+            }
+        }
+
         /** {@code @scene}: the battle screen plays what the engine waits on. */
         private final class CoroutineScene implements Battle.Scene {
             private final Battle.HeadlessScene headless = new Battle.HeadlessScene();
@@ -603,6 +638,15 @@ public final class InteractiveBattlePort implements BattlePort {
                 Object answer = engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.CONFIRM, -1, false, null,
                         msg, null, false));
                 return Boolean.TRUE.equals(answer);
+            }
+
+            @Override public String pbChooseBallFromBag() {
+                if (!onEngine()) {
+                    return headless.pbChooseBallFromBag();
+                }
+                Object answer = engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.CHOOSE_BALL, -1, false, null,
+                        null, null, false));
+                return answer instanceof String ? (String) answer : null;
             }
 
             @Override public void pbRecall(int idxBattler) {

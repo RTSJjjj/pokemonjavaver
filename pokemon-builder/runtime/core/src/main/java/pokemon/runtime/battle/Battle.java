@@ -489,7 +489,7 @@ public final class Battle {
      */
     public boolean allFainted(int side) {
         for (Battler battler : partyBySide(side)) {
-            if (battler != null && !battler.fainted() && !battler.pokemon.egg) {
+            if (battler != null && !battler.removedFromParty && !battler.fainted() && !battler.pokemon.egg) {
                 return false;
             }
         }
@@ -512,6 +512,7 @@ public final class Battle {
 
     public BattleResult result() {
         if (this.decision == 3) return finish(BattleResult.Outcome.ESCAPE);   // @decision = 3 (Battle_Action_Running:152 etc.)
+        if (this.decision == 4) return finish(BattleResult.Outcome.CAUGHT);   // @decision = 4 "Battle ended by capture" (PokeBattle_BattleCommon:141)
         int decision = judge();
         if (decision == 2) return finish(BattleResult.Outcome.LOSS);
         if (decision == 1) return finish(BattleResult.Outcome.WIN);
@@ -2371,10 +2372,10 @@ public final class Battle {
             battler.syncHp();
         }
         for (Battler battler : foeParty) {
-            battler.syncHp();
+            if (!battler.removedFromParty) battler.syncHp();      // PokeBattle_Battle:576 party[idxParty] = nil: a caught Pokemon is no longer the battler's
         }
         BattleMega.pbEndOfBattle(this);                            // ZA模式:207-222
-        return new BattleResult(outcome, turns, null);
+        return new BattleResult(outcome, turns, caughtPokemon.isEmpty() ? null : caughtPokemon.get(0));
     }
 
     // ==================================================================
@@ -2939,6 +2940,134 @@ public final class Battle {
     /** {@code @runCommand} (PokeBattle_Battle): how often the player tried to flee. */
     public int runCommand;
 
+    /** {@code @caughtPokemon} (PokeBattle_BattleCommon:60-63): the Pokemon caught this battle, stored at the end. */
+    public final java.util.List<Pokemon> caughtPokemon = new java.util.ArrayList<>();
+
+    /**
+     * What {@link #pbThrowPokeBall} needs from outside the engine: the player's name ({@code pbPlayer.name}), the
+     * ball's names and type ({@code PBItems.getName}, {@code pbGetBallType}), the Bag ({@code $PokemonBag}) and
+     * the capture formula's inputs ({@code pbCaptureCalc}, PokeBattle_BattleCommon:170-232). Null in a battle
+     * without a player ({@link HeadlessScene} never picks a ball).
+     */
+    public interface CaptureHooks {
+        String playerName();
+
+        String itemName(String ball);
+
+        int ballType(String ball);
+
+        /** {@code $PokemonBag.pbDeleteItem(ball,1)}. */
+        void deleteItem(String ball);
+
+        /** {@code pbCaptureCalc(pkmn,battler,rareness,ball)}: the number of shakes (4 = capture). */
+        int pbCaptureCalc(Battler target, String ball, int rareness);
+
+        /** {@code BallHandlers.onCatch(ball,self,pkmn)} (:146). */
+        void onCatch(String ball, Pokemon pkmn);
+    }
+
+    public CaptureHooks captureHooks;
+
+    /**
+     * {@code pbRemoveFromParty(idxBattler,idxParty)} (PokeBattle_Battle:573-591): {@code party[idxParty] = nil}.
+     * 登记: this runtime's party is a list of {@link Battler}s that the iteration sites do not expect to be null,
+     * so the entry stays and is flagged ({@link Battler#removedFromParty}); {@link #allFainted(int)} and the
+     * HP write-back skip it. The party order bookkeeping (:579-590) has no counterpart here.
+     */
+    public void pbRemoveFromParty(int idxBattler, int idxParty) {
+        Array<Battler> party = partyOf(idxBattler);                                // :574
+        if (idxParty >= 0 && idxParty < party.size && party.get(idxParty) != null) {
+            party.get(idxParty).removedFromParty = true;                           // :576
+        }
+    }
+
+    /**
+     * {@code pbThrowPokeBall(idxBattler,ball,rareness=nil,showPlayer=false)} (PokeBattle_BattleCommon:68-164).
+     * {@code rareness < 0} stands for Ruby's {@code nil}. The ball's own scene calls ({@code pbThrow},
+     * {@code pbThrowAndDeflect}, {@code pbThrowSuccess}/{@code pbHideCaptureBall}) are the BALL_* round events.
+     * 登记: {@code pbIsSnagBall?} (:100, :146-149) - no Shadow Pokemon / Snag Ball in this runtime;
+     * {@code BallHandlers.onFailCatch} (:119-128) - no ball in this project's list has one;
+     * {@code @criticalCapture} (:110/:114) - the capture calculation here has no critical capture;
+     * {@code @peer.pbOnLeavingBattle} (:159) and {@code forcedForm=nil} (:158) have no counterpart.
+     */
+    public void pbThrowPokeBall(int idxBattler, String ball, int rareness, boolean showPlayer) {
+        CaptureHooks hooks = captureHooks;
+        // Determine which Pokémon you're throwing the Poké Ball at
+        Battler battler;
+        if (opposes(idxBattler, 0)) {                                              // :71 opposes?(idxBattler)
+            battler = battlerAt(idxBattler);                                       // :72
+        } else {
+            battler = battlerAt(idxBattler).pbDirectOpposing(true);                // :75
+        }
+        if (battler.fainted()) {                                                   // :77
+            Battler[] ally = new Battler[1];
+            battler.eachAlly(b -> { if (ally[0] == null) ally[0] = b; });          // :78-81 first ally
+            if (ally[0] != null) battler = ally[0];
+        }
+        // Messages
+        String itemName = hooks.itemName(ball);                                    // :84
+        if (battler.fainted()) {                                                   // :85
+            display(hooks.playerName() + "扔出了" + itemName + "！");               // :86-90
+            display("但是没有目标……");                                              // :91
+            return;                                                                // :92
+        }
+        displayBrief(hooks.playerName() + "扔出了" + itemName + "！");              // :93-97
+        int ballType = hooks.ballType(ball);
+        // Animation of opposing trainer blocking Poké Balls (unless it's a Snag Ball at a Shadow Pokémon)
+        if (trainerBattle) {                                                       // :100
+            roundEvents.add(RoundEvent.ball(RoundEvent.Kind.BALL_DEFLECT, ballType, 0, false, battler.index));   // :101 pbThrowAndDeflect(ball,1)
+            display("训练家打飞了球\n不要做小偷！");                                    // :102
+            return;                                                                // :103
+        } else if (gameSwitches.test(60)) {                                        // :104 不可捕捉的野外对战
+            display("精灵球被破坏了！\n看来只能战胜它了！");                            // :105
+            return;                                                                // :106
+        }
+        // Calculate the number of shakes (4=capture)
+        Pokemon pkmn = battler.pokemon;                                            // :109
+        int numShakes = hooks.pbCaptureCalc(battler, ball, rareness);              // :111
+        // Animation of Ball throw, absorb, shake and capture/burst out
+        roundEvents.add(RoundEvent.ball(RoundEvent.Kind.BALL_THROW, ballType, numShakes, false, battler.index));   // :114 @scene.pbThrow
+        // Outcome message
+        switch (numShakes) {                                                       // :116
+            case 0:
+                display("哦不！\n宝可梦逃出来了！");                                  // :118
+                break;
+            case 1:
+                display("啊！\n还以为能抓住呢……");                                   // :121
+                break;
+            case 2:
+                display("好可惜...\n差一点就能成功了");                               // :124
+                break;
+            case 3:
+                display("真可惜…\n明明只差一点点了。");                                // :127
+                break;
+            case 4:
+                displayBrief("太好了！\n捉到了" + pkmn.name + "！");                  // :130
+                roundEvents.add(RoundEvent.ball(RoundEvent.Kind.BALL_SUCCESS, ballType, 4, false, battler.index));   // :131 pbThrowSuccess (+ :161 pbHideCaptureBall)
+                pbRemoveFromParty(battler.index, battler.pokemonIndex);            // :132
+                // Gain Exp
+                awardCaptureExperience(battler);                                   // :134-138 GAIN_EXP_FOR_CAPTURE: captured=true; pbGainExp
+                battler.pbReset();                                                 // :139
+                if (trainerBattle) {                                               // :140
+                    if (pbAllFainted(battler.index)) decision = 1;                 // :141
+                } else {
+                    if (pbAllFainted(battler.index)) decision = 4;                 // :143 Battle ended by capture
+                }
+                // Modify the Pokémon's properties because of the capture
+                hooks.onCatch(ball, pkmn);                                         // :150 BallHandlers.onCatch
+                if (gameSwitches.test(60)) pkmn.level = 1;                         // :151
+                pkmn.ballused = ballType;                                          // :152 pkmn.ballused = pbGetBallType(ball)
+                pkmn.makeUnmega(pbs);                                              // :153
+                pkmn.makeUnprimal(pbs);                                            // :154
+                pkmn.recordFirstMoves();                                           // :156 pbRecordFirstMoves
+                // Save the Pokémon for storage at the end of battle
+                caughtPokemon.add(pkmn);                                           // :163
+                break;
+            default:
+                break;
+        }
+    }
+
     /** {@code pbDisplayConfirm(msg)} (PokeBattle_Battle:785-787): {@code @scene.pbDisplayConfirmMessage(msg)}. */
     public boolean pbDisplayConfirm(String msg) {
         return scene.pbDisplayConfirmMessage(msg);
@@ -2964,11 +3093,20 @@ public final class Battle {
 
         /** {@code @scene.pbSendOutBattlers(sendOuts,startBattle)} (Scene_Animations:85-143). */
         void pbSendOutBattlers(int[] idxBattlers, boolean startBattle);
+
+        /**
+         * {@code PokemonBagScreen#pbChooseItemScreen(Proc{|item| pbIsPokeBall?(item)})} (PokeBattle_BOSS:168-169): the
+         * Bag opened to pick a Poke Ball. The internal name of the ball, or null when the player backed out
+         * ({@code ball>0} is false, :170/:177).
+         */
+        default String pbChooseBallFromBag() {
+            return null;
+        }
     }
 
     /** One scene call that waits (what {@link Scene} hands over to the battle screen). */
     public static final class SceneCall {
-        public enum Kind { PARTY_SCREEN, CONFIRM, RECALL, SHOW_PARTY_LINEUP, SEND_OUT }
+        public enum Kind { PARTY_SCREEN, CONFIRM, RECALL, SHOW_PARTY_LINEUP, SEND_OUT, CHOOSE_BALL }
 
         public final Kind kind;
         public final int idxBattler;

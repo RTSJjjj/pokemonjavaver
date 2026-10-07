@@ -2037,11 +2037,61 @@ public final class Battler {
         }
     }
 
+    /**
+     * {@code pbCatchBossPokemon(target)} (PokeBattle_BOSS:157-187): a Boss that has run out of HP is not
+     * defeated - the player may throw a Poke Ball at it, otherwise it runs away. {@code ball>0} (:170) is the
+     * chosen ball's internal name being non-null.
+     * 登记: {@code pbSEPlay("Battle flee")} (:160/:178/:183) - the engine has no SE channel (see BattleSwitchAction's
+     * header); {@code resetWindowSize if defined?(PCV)} (:167) - PCV is not defined in this project.
+     */
+    public void pbCatchBossPokemon(Battler target) {
+        if (battle.gameSwitches.test(196)) {                              // :158
+            battle.displayPaused(target.pbThis() + "逃走了...");            // :159
+            battle.decision = 1;                                          // :161
+            return;                                                       // :162
+        }
+        if (battle.pbDisplayConfirm(target.pbThis() + "现在很虚弱！\n要扔出球捕捉吗？")) {   // :166
+            String ball = battle.scene.pbChooseBallFromBag();            // :168-169 screen.pbChooseItemScreen(Proc{pbIsPokeBall?})
+            if (ball != null) {                                           // :170 if ball>0
+                battle.captureHooks.deleteItem(ball);                     // :173 $PokemonBag.pbDeleteItem(ball,1)
+                target.pokemon.resetMoves(battle.pbs());                  // :174
+                target.setHp(1);                                          // :175 target.hp = 1
+                battle.pbThrowPokeBall(target.index, ball, 255, false);   // :176
+            } else {                                                      // :177 Choose not to capture
+                battle.displayPaused(target.pbThis() + "逃走了...");        // :178
+                battle.decision = 1;                                      // :180
+            }
+        } else {
+            battle.displayPaused(target.pbThis() + "逃走了...");            // :183
+            battle.decision = 1;                                          // :185
+        }
+    }
+
+    /**
+     * {@code removedFromParty}: {@code pbRemoveFromParty} (PokeBattle_Battle:573-576) erased this battler's
+     * Pokemon from the party after it was caught ({@link Battle#pbRemoveFromParty}).
+     */
+    public boolean removedFromParty;
+
+    /**
+     * {@code pbReset} (Battler_Initialize:385-397): erases the battler of a caught Pokemon. 登记: {@code @pokemon = nil}
+     * (:386) - {@link #pokemon} is final here; the battler is already out of every able count
+     * ({@link #removedFromParty}) and the Pokemon object now belongs to the player.
+     */
+    public void pbReset() {
+        pokemonIndex = -1;                                                // :387
+        hp = 0;                                                           // :388 @hp (not hp=, so the Pokemon keeps its HP)
+        initEffects(false);                                               // :389
+        participants.clear();                                             // :390
+        status = "";                                                      // :392 @status = NONE
+        statusCount = 0;                                                  // :393
+        battle.pbClearChoice(index);                                      // :395
+    }
+
     /** {@code pbFaint} 的主体（Battler_ChangeSelf:61-99）。 */
     private void pbFaintCore(boolean showMessage) {
         if (pokemon != null && pokemon.battleRank > 1) {                  // :62
-            // :63 pbCatchBossPokemon(self) if @battle.decision == 0
-            //   登记: PokeBattle_BOSS:157 pbCatchBossPokemon 依赖 BOSS 子系统
+            if (battle.decision == 0) pbCatchBossPokemon(this);           // :63
             return;                                                       // :64
         }
         if (!fainted()) {                                                 // :66

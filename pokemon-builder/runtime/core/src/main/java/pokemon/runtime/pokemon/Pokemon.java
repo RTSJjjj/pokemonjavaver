@@ -106,6 +106,30 @@ public final class Pokemon {
         this.exp = PokemonStats.experienceForLevel(growthRate(), this.level);
     }
 
+    /**
+     * {@code resetMoves} (PokeBattle_Pokemon:448-464): the last four distinct moves the species learns up to the
+     * current level. 登记: {@code getMoveList} is {@code species.moves}; a form's own list is not modelled here.
+     */
+    public void resetMoves(PbsData data) {
+        java.util.List<String> moveList = new java.util.ArrayList<>();
+        if (species != null) {
+            for (int i = 0; i < species.moves.size; i++) {                    // :451-452 m[0]<=lvl
+                PbsData.LearnMove learn = species.moves.get(i);
+                if (learn.level <= level) moveList.add(learn.move);
+            }
+        }
+        java.util.Collections.reverse(moveList);                              // :453
+        moveList = new java.util.ArrayList<>(new java.util.LinkedHashSet<>(moveList));   // :454 moveList |= []
+        java.util.Collections.reverse(moveList);                              // :455
+        int listend = Math.max(0, moveList.size() - 4);                       // :456-457
+        moves.clear();
+        for (int i = listend; i < listend + 4; i++) {                          // :459-463
+            if (i >= moveList.size()) continue;                               // :460 moveid 0 = an empty slot
+            PbsData.Move move = data == null ? null : data.move(moveList.get(i));
+            if (move != null) moves.add(new MoveSlot(move));
+        }
+    }
+
     public int baseStat(int index) {
         if (form != null && form.baseStats != null && index < form.baseStats.length) {
             return form.baseStats[index];

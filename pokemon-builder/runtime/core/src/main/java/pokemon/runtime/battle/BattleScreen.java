@@ -1598,6 +1598,19 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     queueRoundMessages();
                 });
                 return;
+            case CHOOSE_BALL:
+                // PokemonBagScreen#pbChooseItemScreen(Proc{|item| pbIsPokeBall?(item)}) (PokeBattle_BOSS:168-169):
+                // the real BW Bag, opened only to pick one Poke Ball.
+                if (bagView == null) bagView = new BagView(context);
+                bagView.chooseItem(item -> {
+                    pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+                    pokemon.runtime.pokemon.PbsData.Item data = pbs == null ? null : pbs.item(item);
+                    return data != null && data.isPokeBall();
+                });
+                ballBagOpen = true;
+                page = 2;
+                window = COMMAND_BOX;
+                return;
             case RECALL:
                 // @scene.pbRecall(idxBattler) (:257): the recall animation and the data box leaving
                 requestKind = call.kind;
@@ -1655,6 +1668,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         window = COMMAND_BOX;
         partyScreenOpen = true;
     }
+
+    /** The engine's {@code pbChooseItemScreen} (a Poke Ball from the Bag, PokeBattle_BOSS:168) is on screen. */
+    private boolean ballBagOpen;
 
     /** {@code idxBattler} of the {@code pbPartyScreen} call in progress. */
     private int partyScreenBattler;
@@ -3789,6 +3805,17 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     }
                     go(0);
                 }
+            }
+            return;
+        }
+
+        // ---- the Bag opened by the engine to pick a Poke Ball (PokeBattle_BOSS:168-170) ----
+        if (page == 2 && bagView != null && ballBagOpen) {
+            if (bagView.update(input)) {
+                ballBagOpen = false;
+                page = 0;
+                session.answer(bagView.pickedItem());              // the item picked, or null: ball>0 is false (:170)
+                queueRoundMessages();
             }
             return;
         }
