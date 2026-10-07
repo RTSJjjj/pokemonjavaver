@@ -11,8 +11,6 @@ import com.badlogic.gdx.utils.Array;
  * <p>登记:
  * <ul>
  * <li>:388-392 Shadow Pokemon introduction: {@link Battler#shadowPokemon()} is false.</li>
- * <li>:399 {@code pbUpdateParticipants}: this runtime has no participants list; experience is
- *     awarded through {@code Battle.pbGainExp}'s bridge.</li>
  * <li>Mega evolution:468-482 {@code za_full_mega_animation?} scenes and {@code battler.pbUpdate(true)}:
  *     scene/graphics only; stats are read from the Pokemon live, so the new form is already in effect.</li>
  * </ul></p>
@@ -86,7 +84,9 @@ public final class BattleSwitching {
                 && ("AMULETCOIN".equals(battler.item) || "LUCKINCENSE".equals(battler.item))) {
             battle.field.effects.set(PBEffects.Field.AmuletCoin, true);               // :396
         }
-        // :399 eachBattler { |b| b.pbUpdateParticipants }: see class javadoc
+        for (Battler b : battle.eachBattler()) {                                      // :399
+            b.pbUpdateParticipants();
+        }
         // Healing Wish / Lunar Dance
         pbActivateHealingWish(battle, battler);                                       // :401
         // Entry hazards

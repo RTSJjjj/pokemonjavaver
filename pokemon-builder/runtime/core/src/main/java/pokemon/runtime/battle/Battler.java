@@ -363,6 +363,8 @@ public final class Battler {
         hitStages[0] = 0;                                        // :133 Accuracy
         hitStages[1] = 0;                                        // :132 Evasion
         turnCount = 0;                                           // :176
+        participants.clear();                                    // :97 @participants = []
+        expAwarded = false;
         faintedFlag = hp == 0;                                   // :157 @fainted = (@hp==0)
     }
 
@@ -4168,8 +4170,19 @@ public final class Battler {
         return BattlerTargeting.pbChangeTargets(this, move, user, targets);
     }
 
-    /** Stand-in for {@code participants} (see {@link Battle#pbGainExp}): set once this battler's Exp was given out. */
+    /** Set once this battler's Exp was given out (the plugin clears {@code participants} instead, Battle_ExpAndMoveLearning:64). */
     public boolean expAwarded;
+
+    /** {@code @participants} (Battler_Initialize:32/:97): the party indices that fought this battler; they earn Exp when it is defeated. */
+    public final java.util.List<Integer> participants = new java.util.ArrayList<>();
+
+    /** {@code pbUpdateParticipants} (Battler_Initialize:400-405). */
+    public void pbUpdateParticipants() {
+        if (fainted() || battle == null || !battle.opposes(index, 0)) return;          // :401
+        for (Battler b : battle.eachOtherSideBattler(index)) {                          // :402 eachOpposing
+            if (!participants.contains(b.pokemonIndex)) participants.add(b.pokemonIndex);   // :403
+        }
+    }
 
     /** {@code pbHyperMode} (Pokemon_ShadowPokemon:400-407): returns at once for any non-Shadow Pokemon, which is all this runtime has. */
     public void pbHyperMode() {

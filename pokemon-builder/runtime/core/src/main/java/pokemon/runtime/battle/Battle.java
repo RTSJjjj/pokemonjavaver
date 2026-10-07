@@ -306,6 +306,12 @@ public final class Battle {
                 b.index = idx;                                    // :180 2*slot+side
             }
         }
+        // 登记: the plugin updates the participants in pbOnActiveOne (Battle_Action_Switching:399) when a Pokemon enters;
+        // a battle assembled by addPlayer/addFoe never runs pbOnActiveOne, so the fielded battlers meet here.
+        for (int idx = 0; idx < fieldParty.length; idx++) {
+            Battler b = battlerAt(idx);
+            if (b != null) b.pbUpdateParticipants();
+        }
         // Battler_Initialize:74 pbInitEffects(false) for every battler that has just taken a slot.
         for (Battler battler : playerParty) {
             if (battler.index >= 0 && !battler.effectsInitialized) {
@@ -889,6 +895,7 @@ public final class Battle {
             }
             turns++;
             roundEvents.clear();       // no scene plays them in a headless battle
+            lastExpAwards.clear();     // nor the exp awards
             runTurn(player(), foe());
         }
         return finish(BattleResult.Outcome.ESCAPE);
@@ -1461,11 +1468,14 @@ public final class Battle {
      * ends, so the awards are waiting for the battle screen's exp stage.
      */
     public void awardCaptureExperience() {
-        Battler captured = foe();
-        Battler receiver = player();
-        if (captured != null && receiver != null) {
-            awardExperience(captured, receiver);
-        }
+        awardCaptureExperience(foe());
+    }
+
+    /** {@code pbGainExp} for a captured battler ({@code b.captured}, Battle_ExpAndMoveLearning:16). */
+    public void awardCaptureExperience(Battler captured) {
+        if (captured == null) return;
+        lastExpAwards.clear();
+        awardParticipants(captured);
     }
 
     /**
@@ -1474,7 +1484,6 @@ public final class Battle {
      * and {@code SPLIT_EXP_BETWEEN_GAINERS = false} (Settings:163).
      */
     private void awardExperience(Battler fainted, Battler receiver) {
-        lastExpAwards.clear();
         lastExpGain = 0;
         if (receiver == null || receiver.pokemon == null || fainted.pokemon == null
                 || fainted.pokemon.species == null) {
@@ -1848,13 +1857,31 @@ public final class Battle {
      * given here once per fainted foe.
      */
     public void pbGainExp() {
-        for (Battler b : foeParty) {                                                 // :13 @battlers.each, next unless b.opposes?
-            if (b != foe() || !b.fainted() || b.expAwarded) continue;                // :16 next unless b.fainted?
-            Battler receiver = player();
-            if (receiver == null || receiver.fainted()) continue;                    // :20 only able participants
-            b.expAwarded = true;                                                     // :64 b.participants = []
-            awardExperience(b, receiver);
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {                         // :13 @battlers.each
+            Battler b = battlerAt(idx);
+            if (b == null || !opposes(idx, 0)) continue;                             // :14 next unless b && b.opposes?
+            if (b.participants.isEmpty()) continue;                                  // :15
+            if (!b.fainted() || b.expAwarded) continue;                              // :16 next unless b.fainted? || b.captured
+            awardParticipants(b);
         }
+    }
+
+    /**
+     * Battle_ExpAndMoveLearning:17-65 for one defeated battler: every able participant of the player's own team
+     * gains Exp ({@code SPLIT_EXP_BETWEEN_GAINERS} is false, so none is split), then the participants are cleared.
+     * 登记: :11/:23-32/:45-56 Exp All and Exp Share are not modelled; :42 pbGainEVsOne is not here.
+     */
+    private void awardParticipants(Battler b) {
+        for (int partic : new java.util.ArrayList<>(b.participants)) {               // :19
+            Array<Battler> p1 = partyOf(0);
+            if (partic < 0 || partic >= p1.size) continue;
+            Battler receiver = p1.get(partic);
+            if (receiver == null || receiver.fainted() || receiver.pokemon.egg) continue;   // :20 able?
+            if (!pbIsOwner(0, partic)) continue;                                     // :20
+            awardExperience(b, receiver);                                            // :43
+        }
+        b.expAwarded = true;                                                         // :64 b.participants = []
+        b.participants.clear();
     }
 
     /**

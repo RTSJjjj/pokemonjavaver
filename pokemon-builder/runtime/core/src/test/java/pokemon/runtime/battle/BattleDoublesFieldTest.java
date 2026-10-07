@@ -169,6 +169,22 @@ class BattleDoublesFieldTest {
         assertEquals(1, b.turns());
     }
 
+    @Test
+    @DisplayName("both of the player's battlers that faced a fainted foe gain Exp (Battle_ExpAndMoveLearning:13-65, Battler_Initialize:400-405)")
+    void expGoesToEveryParticipant(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle b = doubles(data);
+        assertEquals(java.util.Arrays.asList(0, 1), b.battlerAt(3).participants);
+        b.battlerAt(3).hp = 0;
+        b.pbGainExp();
+        assertEquals(2, b.lastExpAwards.size);
+        assertTrue(b.battlerAt(3).expAwarded);
+        assertTrue(b.battlerAt(3).participants.isEmpty(), ":64 b.participants = []");
+        b.lastExpAwards.clear();
+        b.pbGainExp();
+        assertEquals(0, b.lastExpAwards.size, "a defeated battler pays out once");
+    }
+
     private static void write(Path root, String name, String json) throws Exception {
         Path file = root.resolve("pbs").resolve(name);
         Files.createDirectories(file.getParent());
