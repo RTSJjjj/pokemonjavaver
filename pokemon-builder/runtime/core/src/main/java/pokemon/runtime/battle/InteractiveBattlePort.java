@@ -351,12 +351,80 @@ public final class InteractiveBattlePort implements BattlePort {
          * branch (:46) needs PBEffects.
          */
         public boolean canShowFightMenu() {
-            return battle.player() != null && battle.pbCanShowFightMenu(battle.player().index);   // :43-55
+            return battle.player() != null && canShowFightMenu(battle.player().index);
+        }
+
+        public boolean canShowFightMenu(int idxBattler) {
+            return battle.battlerAt(idxBattler) != null && battle.pbCanShowFightMenu(idxBattler);   // :43-55
+        }
+
+        /**
+         * {@code pbCommandPhaseLoop(true)} (Battle_Phase_Command:197-263) for the player: the battlers the player gives
+         * commands to this round, in battler order - the ones that are not forced into an action (:207-208).
+         */
+        public int[] commandBattlers() {
+            java.util.List<Integer> out = new java.util.ArrayList<>();
+            for (int idx = 0; idx <= battle.maxBattlerIndex(); idx++) {
+                if (battle.battlerAt(idx) == null || !battle.pbOwnedByPlayer(idx)) continue;   // :206
+                if (!":None".equals(battle.choices(idx)[0])) continue;                          // :207
+                if (!battle.pbCanShowCommands(idx)) continue;                                  // :208
+                out.add(idx);
+            }
+            int[] ret = new int[out.size()];
+            for (int i = 0; i < ret.length; i++) ret[i] = out.get(i);
+            return ret;
+        }
+
+        /**
+         * {@code pbRegisterMove(idxBattler,slot)} for one battler of a double battle's command phase
+         * (Battle_Phase_Command:84-86): the round does not start yet.
+         *
+         * @return null when the move was registered, else the refusal line ("" = nothing to show)
+         */
+        public String registerMove(int idxBattler, int slot) {
+            if (result != null || battle.battlerAt(idxBattler) == null) return "";
+            String refusal = battle.canChooseMove(idxBattler, slot);
+            if (refusal != null) return refusal;
+            return battle.registerMove(idxBattler, slot) ? null : "";
+        }
+
+        /** {@code move.pbTarget(battler)} of a slot: the target menu's mode. */
+        public int targetType(int idxBattler, int slot) {
+            return battle.pbMoveTargetType(idxBattler, slot);
+        }
+
+        /** {@code pbChooseTarget} (Battle_Phase_Command:98-104): a double battle asks for a target (not a single battle, :87). */
+        public boolean needsTargetChoice() {
+            return !battle.singleBattle();
+        }
+
+        /** {@code pbCreateTargetTexts} (Scene_Commands:371-391). */
+        public String[] targetTexts(int idxBattler, int targetType) {
+            return battle.pbCreateTargetTexts(idxBattler, targetType);
+        }
+
+        /** {@code pbFirstTarget} (Scene_Commands:395-417). */
+        public int firstTarget(int idxBattler, int targetType) {
+            return battle.pbFirstTarget(idxBattler, targetType);
+        }
+
+        /** {@code pbRegisterTarget(idxBattler,idxTarget)} (Battle_Phase_Command:102). */
+        public void registerTarget(int idxBattler, int idxTarget) {
+            battle.pbRegisterTarget(idxBattler, idxTarget);
+        }
+
+        /** {@code pbCancelChoice(idxBattler)} (Battle_Phase_Command:13-23): going back to an earlier battler's command. */
+        public void cancelChoice(int idxBattler) {
+            battle.cancelChoice(idxBattler);
         }
 
         /** {@code pbCanShowCommands?(idxBattler)} (Battle_Phase_Command:35-41). */
         public boolean canShowCommands() {
             return battle.player() != null && battle.pbCanShowCommands(battle.player().index);
+        }
+
+        public boolean canShowCommands(int idxBattler) {
+            return battle.battlerAt(idxBattler) != null && battle.pbCanShowCommands(idxBattler);
         }
 
         // -----------------------------------------------------------------
@@ -515,6 +583,28 @@ public final class InteractiveBattlePort implements BattlePort {
          * {@code pbAutoChooseMove} (Battle_Action_AttacksPriority:36-67): the move the player uses when the
          * fight menu cannot be shown ({@code pbFightMenu:68}) - Encore's move, or Struggle.
          */
+        /**
+         * {@code pbAutoChooseMove(idxBattler)} for one battler of a double battle's command phase: it registers
+         * Encore's move / Struggle and the round does not start. Its lines are taken with {@link #takeEvents()}.
+         */
+        public boolean autoChooseMoveOnly(int idxBattler) {
+            if (result != null || battle.battlerAt(idxBattler) == null) return false;
+            if (battle.battlerAt(idxBattler).fainted()) {          // :38-41
+                battle.clearChoice(idxBattler);
+                return true;
+            }
+            if (battle.pbCanShowFightMenu(idxBattler)) return false;
+            log.clear();
+            engineEvents.clear();
+            battle.roundMessages.clear();
+            battle.roundEvents.clear();
+            battle.pbAutoChooseMove(idxBattler, true);             // :43-67
+            engineEvents.addAll(battle.roundEvents);
+            battle.roundEvents.clear();
+            roundTail();
+            return true;
+        }
+
         public boolean autoChooseMove() {
             if (result != null || battle.player() == null) {
                 return false;
@@ -719,22 +809,38 @@ public final class InteractiveBattlePort implements BattlePort {
          * Battle_Phase_Command:73).
          */
         public boolean canMega() {
-            return result == null && battle.player() != null && battle.pbCanMegaEvolve(battle.player().index);
+            return battle.player() != null && canMega(battle.player().index);
+        }
+
+        public boolean canMega(int idxBattler) {
+            return result == null && battle.battlerAt(idxBattler) != null && battle.pbCanMegaEvolve(idxBattler);
         }
 
         /** {@code pbRegisteredMegaEvolution?} (Scene_Commands:110): the button is pressed. */
         public boolean megaRegistered() {
-            return battle.player() != null && battle.pbRegisteredMegaEvolution(battle.player().index);
+            return battle.player() != null && megaRegistered(battle.player().index);
+        }
+
+        public boolean megaRegistered(int idxBattler) {
+            return battle.battlerAt(idxBattler) != null && battle.pbRegisteredMegaEvolution(idxBattler);
         }
 
         /** {@code pbToggleRegisteredMegaEvolution} (Battle_Phase_Command:77). */
         public void toggleMega() {
-            if (battle.player() != null) battle.pbToggleRegisteredMegaEvolution(battle.player().index);
+            if (battle.player() != null) toggleMega(battle.player().index);
+        }
+
+        public void toggleMega(int idxBattler) {
+            if (battle.battlerAt(idxBattler) != null) battle.pbToggleRegisteredMegaEvolution(idxBattler);
         }
 
         /** {@code pbUnregisterMegaEvolution} (Battle_Phase_Command:80): the fight menu was cancelled. */
         public void unregisterMega() {
-            if (battle.player() != null) battle.pbUnregisterMegaEvolution(battle.player().index);
+            if (battle.player() != null) unregisterMega(battle.player().index);
+        }
+
+        public void unregisterMega(int idxBattler) {
+            if (battle.battlerAt(idxBattler) != null) battle.pbUnregisterMegaEvolution(idxBattler);
         }
         /**
          * {@code pbRecallAndReplace}'s round (:256-262) as {@code pbAttackPhaseSwitch}
@@ -748,11 +854,15 @@ public final class InteractiveBattlePort implements BattlePort {
          * @return null when the switch was registered, else the refusal line.
          */
         public String registerSwitch(int partyIndex) {
+            Battler active = battle.player();
+            return registerSwitch(active == null ? 0 : active.index, partyIndex);
+        }
+
+        /** {@code pbRegisterSwitch(idxBattler,idxParty)} for one battler of the player. */
+        public String registerSwitch(int idxBattler, int partyIndex) {
             if (result != null) {
                 return "";
             }
-            Battler active = battle.player();
-            int idxBattler = active == null ? 0 : active.index;
             String refusal = battle.canSwitch(idxBattler, partyIndex);
             if (refusal != null) {
                 return refusal;                                    // :123

@@ -1718,19 +1718,18 @@ public final class Battle {
      *         refusals that show nothing
      */
     public String canChooseMove(int idxBattler, int slot) {
-        Battler battler = battlerAt(idxBattler);
-        BattleMove move = battler == null ? null : battler.moveSlot(slot);
-        if (move == null) {
-            return "";                                             // :8 !move
+        // pbCanChooseMove? (Battle_Action_AttacksPriority:5-18) with showMessages: the refusal line it would show is
+        // the answer; the events it put in the round are not part of this round.
+        int messages = roundMessages.size;
+        int events = roundEvents.size;
+        boolean ok = pbCanChooseMove(idxBattler, slot, true, false);
+        String refusal = null;
+        if (!ok) {
+            refusal = roundMessages.size > messages ? roundMessages.peek() : "";
         }
-        if (battler.moveSlotPp(slot) == 0 && battler.moveSlotMaxPp(slot) > 0) {
-            return "技能已经没有PP了！";                              // :9-11
-        }
-        // :13-16 the Encore restriction and :17 battler.pbCanChooseMove?
-        // (Battler_UseMove_SuccessChecks:10-...) need PBEffects (Disable, Taunt,
-        // Torment, Imprison, Gravity, Heal Block, ...); none of them exist in
-        // this runtime, so both pass.
-        return null;
+        roundMessages.truncate(messages);
+        roundEvents.truncate(events);
+        return refusal;
     }
 
     // ------------------------------------------------------------------
@@ -1997,6 +1996,24 @@ public final class Battle {
         c[2] = battler.moveSlot(slot);                             // :76 PokeBattle_Move object
         c[3] = -1;                                                 // :77 No target chosen yet
         return true;
+    }
+
+    /** {@code pbChooseTarget}'s data for the screen's target menu (Scene_Commands:371-417). */
+    public String[] pbCreateTargetTexts(int idxBattler, int targetType) {
+        return BattleCommandPhase.pbCreateTargetTexts(this, idxBattler, targetType);
+    }
+
+    /** {@code pbFirstTarget(idxBattler,targetType)} (Scene_Commands:395-417). */
+    public int pbFirstTarget(int idxBattler, int targetType) {
+        return BattleCommandPhase.pbFirstTarget(this, idxBattler, targetType);
+    }
+
+    /** {@code move.pbTarget(battler)} (the target type of the move the battler would use). */
+    public int pbMoveTargetType(int idxBattler, int slot) {
+        Battler battler = battlerAt(idxBattler);
+        BattleMove move = battler == null ? null : battler.moveSlot(slot);
+        if (move == null) return PBTargets.None;
+        return pokemon.runtime.battle.movefx.MoveEffectRegistry.of(move.function()).pbTarget(move, battler);
     }
 
     /** {@code pbRegisterTarget(idxBattler,idxTarget)} (Battle_Action_AttacksPriority:100-102). */

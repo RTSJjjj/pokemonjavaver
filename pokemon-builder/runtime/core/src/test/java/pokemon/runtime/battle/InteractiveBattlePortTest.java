@@ -213,4 +213,49 @@ class InteractiveBattlePortTest {
         assertNull(port.session().partnerFullname);
         assertEquals(1, port.session().battle.pbSideSize(0));
     }
+    @Test void aDoubleBattleTakesACommandPerPlayerBattlerAndRunsOneRound() {
+        // Battle_Phase_Command:197-263: each of the player's battlers chooses a move (and a target, :87-88), then the round runs.
+        trainer.party.add(pokemon(20));
+        port.setBattleSize("double");
+        Pokemon foeA = pokemon(15);
+        Pokemon foeB = pokemon(15);
+        port.freeWildBattle(java.util.Arrays.asList(foeA, foeB));
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+
+        assertArrayEquals(new int[] {0, 2}, session.commandBattlers());
+        assertTrue(session.needsTargetChoice());
+        assertNull(session.registerMove(0, 0));
+        int type = session.targetType(0, 0);
+        assertEquals(PBTargets.NearOther, type);
+        String[] texts = session.targetTexts(0, type);
+        assertNull(texts[0], "a battler is not near itself");
+        assertNotNull(texts[1]);
+        assertNotNull(texts[2], "NearOther includes the ally (Scene_Commands:385)");
+        assertNotNull(texts[3]);
+        assertEquals(3, session.firstTarget(0, type), "the most opposite foe comes first (:408)");
+        session.registerTarget(0, 3);
+        assertNull(session.registerMove(2, 0));
+        session.registerTarget(2, 1);
+        assertEquals(java.util.Arrays.asList(), java.util.Arrays.asList(), "no command is left");
+        int hp1 = battle.battlerAt(1).hp, hp3 = battle.battlerAt(3).hp;
+
+        session.foeTurn();
+
+        assertTrue(battle.battlerAt(1).hp < hp1, "battler 2 hit position 1");
+        assertTrue(battle.battlerAt(3).hp < hp3, "battler 0 hit position 3");
+        assertEquals(1, battle.turns());
+    }
+
+    @Test void goingBackClearsThePreviousBattlersChoice() {
+        trainer.party.add(pokemon(20));
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(20), pokemon(20)));
+        InteractiveBattlePort.Session session = port.session();
+        assertNull(session.registerMove(0, 0));
+        assertEquals(":UseMove", session.battle.choices(0)[0]);
+        session.cancelChoice(0);                                   // Battle_Phase_Command:252
+        assertEquals(":None", session.battle.choices(0)[0]);
+        assertArrayEquals(new int[] {0, 2}, session.commandBattlers());
+    }
 }
