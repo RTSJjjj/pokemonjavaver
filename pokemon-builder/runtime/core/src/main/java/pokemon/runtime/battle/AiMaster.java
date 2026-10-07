@@ -87,7 +87,7 @@ final class AiMaster {
             return;
         }
         boolean asleep = atk.hasStatus("SLEEP") && atk.statusCount > 1;                                 // :1168 IsBankAsleep
-        if (asleep && !AiCalc.moveFunctionInMoveset(atk, "0D1", "0D2")) {                                // no Sleep Talk / Snore
+        if (asleep && !AiCalc.moveFunctionInMoveset(atk, "0B4", "011")) {                                // no Sleep Talk (0B4) / Snore (011)
             ctx.storePrediction(atk, null);
             return;
         }

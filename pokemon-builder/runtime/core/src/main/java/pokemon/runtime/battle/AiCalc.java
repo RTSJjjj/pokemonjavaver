@@ -480,8 +480,8 @@ final class AiCalc {
         return false;
     }
 
-    /** {@code EFFECT_PROTECT}: Protect, Detect, King's Shield, Spiky Shield, Baneful Bunker (not Endure). */
-    static final String[] PROTECT = {"0AA", "149", "14A", "168"};
+    /** {@code EFFECT_PROTECT} function codes, from the movefx classes (Endure 0E8 is a different effect). */
+    static final String[] PROTECT = {"0AA", "14B", "14C", "168"};   // Protect/Detect, King's Shield, Spiky Shield, Baneful Bunker (movefx table)
 
     /** {@code MoveThatCanHelpAttacksHitInMoveset(bank)} (ai_util.c:4207): accuracy-up / evasion-down moves and Lock-On. */
     static boolean moveThatCanHelpAttacksHitInMoveset(AiCtx ctx, Battler b) {
@@ -489,9 +489,8 @@ final class AiCalc {
             BattleMove m = b.moveSlot(i);
             if (m == null) break;
             if (!usable(ctx, b, i)) continue;
-            if (oneOf(m, "0A6") && !named(m, "LASERFOCUS")) return true;                                // EFFECT_LOCK_ON
-            int c = code(m);
-            if (m.statusMove() && (c == 0x2D /* accuracy +1 */ || c == 0x2E || c == 0x4E || c == 0x4F)) return true;   // accuracy up / evasion down
+            if (oneOf(m, "0A6")) return true;                                                           // EFFECT_LOCK_ON (Laser Focus is 15E)
+            if (m.statusMove() && oneOf(m, "048")) return true;                                         // EVASION_DOWN (Sweet Scent); no pure accuracy-up move exists (Hone Claws 029 is ATK_ACC_UP)
         }
         return false;
     }
@@ -596,12 +595,10 @@ final class AiCalc {
                     cls = CLASS_PHAZING;
                 } else if (f.equals("0D7") || f.equals("019")) {                                     // EFFECT_WISH / EFFECT_HEAL_BELL
                     cls = CLASS_CLERIC;
-                } else if (f.equals("0A2")) {                                                        // EFFECT_REFLECT (Reflect, Aurora Veil)
-                    if (named(move, "AURORAVEIL")) {
-                        if (bank.pbOwnSide().effects.intVal(PBEffects.Side.AuroraVeil) == 0) auroraVeil = true;
-                    } else {
-                        reflectionNum++;
-                    }
+                } else if (f.equals("167")) {                                                        // EFFECT_REFLECT / MOVE_AURORAVEIL
+                    if (bank.pbOwnSide().effects.intVal(PBEffects.Side.AuroraVeil) == 0) auroraVeil = true;
+                } else if (f.equals("0A2")) {                                                        // EFFECT_REFLECT
+                    reflectionNum++;
                 } else if (f.equals("0A3")) {                                                        // EFFECT_LIGHT_SCREEN
                     reflectionNum++;
                 } else if (f.equals("0DC")) {                                                        // EFFECT_LEECH_SEED
@@ -671,5 +668,88 @@ final class AiCalc {
 
     static boolean classStall(int c) {
         return c == CLASS_STALL;
+    }
+
+    // ------------------------------------------------------------------
+    // Stat / moveset predicates used by the per-effect cases
+    // ------------------------------------------------------------------
+
+    /** {@code AI_STAT_CAN_RISE(bank,stat)}: the stage is below +6. */
+    static boolean statCanRise(Battler b, int stat) {
+        return b.stage(stat) < 6;
+    }
+
+    /**
+     * {@code CanStatBeLowered(stat,bankDef,bankAtk,defAbility)} (ai_util.c): not at -6, not protected by Mist or a stat-protecting Ability
+     * (Mold Breaker of {@code atk} ignores the Ability). 登记: Shield Dust-like secondary-only cases.
+     */
+    static boolean statCanBeLowered(Battler def, Battler atk, int stat) {
+        if (def.stage(stat) <= -6) return false;
+        if (def.pbOwnSide().effects.intVal(PBEffects.Side.Mist) > 0) return false;
+        if (!atk.hasMoldBreaker()) {
+            if (def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "MIRRORARMOR"})) return false;
+            if (stat == PBStats.ATTACK && def.hasActiveAbility("HYPERCUTTER")) return false;
+            if (stat == PBStats.DEFENSE && def.hasActiveAbility("BIGPECKS")) return false;
+            if (stat == PBStats.ACCURACY && def.hasActiveAbility("KEENEYE")) return false;
+        }
+        return true;
+    }
+
+    /** {@code RealPhysicalMoveInMoveset(bank)}: a usable damaging Physical move. */
+    static boolean physicalMoveInMoveset(AiCtx ctx, Battler b) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = b.moveSlot(i);
+            if (m != null && m.power() > 0 && !m.statusMove() && m.physical() && usable(ctx, b, i)) return true;
+        }
+        return false;
+    }
+
+    /** {@code SpecialMoveInMoveset(bank)}: a usable damaging Special move. */
+    static boolean specialMoveInMoveset(AiCtx ctx, Battler b) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = b.moveSlot(i);
+            if (m != null && m.power() > 0 && !m.statusMove() && !m.physical() && usable(ctx, b, i)) return true;
+        }
+        return false;
+    }
+
+    /** {@code DamagingMoveInMoveset(bank)}. */
+    static boolean damagingMoveInMoveset(AiCtx ctx, Battler b) {
+        return physicalMoveInMoveset(ctx, b) || specialMoveInMoveset(ctx, b);
+    }
+
+    /** {@code GOOD_AI_MOVE_LOCKED} (ai_negatives.c:70): a choice lock or Encore is a reason not to set up. */
+    static boolean goodAiMoveLocked(AiCtx ctx, Battler atk) {
+        return ctx.goodAi() && (choiceLocked(atk) || atk.effects.intVal(PBEffects.Battler.Encore) > 0);
+    }
+
+    /** {@code IsTrickRoomActive() && !IsTrickRoomOnLastTurn()}. */
+    static boolean trickRoomNotEnding(Battle battle) {
+        return battle.field.effects.intVal(PBEffects.Field.TrickRoom) > 1;
+    }
+
+    /** {@code CanBePutToSleep(bankDef,bankAtk,TRUE)}. 登记: Sweet Veil's ally check, Flower Veil. */
+    static boolean canBePutToSleep(Battle battle, Battler def, Battler atk) {
+        if (def.statused()) return false;
+        if (def.fainted()) return false;
+        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"INSOMNIA", "VITALSPIRIT", "SWEETVEIL", "COMATOSE"})) return false;
+        if (def.pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0 && !atk.hasActiveAbility("INFILTRATOR")) return false;
+        int terrain = battle.terrain();
+        if (!def.airborne() && (terrain == PBBattleTerrains.Electric || terrain == PBBattleTerrains.Misty)) return false;
+        return true;
+    }
+
+    /** {@code MoveBlockedBySubstitute(move,bankAtk,bankDef)}. */
+    static boolean blockedBySubstitute(BattleMove move, Battler atk, Battler def) {
+        return def.effects.intVal(PBEffects.Battler.Substitute) > 0 && !has(move, 'k') && !atk.hasActiveAbility("INFILTRATOR");
+    }
+
+    /** {@code DamagingMoveTypeInMoveset(bank,type)}. */
+    static boolean damagingTypeInMoveset(AiCtx ctx, Battler b, String type) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = b.moveSlot(i);
+            if (m != null && !m.statusMove() && type.equals(fx(m).pbCalcType(m, b)) && usable(ctx, b, i)) return true;
+        }
+        return false;
     }
 }

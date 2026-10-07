@@ -122,9 +122,11 @@ final class AiNegatives {
         if (weather == PBWeather.HarshSun && "WATER".equals(moveType) && !status) return clamp(dec(viability, 20));
         if (weather == PBWeather.HeavyRain && "FIRE".equals(moveType) && !status) return clamp(dec(viability, 20));
 
-        // Check Move Effects (:667): the effects without a transcribed case fall into the default branch.
+        // Check Move Effects (:667); the effects without a transcribed case fall into the default branch.
+        AiNegativeEffects.Result effect = AiNegativeEffects.apply(ctx, atk, def, move, viability);
+        viability = effect.viability;
         // AI_STANDARD_DAMAGE (:3246)
-        if (!status) {
+        if (effect.standardDamage && !status) {
             if (AiCalc.noEffect(battle, atk, def, move)) viability = dec(viability, 15);              // :3249 MOVE_RESULT_NO_EFFECT | MISSED
         }
         if (viability < 0) return 0;                                                                  // :3263

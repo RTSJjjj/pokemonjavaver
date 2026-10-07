@@ -34,6 +34,12 @@ class AiCfruTest {
                 + "\",\"accuracy\":100,\"pp\":" + pp + ",\"effectChance\":0,\"target\":\"NearOther\",\"priority\":0,\"flags\":\"a\"}";
     }
 
+    private static String status(String id, String function) {
+        return "\"" + id + "\":{\"id\":" + (id.hashCode() & 0x7fff) + ",\"internalName\":\"" + id + "\",\"name\":\"" + id
+                + "\",\"function\":\"" + function + "\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\","
+                + "\"accuracy\":100,\"pp\":20,\"effectChance\":0,\"target\":\"User\",\"priority\":0,\"flags\":\"\"}";
+    }
+
     private static String species(String id, int n, String type, int hp, int atk, int def, int spd, String ability) {
         return "\"" + id + "\":{\"id\":" + n + ",\"internalName\":\"" + id + "\",\"name\":\"" + id + "\",\"types\":[\"" + type
                 + "\"],\"baseStats\":[" + hp + "," + atk + "," + def + "," + spd + "," + atk + "," + def + "],\"rareness\":45,"
@@ -48,7 +54,8 @@ class AiCfruTest {
                 + species("GHOSTY", 2, "GHOST", 80, 80, 80, 40, "NONE") + ","
                 + species("DUCK", 3, "WATER", 80, 80, 80, 40, "WATERABSORB") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
-        write(tempDir, "moves.json", "{\"total\":4,\"moves\":{"
+        write(tempDir, "moves.json", "{\"total\":6,\"moves\":{"
+                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + ","
                 + move("TACKLE", 40, "NORMAL", "Physical", 35) + "," + move("STRONGHIT", 90, "NORMAL", "Physical", 15) + ","
                 + move("WATERGUN", 40, "WATER", "Special", 25) + "," + move("SURF", 90, "WATER", "Special", 15) + "}}");
         write(tempDir, "types.json", "{\"total\":3,\"types\":{"
@@ -113,10 +120,18 @@ class AiCfruTest {
     }
 
     @Test
-    @DisplayName("scratch: step() with the old AI path")
-    void scratchStepOldPath() {
-        Battler foe = foe("GHOSTY", 50, "HERO", 50, "STRONGHIT", "WATERGUN");
-        foe.battle.trainerBattle = false;
-        foe.battle.step();
+    @DisplayName("a +2 Attack move at +6 Attack is -10 (ai_negatives.c:931-948) and the damaging move is chosen")
+    void maxedSetUpMoveIsAvoided() {
+        Battler foe = foe("FAT", 50, "HERO", 50, "SWORDSDANCE", "TACKLE");
+        foe.stages[0] = 6;
+        for (int i = 0; i < 10; i++) assertEquals(1, AiMaster.chooseMove(foe.battle, foe, new Random(i)));
+    }
+
+    @Test
+    @DisplayName("a sleep move on a target that already has a status is -10 (ai_negatives.c:775-780)")
+    void sleepOnStatusedTargetIsAvoided() {
+        Battler foe = foe("FAT", 50, "HERO", 50, "SPORE", "TACKLE");
+        foe.battle.player().setStatus("BURN");
+        for (int i = 0; i < 10; i++) assertEquals(1, AiMaster.chooseMove(foe.battle, foe, new Random(i)));
     }
 }

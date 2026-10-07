@@ -19,8 +19,14 @@ wild battles keep `BattleAi.handles` (rank < 2); wild Bosses (rank >= 2) and sin
 - `AiPositives` - `AIScript_Positives` tail + `DamageMoveViabilityIncrease` (single battle) + `IncreaseViabilityForSlowKOMove`.
 - `AiUtil`, `AiSignature` - earlier helpers; `AiSignature` (original-move bonus) is still not called.
 
+## Batch 2 (done)
+`AiNegativeEffects`: ai_negatives.c effect cases for Sleep (:760), Absorb/Strength Sap (:782), Explosion (:800, `OKAY_WITH_AI_SUICIDE` is defined in CFRU's
+config.h), Dream Eater, Splash, Teleport, all stat-raising effects (:931-1228) and stat-lowering effects (:1240-1325). Function codes are now checked
+against the movefx class list (e.g. King's Shield 14B, Spiky Shield 14C, Aurora Veil 167, Sleep Talk 0B4, Snore 011, Laser Focus 15E); batch 1's wrong
+guesses were corrected. Any effect without a case runs `AI_STANDARD_DAMAGE`, as in C.
+
 ## Not yet transcribed (explicit, in order of value)
-1. `AIScript_Negatives` per-effect `switch (moveEffect)` (ai_negatives.c:664-3244) - until then a status move is never penalised.
+1. `AIScript_Negatives` effect cases from ai_negatives.c:1342 (Haze GOOD_AI branch) onward: Bide, Roar, Conversion, Poison/Paralyze/Burn/Confuse, Attract, Leech Seed, Protect, Substitute, hazards, weather, healing, ... (:1342-3244).
 2. `AIScript_Positives` per-effect `switch` (ai_positives.c:55-2722): set-up moves, status, hazards, healing, Protect...
 3. Target-ability cases needing `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (ai_negatives.c:222-324).
 4. `BadIdeaToMakeContactWith`, `BetterToKOLastFoeMon`, `HasUsedMove` history, `usingDesperateMove`, `NoUsableHazardsInMoveset`,
@@ -30,4 +36,4 @@ wild battles keep `BattleAi.handles` (rank < 2); wild Bosses (rank >= 2) and sin
 ## Function-code mappings used (Essentials numbering; not checked against this project's moves.json)
 Counter/Mirror Coat/Metal Burst 071-073, Future Sight 111, Explosion 0E0, Recharge 0C2, charge turn 0C3-0CE, OHKO 070, fixed damage 06A-06F,
 Protect 0AA/149/14A/168, Roar 0EB, Haze 051, Wish 0D7, Heal Bell 019, Reflect 0A2, Light Screen 0A3, Leech Seed 0DC, healing 0D5/0D6/0D8/114,
-Spikes 103-105/153, stat-boost status 01C-03B, Sleep Talk/Snore 0D1/0D2, Lock-On 0A6. Verify against the generated `moves.json` before relying on them.
+Spikes 103-105/153, stat-boost status 01C-03B, Sleep Talk/Snore 0B4/011, Lock-On 0A6. Verify against the generated `moves.json` before relying on them.
