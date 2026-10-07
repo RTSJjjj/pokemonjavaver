@@ -54,8 +54,8 @@ class AiCfruTest {
                 + species("GHOSTY", 2, "GHOST", 80, 80, 80, 40, "NONE") + ","
                 + species("DUCK", 3, "WATER", 80, 80, 80, 40, "WATERABSORB") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
-        write(tempDir, "moves.json", "{\"total\":6,\"moves\":{"
-                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + ","
+        write(tempDir, "moves.json", "{\"total\":7,\"moves\":{"
+                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + ","
                 + move("TACKLE", 40, "NORMAL", "Physical", 35) + "," + move("STRONGHIT", 90, "NORMAL", "Physical", 15) + ","
                 + move("WATERGUN", 40, "WATER", "Special", 25) + "," + move("SURF", 90, "WATER", "Special", 15) + "}}");
         write(tempDir, "types.json", "{\"total\":3,\"types\":{"
@@ -133,5 +133,16 @@ class AiCfruTest {
         Battler foe = foe("FAT", 50, "HERO", 50, "SPORE", "TACKLE");
         foe.battle.player().setStatus("BURN");
         for (int i = 0; i < 10; i++) assertEquals(1, AiMaster.chooseMove(foe.battle, foe, new Random(i)));
+    }
+
+    @Test
+    @DisplayName("a healing move at full HP is -10 (ai_negatives.c:1493) and a damaging move is chosen; below 90% it is not penalised")
+    void healingAtFullHp() {
+        Battler foe = foe("FAT", 50, "HERO", 50, "RECOVER", "TACKLE");
+        for (int i = 0; i < 10; i++) assertEquals(1, AiMaster.chooseMove(foe.battle, foe, new Random(i)));
+        int base = AiNegatives.score(new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST), foe, foe.battle.player(), foe.moveSlot(0), 100);
+        assertEquals(90, base);
+        foe.setHp(foe.maxHp() / 2);
+        assertEquals(100, AiNegatives.score(new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST), foe, foe.battle.player(), foe.moveSlot(0), 100));
     }
 }

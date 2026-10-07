@@ -199,10 +199,174 @@ final class AiNegativeEffects {
             if (!AiCalc.statCanBeLowered(def, atk, PBStats.EVASION)) r.viability -= 10; else substituteCheck(move, atk, def, r);
         } else if (f.equals("051")) {                                                             // EFFECT_HAZE (:1325): GOOD_AI branch needs CountUsefulBoosts/Debuffs - 登记
             // :1325-1339 only runs for AI flags <= SEMI_SMART; :1342 `if (GOOD_AI)` boost counting is 登记 (CountUsefulBoosts).
-        } else {
-            r.standardDamage = !move.statusMove() || true;                                        // default: AI_STANDARD_DAMAGE (:3246)
+        } else if (!part2(ctx, atk, def, move, r)) {
+            r.standardDamage = true;                                                              // default: AI_STANDARD_DAMAGE (:3246)
         }
         return r;
+    }
+
+    /**
+     * Part 2 (ai_negatives.c:1397-1790): recovery, Rest, Poison/Toxic, Light Screen/Reflect, OHKO, recoil, Mist, Focus Energy,
+     * Confuse, Transform, Paralyze, Substitute, Recharge, Leech Seed, Endeavor, Pain Split, Snore, Sleep Talk, Counter.
+     * 登记: Conversion/Reflect Type (:1397-1445), Spite/Mimic/Disable/Encore/Conversion 2 and the Counter "tried the same last turn" branch
+     * (:1700-1787) need the last-used-move history, which this runtime does not keep; those effects stay on the default branch.
+     *
+     * @return true when the function code has a case here (so it does not fall to AI_STANDARD_DAMAGE unless the case sets it)
+     */
+    private static boolean part2(AiCtx ctx, Battler atk, Battler def, BattleMove move, Result r) {
+        Battle battle = ctx.battle;
+        String f = move.function();
+        String atkAbility = atk.ability == null ? "" : atk.ability;
+        String defAbility = atk.hasMoldBreaker() || def.ability == null ? "" : def.ability;
+        BattleMove predicted = ctx.prediction(def);
+        int hpPct = AiCalc.healthPercent(atk);
+        switch (f) {
+            case "0D5": case "0D6": case "0D8": case "0D9": {                                     // EFFECT_RESTORE_HP / MORNING_SUN (:1457), EFFECT_REST (:1507)
+                if (f.equals("0D9") && !AiCalc.canRest(battle, atk)) r.viability -= 10;           // EFFECT_REST: CanRest, then AI_RECOVERY
+                if (ctx.goodAi() && AiCalc.takingSecondaryDamage(battle, def)) {                  // DEFAULT_RECOVERY, very smart AI, single battle
+                    if (hpPct == 100) r.viability -= 1;
+                    return true;
+                }
+                if (hpPct == 100) r.viability -= 10;
+                else if (hpPct >= 90) r.viability -= 9;
+                return true;
+            }
+            case "005": case "006": {                                                             // EFFECT_POISON / TOXIC (:1513)
+                if (AiCalc.noEffect(battle, atk, def, move)) {
+                    r.viability -= 10;
+                } else if (!AiCalc.canBePoisoned(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) {
+                    r.viability -= 10;                                                            // AI_POISON_CHECK
+                }
+                return true;
+            }
+            case "0A3": {                                                                         // EFFECT_LIGHT_SCREEN (:1530)
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.LightScreen) > 0) r.viability -= 10;
+                return true;                                                                      // 登记: HasUsedMoveWithEffect(Brick Break/Defog) history
+            }
+            case "070": {                                                                         // EFFECT_0HKO (:1538)
+                if (AiCalc.noEffect(battle, atk, def, move) || (!atk.hasMoldBreaker() && "STURDY".equals(defAbility))
+                        || atk.level() < def.level() || (AiCalc.named(move, "SHEERCOLD") && def.hasType("ICE"))) {
+                    r.viability -= 10;
+                }
+                return true;
+            }
+            case "10B": {                                                                         // EFFECT_RECOIL_IF_MISS (:1549)
+                if (!"MAGICGUARD".equals(atkAbility) && AiCalc.hitChance(battle, atk, def, move) < 75) r.viability -= 6;
+                r.standardDamage = true;
+                return true;
+            }
+            case "056": {                                                                         // EFFECT_MIST (:1556)
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Mist) > 0) r.viability -= 10;
+                return true;
+            }
+            case "023": {                                                                         // EFFECT_FOCUS_ENERGY (:1562)
+                if (atk.effects.intVal(PBEffects.Battler.FocusEnergy) > 0) r.viability -= 10;
+                return true;
+            }
+            case "0FA": case "0FB": case "0FC": case "0FD": case "0FE": case "170": {            // EFFECT_RECOIL (:1568); Mind Blown is half max HP
+                if ("MAGICGUARD".equals(atkAbility) || "ROCKHEAD".equals(atkAbility)) {
+                    r.standardDamage = true;
+                    return true;
+                }
+                int recoil = AiCalc.finalDamage(ctx, move, atk, def, 1);
+                if (f.equals("0FA")) recoil = Math.max(1, recoil / 4);
+                else if (f.equals("0FB") || f.equals("0FD") || f.equals("0FE")) recoil = Math.max(1, recoil / 3);
+                else if (f.equals("0FC")) recoil = Math.max(1, recoil / 2);
+                else {
+                    if (AiCalc.blockedBySubstitute(move, atk, def)) {
+                        r.viability -= 9;
+                        r.standardDamage = true;
+                        return true;
+                    }
+                    recoil = Math.max(1, atk.maxHp() / 2);
+                }
+                if (recoil >= atk.hp && AiUtil.benchAlive(battle, def) + 1 > 1) {                  // Recoil kills attacker; foe has more than 1 target left
+                    if (!AiCalc.knocksOutXHits(ctx, move, atk, def, 1) || canKnockOutWithoutMove(ctx, move, atk, def)) r.viability -= 4;
+                }
+                r.standardDamage = true;
+                return true;
+            }
+            case "013": {                                                                         // EFFECT_CONFUSE (:1604)
+                if (!AiCalc.canBeConfused(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                return true;
+            }
+            case "069": {                                                                         // EFFECT_TRANSFORM (:1616)
+                if (atk.effects.truthy(PBEffects.Battler.Transform)
+                        || def.effects.truthy(PBEffects.Battler.Transform) || def.effects.intVal(PBEffects.Battler.Substitute) > 0) r.viability -= 10;
+                return true;
+            }
+            case "0A2": {                                                                         // EFFECT_REFLECT default (:1634)
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Reflect) > 0) r.viability -= 10;
+                return true;                                                                      // 登记: HasUsedMoveWithEffect(Brick Break/Defog) history
+            }
+            case "167": {                                                                         // MOVE_AURORAVEIL (:1625)
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.AuroraVeil) > 0
+                        || (battle.pbWeather() != PBWeather.Hail && battle.pbWeather() != PBWeather.Snow)) r.viability -= 10;
+                return true;
+            }
+            case "007": {                                                                         // EFFECT_PARALYZE (:1647)
+                if (!AiCalc.canBeParalyzed(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) {
+                    r.viability -= 10;
+                } else if (!AiCalc.named(move, "GLARE") && AiCalc.noEffect(battle, atk, def, move)) {
+                    r.viability -= 10;
+                }
+                return true;
+            }
+            case "10C": {                                                                         // EFFECT_SUBSTITUTE (:1662)
+                if (atk.effects.intVal(PBEffects.Battler.Substitute) > 0 || AiCalc.healthPercent(atk) <= 25) r.viability -= 10;
+                else if (defAbility.equals("INFILTRATOR") || soundMoveInMoveset(ctx, def)) r.viability -= 8;
+                return true;
+            }
+            case "0C2": {                                                                         // EFFECT_RECHARGE (:1674)
+                if (!"TRUANT".equals(atkAbility) && AiCalc.knocksOutXHits(ctx, move, atk, def, 1)
+                        && canKnockOutWithoutMove(ctx, move, atk, def)) r.viability -= 9;
+                r.standardDamage = true;
+                return true;
+            }
+            case "0DC": {                                                                         // EFFECT_LEECH_SEED (:1729)
+                if (def.hasType("GRASS") || def.effects.intVal(PBEffects.Battler.LeechSeed) != -1
+                        || "LIQUIDOOZE".equals(defAbility)) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "06E": {                                                                         // EFFECT_ENDEAVOR (:1786)
+                if (atk.hp > (atk.hp + def.hp) / 2) r.viability -= 10;
+                else r.standardDamage = true;
+                return true;
+            }
+            case "05A": {                                                                         // EFFECT_PAIN_SPLIT (:1793)
+                if (atk.hp > (atk.hp + def.hp) / 2) r.viability -= 10;
+                return true;
+            }
+            case "011": {                                                                         // EFFECT_SNORE (:1798)
+                boolean asleep = atk.hasStatus("SLEEP") && atk.statusCount > 1;
+                if (!asleep && !"COMATOSE".equals(atkAbility)) r.viability -= 10;
+                else r.standardDamage = true;
+                return true;
+            }
+            case "0B4": {                                                                         // EFFECT_SLEEP_TALK (:1806)
+                boolean asleep = atk.hasStatus("SLEEP") && atk.statusCount > 1;
+                if (!asleep && !"COMATOSE".equals(atkAbility)) r.viability -= 10;
+                return true;
+            }
+            case "071": case "072": case "073": {                                                 // EFFECT_COUNTER / MIRROR_COAT (:1707)
+                if (predicted == null || predicted.statusMove() || AiCalc.blockedBySubstitute(predicted, def, atk)) r.viability -= 10;
+                if (f.equals("073") && AiCalc.moveWouldHitFirst(ctx, move, atk, def)) r.viability -= 10;   // Metal Burst can go first and fail
+                r.standardDamage = true;                                                          // 登记: the previousMovePredictions branch (:1717-1725)
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
+    /** {@code SoundMoveInMoveset(bank)}. */
+    private static boolean soundMoveInMoveset(AiCtx ctx, Battler b) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = b.moveSlot(i);
+            if (m != null && AiCalc.has(m, 'k')) return true;
+        }
+        return false;
     }
 
     /** {@code AI_SUBSTITUTE_CHECK:} (:1246). */

@@ -240,7 +240,7 @@ final class AiCalc {
         }
         if (b.hasStatus("SLEEP") && b.effects.truthy(PBEffects.Battler.Nightmare)) dmg += Math.max(1, max / 4);   // GetNightmareDamage
         if (b.effects.intVal(PBEffects.Battler.Trapping) > 0) dmg += Math.max(1, max / 8);                        // GetTrapDamage
-        if (b.effects.intVal(PBEffects.Battler.LeechSeed) >= 0 && b.effects.intVal(PBEffects.Battler.LeechSeed) != -1) {
+        if (b.effects.intVal(PBEffects.Battler.LeechSeed) != -1) {
             dmg += Math.max(1, max / 8);                                                  // GetLeechSeedDamage
         }
         if (b.hasStatus("POISON") && !b.hasActiveAbility("POISONHEAL")) {
@@ -751,5 +751,52 @@ final class AiCalc {
             if (m != null && !m.statusMove() && type.equals(fx(m).pbCalcType(m, b)) && usable(ctx, b, i)) return true;
         }
         return false;
+    }
+
+    /** {@code GetHealthPercentage(bank)} (0..100). */
+    static int healthPercent(Battler b) {
+        return AiUtil.hpPercent(b);
+    }
+
+    private static boolean statusBlockedByTerrainOrSafeguard(Battle battle, Battler def, Battler atk) {
+        if (def.pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0 && !atk.hasActiveAbility("INFILTRATOR")) return true;
+        return battle.terrain() == PBBattleTerrains.Misty && !def.airborne();
+    }
+
+    /** {@code CanBePoisoned(bankDef,bankAtk,TRUE)}. 登记: Leaf Guard / Flower Veil, Pastel Veil. */
+    static boolean canBePoisoned(Battle battle, Battler def, Battler atk) {
+        if (def.statused() || def.fainted()) return false;
+        if (!atk.hasActiveAbility("CORROSION") && (def.hasType("POISON") || def.hasType("STEEL"))) return false;
+        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"IMMUNITY", "COMATOSE", "PASTELVEIL"})) return false;
+        return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
+    }
+
+    /** {@code CanBeParalyzed(bankDef,bankAtk,TRUE)}. */
+    static boolean canBeParalyzed(Battle battle, Battler def, Battler atk) {
+        if (def.statused() || def.fainted() || def.hasType("ELECTRIC")) return false;
+        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"LIMBER", "COMATOSE"})) return false;
+        return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
+    }
+
+    /** {@code CanBeBurned(bankDef,bankAtk,TRUE)}. */
+    static boolean canBeBurned(Battle battle, Battler def, Battler atk) {
+        if (def.statused() || def.fainted() || def.hasType("FIRE")) return false;
+        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"WATERVEIL", "WATERBUBBLE", "COMATOSE", "THERMALEXCHANGE"})) return false;
+        return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
+    }
+
+    /** {@code CanBeConfused(bankDef,bankAtk,TRUE)}. */
+    static boolean canBeConfused(Battle battle, Battler def, Battler atk) {
+        if (def.fainted() || def.effects.intVal(PBEffects.Battler.Confusion) > 0) return false;
+        if (!atk.hasMoldBreaker() && def.hasActiveAbility("OWNTEMPO")) return false;
+        return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
+    }
+
+    /** {@code CanRest(bank)}: below full HP, not asleep or Insomniac, terrain permitting. */
+    static boolean canRest(Battle battle, Battler b) {
+        if (b.hp >= b.maxHp() || b.hasStatus("SLEEP")) return false;
+        if (b.hasActiveAbility(new String[] {"INSOMNIA", "VITALSPIRIT", "COMATOSE"})) return false;
+        int terrain = battle.terrain();
+        return !( (terrain == PBBattleTerrains.Electric || terrain == PBBattleTerrains.Misty) && !b.airborne());
     }
 }
