@@ -106,7 +106,7 @@ public final class BattleMega {
         if (battler.effects.intVal(PBEffects.Battler.SkyDrop) >= 0) return false;    // :94
         if (!pbHasMegaRing(battle, idxBattler)) return false;                        // :95
         int side = battler.idxOwnSide();                                             // :96
-        return battle.megaEvolution[side][0] == -1;                                  // :97-98 (owner 0)
+        return battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] == -1;                                  // :97-98 (owner)
     }
 
     /** {@code pbRegisterMegaEvolution(idxBattler)} (:101-105) under the ZA wrapper (ZA:65-79). */
@@ -114,13 +114,13 @@ public final class BattleMega {
         Battler battler = battle.battlerAt(idxBattler);
         if (!battle.zaMode) {                                                        // ZA:68
             int side = battler.idxOwnSide();                                         // :102
-            battle.megaEvolution[side][0] = idxBattler;                              // :104
+            battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = idxBattler;                              // :104
             return true;                                                             // (Ruby returns the assigned index; truthy)
         }
         if (!pbCanMegaEvolve(battle, idxBattler)) return false;                      // ZA:70
         if (battler == null) return false;                                           // ZA:72
         int side = battler.idxOwnSide();                                             // ZA:73
-        battle.megaEvolution[side][0] = idxBattler;                                  // ZA:75
+        battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = idxBattler;                                  // ZA:75
         if (!battle.zaMegaRequests[side].contains(idxBattler)) battle.zaMegaRequests[side].add(idxBattler);   // ZA:76
         return true;                                                                 // ZA:77
     }
@@ -130,12 +130,12 @@ public final class BattleMega {
         Battler battler = battle.battlerAt(idxBattler);
         if (!battle.zaMode) {                                                        // ZA:84
             int side = battler.idxOwnSide();                                         // :108
-            if (battle.megaEvolution[side][0] == idxBattler) battle.megaEvolution[side][0] = -1;   // :110
+            if (battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] == idxBattler) battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = -1;   // :110
             return;
         }
         if (battler != null) {                                                       // ZA:87
             int side = battler.idxOwnSide();                                         // ZA:88
-            if (battle.megaEvolution[side][0] == idxBattler) battle.megaEvolution[side][0] = -1;   // ZA:90
+            if (battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] == idxBattler) battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = -1;   // ZA:90
             battle.zaMegaRequests[side].remove(Integer.valueOf(idxBattler));         // ZA:91
         }
     }
@@ -145,10 +145,10 @@ public final class BattleMega {
         Battler battler = battle.battlerAt(idxBattler);
         if (!battle.zaMode) {                                                        // ZA:99
             int side = battler.idxOwnSide();                                         // :114
-            if (battle.megaEvolution[side][0] == idxBattler) {                       // :116
-                battle.megaEvolution[side][0] = -1;                                  // :117
+            if (battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] == idxBattler) {                       // :116
+                battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = -1;                                  // :117
             } else {
-                battle.megaEvolution[side][0] = idxBattler;                          // :119
+                battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = idxBattler;                          // :119
             }
             return;
         }
@@ -165,7 +165,7 @@ public final class BattleMega {
     public static boolean pbRegisteredMegaEvolution(Battle battle, int idxBattler) {
         Battler battler = battle.battlerAt(idxBattler);
         if (!battle.zaMode) {                                                        // ZA:115
-            return battle.megaEvolution[battler.idxOwnSide()][0] == idxBattler;      // :124-126
+            return battle.megaEvolution[battler.idxOwnSide()][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] == idxBattler;      // :124-126
         }
         if (battler == null) return false;                                           // ZA:118
         return battle.zaMegaRequests[battler.idxOwnSide()].contains(idxBattler);     // ZA:119
@@ -240,7 +240,7 @@ public final class BattleMega {
         }
         battle.display(battler.pbThis() + "超级进化为\n" + megaName + "！");            // :439
         int side = battler.idxOwnSide();                                             // :441
-        battle.megaEvolution[side][0] = -2;                                          // :443
+        battle.megaEvolution[side][battle.pbGetOwnerIndexFromBattlerIndex(idxBattler)] = -2;                                          // :443
         // 特殊效果
         if (battler.isSpecies("GENGAR") && battler.isMega()) {                       // :446
             battler.effects.set(PBEffects.Battler.Telekinesis, 0);                   // :447
@@ -397,7 +397,7 @@ public final class BattleMega {
         for (Battler b : battle.pbPriority(false)) {                                 // :96
             if (battle.wildBattle() && b.opposes(0) && b.pokemon.battleRank <= 2) continue;   // :97
             if (!(":UseMove".equals(battle.choices(b.index)[0]) && !b.fainted())) continue;  // :98
-            if (battle.megaEvolution[b.idxOwnSide()][0] != b.index) continue;        // :99-100 (owner 0)
+            if (battle.megaEvolution[b.idxOwnSide()][battle.pbGetOwnerIndexFromBattlerIndex(b.index)] != b.index) continue;        // :99-100 (owner)
             pbMegaEvolve(battle, b.index);                                           // :101
         }
     }
@@ -405,7 +405,7 @@ public final class BattleMega {
     /** The Mega Evolution inside {@code pbPursuit} (Battle_Phase_Attack:35-39). */
     public static void pbPursuitMegaEvolve(Battle battle, Battler b) {
         if (!battle.wildBattle() || !b.opposes(0)) {                                 // :36
-            if (battle.megaEvolution[b.idxOwnSide()][0] == b.index) {                // :38
+            if (battle.megaEvolution[b.idxOwnSide()][battle.pbGetOwnerIndexFromBattlerIndex(b.index)] == b.index) {                // :38
                 pbMegaEvolve(battle, b.index);
             }
         }

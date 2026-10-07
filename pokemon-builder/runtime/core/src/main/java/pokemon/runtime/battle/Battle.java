@@ -57,7 +57,7 @@ public final class Battle {
     @SuppressWarnings("unchecked")
     public final java.util.List<Integer>[] zaMegaRequests = new java.util.List[]{new java.util.ArrayList<Integer>(), new java.util.ArrayList<Integer>()};
     /** {@code @megaEvolution} (PokeBattle_Battle:152-155): {@code [side][owner]} = -1 free, the battler index when registered, -2 used. */
-    public final int[][] megaEvolution = {{-1}, {-1}};
+    public final int[][] megaEvolution = {{-1, -1}, {-1, -1}};
     /** {@code za_full_mega_animation?} (Mega evolution:366-369): {@code $PokemonSystem.mega_animation == 0}. */
     public boolean fullMegaAnimation = true;
     /** {@code $PokemonBag.pbHasItem?(item)} for the player. */
@@ -423,11 +423,9 @@ public final class Battle {
         roundStarted = false;
         roundMessages.clear();
         roundEvents.clear();
-        Battler foe = foe();
-        Battler player = player();
-        if (foe != null && player != null) {
-            chooseFor(foe, player, null);                          // Battle_Phase_Command
-            BattleAttackPhase.pbAttackPhase(this);                 // the player's switch/item was played by the screen
+        if (foe() != null && player() != null) {
+            pbChooseAll(false);                                    // Battle_Phase_Command (the player's own action was played by the screen)
+            BattleAttackPhase.pbAttackPhase(this);
         }
         endOfTurn();
         refreshFieldIndices();
@@ -899,8 +897,7 @@ public final class Battle {
     private void runTurn(Battler player, Battler foe) {
         // Battle_Phase_Command: every battler stores its choice (:183 pbClearChoice runs
         // after the round, below).
-        chooseFor(player, foe, playerController);
-        chooseFor(foe, player, null);
+        pbChooseAll(true);
         BattleAttackPhase.pbAttackPhase(this);                     // Battle_StartAndEnd pbAttackPhase
         // Battle_StartAndEnd:381-386: pbBattleLoop breaks before
         // pbEndOfRoundPhase when a move decided the battle, so the end of round
@@ -1196,13 +1193,11 @@ public final class Battle {
     /** The battlers on the field, fastest first ({@code pbPriority(true)}). */
     private Array<Battler> fieldedBySpeed() {
         Array<Battler> fielded = new Array<>();
-        Battler player = player();
-        Battler foe = foe();
-        if (player != null) {
-            fielded.add(player);
-        }
-        if (foe != null) {
-            fielded.add(foe);
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler b = battlerAt(idx);
+            if (b != null) {
+                fielded.add(b);
+            }
         }
         fielded.sort((a, b) -> b.speed() - a.speed());
         return fielded;
@@ -1233,12 +1228,10 @@ public final class Battle {
         roundMessages.clear();
         roundEvents.clear();
         roundStarted = true;
-        Battler foe = foe();
-        Battler player = player();
-        if (foe == null || player == null) {
+        if (foe() == null || player() == null) {
             return;
         }
-        chooseFor(foe, player, null);                              // Battle_Phase_Command
+        pbChooseAll(false);                                        // Battle_Phase_Command
         BattleAttackPhase.pbAttackPhasePrologue(this);             // :171-184
         attackPhasePrepared = true;
         pbPursuit(idxSwitcher);                                    // :59
@@ -1917,11 +1910,29 @@ public final class Battle {
      * picked here (the controller / the plugin's AI, or Struggle via
      * {@code pbAutoChooseMove} :63-66).
      */
+    /**
+     * Battle_Phase_Command: every battler on the field stores its choice. A battler that already has an action
+     * (a registered move, switch, item or run) keeps it. The player's own battlers are skipped when
+     * {@code includePlayer} is false (the screen played their action).
+     */
+    private void pbChooseAll(boolean includePlayer) {
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler b = battlerAt(idx);
+            if (b == null) continue;
+            boolean player = pbOwnedByPlayer(idx);
+            if (player && !includePlayer) continue;
+            chooseFor(b, b.pbDirectOpposing(false), player ? playerController : null);
+        }
+    }
+
     private void chooseFor(Battler user, Battler foe, Controller controller) {
         if (user == null || user.index < 0 || user.index >= choicesStore.length) {
             return;
         }
         Object[] c = choicesStore[user.index];
+        if (":SwitchOut".equals(c[0]) || ":UseItem".equals(c[0]) || ":Shift".equals(c[0]) || ":Run".equals(c[0])) {
+            return;                                                // registered by pbRegisterSwitch / item / shift / run
+        }
         if (":UseMove".equals(c[0]) && c[2] != null && user.hasUsableMove()) {
             return;                                                // registered by pbRegisterMove
         }
@@ -1980,7 +1991,7 @@ public final class Battle {
             if (move == null || move.statusMove()) {
                 continue;
             }
-            float typeMod = pbs == null ? 1f : pbs.effectiveness(move.type(), foe.types());
+            float typeMod = pbs == null || foe == null ? 1f : pbs.effectiveness(move.type(), foe.types());
             if (typeMod <= 0f) {
                 continue;
             }

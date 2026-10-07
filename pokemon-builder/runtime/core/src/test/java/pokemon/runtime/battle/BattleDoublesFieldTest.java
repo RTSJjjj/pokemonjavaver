@@ -140,6 +140,35 @@ class BattleDoublesFieldTest {
         assertSame(b.foeParty().get(1), b.battlerAt(3));
     }
 
+    @Test
+    @DisplayName("a headless 2v2 plays whole rounds: four battlers choose, faint ones are replaced, one side wins")
+    void headlessDoubles(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle b = new Battle(data, new Random(7), (user, target, moves) -> 0);
+        b.trainerBattle = true;
+        b.setSideSizes(2, 2);
+        for (int i = 0; i < 3; i++) b.addPlayer(pokemon(data, "HERO"));
+        for (int i = 0; i < 3; i++) b.addFoe(pokemon(data, "FOE"));
+        BattleResult result = b.run(100);
+        assertEquals(BattleResult.Outcome.WIN, result.outcome);
+        assertTrue(b.foeParty().get(0).fainted() && b.foeParty().get(1).fainted() && b.foeParty().get(2).fainted());
+    }
+
+    @Test
+    @DisplayName("every battler of a double battle stores a choice before the attack phase (Battle_Phase_Command)")
+    void everyBattlerChooses(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle b = doubles(data);
+        b.pbCalculatePriority(true, null);
+        BattleResult r = b.step();
+        assertNull(r);
+        for (int idx = 0; idx < 4; idx++) {
+            // the choices were reset for the next round after the round ran (:183)
+            assertEquals(":None", b.choices(idx)[0]);
+        }
+        assertEquals(1, b.turns());
+    }
+
     private static void write(Path root, String name, String json) throws Exception {
         Path file = root.resolve("pbs").resolve(name);
         Files.createDirectories(file.getParent());
