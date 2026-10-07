@@ -118,7 +118,7 @@ class MegaEvolutionTest {
                 + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"}]}}}");
         write(root, "moves.json", "{\"total\":1,\"moves\":{"
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
-                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20}}}");
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":1,\"abilities\":{"
                 + "\"OVERGROW\":{\"id\":65,\"internalName\":\"OVERGROW\",\"name\":\"Overgrow\"}}}");
         write(root, "types.json", "{\"total\":1,\"types\":{"

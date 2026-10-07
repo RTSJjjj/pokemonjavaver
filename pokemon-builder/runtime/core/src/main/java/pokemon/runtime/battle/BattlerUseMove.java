@@ -42,6 +42,54 @@ public final class BattlerUseMove {
     }
 
     // ------------------------------------------------------------------
+    // Turn processing (:5-66)
+    // ------------------------------------------------------------------
+
+    /**
+     * {@code pbProcessTurn(choice,tryFlee=true)} (:5-66): one battler's action of the
+     * round. Returns true when the battler acted ({@code advance} in
+     * {@code pbAttackPhaseMoves}).
+     *
+     * <p>Registered: {@code :8-16} "Wild roaming Pokemon always flee"
+     * reads {@code @battle.rules["alwaysflee"]} (battle rules are not modelled);
+     * {@code :18-41} Shift only does something on a side of 2 or more
+     * ({@link Battle#pbSideSize}); {@code :64} {@code pbCalculatePriority}
+     * (DYNAMIC_PRIORITY, Settings:161) has no priority table to refresh - the
+     * singles order is computed once per round by {@code Battle.runTurn}.</p>
+     */
+    public static boolean pbProcessTurn(Battler self, Object[] choice, boolean tryFlee) {
+        Battle battle = self.battle;
+        if (self.fainted()) return false;                                            // :6
+        // Shift with the battler next to this one
+        if (":Shift".equals(choice[0])) {                                            // :18
+            // :19-36 idxOther stays -1 on a side of size 1: nothing is swapped, nothing is shown
+            self.pbBeginTurn(choice);                                                // :37
+            self.pbCancelMoves();                                                    // :38
+            self.lastRoundMoved = battle.turnCount();                                // :39 Done something this round
+            return true;                                                             // :40
+        }
+        // If this battler's action for this round wasn't "use a move"
+        if (!":UseMove".equals(choice[0])) {                                         // :43
+            // Clean up effects that end at battler's turn
+            self.pbBeginTurn(choice);                                                // :45
+            self.pbEndTurn(choice);                                                  // :46
+            return false;                                                            // :47
+        }
+        // Turn is skipped if Pursuit was used during switch
+        if (self.effects.truthy(PBEffects.Battler.Pursuit)) {                        // :50
+            self.effects.set(PBEffects.Battler.Pursuit, false);                      // :51
+            self.pbCancelMoves();                                                    // :52
+            self.pbEndTurn(choice);                                                  // :53
+            battle.pbJudge();                                                        // :54
+            return false;                                                            // :55
+        }
+        // Use the move
+        self.pbUseMove(choice, isStruggle(self, (BattleMove) choice[2]));            // :60
+        battle.pbJudge();                                                            // :62
+        return true;                                                                 // :65
+    }
+
+    // ------------------------------------------------------------------
     // Simple "use move" method (:152-165)
     // ------------------------------------------------------------------
 
@@ -597,7 +645,7 @@ public final class BattlerUseMove {
         // Show move animation (for this hit)
         fx.pbShowAnimation(move, move.id(), user, targets, hitNum, true);            // :688
         // Type-boosting Gem consume animation/message
-        if (user.effects.truthy(PBEffects.Battler.GemConsumed) && hitNum == 0) {     // :690
+        if (user.effects.stringVal(PBEffects.Battler.GemConsumed) != null && hitNum == 0) {     // :690 GemConsumed>0 (an item name here; 0 = none)
             // NOTE: The consume animation and message for Gems are shown now, but the actual removal of the item happens in pbEffectsAfterMove.
             battle.commonAnimation("UseItem", user);                                 // :693
             PbsData.Item gem = battle.pbs().item(user.effects.stringVal(PBEffects.Battler.GemConsumed));

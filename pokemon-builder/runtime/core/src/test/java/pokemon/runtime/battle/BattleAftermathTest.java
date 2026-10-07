@@ -47,11 +47,11 @@ class BattleAftermathTest {
                 + "\"weight\":110.0,\"genderRate\":\"Genderless\",\"evolutions\":[]}}}");
         write(tempDir, "moves.json", "{\"total\":3,\"moves\":{"
                 + "\"IRONHEAD\":{\"id\":442,\"internalName\":\"IRONHEAD\",\"name\":\"铁头\","
-                + "\"power\":80,\"type\":\"STEEL\",\"category\":\"Physical\",\"pp\":15},"
+                + "\"function\":\"000\",\"power\":80,\"type\":\"STEEL\",\"category\":\"Physical\",\"pp\":15,\"target\":\"NearOther\"},"
                 + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"撞击\","
-                + "\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35},"
+                + "\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35,\"target\":\"NearOther\"},"
                 + "\"GROWL\":{\"id\":45,\"internalName\":\"GROWL\",\"name\":\"叫声\","
-                + "\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"pp\":40}}}");
+                + "\"function\":\"001\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"pp\":40,\"target\":\"NearOther\"}}}");
         // Pickup's pools must be complete (18 + 11 entries, :773-774), so the
         // fixture carries exactly the plugin's lists.
         StringBuilder items = new StringBuilder();

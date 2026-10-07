@@ -86,7 +86,7 @@ class BattleSwitchingTest {
         battle.addPlayer(pokemon(data, "HERO", 20));
         Battler incoming = battle.playerParty().get(1);
         incoming.stages[0] = 3;
-        incoming.confusion = 4;
+        incoming.effects.set(PBEffects.Battler.Confusion, 4);
         incoming.turnCount = 7;
         assertEquals(0, battle.player().index);
 
@@ -97,7 +97,7 @@ class BattleSwitchingTest {
         assertEquals(0, incoming.index);                           // refreshFieldIndices
         // pbInitEffects(false) (:127-176): stages, confusion and turnCount reset.
         assertEquals(0, incoming.stages[0]);
-        assertEquals(0, incoming.confusion);
+        assertEquals(0, incoming.effects.intVal(PBEffects.Battler.Confusion));
         assertEquals(0, incoming.turnCount);
         assertFalse(battle.replace(0, 9), "an out-of-range party slot is refused");
     }
@@ -285,7 +285,7 @@ class BattleSwitchingTest {
                 + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"}]}}}");
         write(root, "moves.json", "{\"total\":1,\"moves\":{"
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
-                + "\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20}}}");
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":0,\"abilities\":{}}");
         write(root, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"

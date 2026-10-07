@@ -56,9 +56,10 @@ public final class BattleSuccessChecks {
     private BattleSuccessChecks() {
     }
 
-    /** {@code unseenfist} (Battler_UseMove_SuccessChecks:404 and friends). */
-    private static boolean unseenFist(Battle battle, Battler user) {
-        return user.hasActiveAbility("UNSEENFIST") && !battle.moldBreaker;
+    /** {@code unseenfist} (Battler_UseMove_SuccessChecks:387-388). */
+    private static boolean unseenFist(BattleMove move, Battler user) {
+        return ("UNSEENFIST".equals(user.ability) || "PIERCINGDRILL".equals(user.ability))
+                && MoveEffectRegistry.of(move.function()).contactMove(move);       // :387-388 && move.contactMove?
     }
 
     /** The plugin's {@code hasMoldBreaker?}: the ability, or the field flag. */
@@ -74,6 +75,14 @@ public final class BattleSuccessChecks {
     public static boolean pbSuccessCheckAgainstTarget(Battle battle, BattleMove move,
                                                       Battler user, Battler target) {
         MoveEffect effect = MoveEffectRegistry.of(move.function());
+        // :384 @battle.moldBreaker = user.hasMoldBreaker? || (move.statusMove? && user.hasActiveAbility?(:MYCELIUMMIGHT)) if !@battle.moldBreaker
+        if (!battle.moldBreaker) {
+            battle.moldBreaker = user.hasMoldBreaker()
+                    || (effect.statusMove(move) && user.hasActiveAbility("MYCELIUMMIGHT"));
+        }
+        if (target.hasActiveItem("ABILITYSHIELD")) battle.moldBreaker = false;             // :385
+        // :386-388 Unseen Fist
+        boolean unseenfist = unseenFist(move, user);
         // :389-390 typeMod = move.pbCalcTypeMod(move.calcType,user,target)
         int typeMod = effect.pbCalcTypeMod(move, move.calcType(), user, target);
         target.damageState.typeMod = typeMod;
@@ -95,12 +104,15 @@ public final class BattleSuccessChecks {
         //     display("{1}周围变得十分奇妙！") ; return false
         //
         // :403-410 Crafty Shield
-        boolean unseenfist = unseenFist(battle, user);
+        // 登记 (plugin defect): :404 ends in `!move.function == "18E"`, which parses as
+        //   `(!move.function) == "18E"` i.e. `false == "18E"` - always false - so this
+        //   Crafty Shield block can never run in the plugin. Transcribed as written.
+        final boolean craftyShieldTail = false;                                                // :404 !move.function == "18E"
         if (target.pbOwnSide().effects.truthy(PBEffects.Side.CraftyShield)                    // :403
                 && user.index != target.index
                 && effect.statusMove(move)
                 && effect.pbTarget(move, user) != PBTargets.AllBattlers                        // :404
-                && !unseenfist && !"18E".equals(move.function())) {
+                && !unseenfist && craftyShieldTail) {
             battle.commonAnimation("CraftyShield", target);                                    // :405
             battle.display("戏法防守保护了" + target.pbThis(true) + "！");                     // :406
             target.damageState.protectedFlag = true;                                           // :407
@@ -224,8 +236,11 @@ public final class BattleSuccessChecks {
         if (effect.pbImmunityByAbility(move, user, target)) {
             return false;
         }
-        // :529-533 Type immunity - already handled in Battle#execute (:531-533 there), so
-        // it is not repeated here. (DamageCalc also relies on the caller having returned.)
+        // :529-533 Type immunity
+        if (effect.pbDamagingMove(move) && PBTypes.ineffective(typeMod)) {                      // :529
+            battle.display("这不能影响" + target.pbThis(true) + "……");                         // :531
+            return false;                                                                        // :532
+        }
         // :535-540 Dark-type immunity to moves made faster by Prankster
         if (Battle.NEWEST_BATTLE_MECHANICS && user.effects.truthy(PBEffects.Battler.Prankster)  // :535
                 && target.pbHasType("DARK") && target.opposes(user)) {                          // :536
@@ -286,6 +301,12 @@ public final class BattleSuccessChecks {
                 return false;
             }
         }
-        return true;
+        // :590-596 Substitute
+        if (target.effects.intVal(PBEffects.Battler.Substitute) > 0 && effect.statusMove(move)
+                && !effect.ignoresSubstitute(move, user) && user.index != target.index) {        // :591-592
+            battle.display(target.pbThis(true) + "避开了攻击!");                                  // :594
+            return false;                                                                        // :595
+        }
+        return true;                                                                             // :597
     }
 }

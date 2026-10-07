@@ -64,9 +64,11 @@ class BattleRoundEventsTest {
     }
     private void move(String id, String type, int power, String category, String function) {
         PbsData.Move m = new PbsData.Move();
+        m.id = data.moves.size + 1;                                   // PBS ids start at 1; id 0 is "no move" (Battler_UseMove:193)
         m.internalName = id; m.name = id; m.type = type; m.power = power;
         m.category = category; m.pp = 20; m.accuracy = 0;             // 0 = never misses (:128)
-        m.function = function;
+        m.function = function == null ? "000" : function;            // every moves.txt row has a function code
+        m.target = "NearOther";                                    // moves.txt always has a target
         data.moves.put(id, m);
     }
     private Pokemon mon(String species, int level, String moveId) {
@@ -204,7 +206,7 @@ class BattleRoundEventsTest {
         boolean seen = false;
         for (long seed = 0; seed < 60 && !seen; seed++) {
             Battle battle = battle(mon("NORM", 50, "SPLASH"), mon("NORM", 50, "SPLASH"), seed);
-            battle.player().confusion = 5;
+            battle.player().effects.set(PBEffects.Battler.Confusion, 5);
             battle.step();
             List<String> t = trace(battle);
             int line = t.indexOf("MSG:混乱中伤害了自己！");

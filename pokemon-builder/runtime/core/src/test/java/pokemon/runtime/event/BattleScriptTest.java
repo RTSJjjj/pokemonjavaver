@@ -199,7 +199,7 @@ class BattleScriptTest {
                 + "\"baseStats\":[45,49,49,45,65,65],\"growthRate\":\"Medium\",\"baseExp\":60,"
                 + "\"moves\":[{\"level\":1,\"move\":\"TACKLE\"}]}}}");
         write(root, "moves.json", "{\"total\":1,\"moves\":{\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\","
-                + "\"name\":\"Tackle\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35}}}");
+                + "\"name\":\"Tackle\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35,\"target\":\"NearOther\"}}}");
         write(root, "trainers.json", "{\"total\":1,\"order\":[\"RIVAL,Blue,1\"],\"trainers\":{"
                 + "\"RIVAL,Blue,1\":{\"key\":\"RIVAL,Blue,1\",\"type\":\"RIVAL\",\"name\":\"Blue\","
                 + "\"version\":1,\"party\":[{\"species\":\"FOE\",\"level\":12,\"moves\":[\"TACKLE\"]}]}}}");

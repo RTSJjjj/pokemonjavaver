@@ -49,7 +49,7 @@ class HitEffectsWiringTest {
         write(root, "moves.json", "{\"total\":1,\"moves\":{"
                 + "\"TACKLE\":{\"id\":1,\"internalName\":\"TACKLE\",\"name\":\"Tackle\","
                 + "\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\","
-                + "\"accuracy\":100,\"pp\":35,\"flags\":\"a\"}}}");
+                + "\"accuracy\":100,\"pp\":35,\"flags\":\"a\",\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":1,\"abilities\":{"
                 + "\"POISONTOUCH\":{\"id\":1,\"internalName\":\"POISONTOUCH\",\"name\":\"Poison Touch\"}}}");
         write(root, "types.json", "{\"total\":1,\"types\":{"

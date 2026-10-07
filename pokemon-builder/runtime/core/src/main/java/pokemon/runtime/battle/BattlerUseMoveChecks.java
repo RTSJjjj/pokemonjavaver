@@ -314,7 +314,7 @@ public final class BattlerUseMoveChecks {
         if (skipAccuracyCheck) return true;                                      // :268
         // Check status problems and continue their effects/cure them
         if ("SLEEP".equals(self.status)) {                                       // :271
-            self.statusCount -= 1;                                               // :272
+            self.setStatusCount(self.statusCount - 1);                                               // :272
             if (self.statusCount <= 0) {                                         // :273
                 self.pbCureStatus();                                             // :274
             } else {
@@ -391,7 +391,7 @@ public final class BattlerUseMoveChecks {
         }
         // Drowsy
         if ("DROWSY".equals(self.status)) {                                      // :356
-            self.statusCount -= 1;                                               // :357
+            self.setStatusCount(self.statusCount - 1);                                               // :357
             int range = (battle.field.weather == PBWeather.Snow) ? 50 : 25;      // :358
             if (battle.pbRandom(100) < range) {                                  // :359
                 self.pbContinueStatus();                                         // :360

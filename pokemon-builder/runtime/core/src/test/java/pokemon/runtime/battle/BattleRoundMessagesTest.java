@@ -32,8 +32,19 @@ class BattleRoundMessagesTest {
                 .addFoe(pokemon(data, foe, 20));
     }
 
+    /** The observed hit rate of {@code pbAccuracyCheck} over many rolls. */
+    private static double hitRate(Battle battle, BattleMove move, Battler user, Battler target) {
+        pokemon.runtime.battle.movefx.MoveEffect fx = pokemon.runtime.battle.movefx.MoveEffectRegistry.of(move.function());
+        int hits = 0;
+        int rolls = 20000;
+        for (int i = 0; i < rolls; i++) {
+            if (fx.pbAccuracyCheck(move, user, target)) hits++;
+        }
+        return hits / (double) rolls;
+    }
+
     @Test
-    @DisplayName("accuracy: the two stages are converted separately (:130-138)")
+    @DisplayName("accuracy: the two stages are converted separately (Move_Usage_Calculations:130-140)")
     void accuracyStagesAreSeparate(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "HERO", new Random(1));
@@ -41,22 +52,25 @@ class BattleRoundMessagesTest {
         Battler user = battle.player();
         Battler target = battle.foe();
 
-        // Both stages neutral: 80 * 100 / 100.
-        assertEquals(80.0, battle.hitChance(user, target, move), 1e-9);
+        // Both stages neutral: 80 * 100 / 100 = 80 (:140).
+        assertEquals(0.80, hitRate(battle, move, user, target), 0.015);
 
-        // accuracy +2 (:134 -> 100*5/3 rounded 167) against evasion +1
-        // (:135 -> 100*4/3 rounded 133): 80*167/133.
-        user.hitStages[0] = 2;
-        target.hitStages[1] = 1;
-        assertEquals(80 * 167.0 / 133.0, battle.hitChance(user, target, move), 1e-9);
-        // A single combined stage would give 80*4/3 = 106.67 instead, so the two
-        // formulations are not interchangeable here.
-        assertNotEquals(80 * 4.0 / 3.0, battle.hitChance(user, target, move), 1e-6);
+        // accuracy +2 (:134 -> 100*5/3 rounded 167) against evasion +1 (:135 -> 100*4/3
+        // rounded 133): 80*167/133 = 100 in the plugin's integer division, so it never
+        // misses. A single combined stage (80*4/3 = 106) would give the same, so the
+        // distinguishing case is the next one.
+        user.setStage(PBStats.ACCURACY, 2);
+        target.setStage(PBStats.EVASION, 1);
+        assertEquals(1.0, hitRate(battle, move, user, target), 1e-9);
 
-        // -6 accuracy is 3/9 and +6 evasion is 9/3: 80*33/300.
-        user.hitStages[0] = -6;
-        target.hitStages[1] = 6;
-        assertEquals(80 * 33.0 / 300.0, battle.hitChance(user, target, move), 1e-9);
+        // accuracy -2 (100*3/5 = 60) against evasion +1 (133): 80*60/133 = 36 (integer division).
+        user.setStage(PBStats.ACCURACY, -2);
+        assertEquals(0.36, hitRate(battle, move, user, target), 0.015);
+
+        // -6 accuracy is 3/9 (33) and +6 evasion is 9/3 (300): 80*33/300 = 8.
+        user.setStage(PBStats.ACCURACY, -6);
+        target.setStage(PBStats.EVASION, 6);
+        assertEquals(0.08, hitRate(battle, move, user, target), 0.015);
     }
 
     @Test
@@ -105,13 +119,13 @@ class BattleRoundMessagesTest {
         Battle battle = battle(data, "HERO", "HERO", new Random(5));
         Battler user = battle.player();
         user.setStatus("SLEEP");
-        user.sleepTurns = 3;
+        user.setStatusCount(3);
         battle.step();
         assertTrue(battle.roundMessages.contains(user.name() + "依旧在沉睡。", false),
                 battle.roundMessages.toString());                   // :447
 
         battle.roundMessages.clear();
-        user.sleepTurns = 1;
+        user.setStatusCount(1);
         battle.step();
         assertEquals("", user.status, "the counter ran out");
         assertTrue(battle.roundMessages.contains(user.name() + "醒来了！", false),
@@ -124,7 +138,7 @@ class BattleRoundMessagesTest {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "HERO", new Random(11));
         Battler user = battle.player();
-        user.flinched = true;
+        user.effects.set(PBEffects.Battler.Flinch, true);
         battle.step();
         assertTrue(battle.roundMessages.contains(user.name() + "畏缩了，无法行动！", false),
                 battle.roundMessages.toString());
@@ -157,7 +171,7 @@ class BattleRoundMessagesTest {
 
         // Clamped at +6: no further line (increment <= 0, :55).
         Battle clamped = battle(data, "HERO", "HERO", new Random(13));
-        clamped.player().stages[MoveEffects.ATK] = 6;
+        clamped.player().setStage(PBStats.ATTACK, 6);
         String playerLine = clamped.player().thisName() + "的攻击提升了！";
         clamped.step();
         assertFalse(clamped.roundMessages.contains(playerLine, false),
@@ -184,7 +198,7 @@ class BattleRoundMessagesTest {
                 + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"}]}}}");
         write(root, "moves.json", "{\"total\":1,\"moves\":{"
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
-                + "\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":80,\"pp\":20}}}");
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":80,\"pp\":20,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":0,\"abilities\":{}}");
         write(root, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"

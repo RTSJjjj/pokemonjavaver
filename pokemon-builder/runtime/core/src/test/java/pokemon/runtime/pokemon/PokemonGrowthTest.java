@@ -124,13 +124,13 @@ class PokemonGrowthTest {
                 + "\"evolutions\":[{\"species\":\"STAGE2\",\"method\":\"Happiness\",\"parameter\":\"220\"}]}}}");
         write(root, "moves.json", "{\"total\":4,\"moves\":{"
                 + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"Tackle\",\"power\":40,"
-                + "\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35},"
+                + "\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35,\"target\":\"NearOther\"},"
                 + "\"EMBER\":{\"id\":52,\"internalName\":\"EMBER\",\"name\":\"Ember\",\"power\":40,"
-                + "\"type\":\"NORMAL\",\"category\":\"Special\",\"pp\":25},"
+                + "\"type\":\"NORMAL\",\"category\":\"Special\",\"pp\":25,\"target\":\"NearOther\"},"
                 + "\"GROWL\":{\"id\":45,\"internalName\":\"GROWL\",\"name\":\"Growl\",\"power\":0,"
-                + "\"type\":\"NORMAL\",\"category\":\"Status\",\"pp\":40},"
+                + "\"type\":\"NORMAL\",\"category\":\"Status\",\"pp\":40,\"target\":\"NearOther\"},"
                 + "\"QUICKATTACK\":{\"id\":98,\"internalName\":\"QUICKATTACK\",\"name\":\"Quick Attack\","
-                + "\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":30}}}");
+                + "\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":30,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":1,\"abilities\":{"
                 + "\"OVERGROW\":{\"id\":65,\"internalName\":\"OVERGROW\",\"name\":\"Overgrow\"}}}");
         write(root, "types.json", "{\"total\":1,\"types\":{\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\"}}}");

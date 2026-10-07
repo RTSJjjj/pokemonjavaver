@@ -41,10 +41,10 @@ class EorHealingWiringTest {
         write(root, "moves.json", "{\"total\":2,\"moves\":{"
                 + "\"TACKLE\":{\"id\":1,\"internalName\":\"TACKLE\",\"name\":\"Tackle\","
                 + "\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\","
-                + "\"accuracy\":100,\"pp\":35,\"flags\":\"a\"},"
+                + "\"accuracy\":100,\"pp\":35,\"flags\":\"a\",\"target\":\"NearOther\"},"
                 + "\"SWORDSDANCE\":{\"id\":2,\"internalName\":\"SWORDSDANCE\",\"name\":\"Swords Dance\","
                 + "\"function\":\"02E\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\","
-                + "\"accuracy\":0,\"pp\":20}}}");
+                + "\"accuracy\":0,\"pp\":20,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":0,\"abilities\":{}}");
         write(root, "types.json", "{\"total\":1,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"}}}");

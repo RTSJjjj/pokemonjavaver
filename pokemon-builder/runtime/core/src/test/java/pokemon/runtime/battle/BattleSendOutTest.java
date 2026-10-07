@@ -47,7 +47,7 @@ class BattleSendOutTest {
                 + "\"weight\":100.0,\"genderRate\":\"Female50Percent\",\"evolutions\":[]}}}");
         write(tempDir, "moves.json", "{\"total\":1,\"moves\":{"
                 + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"撞击\","
-                + "\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35}}}");
+                + "\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":35,\"target\":\"NearOther\"}}}");
         pbs = PbsData.parse(tempDir.toFile());
     }
 

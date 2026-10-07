@@ -255,8 +255,8 @@ class PokemonScriptTest {
                 + "\"baseStats\":[80,100,123,80,122,120],\"types\":[\"GRASS\",\"POISON\"],"
                 + "\"abilities\":[\"THICKFAT\"]}}}");
         write(root, "moves.json", "{\"total\":2,\"moves\":{"
-                + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"Tackle\",\"pp\":35},"
-                + "\"VINEWHIP\":{\"id\":22,\"internalName\":\"VINEWHIP\",\"name\":\"Vine Whip\",\"pp\":25}}}");
+                + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"Tackle\",\"pp\":35,\"target\":\"NearOther\"},"
+                + "\"VINEWHIP\":{\"id\":22,\"internalName\":\"VINEWHIP\",\"name\":\"Vine Whip\",\"pp\":25,\"target\":\"NearOther\"}}}");
         write(root, "items.json", "{\"total\":1,\"items\":{"
                 + "\"LEFTOVERS\":{\"id\":211,\"internalName\":\"LEFTOVERS\",\"name\":\"Leftovers\"}}}");
         write(root, "abilities.json", "{\"total\":2,\"abilities\":{"

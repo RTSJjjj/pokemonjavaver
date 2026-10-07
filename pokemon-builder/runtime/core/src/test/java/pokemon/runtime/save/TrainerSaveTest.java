@@ -112,7 +112,7 @@ class TrainerSaveTest {
                 + "\"abilities\":[\"OVERGROW\"],\"hiddenAbility\":\"CHLOROPHYLL\","
                 + "\"moves\":[{\"level\":1,\"move\":\"TACKLE\"}]}}}");
         write(root, "moves.json", "{\"total\":1,\"moves\":{"
-                + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"Tackle\",\"pp\":35}}}");
+                + "\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\",\"name\":\"Tackle\",\"pp\":35,\"target\":\"NearOther\"}}}");
         write(root, "items.json", "{\"total\":1,\"items\":{"
                 + "\"LEFTOVERS\":{\"id\":211,\"internalName\":\"LEFTOVERS\",\"name\":\"Leftovers\"}}}");
         write(root, "abilities.json", "{\"total\":2,\"abilities\":{"

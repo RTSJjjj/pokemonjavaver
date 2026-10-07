@@ -21,29 +21,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class BattleMechanicsTest {
 
     @Test
-    @DisplayName("P2: MoveEffects maps the common function codes")
-    void moveEffects() {
-        assertEquals("POISON", MoveEffects.of("005").status);
-        assertEquals("TOXIC", MoveEffects.of("006").status);
-        assertEquals("BURN", MoveEffects.of("00A").status);
-        assertEquals("FROZEN", MoveEffects.of("00C").status);
-        assertTrue(MoveEffects.of("00F").flinch);
-        assertTrue(MoveEffects.of("013").confuse);
-        assertArrayEquals(new int[] {MoveEffects.ATK, 2}, MoveEffects.of("02E").statUp);
-        assertArrayEquals(new int[] {MoveEffects.DEF, 1, MoveEffects.SPDEF, 1},
-                MoveEffects.of("03C").statDown);
-        assertArrayEquals(new int[] {MoveEffects.SPEED, 2}, MoveEffects.of("04D").targetStatDown);
-        assertTrue(MoveEffects.of("070").ohko);
-        assertTrue(MoveEffects.of("0DD").drain);
-        assertEquals(4, MoveEffects.of("0FA").recoilDen);
-        assertEquals(5, MoveEffects.of("0C0").multiMax);
-        // An unknown code behaves like PokeBattle_UnimplementedMove.
-        MoveEffects.Effect unknown = MoveEffects.of("FFF");
-        assertNull(unknown.status);
-        assertFalse(unknown.flinch);
-    }
-
-    @Test
     @DisplayName("P2: a status move poisons the target and damages it each turn")
     void toxicDamage(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
@@ -70,7 +47,7 @@ class BattleMechanicsTest {
         Battle battle = new Battle(data, new Random(2), (user, target, moves) -> indexOf(moves, "SWORDSDANCE"))
                 .addPlayer(hero).addFoe(foe);
         battle.step();
-        assertEquals(2, battle.player().stages[MoveEffects.ATK], "Swords Dance is +2 Attack");
+        assertEquals(2, battle.player().stage(PBStats.ATTACK), "Swords Dance is +2 Attack");
         assertTrue(battle.player().attack() > before, "Attack rose");
     }
 
@@ -124,13 +101,13 @@ class BattleMechanicsTest {
                 + "\"moves\":[{\"level\":1,\"move\":\"QUICKATTACK\"}]}}}");
         write(root, "moves.json", "{\"total\":4,\"moves\":{"
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
-                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20},"
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20,\"target\":\"NearOther\"},"
                 + "\"TOXIC\":{\"id\":2,\"internalName\":\"TOXIC\",\"name\":\"Toxic\","
-                + "\"function\":\"006\",\"power\":0,\"type\":\"POISON\",\"category\":\"Status\",\"accuracy\":90,\"pp\":10},"
+                + "\"function\":\"006\",\"power\":0,\"type\":\"POISON\",\"category\":\"Status\",\"accuracy\":90,\"pp\":10,\"target\":\"NearOther\"},"
                 + "\"SWORDSDANCE\":{\"id\":3,\"internalName\":\"SWORDSDANCE\",\"name\":\"Swords Dance\","
-                + "\"function\":\"02E\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"accuracy\":0,\"pp\":20},"
+                + "\"function\":\"02E\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"accuracy\":0,\"pp\":20,\"target\":\"NearOther\"},"
                 + "\"QUICKATTACK\":{\"id\":4,\"internalName\":\"QUICKATTACK\",\"name\":\"Quick Attack\","
-                + "\"function\":\"000\",\"power\":250,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":30,\"priority\":1}}}");
+                + "\"function\":\"000\",\"power\":250,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":30,\"priority\":1,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":0,\"abilities\":{}}");
         write(root, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"

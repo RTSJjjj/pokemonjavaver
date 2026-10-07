@@ -49,9 +49,9 @@ class EndOfRoundTest {
         // A status move: it deals no damage, so only the end of round moves HP.
         write(tempDir, "moves.json", "{\"total\":2,\"moves\":{"
                 + "\"GROWL\":{\"id\":45,\"internalName\":\"GROWL\",\"name\":\"叫声\","
-                + "\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"pp\":40},"
+                + "\"function\":\"001\",\"power\":0,\"type\":\"NORMAL\",\"category\":\"Status\",\"pp\":40,\"target\":\"NearOther\"},"
                 + "\"SLASH\":{\"id\":163,\"internalName\":\"SLASH\",\"name\":\"劈开\","
-                + "\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":20,"
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"pp\":20,"
                 + "\"flags\":\"h\"}}}");
         write(tempDir, "items.json", "{\"total\":0,\"items\":{}}");
         write(tempDir, "natures.json", "{\"total\":2,\"natures\":["
@@ -218,7 +218,7 @@ class EndOfRoundTest {
                 "the base rate is 1/24, not the pre-Newest 1/16");
         assertEquals(1.0 / 8, criticalRate(battle, user, target, highCrit), 0.006,
                 "the moves.txt \"h\" flag adds a step");
-        user.focusEnergy = true;
+        user.effects.set(PBEffects.Battler.FocusEnergy, 1);       // Focus Energy (Move_Usage_Calculations:224 c += FocusEnergy)
         assertEquals(1.0 / 8, criticalRate(battle, user, target, plain), 0.006,
                 "Focus Energy adds a step too");
         assertEquals(0.5, criticalRate(battle, user, target, highCrit), 0.02,
@@ -227,11 +227,11 @@ class EndOfRoundTest {
 
     /** The observed critical rate over many rolls. */
     private double criticalRate(Battle battle, Battler user, Battler target, BattleMove move) {
-        MoveEffects.Effect fx = MoveEffects.of(move.function());
+        pokemon.runtime.battle.movefx.MoveEffect fx = pokemon.runtime.battle.movefx.MoveEffectRegistry.of(move.function());
         int hits = 0;
         int rolls = 60000;
         for (int i = 0; i < rolls; i++) {
-            if (battle.isCritical(user, target, move, fx)) {
+            if (fx.pbIsCritical(move, user, target)) {
                 hits++;
             }
         }

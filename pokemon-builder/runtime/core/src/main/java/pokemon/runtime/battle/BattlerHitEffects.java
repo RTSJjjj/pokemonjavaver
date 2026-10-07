@@ -201,7 +201,7 @@ public final class BattlerHitEffects {
         // 登记: @battle.battleBond (a per-side/per-slot boolean table) is not
         // modelled, so this whole block is skipped rather than approximated.
         // ---------------- base :124-128 consume the user's Gem ----------------
-        if (user.effects.truthy(PBEffects.Battler.GemConsumed)) {                      // :125
+        if (user.effects.stringVal(PBEffects.Battler.GemConsumed) != null) {                      // :125 GemConsumed>0 (an item name here; 0 = none)
             user.pbConsumeItem();                                                      // :127
         }
         // ---------------- base :130-131 Roar / Whirlwind style switching ----------------

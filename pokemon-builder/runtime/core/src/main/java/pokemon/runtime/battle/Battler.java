@@ -40,11 +40,6 @@ public final class Battler {
     public int toxic;
     /** Remaining sleep turns (SLEEP only). */
     public int sleepTurns;
-    /** Confusion turns left and flinch (cleared at end of the turn). */
-    public int confusion;
-    public boolean flinched;
-    /** Focus Energy raises the critical-hit rate. */
-    public boolean focusEnergy;
     /**
      * {@code @battle.trainerBattle?} (PokeBattle_Battler:216): set by
      * {@link Battle} when the battler joins it, which {@link #thisName()} reads.
@@ -76,6 +71,7 @@ public final class Battler {
         this.status = pokemon.status == null ? "" : pokemon.status;
         if ("SLEEP".equals(status)) {
             this.sleepTurns = 3;
+            this.statusCount = 3;                                // Battler_Initialize:92 @statusCount (mirrors sleepTurns)
         }
         this.faintedFlag = this.hp == 0;                         // Battler_Initialize:157 @fainted = (@hp==0)
     }
@@ -97,26 +93,6 @@ public final class Battler {
 
     public boolean statused() {
         return status != null && !status.isEmpty();
-    }
-
-    public boolean canPoison() {
-        return !flinched && !statused() && !"POISON".equals(status) && !hasType("POISON") && !hasType("STEEL");
-    }
-
-    public boolean canBurn() {
-        return !statused() && !hasType("FIRE");
-    }
-
-    public boolean canParalyze() {
-        return !statused() && !hasType("ELECTRIC");
-    }
-
-    public boolean canFreeze() {
-        return !statused() && !hasType("ICE");
-    }
-
-    public boolean canSleep() {
-        return !statused();
     }
 
     public void setStatus(String id) {
@@ -380,14 +356,12 @@ public final class Battler {
     public void resetForSwitchIn() {
         type1 = null;                                            // Battler_Initialize:47-48/81-82 types come from the Pokemon again
         type2 = null;
+        effectsInitialized = false;                              // :74 pbInitEffects(false) runs in Battle.refreshFieldIndices (needs the new @index)
         for (int i = 0; i < stages.length; i++) {
             stages[i] = 0;                                       // :127-131
         }
         hitStages[0] = 0;                                        // :133 Accuracy
         hitStages[1] = 0;                                        // :132 Evasion
-        confusion = 0;                                           // :135
-        focusEnergy = false;                                     // :139
-        flinched = false;                                        // :204
         turnCount = 0;                                           // :176
         faintedFlag = hp == 0;                                   // :157 @fainted = (@hp==0)
     }
@@ -1791,7 +1765,7 @@ public final class Battler {
             amt = 1;
         }
         int oldHP = hp;                                                  // :9
-        hp -= amt;                                                       // :10 self.hp -= amt
+        setHp(hp - amt);                                                 // :10 self.hp -= amt (hp= also writes the Pokemon, :94)
         if (hp < 0) {                                                    // :12 raise _INTL("HP小于0")
             throw new IllegalStateException("HP小于0");
         }
@@ -1799,8 +1773,7 @@ public final class Battler {
             throw new IllegalStateException("HP大于最大HP");
         }
         if (anyAnim && amt > 0) {                                        // :14
-            // 登记: Battler_ChangeSelf:14 @battle.scene.pbHPChanged(self,oldHP,anim)
-            //       依赖 PokeBattle_Scene（本批未建模）→ 空实现
+            if (battle != null) battle.roundEvents.add(Battle.RoundEvent.hpChanged(index, oldHP, hp));   // @battle.scene.pbHPChanged(self,oldHP,anim): the HP bar event
         }
         if (amt > 0 && registerDamage) {                                 // :15
             tookDamage = true;
@@ -1823,7 +1796,7 @@ public final class Battler {
             amt = 1;
         }
         int oldHP = hp;                                                  // :23
-        hp += amt;                                                       // :24
+        setHp(hp + amt);                                                 // :24 self.hp += amt
         if (hp < 0) {                                                    // :26
             throw new IllegalStateException("HP小于0");
         }
@@ -1831,8 +1804,7 @@ public final class Battler {
             throw new IllegalStateException("HP大于最大HP");
         }
         if (anyAnim && amt > 0) {                                        // :28
-            // 登记: Battler_ChangeSelf:28 @battle.scene.pbHPChanged(self,oldHP,anim)
-            //       依赖 PokeBattle_Scene（本批未建模）→ 空实现
+            if (battle != null) battle.roundEvents.add(Battle.RoundEvent.hpChanged(index, oldHP, hp));   // @battle.scene.pbHPChanged(self,oldHP,anim): the HP bar event
         }
         yamaskhp = 0;                                                    // :29 self.yamaskhp = 0
         return amt;                                                      // :30
@@ -1958,9 +1930,9 @@ public final class Battler {
             return;
         }
         if (showMessage) {                                                // :71
-            display(pbThis() + "倒下了！");
+            battle.displayBrief(pbThis() + "倒下了！");
         }
-        // 登记: Battler_ChangeSelf:73 @battle.scene.pbFaintBattler(self) 依赖 PokeBattle_Scene
+        battle.roundEvents.add(Battle.RoundEvent.faint(index));           // :73 @battle.scene.pbFaintBattler(self) = the FAINT round event
         initEffects(false);                                               // :74 pbInitEffects(false)
         status = "";                                                      // :76 self.status = PBStatuses::NONE
         setStatusCount(0);                                                // :77
@@ -1989,7 +1961,7 @@ public final class Battler {
         pbOwnSide().effects.set(PBEffects.Side.LastRoundFainted,
                 battle == null ? 0 : battle.turns());                      // :93
         pbAbilitiesOnFainting();                                          // :95
-        // :97 @battle.pbEndPrimordialWeather —— 登记: Battle 未暴露
+        battle.pbEndPrimordialWeather();                                  // :97
         // :98 @battle.pbAddFaintedAlly(self) —— 登记: Battle 未暴露
     }
 
@@ -3714,6 +3686,13 @@ public final class Battler {
      */
     public String type1, type2;
 
+    /**
+     * Whether {@code pbInitEffects} (Battler_Initialize:74) has run for the battler's
+     * current stay on the field. {@link Battle#refreshFieldIndices()} runs it for a battler
+     * that has just taken a slot (it needs {@code @index} and the other battlers).
+     */
+    public boolean effectsInitialized;
+
     /** {@code pbChangeTypes(newType)} with a single type name (Battler_ChangeSelf:306-311). */
     public void pbChangeTypes(String newType) {
         type1 = newType;                                                         // :308
@@ -4020,6 +3999,21 @@ public final class Battler {
     // Stage 5 / 2d: the master "use move" flow (bodies in BattlerUseMove /
     // BattlerTargeting)
     // ==================================================================
+
+    /** {@code pbProcessTurn(choice,tryFlee=true)} (Battler_UseMove:5-66). */
+    public boolean pbProcessTurn(Object[] choice) {
+        return BattlerUseMove.pbProcessTurn(this, choice, true);
+    }
+
+    /** The moveset slot ({@code choice[1]}) of a move, {@code -1} when it is not in the moveset (Struggle). */
+    public int moveSlotIndex(BattleMove move) {
+        if (move == null || move.internalName() == null) return -1;
+        for (int i = 0; i < pokemon.moves.size; i++) {
+            Pokemon.MoveSlot slot = pokemon.moves.get(i);
+            if (slot != null && slot.move != null && move.internalName().equals(slot.move.internalName)) return i;
+        }
+        return -1;
+    }
 
     /** {@code pbUseMove(choice,specialUsage=false)} (Battler_UseMove:170-622). */
     public void pbUseMove(Object[] choice, boolean specialUsage) {

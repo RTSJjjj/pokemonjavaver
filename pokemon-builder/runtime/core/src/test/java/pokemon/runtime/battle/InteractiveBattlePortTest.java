@@ -19,8 +19,8 @@ class InteractiveBattlePortTest {
         data = PbsData.parse(temp.toFile()); trainer = new TrainerState(); bag = new Inventory();
         PbsData.Species s = new PbsData.Species(); s.internalName = "A"; s.name = "测试";
         s.baseStats = new int[] {50, 50, 50, 50, 50, 50}; s.rareness = 255; data.species.put("A", s);
-        PbsData.Move m = new PbsData.Move(); m.internalName = "HIT"; m.name = "撞击"; m.type = "NORMAL";
-        m.power = 50; m.pp = 20; m.category = "Physical"; data.moves.put("HIT", m);
+        PbsData.Move m = new PbsData.Move(); m.id = 1; m.internalName = "HIT"; m.name = "撞击"; m.type = "NORMAL";
+        m.power = 50; m.pp = 20; m.category = "Physical"; m.function = "000"; m.target = "NearOther"; data.moves.put("HIT", m);
         // R13: a Poké Ball is recognised by its ITEM_TYPE (PItem_Items:89-92),
         // so the fixture needs the item itself.
         PbsData.Item ball = new PbsData.Item();

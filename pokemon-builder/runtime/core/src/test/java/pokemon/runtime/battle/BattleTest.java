@@ -282,9 +282,9 @@ class BattleTest {
                 + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"}]}}}");
         write(root, "moves.json", "{\"total\":2,\"moves\":{"
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
-                + "\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20},"
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20,\"target\":\"NearOther\"},"
                 + "\"SHADOW\":{\"id\":2,\"internalName\":\"SHADOW\",\"name\":\"Shadow\","
-                + "\"power\":70,\"type\":\"GHOST\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":15}}}");
+                + "\"function\":\"000\",\"power\":70,\"type\":\"GHOST\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":15,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":1,\"abilities\":{"
                 + "\"OVERGROW\":{\"id\":65,\"internalName\":\"OVERGROW\",\"name\":\"Overgrow\"}}}");
         write(root, "types.json", "{\"total\":2,\"types\":{"

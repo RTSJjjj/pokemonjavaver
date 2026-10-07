@@ -527,7 +527,7 @@ class BattleApiTest {
                 + "\"moves\":[{\"level\":1,\"move\":\"SLASH\"}]}}}");
         write(root, "moves.json", "{\"total\":1,\"moves\":{"
                 + "\"SLASH\":{\"id\":1,\"internalName\":\"SLASH\",\"name\":\"Slash\","
-                + "\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20}}}");
+                + "\"function\":\"000\",\"power\":70,\"type\":\"NORMAL\",\"category\":\"Physical\",\"accuracy\":100,\"pp\":20,\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":0,\"abilities\":{}}");
         write(root, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"

@@ -48,10 +48,10 @@ class BattleSuccessChecksTest {
         write(root, "moves.json", "{\"total\":2,\"moves\":{"
                 + "\"STUNSPORE\":{\"id\":1,\"internalName\":\"STUNSPORE\",\"name\":\"Stun Spore\","
                 + "\"function\":\"007\",\"power\":0,\"type\":\"GRASS\",\"category\":\"Status\","
-                + "\"accuracy\":100,\"pp\":30,\"flags\":\"bcel\"},"
+                + "\"accuracy\":100,\"pp\":30,\"flags\":\"bcel\",\"target\":\"NearOther\"},"
                 + "\"TACKLE\":{\"id\":2,\"internalName\":\"TACKLE\",\"name\":\"Tackle\","
                 + "\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\","
-                + "\"accuracy\":100,\"pp\":35,\"flags\":\"a\"}}}");
+                + "\"accuracy\":100,\"pp\":35,\"flags\":\"a\",\"target\":\"NearOther\"}}}");
         write(root, "abilities.json", "{\"total\":1,\"abilities\":{"
                 + "\"OVERCOAT\":{\"id\":1,\"internalName\":\"OVERCOAT\",\"name\":\"Overcoat\"}}}");
         write(root, "types.json", "{\"total\":3,\"types\":{"
