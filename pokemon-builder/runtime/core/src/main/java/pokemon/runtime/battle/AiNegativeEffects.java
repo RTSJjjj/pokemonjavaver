@@ -668,6 +668,173 @@ final class AiNegativeEffects {
                 return true;
             }
             default:
+                return part4(ctx, atk, def, move, r);
+        }
+    }
+
+    /**
+     * Part 4 (ai_negatives.c:2560-3244): Refresh/Psycho Shift, Imprison, Mud/Water Sport, the stat swap/split moves, Natural Gift, the terrain
+     * moves, the field-effect moves (Trick Room, Magic/Wonder Room, Gravity, Ion Deluge), Embargo/Powder/Telekinesis/Heal Block, the type
+     * changers, Topsy-Turvy/Electrify, Fairy Lock/Happy Hour/Celebrate. 登记: Knock Off (:2535-2566, item tables), the Skill Swap family
+     * (:2568-2630, ability ban tables), Fling (:2918), Instruct (:3085), Max-move/partner checks, Court Change (:2903, needs ShouldCourtChange).
+     */
+    private static boolean part4(AiCtx ctx, Battler atk, Battler def, BattleMove move, Result r) {
+        Battle battle = ctx.battle;
+        String f = move.function();
+        String atkAbility = atk.ability == null ? "" : atk.ability;
+        String defAbility = atk.hasMoldBreaker() || def.ability == null ? "" : def.ability;
+        BattleMove predicted = ctx.prediction(def);
+        boolean locked = AiCalc.goodAiMoveLocked(ctx, atk);
+        switch (f) {
+            case "018": case "01B": {                                                             // EFFECT_REFRESH (:2625): Refresh, Psycho Shift
+                if (!(atk.hasStatus("POISON") || atk.hasStatus("BURN") || atk.hasStatus("PARALYSIS"))) { r.viability -= 10; return true; }
+                if (f.equals("01B")) {
+                    if (atk.hasStatus("POISON")) { if (!AiCalc.canBePoisoned(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10; }
+                    else if (atk.hasStatus("BURN")) { if (!AiCalc.canBeBurned(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10; }
+                    else if (!AiCalc.canBeParalyzed(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                }
+                return true;
+            }
+            case "0B8": {                                                                         // EFFECT_IMPRISON (:2660)
+                if (atk.effects.truthy(PBEffects.Battler.Imprison)) r.viability -= 10;
+                return true;
+            }
+            case "09D": {                                                                         // EFFECT_MUD_SPORT (:2680)
+                if (battle.field.effects.intVal(PBEffects.Field.MudSportField) > 0) r.viability -= 10;
+                return true;
+            }
+            case "09E": {                                                                         // EFFECT_WATER_SPORT (:2686)
+                if (battle.field.effects.intVal(PBEffects.Field.WaterSportField) > 0) r.viability -= 10;
+                return true;
+            }
+            case "057": {                                                                         // MOVE_POWERTRICK (:2705)
+                if (locked) r.viability -= 10;
+                else if (atk.pokemon.attack() >= atk.pokemon.defense() || !AiCalc.physicalMoveInMoveset(ctx, atk)) r.viability -= 10;
+                return true;
+            }
+            case "052": {                                                                         // MOVE_POWERSWAP (:2716)
+                if (locked || (atk.stage(PBStats.ATTACK) >= def.stage(PBStats.ATTACK) && atk.stage(PBStats.SPATK) >= def.stage(PBStats.SPATK))) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "053": {                                                                         // MOVE_GUARDSWAP (:2724)
+                if (locked || (atk.stage(PBStats.DEFENSE) >= def.stage(PBStats.DEFENSE) && atk.stage(PBStats.SPDEF) >= def.stage(PBStats.SPDEF))) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "161": {                                                                         // MOVE_SPEEDSWAP (:2732)
+                if (locked) r.viability -= 10;
+                else if (AiCalc.trickRoomNotEnding(battle) ? atk.speed() <= def.speed() : atk.speed() >= def.speed()) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "058": {                                                                         // MOVE_POWERSPLIT (:2765)
+                if (locked || atk.pokemon.attack() + atk.pokemon.spAtk() >= def.pokemon.attack() + def.pokemon.spAtk()) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "059": {                                                                         // MOVE_GUARDSPLIT (:2776)
+                if (locked || atk.pokemon.defense() + atk.pokemon.spDef() >= def.pokemon.defense() + def.pokemon.spDef()) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "096": {                                                                         // EFFECT_NATURAL_GIFT (:2808)
+                if ("KLUTZ".equals(atkAbility) || battle.field.effects.intVal(PBEffects.Field.MagicRoom) > 0
+                        || atk.item == null || !atk.item.endsWith("BERRY")) r.viability -= 10;
+                else r.standardDamage = true;
+                return true;
+            }
+            case "154": case "155": case "156": case "173": {                                     // EFFECT_SET_TERRAIN (:2818)
+                int t = f.equals("154") ? PBBattleTerrains.Electric : f.equals("155") ? PBBattleTerrains.Grassy
+                        : f.equals("156") ? PBBattleTerrains.Misty : PBBattleTerrains.Psychic;
+                if (battle.terrain() == t) r.viability -= 10;
+                return true;
+            }
+            case "11F": {                                                                         // MOVE_TRICKROOM (:2856)
+                boolean slower = atk.speed() < def.speed();
+                if (battle.field.effects.intVal(PBEffects.Field.TrickRoom) > 0) { if (slower) r.viability -= 10; }   // keep the Trick Room up
+                else if (atk.speed() > def.speed()) r.viability -= 10;                           // keep the Trick Room down
+                return true;
+            }
+            case "0F9": {                                                                         // MOVE_MAGICROOM (:2874)
+                if (battle.field.effects.intVal(PBEffects.Field.MagicRoom) > 0) r.viability -= 10;
+                return true;
+            }
+            case "124": {                                                                         // MOVE_WONDERROOM (:2880)
+                if (battle.field.effects.intVal(PBEffects.Field.WonderRoom) > 0) r.viability -= 10;
+                return true;
+            }
+            case "118": {                                                                         // MOVE_GRAVITY (:2886)
+                boolean active = battle.field.effects.intVal(PBEffects.Field.Gravity) > 0;
+                boolean floatsMagnet = atk.effects.intVal(PBEffects.Battler.MagnetRise) > 0;
+                if (active && !atk.hasType("FLYING") && !floatsMagnet && !atk.hasActiveItem("AIRBALLOON")) r.viability -= 10;
+                else if (!active && floatsMagnet) r.viability -= 10;
+                return true;
+            }
+            case "146": {                                                                         // MOVE_IONDELUGE (:2898)
+                if (battle.field.effects.intVal(PBEffects.Field.IonDeluge) > 0) r.viability -= 10;
+                return true;
+            }
+            case "0F8": {                                                                         // MOVE_EMBARGO (:2947)
+                if ("KLUTZ".equals(defAbility) || battle.field.effects.intVal(PBEffects.Field.MagicRoom) > 0
+                        || def.effects.intVal(PBEffects.Battler.Embargo) > 0) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "148": {                                                                         // MOVE_POWDER (:2957)
+                if (!AiCalc.damagingTypeInMoveset(ctx, def, "FIRE")) r.viability -= 10; else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "11A": {                                                                         // MOVE_TELEKINESIS (:2963)
+                if (def.effects.intVal(PBEffects.Battler.Telekinesis) > 0 || def.effects.truthy(PBEffects.Battler.Ingrain)
+                        || battle.field.effects.intVal(PBEffects.Field.Gravity) > 0 || def.hasActiveItem("IRONBALL")) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "0BB": {                                                                         // EFFECT_ATTACK_BLOCKERS default: Heal Block (:2985)
+                if (def.effects.intVal(PBEffects.Battler.HealBlock) > 0) r.viability -= 10; else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "061": {                                                                         // MOVE_SOAK (:3000)
+                if (def.types().size == 1 && def.hasType("WATER")) r.viability -= 10; else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "142": {                                                                         // MOVE_TRICKORTREAT (:3011)
+                if (def.hasType("GHOST")) r.viability -= 10; else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "143": {                                                                         // MOVE_FORESTSCURSE (:3022)
+                if (def.hasType("GRASS")) r.viability -= 10; else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "145": {                                                                         // MOVE_ELECTRIFY (:3059)
+                if (!AiCalc.moveWouldHitFirst(ctx, move, atk, def)
+                        || (predicted != null && "ELECTRIC".equals(AiCalc.fx(predicted).pbCalcType(predicted, def)))) r.viability -= 10;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "141": {                                                                         // MOVE_TOPSYTURVY (:3069)
+                int pos = 0;
+                int neg = 0;
+                for (int st = PBStats.ATTACK; st <= PBStats.EVASION; st++) {
+                    if (def.stage(st) > 0) pos += def.stage(st);
+                    else neg -= def.stage(st);
+                }
+                if (pos == 0) r.viability -= 10;
+                else if (neg < pos) r.viability -= 5;
+                else substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "152": {                                                                         // MOVE_FAIRYLOCK (:3093)
+                if (battle.field.effects.intVal(PBEffects.Field.FairyLock) > 0) r.viability -= 10;
+                return true;
+            }
+            case "157": case "134": case "133": {                                                 // Happy Hour, Celebrate, Hold Hands (:3098-3120): all need a Z-Crystal
+                if (f.equals("157") && !atk.foe) return true;                                     // a player's Happy Hour on a normal battle is only blocked after the first use (not tracked)
+                r.viability -= 10;
+                return true;
+            }
+            default:
                 return false;
         }
     }

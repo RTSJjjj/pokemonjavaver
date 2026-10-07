@@ -25,8 +25,12 @@ config.h), Dream Eater, Splash, Teleport, all stat-raising effects (:931-1228) a
 against the movefx class list (e.g. King's Shield 14B, Spiky Shield 14C, Aurora Veil 167, Sleep Talk 0B4, Snore 011, Laser Focus 15E); batch 1's wrong
 guesses were corrected. Any effect without a case runs `AI_STANDARD_DAMAGE`, as in C.
 
+## Batch 3 (done)
+`AiNegativeEffects` now covers essentially all of ai_negatives.c:760-3120 that does not need data this runtime lacks (parts 1-4: stat moves, sleep/status
+moves, recovery, screens, recoil, protect, hazards, weather, two-turn attacks, baton pass, field effects, terrains, type changers...).
+
 ## Not yet transcribed (explicit, in order of value)
-1. `AIScript_Negatives` effect cases from ai_negatives.c:1342 (Haze GOOD_AI branch) onward: Bide, Roar, Conversion, Poison/Paralyze/Burn/Confuse, Attract, Leech Seed, Protect, Substitute, hazards, weather, healing, ... (:1342-3244).
+1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` (ai_positives.c:55-2722): set-up moves, status, hazards, healing, Protect...
 3. Target-ability cases needing `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (ai_negatives.c:222-324).
 4. `BadIdeaToMakeContactWith`, `BetterToKOLastFoeMon`, `HasUsedMove` history, `usingDesperateMove`, `NoUsableHazardsInMoveset`,
