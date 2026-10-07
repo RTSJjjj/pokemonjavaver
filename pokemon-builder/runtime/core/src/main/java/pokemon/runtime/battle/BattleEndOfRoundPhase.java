@@ -774,8 +774,8 @@ public final class BattleEndOfRoundPhase {
         // Form checks
         for (Battler b : priority) b.pbCheckForm(true);                               // :742
         battle.pbEORSwitch(false);                                                    // :744
-        // :748 pbEORShiftDistantBattlers: only moves distant battlers in triple battles
         if (battle.decision > 0) return;                                              // :745
+        battle.pbEORShiftDistantBattlers();                                           // :748
         // Try to make Trace work, check for end of primordial weather
         for (Battler b : priority) b.pbContinualAbilityChecks();                      // :750
         // Reset/count down battler-specific effects (no messages)

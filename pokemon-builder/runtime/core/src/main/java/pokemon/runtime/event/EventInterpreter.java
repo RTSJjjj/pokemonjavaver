@@ -1676,6 +1676,17 @@ public final class EventInterpreter {
                     }
                     opponents.add(trainer2);
                 }
+                // PField_Battles:598-614 pbTripleTrainerBattle: a third opposing trainer and the triple rule.
+                com.badlogic.gdx.utils.JsonValue third = ir.get("third");
+                if (third != null) {
+                    PbsData.TrainerData trainer3 = pbs.trainer(third.getString("trainerType", ""),
+                            third.getString("trainerName", ""), third.getInt("version", 0));
+                    if (trainer3 == null) {
+                        log.warn("TRAINER_BATTLE unknown third trainer; skipped");
+                        break;
+                    }
+                    opponents.add(trainer3);
+                }
                 if (doubleRefusalFirst()) return;
                 if (second == null && deferToSecondTrainer(trainer)) {             // PField_Battles:534-558
                     break;                                                         // pbTrainerBattle returns false
@@ -1683,6 +1694,9 @@ public final class EventInterpreter {
                 trainerWithWaiting(opponents);                                     // PField_Battles:564-569
                 if (ir.getBoolean("double", false)) {
                     state.battleRules().record("double", null);                    // :588 setBattleRule("double")
+                }
+                if (ir.getBoolean("triple", false)) {
+                    state.battleRules().record("triple", null);                    // :605 setBattleRule("triple")
                 }
                 if (ir.getBoolean("canLose", false)) {
                     state.battleRules().record("canLose", null);                   // :587 setBattleRule("canLose") if canLose

@@ -39,7 +39,7 @@ public final class Battle {
      * {@code pbSetUpSides} (Battle_StartAndEnd:116-189) fills it and {@code pbReplace} (:309-318) changes a slot.
      * -1 = nothing on the field at that index.
      */
-    private final int[] fieldParty = {-1, -1, -1, -1};
+    private final int[] fieldParty = {-1, -1, -1, -1, -1, -1};   // one per battler index: 6 for a side of 3
 
     // --- Mega Evolution / ZA mode (Mega evolution + ZA模式) ---
     /** ZA mode ($PokemonSystem.battle_rule == 1): a super-energy system. */
@@ -57,7 +57,7 @@ public final class Battle {
     @SuppressWarnings("unchecked")
     public final java.util.List<Integer>[] zaMegaRequests = new java.util.List[]{new java.util.ArrayList<Integer>(), new java.util.ArrayList<Integer>()};
     /** {@code @megaEvolution} (PokeBattle_Battle:152-155): {@code [side][owner]} = -1 free, the battler index when registered, -2 used. */
-    public final int[][] megaEvolution = {{-1, -1}, {-1, -1}};
+    public final int[][] megaEvolution = {{-1, -1, -1}, {-1, -1, -1}};
     /** {@code za_full_mega_animation?} (Mega evolution:366-369): {@code $PokemonSystem.mega_animation == 0}. */
     public boolean fullMegaAnimation = true;
     /** {@code $PokemonBag.pbHasItem?(item)} for the player. */
@@ -77,7 +77,7 @@ public final class Battle {
     /** {@code pbGetOwnerFromPartyIndex(idxBattler,idxParty).name}-ish: the other trainer's name for the error line (:19-20). */
     private String pbGetOwnerNameFromPartyIndex(int idxBattler, int idxParty) {
         int idxTrainer = pbGetOwnerIndexFromPartyIndex(idxBattler, idxParty);
-        if (opposes(idxBattler, 0)) return idxTrainer > 0 ? opponentName2 : opponentName;
+        if (opposes(idxBattler, 0)) return idxTrainer > 1 ? opponentName3 : (idxTrainer > 0 ? opponentName2 : opponentName);
         return idxTrainer > 0 ? partnerName : playerName;
     }
 
@@ -193,6 +193,11 @@ public final class Battle {
         return addMember(pokemon, true, 1);
     }
 
+    /** The third opposing trainer's Pokemon ({@code @opponent[2]}, a triple trainer battle). */
+    public Battle addFoeThirdTrainer(Pokemon pokemon) {
+        return addMember(pokemon, true, 2);
+    }
+
     private Battle addMember(Pokemon pokemon, boolean foe, int owner) {
         if (pokemon != null) {
             Battler battler = new Battler(pokemon, foe);
@@ -242,13 +247,16 @@ public final class Battle {
         }
     }
 
-    /** {@code setBattleMode(mode)} (PokeBattle_Battle:196-209); only sizes up to 2 exist here, a triple mode is refused. */
+    /** {@code setBattleMode(mode)} (PokeBattle_Battle:196-209). */
     public Battle setBattleMode(String mode) {
         switch (mode == null ? "" : mode) {
-            case "triple": case "3v3": case "3v2": case "3v1": case "2v3": case "1v3":
-                throw new IllegalStateException("battle mode \"" + mode + "\": this runtime has single and double battles only");
+            case "triple": case "3v3": return setSideSizes(3, 3);        // :199
+            case "3v2": return setSideSizes(3, 2);                       // :200
+            case "3v1": return setSideSizes(3, 1);                       // :201
+            case "2v3": return setSideSizes(2, 3);                       // :202
             case "double": case "2v2": return setSideSizes(2, 2);        // :203
             case "2v1": return setSideSizes(2, 1);                       // :204
+            case "1v3": return setSideSizes(1, 3);                       // :205
             case "1v2": return setSideSizes(1, 2);                       // :206
             default: return setSideSizes(1, 1);                          // :207 Single, 1v1 (default)
         }
@@ -270,7 +278,10 @@ public final class Battle {
      * the battle when it cannot (wild sides take the size of the wild party).
      */
     public void pbEnsureParticipants() {
-        // :25-28 battles above 2v2 with several trainers on both sides cannot exist (no larger sizes here)
+        // :25-28 Prevent battles larger than 2v2 if both sides have multiple trainers
+        if (trainerBattle && (sideSizes[0] > 2 || sideSizes[1] > 2) && pbTrainerCount(0) > 1 && pbTrainerCount(1) > 1) {
+            throw new IllegalStateException("不能在双方都有多名训练家的情况\n下进行大于2v2的战斗！");
+        }
         int[] side1counts = pbAbleTeamCounts(0);                                  // :30
         int[] side2counts = pbAbleTeamCounts(1);                                  // :31
         // Change the size of the battle depending on how many wild Pokemon there are
@@ -585,7 +596,7 @@ public final class Battle {
     private final Object[][] choicesStore = newChoices();
 
     private static Object[][] newChoices() {
-        Object[][] c = new Object[4][];
+        Object[][] c = new Object[6][];
         for (int i = 0; i < c.length; i++) {
             c[i] = new Object[]{":None", 0, null, -1, 0};                  // pbClearChoice's initial state
         }
@@ -1114,6 +1125,8 @@ public final class Battle {
             BALL_SUCCESS,
             /** {@code @scene.pbChangePokemon} + {@code pbRefreshOne} (Mega evolution:426-427). */
             CHANGE_POKEMON,
+            /** {@code @scene.pbSwapBattlerSprites(idxA,idxB)} (PokeBattle_Scene:266-279): {@code idxBattler}, the other index in {@code oldHp}. */
+            SWAP_SPRITES,
             /**
              * The full Mega Evolution scene (Mega evolution:400-417): {@code idxBattler}, the scene kind in
              * {@code oldHp} (0 Mega, 1 Primal Groudon, 2 Primal Kyogre), the old form in {@code newHp}'s
@@ -1218,6 +1231,9 @@ public final class Battle {
         static RoundEvent changePokemon(int idxBattler, int oldForm) {
             return new RoundEvent(Kind.CHANGE_POKEMON, null, false, null, idxBattler, oldForm, -1, false, false);
         }
+        static RoundEvent swapSprites(int idxA, int idxB) {
+            return new RoundEvent(Kind.SWAP_SPRITES, null, false, null, idxA, idxB, -1, false, false);
+        }
         static RoundEvent megaScene(int idxBattler, int sceneKind, int oldForm, int newForm) {
             return new RoundEvent(Kind.MEGA_SCENE, null, false, null, idxBattler, sceneKind,
                     (newForm << 16) | (oldForm & 0xFFFF), false, false);
@@ -1249,6 +1265,7 @@ public final class Battle {
                 case BALL_DEFLECT: return "BALL_DEFLECT:" + ball.ballType;
                 case BALL_SUCCESS: return "BALL_SUCCESS";
                 case CHANGE_POKEMON: return "CHANGE_POKEMON:" + idxBattler;
+                case SWAP_SPRITES: return "SWAP_SPRITES:" + idxBattler + "/" + oldHp;
                 case MEGA_SCENE: return "MEGA_SCENE:" + idxBattler + "/" + oldHp + "/" + megaOldForm() + ">" + megaNewForm();
                 default: return "BGM:" + text;
             }
@@ -1891,6 +1908,7 @@ public final class Battle {
     public final DamageState.SuccessState[] successStates = {
             new DamageState.SuccessState(), new DamageState.SuccessState(),
             new DamageState.SuccessState(), new DamageState.SuccessState(),
+            new DamageState.SuccessState(), new DamageState.SuccessState(),
     };
 
     /** {@code pbSideSize(index)} (PokeBattle_Battle:215-217). */
@@ -1900,7 +1918,7 @@ public final class Battle {
 
     /**
      * {@code pbGetOpposingIndicesInOrder(idxBattler)} (PokeBattle_Battle:496-533): the opposing battler indices, the
-     * most "opposite" first. Only the side sizes 1 and 2 exist here.
+     * most "opposite" first.
      */
     public int[] pbGetOpposingIndicesInOrder(int idxBattler) {
         switch (pbSideSize(0)) {                                                   // :497
@@ -1912,6 +1930,9 @@ public final class Battle {
                     case 2:                                                        // :503 1v2
                         if (opposes(idxBattler, 0)) return new int[] {0};          // :504
                         return new int[] {3, 1};                                   // :505
+                    case 3:                                                        // :506 1v3
+                        if (opposes(idxBattler, 0)) return new int[] {0};          // :507
+                        return new int[] {3, 5, 1};                                // :508
                     default:
                         break;
                 }
@@ -1923,6 +1944,22 @@ public final class Battle {
                         return new int[] {1};                                      // :514
                     case 2:                                                        // :515 2v2 double
                         return new int[][] {{3, 1}, {2, 0}, {1, 3}, {0, 2}}[idxBattler];   // :516
+                    case 3:                                                        // :517 2v3
+                        if (idxBattler < 3) return new int[][] {{5, 3, 1}, {2, 0}, {3, 1, 5}}[idxBattler];   // :518
+                        return new int[] {0, 2};                                   // :519
+                    default:
+                        break;
+                }
+                break;
+            case 3:
+                switch (pbSideSize(1)) {                                           // :522
+                    case 1:                                                        // :523 3v1
+                        if (opposes(idxBattler, 0)) return new int[] {2, 0, 4};    // :524
+                        return new int[] {1};                                      // :525
+                    case 2:                                                        // :526 3v2
+                        return new int[][] {{3, 1}, {2, 4, 0}, {3, 1}, {2, 0, 4}, {1, 3}}[idxBattler];   // :527
+                    case 3:                                                        // :528 3v3 triple
+                        return new int[][] {{5, 3, 1}, {4, 2, 0}, {3, 5, 1}, {2, 0, 4}, {1, 3, 5}, {0, 2, 4}}[idxBattler];   // :529
                     default:
                         break;
                 }
@@ -1933,10 +1970,43 @@ public final class Battle {
         return new int[] {idxBattler};                                             // :532
     }
 
-    /** {@code nearBattlers?(idxBattler1,idxBattler2)} (PokeBattle_Battle:544-568); sides larger than 2 do not exist here. */
+    /** {@code nearBattlers?(idxBattler1,idxBattler2)} (PokeBattle_Battle:544-568). */
     public boolean nearBattlers(int idxBattler1, int idxBattler2) {
         if (idxBattler1 == idxBattler2) return false;                              // :545
-        return true;                                                               // :546 pbSideSize(0)<=2 && pbSideSize(1)<=2
+        if (pbSideSize(0) <= 2 && pbSideSize(1) <= 2) return true;                 // :546
+        // Get all pairs of battler positions that are not close to each other
+        java.util.List<int[]> pairs = new java.util.ArrayList<>();
+        pairs.add(new int[] {0, 4});                                               // :548 Covers 3v1 and 1v3
+        pairs.add(new int[] {1, 5});
+        switch (pbSideSize(0)) {                                                   // :549
+            case 3:
+                switch (pbSideSize(1)) {                                           // :551
+                    case 3:                                                        // :552 3v3 (triple)
+                        pairs.add(new int[] {0, 1});                               // :553
+                        pairs.add(new int[] {4, 5});                               // :554
+                        break;
+                    case 2:                                                        // :555 3v2
+                        pairs.add(new int[] {0, 1});                               // :556
+                        pairs.add(new int[] {3, 4});                               // :557
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case 2:                                                                // :559 2v3
+                pairs.add(new int[] {0, 1});                                       // :560
+                pairs.add(new int[] {2, 5});                                       // :561
+                break;
+            default:
+                break;
+        }
+        // See if any pair matches the two battlers being assessed
+        for (int[] pair : pairs) {                                                 // :564
+            boolean has1 = pair[0] == idxBattler1 || pair[1] == idxBattler1;
+            boolean has2 = pair[0] == idxBattler2 || pair[1] == idxBattler2;
+            if (has1 && has2) return false;                                        // :565
+        }
+        return true;                                                               // :567
     }
 
     /**
@@ -1955,6 +2025,7 @@ public final class Battle {
         choicesStore[idxA] = choicesStore[idxB];
         choicesStore[idxB] = tmpChoice;
         refreshFieldIndices();                                                     // :599 the battlers' @index
+        roundEvents.add(RoundEvent.swapSprites(idxA, idxB));                       // :601 @scene.pbSwapBattlerSprites(idxA,idxB)
         // Swap the target of any battlers' effects that point at either of the swapped battlers
         // NOTE: LeechSeed is not swapped, because drained HP goes to whichever Pokemon is in the position.
         int[] effectsToSwap = {PBEffects.Battler.Attract, PBEffects.Battler.BideTarget, PBEffects.Battler.CounterTarget,
@@ -1969,6 +2040,86 @@ public final class Battle {
             }
         }
         return true;                                                               // :623
+    }
+
+    /** {@code pbCanShift?(idxBattler)} (Battle_Action_Other:5-21). */
+    public boolean pbCanShift(int idxBattler) {
+        if (pbSideSize(0) <= 2 && pbSideSize(1) <= 2) return false;                // :6 Double battle or smaller
+        int idxOther = -1;                                                         // :7
+        switch (pbSideSize(idxBattler)) {                                          // :8
+            case 1:
+                return false;                                                      // :10 Only one battler on that side
+            case 2:
+                idxOther = (idxBattler + 2) % 4;                                   // :12
+                break;
+            case 3:
+                if (idxBattler == 2 || idxBattler == 3) return false;              // :14 In middle spot already
+                idxOther = ((idxBattler % 2) == 0) ? 2 : 3;                        // :15
+                break;
+            default:
+                break;
+        }
+        if (pbGetOwnerIndexFromBattlerIndex(idxBattler) != pbGetOwnerIndexFromBattlerIndex(idxOther)) return false;   // :17
+        Battler a = battlerAt(idxBattler);
+        Battler b = battlerAt(idxOther);
+        if (a == null || b == null) return false;
+        if (a.effects.truthy(PBEffects.Battler.Commander) || b.effects.truthy(PBEffects.Battler.Commander)) return false;   // :18-19
+        return true;                                                               // :20
+    }
+
+    /** {@code pbRegisterShift(idxBattler)} (Battle_Action_Other:23-28). */
+    public boolean pbRegisterShift(int idxBattler) {
+        Object[] c = choicesStore[idxBattler];
+        c[0] = ":Shift";                                                           // :24
+        c[1] = 0;                                                                  // :25
+        c[2] = null;                                                               // :26
+        return true;                                                               // :27
+    }
+
+    /**
+     * {@code pbEORShiftDistantBattlers} (Battle_Phase_EndOfRound:152-206): battlers that are not near any foe move to
+     * the middle position. The plugin's own {@code for side} loop and its leftover {@code side} are kept.
+     */
+    public void pbEORShiftDistantBattlers() {
+        if (singleBattle()) return;                                                // :156
+        java.util.List<int[]> swaps = new java.util.ArrayList<>();                 // :157
+        int side;
+        for (side = 0; side < 2; side++) {                                         // :158
+            if (pbSideSize(side) == 1) continue;                                   // :159
+            boolean anyNear = false;                                               // :161
+            for (Battler b : eachSameSideBattler(side)) {                          // :162
+                for (Battler otherB : eachOtherSideBattler(b.index)) {             // :163
+                    if (!nearBattlers(otherB.index, b.index)) continue;            // :164
+                    anyNear = true;                                                // :165
+                    break;                                                         // :166
+                }
+                if (anyNear) break;                                                // :168
+            }
+            if (anyNear) break;                                                    // :170
+            for (Battler b : eachSameSideBattler(side)) {                          // :180
+                int pos = -1;                                                      // :182
+                switch (pbSideSize(side)) {                                        // :183
+                    case 2: pos = new int[] {2, 3, 0, 1}[b.index]; break;          // :184
+                    case 3: pos = side == 0 ? 2 : 3; break;                        // :185
+                    default: break;
+                }
+                if (pos < 0) continue;                                             // :187
+                int idxOwner = pbGetOwnerIndexFromBattlerIndex(b.index);           // :189
+                if (pbGetOwnerIndexFromBattlerIndex(pos) != idxOwner) continue;    // :190
+                swaps.add(new int[] {b.index, pos});                               // :191
+            }
+        }
+        if (side > 1) side = 1;                                                    // Ruby's for variable keeps the last value
+        for (int[] pair : swaps) {                                                 // :195
+            if (pbSideSize(pair[0]) == 2 && swaps.size() > 1) continue;            // :196
+            if (!pbSwapBattlers(pair[0], pair[1])) continue;                       // :197
+            Battler moved = battlerAt(pair[1]);
+            switch (pbSideSize(side)) {                                            // :198
+                case 2: pbDisplay(moved.pbThis() + "移动到了另一边！"); break;          // :199-200
+                case 3: pbDisplay(moved.pbThis() + "移动到了中心！"); break;            // :201-202
+                default: break;
+            }
+        }
     }
 
     /** {@code singleBattle?} (PokeBattle_Battle:211-213). */
@@ -2944,7 +3095,7 @@ public final class Battle {
     public String pbGetOwnerName(int idxBattler) {
         int idxTrainer = pbGetOwnerIndexFromBattlerIndex(idxBattler);   // :267
         if (opposes(idxBattler, 0)) {                               // :268 Opponent
-            return idxTrainer > 0 ? opponentName2 : opponentName;   // Trainer#fullname (set by the battle port); null in a wild battle
+            return idxTrainer > 1 ? opponentName3 : (idxTrainer > 0 ? opponentName2 : opponentName);   // Trainer#fullname (set by the battle port); null in a wild battle
         }
         if (idxTrainer > 0) return partnerName;                     // :269 Ally trainer
         return playerName;                                          // :270 Player
@@ -2952,6 +3103,8 @@ public final class Battle {
 
     /** {@code @opponent[1].fullname} (the second opposing trainer). */
     public String opponentName2;
+    /** {@code @opponent[2].fullname} (the third opposing trainer). */
+    public String opponentName3;
     /** {@code @player[1].fullname} (the partner trainer). */
     public String partnerName;
 

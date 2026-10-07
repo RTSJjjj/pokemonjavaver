@@ -217,6 +217,12 @@ public final class InteractiveBattlePort implements BattlePort {
         public final PbsData.TrainerData trainerData;
         /** The second opposing trainer's row, or null. */
         public final PbsData.TrainerData trainerData2;
+        /** The third opposing trainer's row (a triple trainer battle), or null. */
+        public final PbsData.TrainerData trainerData3;
+        /** The third opposing trainer's {@code fullname}, or null. */
+        public String trainerFullname3;
+        /** The third opponent's LoseText. */
+        public String endSpeech3;
         /** The second opposing trainer's {@code fullname}, or null. */
         public String trainerFullname2;
         /** The second opponent's LoseText. */
@@ -268,6 +274,7 @@ public final class InteractiveBattlePort implements BattlePort {
             this.trainerBattle = trainerBattle;
             this.trainerData = opponents == null || opponents.isEmpty() ? null : opponents.get(0);
             this.trainerData2 = opponents == null || opponents.size() < 2 ? null : opponents.get(1);
+            this.trainerData3 = opponents == null || opponents.size() < 3 ? null : opponents.get(2);
             battle = new Battle(data.get(), random, (user, foe, moves) -> move);
             battle.zaMode = zaMode;
             battle.fullMegaAnimation = megaAnimation == 0;       // Mega evolution:366-369 za_full_mega_animation?
@@ -332,7 +339,9 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             for (int owner = 0; owner < teams.size(); owner++) {
                 for (Pokemon p : teams.get(owner)) {
-                    if (owner == 0) battle.addFoe(p); else battle.addFoeSecondTrainer(p);
+                    if (owner == 0) battle.addFoe(p);
+                    else if (owner == 1) battle.addFoeSecondTrainer(p);
+                    else battle.addFoeThirdTrainer(p);
                     trainer.registerSeen(p);
                 }
             }
@@ -358,6 +367,15 @@ public final class InteractiveBattlePort implements BattlePort {
                 endSpeech = trainerData.loseText == null || trainerData.loseText.isEmpty()
                         ? "..." : trainerData.loseText;
             }
+            if (trainerBattle && trainerData3 != null) {
+                PbsData pbs = data.get();
+                PbsData.TrainerType type = pbs == null || trainerData3.type == null ? null
+                        : pbs.trainerTypes.get(trainerData3.type);
+                trainerFullname3 = (type == null || type.name == null ? "" : type.name + " ") + trainerData3.name;
+                battle.opponentName3 = trainerFullname3;
+                endSpeech3 = trainerData3.loseText == null || trainerData3.loseText.isEmpty()
+                        ? "..." : trainerData3.loseText;
+            }
             if (trainerBattle && trainerData2 != null) {
                 PbsData pbs = data.get();
                 PbsData.TrainerType type = pbs == null || trainerData2.type == null ? null
@@ -376,6 +394,21 @@ public final class InteractiveBattlePort implements BattlePort {
             p.level = level;
             p.exp = pokemon.runtime.pokemon.PokemonStats.experienceForLevel(p.growthRate(), level);
             p.hp = full ? p.maxHp() : Math.min(p.hp, p.maxHp());
+        }
+
+        /** {@code @opponent[i]}'s trainers.txt row, or null. */
+        public PbsData.TrainerData trainerData(int i) {
+            return i == 0 ? trainerData : (i == 1 ? trainerData2 : (i == 2 ? trainerData3 : null));
+        }
+
+        /** {@code @opponent[i].fullname}, or null. */
+        public String trainerFullname(int i) {
+            return i == 0 ? trainerFullname : (i == 1 ? trainerFullname2 : (i == 2 ? trainerFullname3 : null));
+        }
+
+        /** {@code @endSpeeches[i]}: the opponent's LoseText ("..." when empty), or null. */
+        public String endSpeech(int i) {
+            return i == 0 ? endSpeech : (i == 1 ? endSpeech2 : (i == 2 ? endSpeech3 : null));
         }
 
         /** {@code ["single","1v1","1v2","1v3"].include?(size)} (PField_Battles:305, :461). */
@@ -884,8 +917,8 @@ public final class InteractiveBattlePort implements BattlePort {
         private void awardPrizeMoney() {
             PbsData pbs = data.get();
             int total = 0;
-            for (int owner = 0; owner < 2; owner++) {                          // :399 @opponent.each_with_index
-                PbsData.TrainerData td = owner == 0 ? trainerData : trainerData2;
+            for (int owner = 0; owner < 3; owner++) {                          // :399 @opponent.each_with_index
+                PbsData.TrainerData td = trainerData(owner);
                 if (td == null) continue;
                 PbsData.TrainerType type = pbs == null || td.type == null ? null : pbs.trainerTypes.get(td.type);
                 int moneyEarned = type == null || type.baseMoney <= 0 ? 30 : type.baseMoney;

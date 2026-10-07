@@ -401,6 +401,35 @@ export const HANDLERS = {
   },
 
   /**
+   * pbTripleTrainerBattle(type1, name1, party1, speech1, type2, name2, party2, speech2, type3, name3, party3=0,
+   * speech3=nil, canLose=false, outcomeVar=1) (PField_Battles:598-614): three opposing trainers and
+   * setBattleRule("triple").
+   */
+  pbTripleTrainerBattle(args) {
+    const command = {
+      command: "TRAINER_BATTLE",
+      trainerType: args[0],
+      trainerName: args.length > 1 ? args[1] : "",
+      version: args.length > 2 ? args[2] : 0,
+      partner: false,
+      second: {
+        trainerType: args[4],
+        trainerName: args.length > 5 ? args[5] : "",
+        version: args.length > 6 ? args[6] : 0,
+      },
+      third: {
+        trainerType: args[8],
+        trainerName: args.length > 9 ? args[9] : "",
+        version: args.length > 10 ? args[10] : 0,
+      },
+      triple: true,
+    };
+    if (args.length > 12 && args[12] === true) command.canLose = true;
+    if (args.length > 13) command.outcomeVar = args[13];
+    return command;
+  },
+
+  /**
    * PField_Battles:60-77: value-taking rules consume the next argument
    * (terrain/weather/environment/environ/backdrop/battleback/base/outcome/
    * outcomevar); everything else is a flag.
@@ -638,7 +667,7 @@ const SIMPLE_CONDITION = /^\$game_(switches|variables)\[\d+\][^;]*$/;
  */
 const DOMAIN_APIS = new Set([
   "pbGenPkmn", "pbAddPokemon", "pbAddPokemonSilent", "pbChoosePokemon", "pbChoosePokemonForTrade",
-  "pbTrainerBattle", "pbDoubleTrainerBattle", "pbWildBattle", "pbFreeWildBattle", "pbTrainerIntro",
+  "pbTrainerBattle", "pbDoubleTrainerBattle", "pbTripleTrainerBattle", "pbWildBattle", "pbFreeWildBattle", "pbTrainerIntro",
   "setBattleRule", "pbStartTrade",
   "pbBerryPlant", "pbPickBerry", "pbStoreItem", "pbGetKeyItem", "pbDeleteItem",
   "pbPokeCenterPC", "pbShowMap", "pbSetPokemonCenter",

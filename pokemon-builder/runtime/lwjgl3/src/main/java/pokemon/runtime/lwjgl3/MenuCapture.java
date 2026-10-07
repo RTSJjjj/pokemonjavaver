@@ -464,6 +464,11 @@ public final class MenuCapture extends ApplicationAdapter {
             boolean doubleCapture = args.length > 2 && "double".equals(args[2]);
             // Two opposing trainers and a partner (pbDoubleTrainerBattle + a partner trainer), played to the end with CONFIRM.
             boolean doubleTrainerCapture = args.length > 2 && "double-trainer".equals(args[2]);
+            // Three opposing trainers ("triple-trainer") or a wild triple ("triple"), played with CONFIRM.
+            boolean tripleTrainerCapture = args.length > 2 && "triple-trainer".equals(args[2]);
+            boolean tripleWildCapture = args.length > 2 && "triple".equals(args[2]);
+            // The boss battle: the player's three against one boss ("3v1").
+            boolean tripleBossCapture = args.length > 2 && "triple-boss".equals(args[2]);
             // A wild double battle in which the first battler switches and the second attacks ("double-switch"),
             // or the first battler uses a Potion and the second a Poke Ball ("double-bag").
             boolean doubleSwitchCapture = args.length > 2 && "double-switch".equals(args[2]);
@@ -787,7 +792,55 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 60f, 8);
                 }
                 System.out.println(tag + " capture: finished, shots=" + shots + " " + (battleScreen() == null ? "" : battleScreen().debugBattlers()));
-            } else if (doubleTrainerCapture) {
+            } else if (tripleWildCapture || tripleBossCapture) {
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                if (tripleBossCapture) {
+                    pokemon.runtime.pokemon.Pokemon boss = new pokemon.runtime.pokemon.Pokemon(pbs.species("PIDGEY"), 40, pbs);
+                    boss.battleRank = 3;
+                    context.battlePort().setBattleSize("3v1");
+                    context.battlePort().freeWildBattle(boss);
+                } else {
+                context.battlePort().setBattleSize("triple");
+                context.battlePort().freeWildBattle(java.util.Arrays.asList(
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("PIDGEY"), 5, pbs),
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("RATTATA"), 5, pbs),
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("CATERPIE"), 5, pbs)));
+                }
+                renderMap();
+                advanceMap(1f / 60f, 106);
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 1200);
+                shotMap("tri-wild-message");
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> !s.debugSendingOut() && "BATTLE".equals(s.debugStage())
+                        && s.debugWindow() == 2 && s.debugCommandBattler() == 0, 1800);
+                shotMap("tri-command-1");
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> s.debugPage() == 1, 200);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> s.debugPage() == 5, 200);
+                shotMap("tri-target-1");
+                stepMap(GameAction.LEFT);
+                advanceMap(1f / 60f, 6);
+                shotMap("tri-target-1-left");
+                String lastStage = "";
+                int shots = 0;
+                for (int i = 0; i < 300 && battleScreen() != null; i++) {
+                    BattleScreen live = battleScreen();
+                    String key = live.debugStage() + "/" + live.debugWindow() + "/" + live.debugPage() + "/"
+                            + live.debugCommandBattler() + "/" + live.debugSendingOut();
+                    if (!key.equals(lastStage) && shots < 60) {
+                        lastStage = key;
+                        shotMap(String.format(java.util.Locale.ROOT, "tri-%02d-%s", shots++,
+                                live.debugStage().toLowerCase(java.util.Locale.ROOT)));
+                    }
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 8);
+                }
+                System.out.println("triple capture: finished, shots=" + shots + " "
+                        + (battleScreen() == null ? "" : battleScreen().debugBattlers()));
+            } else if (doubleTrainerCapture || tripleTrainerCapture) {
+                int foesWanted = tripleTrainerCapture ? 3 : 2;
                 java.util.List<pokemon.runtime.pokemon.PbsData.TrainerData> foes = new java.util.ArrayList<>();
                 String partnerType = null;
                 for (com.badlogic.gdx.utils.ObjectMap.Entry<String, pokemon.runtime.pokemon.PbsData.TrainerData> entry : pbs.trainers) {
@@ -798,15 +851,15 @@ public final class MenuCapture extends ApplicationAdapter {
                     if (locator.find("Trainers", "trainer" + type.internalName + ".png") == null
                             && locator.find("Trainers",
                                     String.format(java.util.Locale.ROOT, "trainer%03d.png", type.id)) == null) continue;
-                    if (foes.size() < 2) {
+                    if (foes.size() < foesWanted) {
                         candidate.party.first().level = 5;
                         foes.add(candidate);
                     } else if (partnerType == null) {
                         partnerType = candidate.type;
                     }
-                    if (foes.size() == 2 && partnerType != null) break;
+                    if (foes.size() == foesWanted && (partnerType != null || tripleTrainerCapture)) break;
                 }
-                if (foes.size() < 2 || partnerType == null) throw new IllegalStateException("no trainers for the capture");
+                if (foes.size() < foesWanted || (partnerType == null && !tripleTrainerCapture)) throw new IllegalStateException("no trainers for the capture");
                 for (pokemon.runtime.pokemon.Pokemon mon : context.gameState().trainer().party.members()) {
                     mon.level = 50;
                     mon.exp = pokemon.runtime.pokemon.PokemonStats.experienceForLevel(mon.growthRate(), 50);
@@ -818,9 +871,11 @@ public final class MenuCapture extends ApplicationAdapter {
                 context.game().setScreen(mapScreen);
                 pokemon.runtime.pokemon.Pokemon weakPartner = new pokemon.runtime.pokemon.Pokemon(pbs.species("PIKACHU"), 5, pbs);
                 weakPartner.hp = 1;                // faints in the first round: the partner has a reserve to send out
-                context.battlePort().setPartner(partnerType, "小伙伴", java.util.Arrays.asList(weakPartner,
-                        new pokemon.runtime.pokemon.Pokemon(pbs.species("CATERPIE"), 5, pbs)));
-                context.battlePort().setBattleSize("double");
+                if (!tripleTrainerCapture) {
+                    context.battlePort().setPartner(partnerType, "小伙伴", java.util.Arrays.asList(weakPartner,
+                            new pokemon.runtime.pokemon.Pokemon(pbs.species("CATERPIE"), 5, pbs)));
+                }
+                context.battlePort().setBattleSize(tripleTrainerCapture ? "triple" : "double");
                 context.battlePort().trainerBattle(foes);
                 renderMap();
                 advanceMap(1f / 60f, 16);          // entry
@@ -833,7 +888,7 @@ public final class MenuCapture extends ApplicationAdapter {
                             + live.debugCommandBattler() + "/" + live.debugSendingOut();
                     if (!key.equals(lastStage) && shots < 80) {
                         lastStage = key;
-                        shotMap(String.format(java.util.Locale.ROOT, "dt-%02d-%s", shots++,
+                        shotMap(String.format(java.util.Locale.ROOT, (tripleTrainerCapture ? "tt" : "dt") + "-%02d-%s", shots++,
                                 live.debugStage().toLowerCase(java.util.Locale.ROOT)));
                     }
                     stepMap(GameAction.CONFIRM);

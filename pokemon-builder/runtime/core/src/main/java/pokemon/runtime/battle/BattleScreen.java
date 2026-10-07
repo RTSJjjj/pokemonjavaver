@@ -162,8 +162,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     /** {@code actioned} (:200): the battlers that have been asked so far. */
     private final List<Integer> actioned = new ArrayList<>();
     /** {@code @lastCmd} / {@code @lastMove} (Scene_Commands:30/94). */
-    private final int[] lastCmd = new int[4];
-    private final int[] lastMove = new int[4];
+    private final int[] lastCmd = new int[6];
+    private final int[] lastMove = new int[6];
     /** The target menu (Scene_Commands:419-474): {@code texts}, {@code mode} (0 one target, 1 all with text) and {@code cw.index}. */
     private String[] targetTexts;
     private int targetMode;
@@ -198,7 +198,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * battler's live HP). The engine has already run the whole round, so the
      * bars follow the events ({@code animateHP(oldHP,newHP)}) instead.
      */
-    private final int[] heldHp = { -1, -1, -1, -1 };
+    private final int[] heldHp = { -1, -1, -1, -1, -1, -1 };
     /**
      * The player's exp bar fill while the round plays: the engine applies the
      * exp when the foe faints / is captured, but the bar only moves in the exp
@@ -226,14 +226,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private static final float HP_BAR_CHANGE_TIME = 1.0f;
     private static final float EXP_BAR_FILL_TIME = 1.75f;
     // One entry per battler index (the plugin's data boxes: {@code dataBox_i}).
-    private final float[] hpShown = { 1f, 1f, 1f, 1f };
-    private final float[] hpFrom = { 1f, 1f, 1f, 1f };
-    private final float[] hpTo = { 1f, 1f, 1f, 1f };
-    private final float[] hpT = { 1f, 1f, 1f, 1f };
-    private final float[] expShown = { 1f, 1f, 1f, 1f };
-    private final float[] expFrom = { 1f, 1f, 1f, 1f };
-    private final float[] expTo = { 1f, 1f, 1f, 1f };
-    private final float[] expT = { 1f, 1f, 1f, 1f };
+    private final float[] hpShown = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] hpFrom = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] hpTo = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] hpT = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] expShown = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] expFrom = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] expTo = { 1f, 1f, 1f, 1f, 1f, 1f };
+    private final float[] expT = { 1f, 1f, 1f, 1f, 1f, 1f };
     private boolean barsReady;
 
     // ---------------------------------------------------------------------
@@ -454,7 +454,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         animations.add(new BattleAnimations.BattleIntroAnimation(this));
         String[] opponentNames = new String[opponentCount()];
         for (int i = 0; i < opponentNames.length; i++) {
-            opponentNames[i] = i == 0 ? session.trainerFullname : session.trainerFullname2;   // @opponent[i].fullname
+            opponentNames[i] = session.trainerFullname(i);                                   // @opponent[i].fullname
         }
         String[] playerNames = new String[playerCount()];
         for (int i = 1; i < playerNames.length; i++) {
@@ -584,7 +584,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // Opposing trainer(s) sprites (:152-157)
         if (trainerBattle) {                                                    // :153
             for (int i = 0; i < opponentCount(); i++) {
-                PbsData.TrainerData opponent = i == 0 ? session.trainerData : session.trainerData2;
+                PbsData.TrainerData opponent = session.trainerData(i);
                 pbCreateTrainerFrontSprite(i, opponent == null ? null : opponent.type, opponentCount());   // :155
             }
         }
@@ -1035,7 +1035,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void updateSelectedBob() {
         // pbSelectBattler (PokeBattle_Scene:308-316): the battler whose command is chosen (1: bobbing) or the targets
         // being chosen (2: blinking). Scene_Commands:31/:105/:428/:459.
-        int[] selected = new int[4];
+        int[] selected = new int[6];
         if (stage == Stage.BATTLE && (page == 0 || page == 1)) {
             selected[actingIndex()] = 1;
         } else if (stage == Stage.BATTLE && page == PAGE_TARGET && targetTexts != null) {
@@ -1048,7 +1048,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         float boxBob = phase == 1 ? -2f : (phase == 3 ? 2f : 0f);
         float spriteBob = phase == 1 ? 2f : (phase == 3 ? -2f : 0f);
         int sixth = (int) (frameCounter / SIXTH_ANIM_PERIOD);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 6; i++) {
             BattleSprite box = sprites.get("dataBox_" + i);
             if (box != null) {
                 box.bobOffsetY = selected[i] != 0 ? boxBob : 0f;               // :380-385
@@ -1113,6 +1113,40 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             // showShadow? (Pokemon_Sprites:369-373) returns true unconditionally.
             shadow.visible = true;                                              // :327
         }
+    }
+
+    /**
+     * {@code pbSwapBattlerSprites(idxA,idxB)} (PokeBattle_Scene:266-279), used by Ally Switch and the end-of-round
+     * shift: the two positions exchange their sprites, command memory and the state of their sprites and bars
+     * (the data boxes' visibility goes with their Pokemon, so a fainted position stays without a box).
+     */
+    private void swapBattlerSprites(int a, int b) {
+        int tmp = lastCmd[a]; lastCmd[a] = lastCmd[b]; lastCmd[b] = tmp;          // :269
+        tmp = lastMove[a]; lastMove[a] = lastMove[b]; lastMove[b] = tmp;           // :270
+        if (battler(a) != null) pbChangePokemon(a, battler(a));                    // :272-275 index + pbSetPosition
+        if (battler(b) != null) pbChangePokemon(b, battler(b));
+        for (String prefix : new String[] { "pokemon_", "shadow_", "dataBox_" }) { // :267-268 the sprites trade places
+            BattleSprite x = sprites.get(prefix + a);
+            BattleSprite y = sprites.get(prefix + b);
+            if (x == null || y == null) continue;
+            boolean visible = x.visible; x.visible = y.visible; y.visible = visible;
+            float opacity = x.opacity; x.opacity = y.opacity; y.opacity = opacity;
+            float zoomX = x.zoomX; x.zoomX = y.zoomX; y.zoomX = zoomX;
+            float zoomY = x.zoomY; x.zoomY = y.zoomY; y.zoomY = zoomY;
+            float[] tone = x.tone; x.tone = y.tone; y.tone = tone;
+            float[] color = x.color; x.color = y.color; y.color = color;
+        }
+        float t;
+        t = hpShown[a]; hpShown[a] = hpShown[b]; hpShown[b] = t;
+        t = hpFrom[a]; hpFrom[a] = hpFrom[b]; hpFrom[b] = t;
+        t = hpTo[a]; hpTo[a] = hpTo[b]; hpTo[b] = t;
+        t = hpT[a]; hpT[a] = hpT[b]; hpT[b] = t;
+        t = expShown[a]; expShown[a] = expShown[b]; expShown[b] = t;
+        t = expFrom[a]; expFrom[a] = expFrom[b]; expFrom[b] = t;
+        t = expTo[a]; expTo[a] = expTo[b]; expTo[b] = t;
+        t = expT[a]; expT[a] = expT[b]; expT[b] = t;
+        int held = heldHp[a]; heldHp[a] = heldHp[b]; heldHp[b] = held;
+        pbRefresh();                                                               // :278
     }
 
     /** {@code pbRefresh} (PokeBattle_Scene:63-68): the data boxes re-read the battler. */
@@ -2177,7 +2211,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void useBagItemInDoubles(String id, int target) {
         PbsData.Item data = context.pbsData().item(id);
         if (data != null && data.isPokeBall()) {                   // useType 4/9 (Scene_Commands:328-349)
-            int[] foes = new int[4];
+            int[] foes = new int[6];
             int count = 0;
             for (Battler foe : session.battle.eachOtherSideBattler(actingIndex())) {
                 foes[count++] = foe.index;
@@ -2491,8 +2525,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 endAppearTimer = 0f;
                 endAppearStarted = false;
                 // :454-463 one, two or three opponents
-                showBattleMessage("你打败了\n" + (session.trainerData2 == null ? session.trainerFullname
-                        : session.trainerFullname + "和" + session.trainerFullname2) + "！", true);
+                StringBuilder names = new StringBuilder();
+                for (int i = 0; i < opponentCount(); i++) {                      // :454-463
+                    if (i > 0) names.append(opponentCount() == 3 && i == 1 ? "、" : "和");
+                    names.append(session.trainerFullname(i));
+                }
+                showBattleMessage("你打败了\n" + names + "！", true);
                 return;
             }
             case LOSE_MESSAGE: {
@@ -2501,7 +2539,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     endOpponent++;
                     endPhase = EndPhase.APPEAR;
                     endAppearStarted = false;
-                    showBattleMessage(endOpponent == 1 ? session.endSpeech : session.endSpeech2, true);
+                    showBattleMessage(session.endSpeech(endOpponent - 1), true);
                     return;
                 }
                 if (session.prizeMoney > 0) {
@@ -2509,7 +2547,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 } else {
                     endPhase = EndPhase.DONE;
                 }
-                showBattleMessage(endOpponent == 0 ? session.endSpeech : session.endSpeech2, true);
+                showBattleMessage(session.endSpeech(endOpponent), true);
                 return;
             }
             case MONEY_MESSAGE: {
@@ -2620,6 +2658,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 resumeRound();
                 return;
             }
+            case SWAP_SPRITES:
+                // @scene.pbSwapBattlerSprites(idxA,idxB) (PokeBattle_Battle:601)
+                swapBattlerSprites(event.idxBattler, event.oldHp);
+                resumeRound();
+                return;
             case MEGA_SCENE:
                 beginMegaScene(event);
                 return;

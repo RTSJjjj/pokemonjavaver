@@ -323,7 +323,7 @@ class InteractiveBattlePortTest {
         port.setBattleSize("double");
         port.freeWildBattle(java.util.Arrays.asList(pokemon(15), pokemon(15)));
         InteractiveBattlePort.Session session = port.session();
-        assertEquals(4, session.battle.field.positions.length);
+        assertEquals(6, session.battle.field.positions.length);
         session.onActiveAll();
         assertNull(session.result);
     }

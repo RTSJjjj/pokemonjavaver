@@ -62,7 +62,32 @@ public final class BattlerUseMove {
         if (self.fainted()) return false;                                            // :6
         // Shift with the battler next to this one
         if (":Shift".equals(choice[0])) {                                            // :18
-            // :19-36 idxOther stays -1 on a side of size 1: nothing is swapped, nothing is shown
+            int idxOther = -1;                                                       // :19
+            switch (battle.pbSideSize(self.index)) {                                 // :20
+                case 2:
+                    idxOther = (self.index + 2) % 4;                                 // :22
+                    break;
+                case 3:
+                    if (self.index != 2 && self.index != 3) {                        // :24 If not in middle spot already
+                        idxOther = ((self.index % 2) == 0) ? 2 : 3;                  // :25
+                    }
+                    break;
+                default:
+                    break;
+            }
+            if (idxOther >= 0) {                                                     // :28
+                battle.pbSwapBattlers(self.index, idxOther);                         // :29
+                switch (battle.pbSideSize(self.index)) {                             // :30
+                    case 2:
+                        battle.display(self.pbThis() + "移动到了另一边！");              // :32
+                        break;
+                    case 3:
+                        battle.display(self.pbThis() + "移动到了中心！");                // :34
+                        break;
+                    default:
+                        break;
+                }
+            }
             self.pbBeginTurn(choice);                                                // :37
             self.pbCancelMoves();                                                    // :38
             self.lastRoundMoved = battle.turnCount();                                // :39 Done something this round
