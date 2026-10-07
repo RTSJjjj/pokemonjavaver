@@ -36,9 +36,10 @@ import { sha1 } from "../../builder/src/util.js";
 import { validateProject } from "../../builder/src/project.js";
 import { isInside } from "../../builder/src/config.js";
 import { scanProject } from "../scanner/index.js";
+import { BATTLE_ANIMATIONS_DIR, buildBattleAnimations } from "./battle-animations.js";
 import { analyzeProjectEvents } from "../event-analyzer/index.js";
 import { readScriptSources } from "../scanner/index.js";
-import { buildPbsIr } from "./pbs.js";
+import { buildPbsIr, parseMetadata } from "./pbs.js";
 import { analyzeScriptUsage } from "../script-analyzer/index.js";
 import { rubyText } from "../scanner/index.js";
 import {
@@ -56,7 +57,7 @@ import {
 // without the new fields.
 export const IR_FORMAT = "pokemon-builder/debug-ir/4";
 
-const IR_SUBDIRS = ["maps", "events", "common-events", "scripts", "metadata"];
+const IR_SUBDIRS = ["maps", "events", "common-events", "scripts", "metadata", BATTLE_ANIMATIONS_DIR];
 
 function pad(value) {
   return String(value).padStart(3, "0");
@@ -505,7 +506,7 @@ function eventEntriesOf(data) {
   return usable;
 }
 
-export function buildMapIr({ file, mapId, mapName, data, blocks, outdoor = false, snapEdges = false }) {
+export function buildMapIr({ file, mapId, mapName, data, blocks, outdoor = false, snapEdges = false, region = null, mapPosition = null, battleBack = null }) {
   const plainEncounters = Array.isArray(data["@encounter_list"]) ? data["@encounter_list"] : [];
   return {
     format: IR_FORMAT,
@@ -521,6 +522,12 @@ export function buildMapIr({ file, mapId, mapName, data, blocks, outdoor = false
     // PBS/metadata.txt says "SnapEdges = true" (the default is false), which is
     // also what makes Essentials map connections scroll seamlessly.
     snapEdges: snapEdges === true,
+    ...(region === null ? {} : { region }),
+    // MetadataMapPosition "region,x,y" (Misc_Data:100, "uuu"): the region map
+    // (PScreen_RegionMap) centers its cursor and the player marker on this.
+    ...(mapPosition === null ? {} : { mapPosition }),
+    // MetadataBattleBack: "field" / "city" / ... -> Graphics/Battlebacks/<name>_bg.
+    ...(battleBack === null || battleBack === "" ? {} : { battleBack }),
     width: typeof data["@width"] === "number" ? data["@width"] : null,
     height: typeof data["@height"] === "number" ? data["@height"] : null,
     tilesetId: typeof data["@tileset_id"] === "number" ? data["@tileset_id"] : null,
@@ -646,6 +653,32 @@ function runtimeProfile(projectPath, scriptSources) {
  * ignored. Returns null when the project has no such section, so projects
  * without the plugin keep their generated tree unchanged.
  */
+/**
+ * P4: the project's in-game pinyin name entry (Scripts "字库" ->
+ * {@code PBZ_IM_quanpin::PY}, a syllable -> characters hash). The desktop
+ * runtime cannot use a native/OS text box (libGDX's LWJGL3 getTextInput is a
+ * no-op), so the name is entered in game from this table.
+ */
+function parsePinyinTable(scriptSources) {
+  const sections = (scriptSources && scriptSources.sections) || [];
+  const section = sections.find((entry) => /class\s+PBZ_IM_quanpin\b/.test(entry.source || ""));
+  const table = {};
+  if (section) {
+    const src = section.source || "";
+    const start = src.indexOf("PY");
+    const body = start < 0 ? src : src.slice(start);
+    const re = /['"]([a-z]+)['"]\s*=>\s*['"]([^'"]*)['"]/g;
+    let match;
+    while ((match = re.exec(body)) !== null) {
+      if (match[1] && !table[match[1]]) {
+        table[match[1]] = match[2];
+      }
+    }
+  }
+  return { format: "pokemon-builder/text/1", kind: "pinyinTable",
+    total: Object.keys(table).length, table };
+}
+
 export function buildTitleIr(scriptSources) {
   const sections = scriptSources && scriptSources.sections ? scriptSources.sections : [];
   const section = sections.find((entry) => /module\s+ModularTitle\b/.test(entry.source || ""));
@@ -718,41 +751,26 @@ export function buildTitleIr(scriptSources) {
  * MetadataOutdoor and zeroes the tone everywhere else), so the runtime needs
  * the same per-map flag to leave indoor maps unshaded. Unknown keys are
  * ignored; a missing file simply means "no map is outdoor".
+ *
+ * <p>The parsing itself lives in pbs.js ({@code parseMetadata}), because the
+ * same "[000]" / per-map file also holds the battle BGM / victory ME of
+ * generated/pbs/metadata.json; this adapter keeps the five lookups the map IR
+ * has always used.</p>
  */
 function parseMapMetadata(projectPath) {
   const outdoor = new Map();
   const snapEdges = new Map();
-  const file = path.join(projectPath, "PBS", "metadata.txt");
-  if (!existsSync(file)) return { outdoor, snapEdges };
-  let text;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch (error) {
-    return { outdoor, snapEdges };
+  const region = new Map();
+  const mapPosition = new Map();
+  const battleBack = new Map();
+  for (const [mapId, record] of parseMetadata(projectPath).maps) {
+    if (record.outdoor !== undefined) outdoor.set(mapId, record.outdoor);
+    if (record.snapEdges !== undefined) snapEdges.set(mapId, record.snapEdges);
+    if (record.region !== undefined) region.set(mapId, record.region);
+    if (record.mapPosition !== undefined) mapPosition.set(mapId, record.mapPosition);
+    if (record.battleBack !== undefined) battleBack.set(mapId, record.battleBack);
   }
-  let mapId = null;
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (line === "" || line.startsWith("#")) continue;
-    const section = /^\[(\d+)\]$/.exec(line);
-    if (section) {
-      mapId = Number(section[1]);
-      continue;
-    }
-    if (mapId === null) continue;
-    const keyValue = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
-    if (!keyValue) continue;
-    const key = keyValue[1].toLowerCase();
-    if (key !== "outdoor" && key !== "snapedges") continue;
-    const value = keyValue[2].trim().toLowerCase();
-    const flag = value === "true" || value === "1" || value === "yes";
-    if (key === "outdoor") {
-      outdoor.set(mapId, flag);
-    } else {
-      snapEdges.set(mapId, flag);
-    }
-  }
-  return { outdoor, snapEdges };
+  return { outdoor, snapEdges, region, mapPosition, battleBack };
 }
 
 /**
@@ -1159,6 +1177,9 @@ export function convertProject(projectPath, options = {}) {
       blocks,
       outdoor: mapMetadata.outdoor.get(entry.mapId) === true,
       snapEdges: mapMetadata.snapEdges.get(entry.mapId) === true,
+      region: mapMetadata.region.get(entry.mapId) ?? null,
+      mapPosition: mapMetadata.mapPosition.get(entry.mapId) ?? null,
+      battleBack: mapMetadata.battleBack.get(entry.mapId) ?? null,
     });
     write(relative, ir);
     const commands = ir.events.reduce(
@@ -1360,6 +1381,9 @@ export function convertProject(projectPath, options = {}) {
   // L1: title screen configuration (only when the project uses the plugin).
   const titleIr = buildTitleIr(scriptSources);
   if (titleIr) write("title.json", titleIr);
+  // P4: the in-game pinyin name-entry table (Scripts "字库").
+  const pinyinIr = parsePinyinTable(scriptSources);
+  write("text/pinyin.json", pinyinIr);
   // R6.27: Show Animation (207) plays RPG::Animation data. The cell tables are
   // 2D RGSS tables, so the raw decoder above feeds this export.
   let animationsIr = { format: IR_FORMAT, kind: "animations", total: 0, animations: [] };
@@ -1379,6 +1403,58 @@ export function convertProject(projectPath, options = {}) {
     result.warnings.push({ file: "Animations.rxdata", error: String(error.message || error) });
   }
   write("animations.json", animationsIr);
+  // Battle move / common animations (PokeBattle_AnimationPlayer's data): one
+  // cache unit, compact JSON (the 16 MB PkmnAnimations.rxdata is ~250k cels).
+  const battleAnimUnitId = "battle-animations";
+  const battleAnimDeps = ["Data/PkmnAnimations.rxdata", "Data/move2anim.dat"];
+  try {
+    const move2animFile = path.join(dataDir, "move2anim.dat");
+    if (existsSync(move2animFile)) {
+      const stat = statSync(move2animFile);
+      fingerprints["Data/move2anim.dat"] = {
+        file: "Data/move2anim.dat",
+        bytes: stat.size,
+        sha1: sha1(readFileSync(move2animFile).toString("latin1")),
+        mtime: stat.mtime.toISOString(),
+        mtimeMs: stat.mtimeMs,
+      };
+    }
+    if (unitIsFresh(cache.cache, battleAnimUnitId, fingerprints, generatedDir)) {
+      result.incremental.skipped.push(battleAnimUnitId);
+      cacheUnits[battleAnimUnitId] = cache.cache.units[battleAnimUnitId];
+    } else {
+      const battleAnims = buildBattleAnimations(projectPath);
+      if (battleAnims) {
+        const writeCompact = (relative, payload) => {
+          const target = path.join(generatedDir, relative);
+          if (!isInside(generatedDir, target)) {
+            throw new Error("refusing to write outside the generated directory: " + target);
+          }
+          mkdirSync(path.dirname(target), { recursive: true });
+          const body = JSON.stringify(payload);
+          writeFileSync(target, body, "utf8");
+          result.files.push({ file: relative, bytes: Buffer.byteLength(body, "utf8") });
+          result.bytes += Buffer.byteLength(body, "utf8");
+        };
+        const outputs = [BATTLE_ANIMATIONS_DIR + "/index.json"];
+        writeCompact(BATTLE_ANIMATIONS_DIR + "/index.json", battleAnims.index);
+        for (const animation of battleAnims.animations) {
+          writeCompact(animation.file, animation.payload);
+          outputs.push(animation.file);
+        }
+        result.incremental.rebuilt.push(battleAnimUnitId);
+        cacheUnits[battleAnimUnitId] = {
+          kind: "battle-animations",
+          source: "Data/PkmnAnimations.rxdata",
+          dependencies: battleAnimDeps,
+          fingerprints: fingerprintSubset(battleAnimDeps),
+          outputs,
+        };
+      }
+    }
+  } catch (error) {
+    result.warnings.push({ file: "PkmnAnimations.rxdata", error: String(error.message || error) });
+  }
   write("metadata/sources.json", {
     format: IR_FORMAT,
     kind: "sources",
@@ -1501,6 +1577,7 @@ export function convertProject(projectPath, options = {}) {
     "metadata/problems.json",
   ]);
   if (titleIr) expectedOutputs.add("title.json");
+  expectedOutputs.add("text/pinyin.json");
   for (const relative of Object.keys(pbsData.output)) {
     expectedOutputs.add(relative);
   }

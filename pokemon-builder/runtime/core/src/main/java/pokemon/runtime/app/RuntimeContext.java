@@ -32,6 +32,8 @@ import java.io.IOException;
  * reach, so screens and the event interpreter never need global state.
  */
 public final class RuntimeContext {
+    private final pokemon.runtime.event.MenuService menuService = new pokemon.runtime.event.MenuService();
+    public pokemon.runtime.event.MenuService menuService() { return menuService; }
 
     private final String version;
     private final PokemonGame game;
@@ -131,6 +133,42 @@ public final class RuntimeContext {
     public void settingsChanged() {
         audioManager.setVolumeFactors(settings.bgmFactor(), settings.seFactor(), settings.bgsFactor());
         settings.save(storage);
+        applyBattleRule();
+    }
+
+    /** $PokemonSystem.battle_rule: 0 = classic Mega Evolution, 1 = ZA mode. */
+    private void applyBattleRule() {
+        if (battlePort instanceof pokemon.runtime.battle.InteractiveBattlePort) {
+            pokemon.runtime.battle.InteractiveBattlePort port =
+                    (pokemon.runtime.battle.InteractiveBattlePort) battlePort;
+            port.zaMode(settings.battleRule == 1);
+            // PField_Battles:111: battle.switchStyle = ($PokemonSystem.battlestyle==0).
+            port.battleStyle(settings.battlestyle);
+            // PField_Battles:114: battle.showAnims = ($PokemonSystem.battlescene==0).
+            port.battleScene(settings.battlescene);
+        }
+    }
+
+    /**
+     * The engine's own {@code pbSEPlay(pbCryFile(pokemon))}
+     * ({@code Battler_UseMove_SuccessChecks:318-319}, a rank&gt;2 Boss shrugging off
+     * a flinch): the battle engine has no audio, so the port is handed this hook.
+     */
+    private void attachBattleAudio(pokemon.runtime.battle.BattlePort port) {
+        if (!(port instanceof pokemon.runtime.battle.InteractiveBattlePort)) {
+            return;
+        }
+        ((pokemon.runtime.battle.InteractiveBattlePort) port).setCryPlayer(pokemon -> {
+            if (audioManager == null || pokemon == null || pokemon.species == null) {
+                return;
+            }
+            int form = pokemon.form == null ? 0 : pokemon.form.form;
+            String cry = audioManager.resolveCryFile(pokemon.species.id,
+                    pokemon.species.internalName, form);           // pbCryFile (PSystem_FileUtilities:509-539)
+            if (cry != null) {
+                audioManager.playSe(cry, 100, 100);                // pbSEPlay defaults (Audio_Play:200)
+            }
+        });
     }
 
     /** Live switches / variables / self switches (R5, project3 section 30). */
@@ -324,6 +362,28 @@ public final class RuntimeContext {
                 return screenPort != null && screenPort.playerOnCharacter(characterId);
             }
 
+            // P3: the berry plants keep their whole growth state in the event
+            // variable and encode the stage in the event's facing - the R6.14
+            // trap again, both must reach the visible map screen.
+            @Override
+            public int[] getEventVariable(int eventId) {
+                return screenPort == null ? null : screenPort.getEventVariable(eventId);
+            }
+
+            @Override
+            public void setEventVariable(int eventId, int[] value) {
+                if (screenPort != null) {
+                    screenPort.setEventVariable(eventId, value);
+                }
+            }
+
+            @Override
+            public void turnEvent(int eventId, int direction) {
+                if (screenPort != null) {
+                    screenPort.turnEvent(eventId, direction);
+                }
+            }
+
             /** R6.22: 204 / 206 / 203 have to reach the visible screen too. */
             @Override
             public void changeMapSettings(int type, com.badlogic.gdx.utils.JsonValue parameters) {
@@ -404,10 +464,13 @@ public final class RuntimeContext {
             // P0c: the Pokemon construction IR commands need the PBS data.
             eventInterpreter.attachPbs(database.pbs());
         }
-        battlePort = new HeadlessBattlePort(gameState.trainer(),
+        battlePort = new pokemon.runtime.battle.InteractiveBattlePort(gameState.trainer(), gameState.inventory(),
                 () -> database == null ? null : database.pbs(),
                 this::whiteOut, new java.util.Random());
+        attachBattleAudio(battlePort);
         eventInterpreter.attachBattlePort(battlePort);
+        applyBattleRule();
+        eventInterpreter.attachMenuService(menuService);
         if (database != null && database.system() != null) {
             // Named switches ("s:...") are script expressions, not booleans.
             gameState.switchNames(database.system().switches);
@@ -482,11 +545,14 @@ public final class RuntimeContext {
             interpreter.attachPbs(database.pbs());
         }
         if (battlePort == null) {
-            battlePort = new HeadlessBattlePort(gameState.trainer(),
+            battlePort = new pokemon.runtime.battle.InteractiveBattlePort(gameState.trainer(), gameState.inventory(),
                     () -> database == null ? null : database.pbs(),
                     this::whiteOut, new java.util.Random());
+            attachBattleAudio(battlePort);
         }
         interpreter.attachBattlePort(battlePort);
+        interpreter.attachMenuService(menuService);
+        applyBattleRule();
         return interpreter;
     }
 

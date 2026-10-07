@@ -31,6 +31,109 @@ public final class MenuAssets implements Disposable {
     public Texture mpm(String name) {
         return load("mpm:" + name, "Pictures/MPM", name + ".png");
     }
+    public Texture graphic(String directory, String name) {
+        return load(directory + ":" + name, directory, name + ".png");
+    }
+
+    /**
+     * {@code BitmapCache.load_bitmap(path, hue)} (BitmapCache:399-413): a copy of
+     * {@code Graphics/<directory>/<name>.png} with {@code Bitmap#hue_change(hue)}
+     * applied; {@code hue == 0} is the plain cached bitmap.
+     */
+    public Texture graphicHue(String directory, String name, int hue) {
+        if (hue == 0) {
+            return graphic(directory, name);
+        }
+        String key = directory + ":" + name + ":hue" + hue;
+        Texture cached = textures.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        if (missing.containsKey(key)) {
+            return null;
+        }
+        File found = locator == null ? null : locator.find(directory, name + ".png");
+        if (found == null || !found.isFile()) {
+            missing.put(key, true);
+            return null;
+        }
+        try {
+            Pixmap pixmap = new Pixmap(new FileHandle(found));
+            HueShift.apply(pixmap, hue);
+            Texture texture = new Texture(pixmap);
+            pixmap.dispose();
+            texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            textures.put(key, texture);
+            return texture;
+        } catch (RuntimeException error) {
+            missing.put(key, true);
+            return null;
+        }
+    }
+
+    /**
+     * A field-cache handle for one {@code Graphics/&lt;directory&gt;/&lt;name&gt;.png}:
+     *
+     * <pre>{@code
+     * private final MenuAssets.TextureRef overlayHp = assets.ref("Pictures/Battle", "overlay_hp");
+     * ...
+     * Texture hpBar = overlayHp.texture();   // a field read after the first call
+     * }</pre>
+     *
+     * <p>Perf pass: {@code BattleScreen} calls
+     * {@code assets.graphic("Pictures/Battle", ...)} inside its per-frame render
+     * methods (:2938 hp bar, :2953 exp bar, :2988 status icons, :3064 message
+     * overlay, :3113 command overlay, :3136 fight overlay, :3210 icon numbers),
+     * and every one of those builds a fresh {@code directory + ":" + name} key
+     * string and hashes it in the {@code ObjectMap}. Holding a handle in a field
+     * makes the steady state one field read.</p>
+     *
+     * <p>Resolution is lazy and goes through the same {@link #graphic} cache, so
+     * the texture, the missing-file fallback ({@code null}) and {@link #dispose()}
+     * behave exactly as before.</p>
+     */
+    public TextureRef ref(String directory, String name) {
+        return new TextureRef(this, directory, name);
+    }
+
+    /** See {@link MenuAssets#ref(String, String)}. */
+    public static final class TextureRef {
+        private final MenuAssets assets;
+        private final String directory;
+        private final String name;
+        private Texture texture;
+        private boolean resolved;
+
+        private TextureRef(MenuAssets assets, String directory, String name) {
+            this.assets = assets;
+            this.directory = directory;
+            this.name = name;
+        }
+
+        /** The texture; resolved once, then a plain field read. */
+        public Texture texture() {
+            if (!resolved) {
+                texture = assets.graphic(directory, name);
+                resolved = true;
+            }
+            return texture;
+        }
+
+        /** Forgets the resolved value; the next {@link #texture()} looks it up again. */
+        public void refresh() {
+            resolved = false;
+        }
+    }
+
+    /** Graphics/Characters/&lt;name&gt;.png (walking charsets / 004's trainer sprite). */
+    public Texture character(String name) {
+        return load("char:" + name, "Characters", name + ".png");
+    }
+
+    /** Graphics/Icons/&lt;name&gt;.png (PokemonIconSprite strips). */
+    public Texture icon(String name) {
+        return load("icon:" + name, "Icons", name + ".png");
+    }
 
     /** Graphics/Titles/&lt;name&gt;.png (splash slides, start prompt). */
     public Texture title(String name) {

@@ -283,8 +283,8 @@ test("replaces stale intermediate data", (t) => {
   assert.ok(!existsSync(stale));
   assert.ok(existsSync(path.join(generatedDir, "maps", "map-001.json")));
   for (const name of readdirSync(generatedDir)) {
-    assert.ok(["project.json", "maps", "events", "common-events", "scripts", "metadata",
-      "connections.json", "animations.json", "tilesets.json", "system.json", "pbs"].includes(name), name);
+    assert.ok(["project.json", "maps", "events", "common-events", "scripts", "metadata", "battle-animations",
+      "connections.json", "animations.json", "tilesets.json", "system.json", "pbs", "text"].includes(name), name);
   }
 });
 
@@ -730,7 +730,7 @@ test("writes build/cache.json with fingerprints and dependencies", (t) => {
   assert.equal(result.incremental.used, false, "the first build cannot reuse anything");
 
   const cache = readJson(path.join(cacheDir, "cache.json"));
-  assert.equal(cache.format, "pokemon-builder/build-cache/1");
+  assert.equal(cache.format, "pokemon-builder/build-cache/2");
   assert.equal(cache.irFormat, IR_FORMAT);
   assert.equal(cache.builderVersion, "1.2.3");
   assert.equal(cache.project, project);

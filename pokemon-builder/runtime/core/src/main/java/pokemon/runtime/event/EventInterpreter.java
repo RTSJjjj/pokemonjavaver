@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import pokemon.runtime.audio.AudioManager;
 import pokemon.runtime.battle.BattlePort;
 import pokemon.runtime.battle.BattleResult;
+import pokemon.runtime.battle.HeadlessBattlePort;
 import pokemon.runtime.battle.WildEncounters;
 import pokemon.runtime.data.EventCommand;
 import pokemon.runtime.data.MoveRoute;
@@ -59,6 +60,9 @@ public final class EventInterpreter {
     /** Essentials {@code isTempSwitchOn?("A")} / {@code isTempSwitchOff?("A")}. */
     private static final Pattern SCRIPT_TEMP_SWITCH =
             Pattern.compile("^isTempSwitch(On|Off)\\?\\(\\s*\"([A-D])\"\\s*\\)$");
+    /** {@code $Trainer.party.length > 0} / {@code $Trainer.partyCount >= 6} etc. */
+    private static final Pattern SCRIPT_PARTY =
+            Pattern.compile("^\\$Trainer\\.(?:party\\.(?:length|size)|partyCount)\\s*(?:([=!<>]=|[<>])\\s*(-?\\d+))?$");
 
     private final GameState state;
     private final MessageService messages;
@@ -74,6 +78,11 @@ public final class EventInterpreter {
     private PbsData pbs;
     /** P2: runs wild / trainer battles started by event scripts. */
     private BattlePort battlePort;
+    private MenuService menuService;
+    private MenuService.Request menuRequest;
+    public void attachMenuService(MenuService service) { menuService = service; }
+    /** P3: the berry plant stepper ({@code pbBerryPlant} / {@code pbPickBerry}). */
+    private BerryInteraction berry;
     /** P2: the random source for triggered encounters (RockSmash). */
     private final java.util.Random encounterRandom = new java.util.Random();
     /**
@@ -83,6 +92,22 @@ public final class EventInterpreter {
      */
     private final ObjectMap<String, Object> scriptLocals = new ObjectMap<>();
     private final WarningLog log;
+    /**
+     * PField_Battles:510-516: the variable that receives the next battle's
+     * decision (1 = won, 2 = lost, 3 = fled). Written when the interpreter
+     * resumes after the battle.
+     */
+    private int pendingOutcomeVar = -1;
+    /** A code-111 script condition that started a trainer battle (pbTrainerBattle). */
+    private BattleCondition pendingBattleCondition;
+    /** R8: the random source of the boss rewards (rand(1..5) / rand(1000) / sample). */
+    private java.util.Random random = new java.util.Random();
+    /** R8: messages queued by one IR step (the boss rewards show several). */
+    private final java.util.ArrayDeque<String> pendingMessages = new java.util.ArrayDeque<>();
+
+    public void attachRandom(java.util.Random value) {
+        random = value == null ? new java.util.Random() : value;
+    }
 
     private final Array<Frame> stack = new Array<>();
     private final Array<Integer> activeCommonEvents = new Array<>();
@@ -98,6 +123,12 @@ public final class EventInterpreter {
      */
     private JsonValue pendingSteps;
     private int pendingStepIndex;
+    /**
+     * P0d: running compiled Ruby {@code for <var> in <from>..<to> ... end}
+     * loops (the catch scripts' ball-shake glue). The body may wait (pbWait)
+     * between iterations, so each loop keeps its own cursor; frames nest.
+     */
+    private final Array<RepeatFrame> repeatFrames = new Array<>();
 
     private Array<String> messageLines = new Array<>();
     private int messagePage;
@@ -141,10 +172,16 @@ public final class EventInterpreter {
 
     /** Aborts the current event (map change, event erased, new interaction). */
     public void stop() {
+        if (menuRequest != null) menuRequest.complete(-1, "");
+        menuRequest = null;
+        berry = null;
         stack.clear();
         activeCommonEvents.clear();
         pendingSteps = null;
         pendingStepIndex = 0;
+        repeatFrames.clear();
+        pendingOutcomeVar = -1;
+        pendingBattleCondition = null;
         scriptLocals.clear();
         // Never close the shared message window here: a parallel event restarts
         // its own interpreter every few frames, and that used to dismiss the
@@ -210,6 +247,17 @@ public final class EventInterpreter {
 
     /** Called once per frame by the map screen. */
     public void update(float delta) {
+        if (battlePort != null && battlePort.pending()) return;
+        if (menuRequest != null) {
+            if (!menuRequest.done) return;
+            if (menuRequest.kind == MenuService.Kind.CHOOSE_TRADE) {
+                if (menuRequest.variable > 0) state.variables().set(menuRequest.variable, menuRequest.result);
+                if (menuRequest.nameVariable > 0) state.variables().setText(menuRequest.nameVariable, menuRequest.text);
+            } else if (menuRequest.kind == MenuService.Kind.CHOOSE_ITEM && berry != null) {
+                berry.itemChosen(menuRequest); // pbChooseItemScreen result
+            }
+            menuRequest = null;
+        }
         if (interpreterState == InterpreterState.FINISHED) {
             return;
         }
@@ -226,7 +274,54 @@ public final class EventInterpreter {
     private void execute() {
         int steps = 0;
         while (interpreterState == InterpreterState.RUNNING
-                && (pendingSteps != null || stack.size > 0)) {
+                && menuRequest == null
+                && (battlePort == null || !battlePort.pending())
+                && (repeatFrames.size > 0 || pendingSteps != null || stack.size > 0)) {
+            if (pendingOutcomeVar > 0 && (battlePort == null || !battlePort.pending())) {
+                // PField_Battles:510-516: the finished battle's decision lands
+                // in its outcome variable before the event continues.
+                int variable = pendingOutcomeVar;
+                pendingOutcomeVar = -1;
+                BattleResult finished = battlePort == null ? null : battlePort.lastResult();
+                state.variables().set(variable, battleDecision(finished));
+            }
+            if (pendingBattleCondition != null && (battlePort == null || !battlePort.pending())) {
+                // pbTrainerBattle as a script condition (PField_Battles:526-580):
+                // the branch resolves on the battle result.
+                BattleCondition pending = pendingBattleCondition;
+                pendingBattleCondition = null;
+                BattleResult finished = battlePort == null ? null : battlePort.lastResult();
+                state.variables().set(pending.outcomeVar, battleDecision(finished));
+                boolean won = finished != null && finished.won();
+                pending.program.branchResult(pending.program.indent(), won);
+                if (won) {
+                    pending.program.advance();
+                } else {
+                    pending.program.skipBlock();
+                }
+            }
+            if (repeatFrames.size > 0) {
+                // P0d: one iteration of a compiled `for` loop. The body may wait
+                // (pbWait), so the cursor resumes here after the wait.
+                RepeatFrame frame = repeatFrames.peek();
+                if (frame.index < frame.steps.size) {
+                    if (++steps > MAX_STEPS_PER_UPDATE) {
+                        log.warn("event interpreter paused after " + MAX_STEPS_PER_UPDATE
+                                + " commands in one update (possible loop)");
+                        break;
+                    }
+                    executeIrStep(frame.steps.get(frame.index++));
+                    continue;
+                }
+                frame.current++;
+                if (frame.current <= frame.last) {
+                    frame.index = 0;
+                    setLocal(frame.local, frame.current);
+                    continue;
+                }
+                repeatFrames.pop();
+                continue;
+            }
             if (pendingSteps != null && pendingStepIndex >= pendingSteps.size) {
                 // The whole sequence played; only now may the frame finish.
                 pendingSteps = null;
@@ -301,7 +396,13 @@ public final class EventInterpreter {
             case 115:
                 program.finish();
                 break;
-            case 116:
+            case 116: // Erase Event (RMXP Game_Event#erase)
+                if (mapPort != null && eventId >= 0) {
+                    mapPort.eraseEvent(eventId);
+                }
+                program.advance();
+                break;
+            case 117: // Call Common Event (the common event runs before this one)
                 callCommonEvent(program, command);
                 break;
             case 121:
@@ -394,6 +495,12 @@ public final class EventInterpreter {
             case 245:
                 playAudio(program, command, "BGS");
                 break;
+            case 132:
+                changeBattleAudio(program, command, true);
+                break;
+            case 133:
+                changeBattleAudio(program, command, false);
+                break;
             case 249:
                 playAudio(program, command, "ME");
                 break;
@@ -435,6 +542,14 @@ public final class EventInterpreter {
                 break;
             case WAIT_INPUT:
                 if (input.wasPressed(GameAction.CONFIRM) || input.wasPressed(GameAction.CANCEL)) {
+                    interpreterState = InterpreterState.RUNNING;
+                }
+                break;
+            case WAIT_BERRY:
+                // P3: the berry interaction owns the message / choice / bag
+                // sequence (PField_BerryPlants:313-590) until it ends.
+                if (berry == null || berry.update()) {
+                    berry = null;
                     interpreterState = InterpreterState.RUNNING;
                 }
                 break;
@@ -539,6 +654,9 @@ public final class EventInterpreter {
                 // R6.31: keep the last page visible - the 102 command opens
                 // the choice window on top of it, like RMXP.
                 interpreterState = InterpreterState.RUNNING;
+            } else if (!pendingMessages.isEmpty()) {
+                // R8: a handler queued more pbMessage lines (boss rewards).
+                showHandlerMessage(pendingMessages.poll());
             } else {
                 messages.close();
                 interpreterState = InterpreterState.RUNNING;
@@ -546,6 +664,21 @@ public final class EventInterpreter {
         } else {
             showMessagePage();
         }
+    }
+
+    /** R8: shows one message from an IR handler and waits for it (pbMessage). */
+    private void showHandlerMessage(String text) {
+        Array<String> raw = new Array<>();
+        raw.add(text);
+        MessageText.Parsed parsed = MessageText.parse(raw, state, messageColumns);
+        messageLines = parsed.lines;
+        messagePage = 0;
+        messageWaits = parsed.waitForInput;
+        messageSpeaker = parsed.speaker;
+        messageLinesPerPage = parsed.lineCount > 0 ? parsed.lineCount : MessageService.LINES_PER_PAGE;
+        choicesFollow = false;
+        showMessagePage();
+        interpreterState = InterpreterState.WAIT_MESSAGE;
     }
 
     private void showChoices(EventProgram program) {
@@ -841,6 +974,44 @@ public final class EventInterpreter {
     private void executeIrStep(JsonValue ir) {
         String name = ir.getString("command", "");
         switch (name) {
+            case "OPEN_PC":
+                if (menuService != null) menuRequest = menuService.submit(new MenuService.Request(MenuService.Kind.STORAGE));
+                else log.warn("OPEN_PC without menu service");
+                break;
+            case "SHOW_MAP": {
+                // pbShowMap(region, wallmap) (PScreen_RegionMap:431-437).
+                MenuService.Request mapRequest = new MenuService.Request(MenuService.Kind.SHOW_MAP);
+                mapRequest.region = irInt(ir, "region", -1);
+                mapRequest.wallmap = irBoolean(ir, "wallmap", true);
+                if (menuService != null) menuRequest = menuService.submit(mapRequest);
+                else log.warn("SHOW_MAP without a menu service");
+                break;
+            }
+            case "CHOOSE_TRADE": {
+                MenuService.Request request = new MenuService.Request(MenuService.Kind.CHOOSE_TRADE);
+                request.variable = irInt(ir, "variable", 0); request.nameVariable = irInt(ir, "nameVariable", 0);
+                request.wanted = ir.getString("wanted", "");
+                if (request.variable > 0) state.variables().set(request.variable, -1);
+                if (request.nameVariable > 0) state.variables().setText(request.nameVariable, "");
+                if (menuService != null) menuRequest = menuService.submit(request);
+                else log.warn("CHOOSE_TRADE without menu service");
+                break;
+            }
+            case "START_TRADE": {
+                Object index = resolveIrValue(ir.get("index")), offered = resolveIrValue(ir.get("offered"));
+                int slot = index instanceof Number ? ((Number) index).intValue() : -1;
+                Pokemon mine = state.trainer().party.get(slot);
+                if (mine == null || pbs == null || menuService == null) break;
+                Pokemon replacement = offered instanceof Pokemon ? (Pokemon) offered : offered instanceof String && pbs.species((String) offered) != null
+                        ? new Pokemon(pbs.species((String) offered), mine.level, pbs) : null;
+                if (replacement == null) { log.warn("START_TRADE: invalid offered Pokemon"); break; }
+                MenuService.Request request = new MenuService.Request(MenuService.Kind.TRADE);
+                request.index = slot; request.offered = replacement;
+                request.nickname = ir.getString("nickname", replacement.name);
+                request.trainerName = ir.getString("trainerName", "训练家");
+                menuRequest = menuService.submit(request);
+                break;
+            }
             case "SEQUENCE": {
                 JsonValue steps = ir.get("steps");
                 if (steps == null || !steps.isArray() || steps.size == 0) {
@@ -916,14 +1087,197 @@ public final class EventInterpreter {
             case "GIVE_KEY_ITEM": {
                 String item = ir.getString("item", "");
                 int amount = ir.getInt("amount", 1);
+                // BW Get Key Item:197-201 / :174: a String item is a "fake" item
+                // (an icon animation only); pbReceiveItem runs for real PBS items.
+                boolean known = pbs != null && pbs.item(item) != null;
                 if (inventory == null) {
                     log.warn("GIVE_KEY_ITEM " + item + " without an inventory; skipped");
+                } else if (!known) {
+                    log.warn("key item icon " + item + " is not in PBS Items; nothing added");
                 } else {
                     inventory.add(item, amount);
                     log.warn("received key item " + item + " x" + amount);
                 }
                 break;
             }
+            case "SET_BADGE": {
+                // $Trainer.badges[i] = true (PokeBattle_Trainer:7); the badge
+                // indices are 0-based (TrainerView:134).
+                int badge = ir.getInt("badge", -1);
+                boolean value = irBoolean(ir, "value", true);
+                if (badge < 0) {
+                    log.warn("SET_BADGE without an index; skipped");
+                } else if (value) {
+                    state.trainer().badges.add(badge);
+                } else {
+                    state.trainer().badges.remove(badge);
+                }
+                break;
+            }
+            case "SET_TRAINER_FLAG": {
+                // $Trainer.pokedex / $Trainer.pokepc (PokeBattle_Trainer:15/23);
+                // both gate their pause menu entries (Modular Menu:67/82).
+                String flag = ir.getString("flag", "");
+                boolean value = irBoolean(ir, "value", true);
+                if ("pokedex".equals(flag)) {
+                    state.trainer().pokedex = value;
+                } else if ("pokepc".equals(flag)) {
+                    state.trainer().pokepc = value;
+                } else {
+                    log.warn("SET_TRAINER_FLAG with an unknown flag " + flag + "; skipped");
+                }
+                break;
+            }
+            // ---- R8: the boss reward system (Boss_reward:3-348) ----
+            case "BOSS_REWARD": {
+                // boss_reward(rank): one random reward set of the rank (:62-64).
+                int rank = Math.max(2, Math.min(7, ir.getInt("rank", 5)));
+                BossRewardsData.Reward[][] sets = BossRewardsData.rankRewards(rank);
+                BossRewardsData.Reward[] set = sets[random.nextInt(sets.length)];
+                for (BossRewardsData.Reward reward : set) {
+                    if (inventory != null) {
+                        inventory.add(reward.item, reward.quantity);
+                    }
+                    log.warn("boss reward " + reward.item + " x" + reward.quantity);
+                }
+                playItemGetSe();
+                showHandlerMessage("击败了" + BossRewardsData.rankName(rank) + "，获得了奖励道具！");
+                return; // the message owns the cursor
+            }
+            case "BOSS_BLISSEY": {
+                // BossRewards.blissey (:80-95): random exp into the exp pot.
+                int exp;
+                switch (random.nextInt(5) + 1) {
+                    case 1: exp = 3000 * 100; break;
+                    case 2: exp = 3000 * 150; break;
+                    case 3: exp = 10000 * 100; break;
+                    case 4: exp = 10000 * 150; break;
+                    default: exp = 30000 * 100; break;
+                }
+                addExpPot(exp, true);
+                if (interpreterState == InterpreterState.WAIT_MESSAGE) {
+                    return;
+                }
+                break;
+            }
+            case "BOSS_GHOLDENGO_MONEY": {
+                // BossRewards.gholdengo_money (:121-136).
+                int money;
+                switch (random.nextInt(5) + 1) {
+                    case 1: case 2: money = 5000; break;
+                    case 3: money = 40000; break;
+                    case 4: money = 25000; break;
+                    default: money = 500000; break;
+                }
+                state.trainer().money += money;
+                playItemGetSe();
+                pendingMessages.add("赛富豪送了你" + money + "元钱！");
+                pendingMessages.add("当前金钱：" + state.trainer().money + "元");
+                showHandlerMessage(pendingMessages.poll());
+                return;
+            }
+            case "BOSS_POKEMON_REWARD": {
+                // BossRewards.pokemon_reward (:304-346): 1-3 Pokemon from the
+                // pools; 40/30/20/10% common/rare/epic/legend (:310-327).
+                int count = 1 + random.nextInt(3);
+                playItemGetSe();
+                pendingMessages.add("击败了BOSS！获得了" + count + "只宝可梦！");
+                for (int i = 0; i < count; i++) {
+                    int roll = random.nextInt(1000);
+                    BossRewardsData.PoolEntry[] pool;
+                    String rarity;
+                    int minLevel, maxLevel;
+                    if (roll < 400) {
+                        pool = BossRewardsData.COMMON_POOL; rarity = "普通";
+                        minLevel = 5; maxLevel = 15;
+                    } else if (roll < 700) {
+                        pool = BossRewardsData.RARE_POOL; rarity = "稀有";
+                        minLevel = 10; maxLevel = 25;
+                    } else if (roll < 900) {
+                        pool = BossRewardsData.EPIC_POOL; rarity = "史诗";
+                        minLevel = 20; maxLevel = 40;
+                    } else {
+                        pool = BossRewardsData.LEGEND_POOL; rarity = "传说";
+                        minLevel = 40; maxLevel = 60;
+                    }
+                    BossRewardsData.PoolEntry entry = pool[random.nextInt(pool.length)];
+                    int level = minLevel + random.nextInt(maxLevel - minLevel + 1);
+                    pendingMessages.add("【" + rarity + "】第" + (i + 1) + "只：获得了 "
+                            + BossRewardsData.speciesName(entry.species, entry.form) + " Lv." + level);
+                    addBossPokemon(entry, level);
+                }
+                showHandlerMessage(pendingMessages.poll());
+                return;
+            }
+            case "GIVE_POKEMON": {
+                // pbAddPokemon(species, level) (PSystem_PokemonUtilities:67-83).
+                String speciesName = ir.getString("species", "");
+                int level = ir.getInt("level", 5);
+                if (pbs == null) {
+                    log.warn("GIVE_POKEMON without the PBS data; skipped");
+                    break;
+                }
+                PbsData.Species species = pbs.species(speciesName);
+                if (species == null) {
+                    log.warn("GIVE_POKEMON unknown species " + speciesName + "; skipped");
+                    break;
+                }
+                // pbBoxesFull? (lines 69-73): the party and every box are full.
+                if (state.trainer().party.isFull()
+                        && state.trainer().currentStorage().count()
+                        >= pokemon.runtime.pokemon.Storage.BOXES * pokemon.runtime.pokemon.Storage.SLOTS) {
+                    showHandlerMessage("盒子都满了，不能接受。");
+                    return;
+                }
+                Pokemon gifted = new Pokemon(species, level, pbs);
+                boolean toParty = state.trainer().addToParty(gifted);
+                log.warn("received " + speciesName + " L" + level + (toParty ? " (party)" : " (box)"));
+                // Line 79: "{1}得到了{2}!" with the player name.
+                showHandlerMessage(state.playerName() + "得到了" + species.name + "！");
+                return;
+            }
+            // ---- R8: partner trainers (PField_Field:1399-1440) ----
+            case "REGISTER_PARTNER": {
+                // pbRegisterPartner: load the trainer's party, stamp it with the
+                // partner's foreign id and store $PokemonGlobal.partner.
+                String trainerType = ir.getString("trainerType", "");
+                String trainerName = ir.getString("name", "");
+                int partyId = ir.getInt("partyId", 0);
+                if (pbs == null) {
+                    log.warn("REGISTER_PARTNER without the PBS data; skipped");
+                    break;
+                }
+                PbsData.TrainerData partnerData = pbs.trainer(trainerType, trainerName, partyId);
+                if (partnerData == null) {
+                    log.warn("REGISTER_PARTNER unknown trainer " + trainerType + " "
+                            + trainerName + "; skipped");
+                    break;
+                }
+                GameState.Partner partner = new GameState.Partner();
+                partner.trainerType = trainerType;
+                partner.name = trainerName;
+                // PokeBattle_Trainer:43-58 setForeignID: an id different from the player's.
+                do {
+                    partner.id = random.nextInt();
+                } while (partner.id == 0);
+                HeadlessBattlePort builder = new HeadlessBattlePort(state.trainer(), () -> pbs, null, random);
+                for (PbsData.TrainerPokemon member : partnerData.party) {
+                    Pokemon pokemon = builder.trainerPokemon(member, pbs);
+                    if (pokemon == null) {
+                        continue;
+                    }
+                    pokemon.setTrainerID(partner.id);       // i.trainerID = trainerobject.id
+                    pokemon.originalTrainer = partner.name; // i.ot = trainerobject.name
+                    pokemon.hp = pokemon.maxHp();           // i.calcStats
+                    partner.party.add(pokemon);
+                }
+                state.partner(partner);
+                log.warn("partner registered: " + trainerName + " (" + partner.party.size + " Pokemon)");
+                break;
+            }
+            case "DEREGISTER_PARTNER":
+                state.partner(null);
+                break;
             case "TOGGLE_FOLLOWING_POKEMON": {
                 // Essentials toggles $PokemonGlobal.followerToggled; the sprite
                 // itself needs the party (stage 3), so only the flag changes here.
@@ -1098,6 +1452,37 @@ public final class EventInterpreter {
                 }
                 break;
             }
+            // ---- P3: berry plants (PField_BerryPlants:313-590) ----
+            case "BERRY_PLANT": {
+                if (mapPort == null || eventId < 0 || pbs == null) {
+                    log.warn("BERRY_PLANT without a map port, event or PBS data; skipped");
+                    break;
+                }
+                berry = new BerryInteraction(state, messages, input, pbs, inventory, mapPort,
+                        mapId, eventId, messageColumns, this::submitItemChoice, log);
+                berry.begin();
+                if (berry.finished()) {
+                    berry = null; // nothing to show (e.g. an unknown preset berry)
+                    break;
+                }
+                interpreterState = InterpreterState.WAIT_BERRY;
+                return; // the berry stepper owns the event until it ends
+            }
+            case "BERRY_PICK": {
+                if (mapPort == null || eventId < 0 || pbs == null) {
+                    log.warn("BERRY_PICK without a map port, event or PBS data; skipped");
+                    break;
+                }
+                berry = new BerryInteraction(state, messages, input, pbs, inventory, mapPort,
+                        mapId, eventId, messageColumns, this::submitItemChoice, log);
+                berry.beginPick(ir.getString("berry", ""), ir.getInt("qty", 1));
+                if (berry.finished()) {
+                    berry = null;
+                    break;
+                }
+                interpreterState = InterpreterState.WAIT_BERRY;
+                return;
+            }
             // ---- P0c: Pokemon construction scripts (locals + object methods) ----
             case "SET_VARIABLE": {
                 // pbSet(id, value) is $game_variables[id] = value; the runtime
@@ -1113,6 +1498,8 @@ public final class EventInterpreter {
                     state.variables().set(variableId, ((Number) value).intValue());
                 } else if (value instanceof Boolean) {
                     state.variables().set(variableId, ((Boolean) value) ? 1 : 0);
+                } else if (value instanceof String) {
+                    state.variables().setText(variableId, (String) value);
                 } else {
                     log.warn("SET_VARIABLE " + variableId + " ignores non-numeric value "
                             + value);
@@ -1121,6 +1508,27 @@ public final class EventInterpreter {
             }
             case "LOCAL_SET": {
                 setLocal(ir.getString("local", ""), resolveIrValue(ir.get("value")));
+                break;
+            }
+            case "REPEAT": {
+                // P0d: Ruby `for <var> in <from>..<to> ... end` (the ball-shake
+                // catch loop of the common events). `...` excludes the last
+                // value, exactly like the Ruby range.
+                JsonValue steps = ir.get("steps");
+                Object from = resolveIrValue(ir.get("from"));
+                Object to = resolveIrValue(ir.get("to"));
+                if (steps == null || !steps.isArray() || steps.size == 0) {
+                    break;
+                }
+                if (!(from instanceof Number) || !(to instanceof Number)) {
+                    log.warn("REPEAT with a non-numeric range; skipped");
+                    break;
+                }
+                int first = ((Number) from).intValue();
+                int last = ((Number) to).intValue() - (ir.getBoolean("exclusive", false) ? 1 : 0);
+                String local = ir.getString("local", "i");
+                setLocal(local, first);
+                repeatFrames.add(new RepeatFrame(steps, local, first, last));
                 break;
             }
             case "POKEMON_CREATE": {
@@ -1208,6 +1616,10 @@ public final class EventInterpreter {
                 }
                 String species = ir.getString("species", "");
                 int level = ir.getInt("level", 5);
+                applyBattleSwitches();
+                // PField_Battles:343 + :359-361: the outcome variable (1 by
+                // default) receives the decision when the battle is over.
+                pendingOutcomeVar = prepareWildBattle(ir);
                 BattleResult result = battlePort.wildBattle(species, level);
                 log.warn("wild battle vs " + species + " L" + level + " -> "
                         + (result == null ? "not started" : result.outcome));
@@ -1223,6 +1635,8 @@ public final class EventInterpreter {
                     log.warn("FREE_WILD_BATTLE of an unknown local; skipped");
                     break;
                 }
+                applyBattleSwitches();
+                pendingOutcomeVar = prepareWildBattle(ir);
                 BattleResult result = battlePort.freeWildBattle(foe);
                 log.warn("free wild battle -> " + (result == null ? "not started" : result.outcome));
                 break;
@@ -1239,9 +1653,52 @@ public final class EventInterpreter {
                     log.warn("TRAINER_BATTLE unknown trainer; skipped");
                     break;
                 }
+                // PField_Battles:497-498 + 510-516: the recorded rules apply to
+                // this battle and are consumed when it starts; the decision
+                // lands in the outcome variable (1 by default).
+                pendingOutcomeVar = prepareTrainerBattle();
+                applyBattleSwitches();
                 BattleResult result = battlePort.trainerBattle(trainer);
                 log.warn("trainer battle vs " + trainer.name + " -> "
                         + (result == null ? "not started" : result.outcome));
+                break;
+            }
+            case "BATTLE_RULE": {
+                // PField_Battles:60-77: setBattleRule records rules for the next
+                // battle; the value-taking rules carry their value as a literal.
+                JsonValue rules = ir.get("rules");
+                if (rules == null || !rules.isArray()) {
+                    break;
+                }
+                for (JsonValue rule = rules.child; rule != null; rule = rule.next) {
+                    String ruleName = rule.getString("rule", "");
+                    Object value = rule.has("value") ? resolveIrValue(rule.get("value")) : null;
+                    if (!state.battleRules().record(ruleName, value)) {
+                        log.warn("battle rule \"" + ruleName + "\" does not exist; ignored");
+                    }
+                }
+                break;
+            }
+            case "TRAINER_INTRO": {
+                // PField_Field:793-799: pbGlobalLock + the trainer type's intro
+                // ME (trainertypes column 6; empty in this project).
+                if (mapPort != null) {
+                    mapPort.lockEvents(true);
+                }
+                String type = ir.getString("trainerType", "");
+                PbsData.TrainerType trainerType = pbs == null ? null : pbs.trainerTypes.get(type);
+                if (trainerType != null && trainerType.introMe != null
+                        && !trainerType.introMe.isEmpty() && audio != null) {
+                    audio.playMe(trainerType.introMe, 100, 100);
+                }
+                break;
+            }
+            case "TRAINER_END": {
+                // PField_Field:801-805: pbGlobalUnlock + erase the running event's route.
+                if (mapPort != null) {
+                    mapPort.lockEvents(false);
+                    mapPort.eraseRoute(eventId);
+                }
                 break;
             }
             case "ROCK_SMASH_ENCOUNTER": {
@@ -1263,6 +1720,10 @@ public final class EventInterpreter {
             }
             // ---- player graphics (the intro's gender selector) ----
             case "GENDER_SELECTOR": {
+                if (state.playerId() < 0 && menuService != null) {
+                    menuRequest = menuService.submit(new MenuService.Request(MenuService.Kind.GENDER));
+                    break;
+                }
                 // The BWGenderSelector UI (genderselect.png + name entry) is P4;
                 // the stopgap applies the male player so the intro does not leave
                 // the hero without a walking graphic. pbChangePlayer sets it.
@@ -1290,6 +1751,23 @@ public final class EventInterpreter {
                         + " needs a runtime service that does not exist yet; skipped");
                 break;
         }
+    }
+
+    /**
+     * P3: {@code pbChooseItemScreen(proc)} - the berry stepper asks the bag UI
+     * for a filtered item and receives the result through {@link #update}'s
+     * menuRequest branch.
+     *
+     * @return false when no bag UI is attached (the pick counts as cancelled)
+     */
+    private boolean submitItemChoice(java.util.function.Predicate<String> filter) {
+        if (menuService == null) {
+            return false;
+        }
+        MenuService.Request request = new MenuService.Request(MenuService.Kind.CHOOSE_ITEM);
+        request.filter = filter;
+        menuRequest = menuService.submit(request);
+        return true;
     }
 
     /**
@@ -1402,12 +1880,20 @@ public final class EventInterpreter {
     // skipped. Move Picture keeps its optional wait flag at index 10.
     // ------------------------------------------------------------------
 
+    /**
+     * Show Picture (231). The project's own {@code Interpreter#command_231}
+     * defines the order as
+     * {@code [number, name, origin, appointmentMode, x, y, zoomX, zoomY, opacity, blend]}:
+     * x/y live at p[4]/p[5] and p[3] picks direct coordinates (0) or variable
+     * ids (1). Reading p[3]/p[4] shifted every picture by one slot (the intro's
+     * mapRegion at (336,224) landed at (0,336)).
+     */
     private void showPicture(EventProgram program, EventCommand command) {
         JsonValue p = command.parameters;
         String name = stringParam(p, 1, null);
         if (pictures != null && name != null && !name.isEmpty()) {
             pictures.show(intParam(p, 0, 1), name, intParam(p, 2, 0),
-                    floatParam(p, 3, 0f), floatParam(p, 4, 0f),
+                    pictureCoordinate(p, 4), pictureCoordinate(p, 5),
                     floatParam(p, 6, 100f), floatParam(p, 7, 100f),
                     floatParam(p, 8, 255f), intParam(p, 9, 0));
         }
@@ -1419,7 +1905,7 @@ public final class EventInterpreter {
         int duration = intParam(p, 1, 0);
         if (pictures != null) {
             pictures.move(intParam(p, 0, 1), duration, intParam(p, 2, 0),
-                    floatParam(p, 3, 0f), floatParam(p, 4, 0f),
+                    pictureCoordinate(p, 4), pictureCoordinate(p, 5),
                     floatParam(p, 6, 100f), floatParam(p, 7, 100f),
                     floatParam(p, 8, 255f), intParam(p, 9, 0));
         }
@@ -1428,6 +1914,15 @@ public final class EventInterpreter {
             waitTimer = duration / 20f; // "wait for completion" flag
             interpreterState = InterpreterState.WAIT_TIME;
         }
+    }
+
+    /** x is p[4], y is p[5]; p[3]==1 means the value is a variable id. */
+    private float pictureCoordinate(JsonValue p, int position) {
+        if (intParam(p, 3, 0) == 0) {
+            return floatParam(p, position, 0f);
+        }
+        int variableId = intParam(p, position, 0);
+        return variableId >= 1 ? state.variables().get(variableId) : 0f;
     }
 
     private void erasePicture(EventProgram program, EventCommand command) {
@@ -1458,7 +1953,34 @@ public final class EventInterpreter {
     // Conditional Branch (section 29)
     // ------------------------------------------------------------------
 
+    private static final java.util.regex.Pattern TRAINER_BATTLE_CONDITION =
+            java.util.regex.Pattern.compile(
+                "pbTrainerBattle\\(\\s*:([A-Za-z_][A-Za-z0-9_]*)\\s*,\\s*\"([^\"]*)\"\\s*"
+                        + "(?:,\\s*nil\\s*,\\s*nil\\s*,\\s*(\\d+))?\\s*\\)");
+
+    /**
+     * PField_Battles:351-368 / FreeWildBattle:2-8: a wild battle used as a
+     * script condition branches on {@code decision!=2 && decision!=5}.
+     */
+    private static final java.util.regex.Pattern WILD_BATTLE_CONDITION =
+            java.util.regex.Pattern.compile(
+                "pbWildBattle\\(\\s*:([A-Za-z_][A-Za-z0-9_]*)\\s*,\\s*(\\d+)\\s*\\)");
+
     private void conditionalBranch(EventProgram program, EventCommand command) {
+        JsonValue p = command.parameters;
+        if (intParam(p, 0, -1) == 12 && p != null && p.get(1) != null) {
+            String script = p.get(1).asString().trim();
+            java.util.regex.Matcher trainer = TRAINER_BATTLE_CONDITION.matcher(script);
+            if (trainer.matches()) {
+                startTrainerBattleCondition(program, command, trainer);
+                return;
+            }
+            java.util.regex.Matcher wild = WILD_BATTLE_CONDITION.matcher(script);
+            if (wild.matches()) {
+                startWildBattleCondition(program, command, wild);
+                return;
+            }
+        }
         boolean result = evaluate(command);
         program.branchResult(program.indent(), result);
         if (result) {
@@ -1466,6 +1988,148 @@ public final class EventInterpreter {
         } else {
             program.skipBlock();
         }
+    }
+
+    /**
+     * pbWildBattle as a script condition: the event starts the battle and
+     * branches on {@code decision!=2 && decision!=5} (PField_Battles:367) when
+     * the interpreter resumes.
+     */
+    private void startWildBattleCondition(EventProgram program, EventCommand command,
+                                          java.util.regex.Matcher wild) {
+        if (battlePort == null || pbs == null) {
+            unsupported(command, "pbWildBattle condition without a battle runtime");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        String species = wild.group(1);
+        int level = Integer.parseInt(wild.group(2));
+        applyBattleSwitches();
+        int outcomeVar = prepareWildBattle(null);
+        battlePort.wildBattle(species, level);
+        pendingBattleCondition = new BattleCondition(program, command, outcomeVar);
+    }
+
+    /**
+     * PField_Battles:526-580: {@code pbTrainerBattle} used as a script
+     * condition - the event starts the battle and branches on the win. The
+     * battle is interactive, so the branch resolves when the interpreter
+     * resumes after it (the decision also lands in the outcome variable).
+     */
+    private void startTrainerBattleCondition(EventProgram program, EventCommand command,
+                                             java.util.regex.Matcher trainer) {
+        String type = trainer.group(1);
+        String name = trainer.group(2);
+        int version = trainer.group(3) == null ? 0 : Integer.parseInt(trainer.group(3));
+        if (battlePort == null || pbs == null) {
+            unsupported(command, "pbTrainerBattle condition without a battle runtime");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        PbsData.TrainerData data = pbs.trainer(type, name, version);
+        if (data == null) {
+            log.warn("pbTrainerBattle condition: trainer " + type + " \"" + name
+                    + "\" (party " + version + ") is not in trainers.json");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        int outcomeVar = prepareTrainerBattle();
+        battlePort.trainerBattle(data);
+        pendingBattleCondition = new BattleCondition(program, command, outcomeVar);
+    }
+
+    /**
+     * PField_Battles:497-498 + 510-516: consumes the recorded battle rules for
+     * the battle that starts now and returns its outcome variable (default 1).
+     */
+    private int prepareTrainerBattle() {
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        if (rules.size != null && !"single".equals(rules.size) && !"1v1".equals(rules.size)) {
+            log.warn("trainer battle size \"" + rules.size
+                    + "\": the battle engine is singles-only, running 1v1");
+        }
+        if (rules.canLose != null) {
+            battlePort.setCanLose(rules.canLose);
+        }
+        // PField_Battles:112 setBattleRule("switchstyle"/"setstyle").
+        if (rules.switchStyle != null) {
+            battlePort.setSwitchStyle(rules.switchStyle);
+        }
+        // PField_Battles:115 setBattleRule("anims"/"noanims").
+        if (rules.battleAnims != null) {
+            battlePort.setBattleAnims(rules.battleAnims);
+        }
+        int outcomeVar = rules.outcomeVar == null ? 1 : rules.outcomeVar;
+        rules.clear();
+        return outcomeVar;
+    }
+
+    /**
+     * The wild twin of {@link #prepareTrainerBattle()}: pbWildBattle(species,
+     * level, outcomeVar=1, canRun=true, canLose=false) turns its optional
+     * arguments into battle rules (PField_Battles:359-361) and reads them back
+     * here together with any rule an event set beforehand. The decision lands in
+     * the outcome variable when the battle is over (PField_Battles:343).
+     */
+    private int prepareWildBattle(com.badlogic.gdx.utils.JsonValue ir) {
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        if (rules.canLose != null) {
+            battlePort.setCanLose(rules.canLose);
+        }
+        if (rules.canRun != null) {
+            battlePort.setCanRun(rules.canRun);
+        }
+        if (rules.disablePokeBalls != null) {
+            battlePort.setDisablePokeBalls(rules.disablePokeBalls);
+        }
+        // PField_Battles:112 setBattleRule("switchstyle"/"setstyle").
+        if (rules.switchStyle != null) {
+            battlePort.setSwitchStyle(rules.switchStyle);
+        }
+        // PField_Battles:115 setBattleRule("anims"/"noanims").
+        if (rules.battleAnims != null) {
+            battlePort.setBattleAnims(rules.battleAnims);
+        }
+        // The written arguments win over the recorded rules, because the plugin
+        // writes them into that same rule hash before the battle starts
+        // (PField_Battles:359-361).
+        if (ir != null && ir.has("outcomeVar")) {
+            rules.outcomeVar = ir.getInt("outcomeVar", 1);
+        }
+        if (ir != null && ir.has("canRun")) {
+            battlePort.setCanRun(ir.getBoolean("canRun", true));
+        }
+        if (ir != null && ir.has("canLose")) {
+            battlePort.setCanLose(ir.getBoolean("canLose", false));
+        }
+        int outcomeVar = rules.outcomeVar == null ? 1 : rules.outcomeVar;
+        rules.clear();
+        return outcomeVar;
+    }
+
+    /**
+     * Battle_ExpAndMoveLearning:167-186: the level lock reads
+     * {@code $game_switches[199]} (lock on) and {@code [12]} (league pass).
+     * PField_Battles:146-151 + :181-188 additionally read the map's
+     * MetadataEnvironment for the battle's environment and its Dusk Ball time.
+     */
+    private void applyBattleSwitches() {
+        if (battlePort == null) {
+            return;
+        }
+        battlePort.setLevelLock(state.switches().get(199), state.switches().get(12));
+        battlePort.setSwitchSource(id -> state.switches().get(id));
+        // Settings:32 FATEFUL_ENCOUNTER_SWITCH / PField_Encounters:951-955.
+        battlePort.setObtainMap(state.currentMapId());
+        battlePort.setFatefulEncounter(state.switches().get(32));
+        PbsData pbs = this.pbs;
+        int mapId = state.currentMapId();
+        PbsData.Metadata metadata = pbs == null ? null : pbs.mapMetadata(mapId);
+        battlePort.setBattleEnvironment(pokemon.runtime.battle.CaptureCalculator.environmentId(
+                metadata == null ? null : metadata.environment));
     }
 
     private void elseBranch(EventProgram program) {
@@ -1564,6 +2228,18 @@ public final class EventInterpreter {
             boolean on = state.tempSwitches().get(mapId, Math.max(0, eventId), tempSwitch.group(2));
             return "On".equals(tempSwitch.group(1)) == on;
         }
+        // The project gates doors / NPCs on the party size ("$Trainer.party.length
+        // > 0"). Those conditions are code-111 scripts the translator does not
+        // cover, so answer them here instead of reporting them unsupported (which
+        // made every such page false and blocked the player).
+        Matcher party = SCRIPT_PARTY.matcher(text);
+        if (party.matches()) {
+            int size = state.trainer() == null ? 0 : state.trainer().party.members().size;
+            if (party.group(1) == null) {
+                return size > 0;
+            }
+            return compare(party.group(1), size, Integer.parseInt(party.group(2)));
+        }
         unsupported(command, "script condition \"" + text + "\" (needs the script translator, R7)");
         return false;
     }
@@ -1584,6 +2260,23 @@ public final class EventInterpreter {
                 return left != right;
             default:
                 return false;
+        }
+    }
+
+    /**
+     * PField_Battles:510-516: the battle decision stored in the outcome
+     * variable - 0 aborted, 1 won, 2 lost, 3 fled, 4 caught.
+     */
+    private static int battleDecision(BattleResult result) {
+        if (result == null) {
+            return 0;
+        }
+        switch (result.outcome) {
+            case WIN: return 1;
+            case LOSS: return 2;
+            case ESCAPE: return 3;
+            case CAUGHT: return 4;
+            default: return 0;
         }
     }
 
@@ -1687,6 +2380,34 @@ public final class EventInterpreter {
         program.advance();
     }
 
+    /**
+     * "Change Battle BGM" (132) / "Change Battle ME" (133):
+     * {@code $PokemonGlobal.nextBattleBGM = pbParams[0]} (PField_Field:882-890).
+     * The audio file itself is not played here - the next battle start reads it
+     * through {@code pbGetWildBattleBGM} / {@code pbGetTrainerBattleBGM}
+     * (PSystem_FileUtilities:547/619).
+     */
+    private void changeBattleAudio(EventProgram program, EventCommand command, boolean bgm) {
+        JsonValue file = command.parameter(0);
+        String id = null;
+        if (file != null && file.isObject()) {
+            JsonValue name = file.get("name");
+            if (name != null && name.isString()) {
+                id = name.asString();
+            }
+        } else if (file != null && file.isString()) {
+            id = file.asString();
+        }
+        if (state != null) {
+            if (bgm) {
+                state.nextBattleBGM(id == null || id.isEmpty() ? null : id);
+            } else {
+                state.nextBattleME(id == null || id.isEmpty() ? null : id);
+            }
+        }
+        program.advance();
+    }
+
     private void unsupported(EventCommand command, String detail) {
         log.warn("event command " + command.code + " (index " + command.index + ") uses " + detail
                 + "; treated as not met");
@@ -1771,10 +2492,19 @@ public final class EventInterpreter {
         if (value.isObject()) {
             if (value.has("variable")) {
                 int id = value.getInt("variable", 0);
-                return id < 1 ? 0 : state.variables().get(id);
+                return id < 1 ? 0 : state.variables().value(id);
             }
             if (value.has("trainerPokemonCount")) {
-                return state.trainer().partyCount();
+                return state.trainer().pokemonCount();
+            }
+            if (value.has("trainerStat")) {
+                // PokeBattle_Trainer:177/192: $Trainer.pokedexSeen / pokedexOwned
+                // are the counts of seen / owned species.
+                switch (value.getString("trainerStat", "")) {
+                    case "pokedexSeen": return state.trainer().seen.size();
+                    case "pokedexOwned": return state.trainer().owned.size();
+                    default: return 0;
+                }
             }
             if (value.has("local")) {
                 Object stored = scriptLocals.get(value.getString("local", ""), null);
@@ -1984,6 +2714,17 @@ public final class EventInterpreter {
             case "stepsToHatch":
                 pokemon.stepsToHatch = value instanceof Number ? ((Number) value).intValue() : 0;
                 break;
+            case "trainerID":
+                // p.trainerID = 225 (the gift scripts); the summary shows the
+                // public id, which is the low 16 bits (PokeBattle_Pokemon:67-69).
+                pokemon.setTrainerID(value instanceof Number ? ((Number) value).intValue() : 0);
+                break;
+            case "otgender":
+                pokemon.otGender = value instanceof Number ? ((Number) value).intValue() : -1;
+                break;
+            case "ballused":
+                pokemon.ballused = value instanceof Number ? ((Number) value).intValue() : 0;
+                break;
             default:
                 log.warn("Pokemon property " + property + " is not implemented yet; skipped");
                 break;
@@ -2000,6 +2741,48 @@ public final class EventInterpreter {
 
     private static String asName(Object value) {
         return value instanceof String ? (String) value : null;
+    }
+
+    /** R8: the {@code \se[ItemGet]} sound the boss rewards play. */
+    private void playItemGetSe() {
+        if (audio != null) {
+            audio.playSe("ItemGet", 100, 100);
+        }
+    }
+
+    /** goldFinger:56-65 add_exp_pot: the exp pot, capped at EXP_POT_MAX (Settings:28). */
+    private void addExpPot(int expAdded, boolean showMessage) {
+        final int expMax = 99999999;
+        boolean hasPot = pbs != null && pbs.item("EXPPOT") != null
+                && inventory != null && inventory.count("EXPPOT") > 0;
+        int current = Math.max(0, state.trainer().expPot);
+        if (current + expAdded > expMax) {
+            expAdded = expMax - current;
+        }
+        state.trainer().expPot = current + expAdded;
+        if (showMessage && hasPot) {
+            showHandlerMessage("经验储罐累积的经验值增加了" + expAdded + "点。");
+        }
+    }
+
+    /** BossRewards.pokemon_reward:333-344: a pool Pokemon in the seal ball. */
+    private void addBossPokemon(BossRewardsData.PoolEntry entry, int level) {
+        if (pbs == null) {
+            log.warn("boss reward Pokemon without the PBS data; skipped");
+            return;
+        }
+        PbsData.Species species = pbs.species(entry.species);
+        if (species == null) {
+            log.warn("boss reward unknown species " + entry.species + "; skipped");
+            return;
+        }
+        Pokemon pokemon = new Pokemon(species, level, pbs);
+        pokemon.ballused = 26;                  // "封印球" (Boss_reward:336)
+        if (entry.form > 0) {
+            applyForm(pokemon, entry.form);
+        }
+        boolean toParty = state.trainer().addToParty(pokemon);
+        log.warn("boss reward " + entry.species + " L" + level + (toParty ? " (party)" : " (box)"));
     }
 
     /**
@@ -2031,6 +2814,34 @@ public final class EventInterpreter {
         Frame(EventProgram program, int commonEventId) {
             this.program = program;
             this.commonEventId = commonEventId;
+        }
+    }
+
+    /** One running REPEAT loop: body cursor + inclusive counter range (P0d). */
+    private static final class RepeatFrame {        final JsonValue steps;
+        final String local;
+        final int last;
+        int index;
+        int current;
+
+        RepeatFrame(JsonValue steps, String local, int from, int last) {
+            this.steps = steps;
+            this.local = local;
+            this.current = from;
+            this.last = last;
+        }
+    }
+
+    /** A pending pbTrainerBattle script condition; resolved after the battle. */
+    private static final class BattleCondition {
+        final EventProgram program;
+        final EventCommand command;
+        final int outcomeVar;
+
+        BattleCondition(EventProgram program, EventCommand command, int outcomeVar) {
+            this.program = program;
+            this.command = command;
+            this.outcomeVar = outcomeVar;
         }
     }
 }
