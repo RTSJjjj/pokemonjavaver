@@ -816,8 +816,10 @@ public final class MenuCapture extends ApplicationAdapter {
                         + foes.get(1).type + " " + foes.get(1).name + ", partner type " + partnerType);
                 mapScreen = new MapScreen(context, 2);
                 context.game().setScreen(mapScreen);
-                context.battlePort().setPartner(partnerType, "小伙伴", java.util.Arrays.asList(
-                        new pokemon.runtime.pokemon.Pokemon(pbs.species("PIKACHU"), 5, pbs)));
+                pokemon.runtime.pokemon.Pokemon weakPartner = new pokemon.runtime.pokemon.Pokemon(pbs.species("PIKACHU"), 5, pbs);
+                weakPartner.hp = 1;                // faints in the first round: the partner has a reserve to send out
+                context.battlePort().setPartner(partnerType, "小伙伴", java.util.Arrays.asList(weakPartner,
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("CATERPIE"), 5, pbs)));
                 context.battlePort().setBattleSize("double");
                 context.battlePort().trainerBattle(foes);
                 renderMap();

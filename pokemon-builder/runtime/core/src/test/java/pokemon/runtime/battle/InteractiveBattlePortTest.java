@@ -328,6 +328,24 @@ class InteractiveBattlePortTest {
         assertNull(session.result);
     }
 
+    @Test void aFaintedPartnerIsReplacedByTheEndOfRoundSwitchAndTheLinesNameItsOwner() {
+        // Battle_Action_Switching:178-204: the partner (not owned by the player) refills its position itself.
+        port.setPartner("", "Friend", java.util.Arrays.asList(pokemon(20), pokemon(20)));
+        port.setBattleSize("double");
+        port.trainerBattle(java.util.Arrays.asList(trainerOf("One"), trainerOf("Two")));
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        Battler partner = battle.battlerAt(2);
+        assertFalse(partner.pbOwnedByPlayer());
+        partner.hp = 0;
+        partner.syncHp();
+        battle.pbEORSwitch(false);
+        assertNotSame(partner, battle.battlerAt(2), "the partner's second Pokemon took the position");
+        assertFalse(battle.battlerAt(2).fainted());
+        assertTrue(session.recallMessage(2).contains("Friend"), "pbMessageOnRecall names the partner as the owner");
+        assertTrue(session.replaceMessage(2, 1).startsWith("Friend派出了"), "pbMessagesOnReplace's trainer branch");
+    }
+
     @Test void partyStartsMarkWhereEachTrainersTeamBegins() {
         port.setPartner("", "Friend", java.util.Arrays.asList(pokemon(20)));
         port.setBattleSize("double");

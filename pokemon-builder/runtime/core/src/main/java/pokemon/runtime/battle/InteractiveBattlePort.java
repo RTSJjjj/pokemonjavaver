@@ -944,7 +944,7 @@ public final class InteractiveBattlePort implements BattlePort {
                 return "";
             }
             String name = battler.name();
-            if (battler.foe) {                                     // :277-280
+            if (!battle.pbOwnedByPlayer(battler.index)) {          // :265/:277-280 an opponent's or the partner's
                 return name + "回到了" + ownerName(battler.index) + "身边！";
             }
             if (battler.hp <= battler.maxHp() / 4) {
@@ -996,7 +996,7 @@ public final class InteractiveBattlePort implements BattlePort {
                 return "";
             }
             String name = party.get(idxParty).name();              // :286
-            if ((idxBattler & 1) == 1) {                           // :301
+            if (!battle.pbOwnedByPlayer(idxBattler)) {             // :290/:301 an opponent's or the partner's
                 return ownerName(idxBattler) + "派出了\n" + name + "！";
             }
             Battler switcher = battle.battlerAt(idxBattler);
