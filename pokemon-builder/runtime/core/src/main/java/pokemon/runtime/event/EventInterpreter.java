@@ -312,8 +312,16 @@ public final class EventInterpreter {
                 BattleCondition pending = pendingBattleCondition;
                 pendingBattleCondition = null;
                 BattleResult finished = battlePort == null ? null : battlePort.lastResult();
-                state.variables().set(pending.outcomeVar, battleDecision(finished));
-                boolean won = finished != null && finished.won();
+                boolean won;
+                if (pending.fixedResult != null) {
+                    won = pending.fixedResult;                                    // no battle took place
+                } else {
+                    state.variables().set(pending.outcomeVar, battleDecision(finished));
+                    if (pending.resetSwitch196) state.switches().set(196, false); // Boss_Battles: $game_switches[196] = false
+                    won = pending.requiredDecision >= 0
+                            ? battleDecision(finished) == pending.requiredDecision   // return decision==N
+                            : finished != null && finished.won();
+                }
                 pending.program.branchResult(pending.program.indent(), won);
                 if (won) {
                     pending.program.advance();
@@ -2092,6 +2100,12 @@ public final class EventInterpreter {
                 startWildBattleCondition(program, command, wild);
                 return;
             }
+            // Boss_Battles: `battleXxx` (a def returning decision==N) used as a script condition.
+            BossBattleData.Entry boss = BossBattleData.find(script);
+            if (boss != null) {
+                startBossBattleCondition(program, command, boss);
+                return;
+            }
         }
         boolean result = evaluate(command);
         program.branchResult(program.indent(), result);
@@ -2122,6 +2136,82 @@ public final class EventInterpreter {
         int outcomeVar = prepareWildBattle(null);
         battlePort.wildBattle(species, level);
         pendingBattleCondition = new BattleCondition(program, command, outcomeVar);
+    }
+
+    /**
+     * One {@code def battleXxx} of Boss_Battles (319, transcribed in {@link BossBattleData}) used as a script condition.
+     * The def runs, then {@code return decision==N} is the branch. 登记: {@code battleBoss(species,level,rank)}
+     * (319:5-31) is not transcribed (see {@link BossBattleData}).
+     */
+    private void startBossBattleCondition(EventProgram program, EventCommand command, BossBattleData.Entry boss) {
+        if (battlePort == null || pbs == null) {
+            unsupported(command, boss.name + " without a battle runtime or PBS data");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        if (boss.lazyDogSkip && state.switches().get(197)) {                      // 319:6 if $game_switches[197]
+            showHandlerMessage("懒狗模式跳过BOSS战并默认胜利。");                      // 319:7 pbMessage
+            pendingBattleCondition = BattleCondition.fixed(program, command, true);   // 319:8 return true
+            return;
+        }
+        PbsData.Species species = pbs.species(boss.species);
+        if (species == null) {
+            unsupported(command, boss.name + ": unknown species " + boss.species);
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        if (doubleRefusalFirst()) return;                                         // PField_Battles:88-93 inside pbPrepareBattle
+        if (boss.uncatchable) state.switches().set(196, true);                    // $game_switches[196] = true
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        int size = boss.sizes[Math.min(ableCount(), boss.sizes.length - 1)];      // count = $Trainer.ablePokemonCount; size = ...
+        rules.record(size + "v1", null);                                          // setBattleRule(sprintf("%dv1",size))
+        rules.record("canlose", null);
+        rules.record("noexp", null);
+        Pokemon pkmn = new Pokemon(species, boss.level, pbs);                     // pkmn = pbGenPkmn(:SPECIES, level)
+        for (BossBattleData.Op op : boss.ops) {
+            applyBossOp(pkmn, op);
+        }
+        // pbWildBattleCore(pkmn) (PField_Battles:262-345)
+        if (ableCount() == 0) {                                                   // :265 $Trainer.ablePokemonCount==0
+            if (state.trainer().party.members().size > 0) showHandlerMessage("SKIPPING BATTLE...");   // :266
+            int skippedVar = rules.outcomeVar == null ? 1 : rules.outcomeVar;
+            state.variables().set(skippedVar, 1);                                 // :267 pbSet(outcomeVar,1)
+            rules.clear();                                                        // :268
+            if (boss.uncatchable) state.switches().set(196, false);
+            pendingBattleCondition = BattleCondition.fixed(program, command, boss.decision == 1);   // :273 return 1; the def's return decision==N
+            return;
+        }
+        applyBattleSwitches();
+        int outcomeVar = prepareWildBattle(null);
+        battlePort.freeWildBattle(pkmn);
+        pendingBattleCondition = new BattleCondition(program, command, outcomeVar);
+        pendingBattleCondition.requiredDecision = boss.decision;
+        pendingBattleCondition.resetSwitch196 = boss.uncatchable;
+    }
+
+    /** One {@code pkmn.*} statement of a Boss_Battles def (319), executed in the def's order. */
+    private void applyBossOp(Pokemon pkmn, BossBattleData.Op op) {
+        switch (op.name) {
+            case "form": pokemonSet(pkmn, "form", op.arg); break;                 // pkmn.form = N
+            case "iv": pokemonSet(pkmn, "iv", op.arg); break;                     // pkmn.iv = [..]
+            case "ev": pokemonSet(pkmn, "ev", op.arg); break;                     // pkmn.ev = [..]
+            case "battleRank": pkmn.battleRank = ((Number) op.arg).intValue(); break;   // PokeBattle_BOSS:20-22
+            case "setItem": pkmn.item = (String) op.arg; break;                   // PokeBattle_Pokemon:630
+            case "setNature": applyNature(pkmn, op.arg); break;                   // :305
+            case "setAbility": applyAbility(pkmn, op.arg); break;                 // :255
+            case "pbLearnMove": learnMove(pkmn, (String) op.arg); break;          // :466-495
+            case "name": pkmn.name = (String) op.arg; break;
+            case "makeShiny": pkmn.shiny = true; break;                           // :325
+            case "makeSuperShiny": pkmn.shiny = true; pkmn.superShiny = true; break;   // :343 (superShiny? needs shiny?)
+            case "makeNotShiny": pkmn.shiny = false; break;                       // :330
+            case "makeMale": pkmn.gender = PokemonStats.MALE; break;              // :212
+            case "calcStats": pkmn.totalHpFactor = 1; pkmn.hp = pkmn.maxHp(); break;   // :868-891 (a fresh Pokemon: no HP lost)
+            case "totalhpTimes": pkmn.totalHpFactor *= ((Number) op.arg).intValue(); break;   // pkmn.totalhp = pkmn.totalhp * N
+            case "hpToTotal": pkmn.hp = pkmn.maxHp(); break;                      // pkmn.hp = pkmn.totalhp
+            default: log.warn("Boss_Battles op " + op.name + " is not implemented; skipped"); break;
+        }
     }
 
     /**
@@ -2897,16 +2987,23 @@ public final class EventInterpreter {
             log.warn("pbLearnMove(" + moveName + ") is unknown; skipped");
             return;
         }
-        for (int i = 0; i < pokemon.moves.size; i++) {
+        // PokeBattle_Pokemon:466-490 pbLearnMove: "Silently learns the given move. Will erase the first known move if it has to."
+        // The runtime's move list holds only the filled slots (a Ruby slot with id 0 is a missing entry here).
+        for (int i = 0; i < pokemon.moves.size; i++) {                      // :471 already knows move
             PbsData.Move known = pokemon.moves.get(i).move;
-            if (known != null && moveName.equals(known.internalName)) {
-                return;
+            if (known == null || !moveName.equals(known.internalName)) {
+                continue;
             }
+            for (int j = i + 1; j < pokemon.moves.size; j++) {              // :472-480 relocate it to the end of the list
+                pokemon.moves.swap(j, j - 1);
+            }
+            return;                                                         // :481
         }
-        if (pokemon.moves.size >= 4) {
-            log.warn("pbLearnMove(" + moveName + "): the move list is full; skipped");
+        if (pokemon.moves.size < 4) {                                       // :484-488 has an empty move slot
+            pokemon.moves.add(new Pokemon.MoveSlot(move));
             return;
         }
+        pokemon.moves.removeIndex(0);                                       // :490-494 forget the first move, learn the new one
         pokemon.moves.add(new Pokemon.MoveSlot(move));
     }
 
@@ -3071,11 +3168,23 @@ public final class EventInterpreter {
         final EventProgram program;
         final EventCommand command;
         final int outcomeVar;
+        /** A Boss_Battles def: {@code return decision==N}; -1 = branch on a win like pbTrainerBattle. */
+        int requiredDecision = -1;
+        /** A Boss_Battles def that set {@code $game_switches[196]} resets it after the battle. */
+        boolean resetSwitch196;
+        /** The branch is decided without a battle (the lazy-dog skip, a skipped battle). */
+        Boolean fixedResult;
 
         BattleCondition(EventProgram program, EventCommand command, int outcomeVar) {
             this.program = program;
             this.command = command;
             this.outcomeVar = outcomeVar;
+        }
+
+        static BattleCondition fixed(EventProgram program, EventCommand command, boolean result) {
+            BattleCondition condition = new BattleCondition(program, command, -1);
+            condition.fixedResult = result;
+            return condition;
         }
     }
 }

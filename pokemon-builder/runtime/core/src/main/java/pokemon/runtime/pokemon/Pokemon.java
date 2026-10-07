@@ -152,8 +152,15 @@ public final class Pokemon {
         return species == null ? "Genderless" : species.genderRate;
     }
 
+    /**
+     * How many times {@code @totalhp} was multiplied after the last {@code calcStats}
+     * ({@code pkmn.totalhp = pkmn.totalhp * 7}, Boss_Battles:2725); {@code calcStats} (PokeBattle_Pokemon:868-891)
+     * writes {@code @totalhp} again and resets it to 1.
+     */
+    public int totalHpFactor = 1;
+
     public int maxHp() {
-        return PokemonStats.maxHp(baseStat(PokemonStats.HP), ivs[PokemonStats.HP],
+        return totalHpFactor * PokemonStats.maxHp(baseStat(PokemonStats.HP), ivs[PokemonStats.HP],
                 evs[PokemonStats.HP], level);
     }
 
