@@ -2045,6 +2045,73 @@ public final class Battle {
         return usable;                                                               // :54
     }
 
+    // ------------------------------------------------------------------
+    // Stage 5 / 2d: what pbUseMove / pbProcessMoveHit read on the battle.
+    // ------------------------------------------------------------------
+
+    /** {@code @lastMoveUsed} (PokeBattle_Battle, read by Copycat): the PBS id of the last move used; {@code -1} = none (:169 initialises the sibling fields to -1). */
+    public int lastMoveUsed = -1;
+
+    /** {@code @lastMoveUser} (PokeBattle_Battle:81/169): index of the last move's user. */
+    public int lastMoveUser = -1;
+
+    /** {@code @switching} (set while a battler is being switched out; read by pbChangeTargets for Pursuit). */
+    public boolean switching;
+
+    /** {@code @successStates} (Battle Arena only; Battler_UseMove:265/484-489/555). */
+    public final DamageState.SuccessState[] successStates = {
+            new DamageState.SuccessState(), new DamageState.SuccessState(),
+            new DamageState.SuccessState(), new DamageState.SuccessState(),
+    };
+
+    /**
+     * {@code pbSideSize(index)} (PokeBattle_Battle:215-217). This runtime only
+     * has the singles field (sideSize is fixed at 1; doubles are the last batch
+     * of the rewrite).
+     */
+    public int pbSideSize(int index) {
+        return 1;
+    }
+
+    /** {@code pbJudge} (Battle_StartAndEnd:587-594): writes {@code @decision}. */
+    public void pbJudge() {
+        int d = judge();
+        if (d != 0) decision = d;
+    }
+
+    /** {@code pbJudgeCheckpoint(user,move=nil); end} (Battle_StartAndEnd:547). */
+    public void pbJudgeCheckpoint(Battler user, BattleMove move) {
+    }
+
+    /**
+     * {@code pbGainExp} (Battle_ExpAndMoveLearning:5-66) bridge: this runtime
+     * has no {@code participants} list, so the award that {@code execute} gave
+     * after a hit ({@code awardExperience}, :13-65 for one fainted foe) is
+     * given here once per fainted foe.
+     */
+    public void pbGainExp() {
+        for (Battler b : foeParty) {                                                 // :13 @battlers.each, next unless b.opposes?
+            if (b != foe() || !b.fainted() || b.expAwarded) continue;                // :16 next unless b.fainted?
+            Battler receiver = player();
+            if (receiver == null || receiver.fainted()) continue;                    // :20 only able participants
+            b.expAwarded = true;                                                     // :64 b.participants = []
+            awardExperience(b, receiver);
+        }
+    }
+
+    /**
+     * {@code pbOnActiveOne(battler)} (Battle_Action_Switching:386-): entry
+     * effects and entry hazards. 待接线: belongs to the switching batch.
+     */
+    public boolean pbOnActiveOne(Battler battler) {
+        throw new UnsupportedOperationException("M0 待接线: Battle_Action_Switching:386 pbOnActiveOne (entry hazards, switching batch)");
+    }
+
+    /** {@code pbPrimalReversion(idxBattler)} (Battle_Action_Other:175). 待接线: Mega/Primal batch. */
+    public void pbPrimalReversion(int idxBattler) {
+        throw new UnsupportedOperationException("M0 待接线: Battle_Action_Other:175 pbPrimalReversion");
+    }
+
     /** {@code pbRegisterMove} (Battle_Action_AttacksPriority:70-79). */
     public boolean registerMove(int idxBattler, int slot) {
         if (canChooseMove(idxBattler, slot) != null) {

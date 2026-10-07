@@ -283,7 +283,7 @@ public final class PendingApi {
      * (BattleHandlers_Abilities:2034).
      */
     public static void pbChangeTypes(Battler battler, String newType) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:285 pbChangeTypes");
+        battler.pbChangeTypes(newType);                         // Battler_ChangeSelf:306-311 (stage 5 / 2d)
     }
 
     /**

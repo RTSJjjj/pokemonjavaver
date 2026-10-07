@@ -1217,8 +1217,8 @@ public final class MoveEffectsGeneric {
         protected ComboEffect comboEffect;
         /** {@code @overrideType} (:711) - a type internal name, {@code null} = Ruby {@code nil}. */
         protected String overrideType;
-        /** {@code @overrideAnim} (:711) - a move id, {@code null} = Ruby {@code nil}. */
-        protected Integer overrideAnim;
+        /** {@code @overrideAnim} (:711) - a move's internal name (Ruby: its id), {@code null} = Ruby {@code nil}. */
+        protected String overrideAnim;
 
         /** One entry of {@code @combos} ({@code [function, comboEffect, overrideType, overrideAnim]}). */
         public static final class PledgeCombo {
@@ -1237,9 +1237,9 @@ public final class MoveEffectsGeneric {
              * {@code @overrideAnim != nil} (Move_Effects_Generic.rb:790) - an {@code int}
              * could not tell {@code nil} from a real id {@code 0}.
              */
-            public final Integer overrideAnim;
+            public final String overrideAnim;   // the move's internal name (Ruby: its id)
 
-            public PledgeCombo(String function, ComboEffect effect, String overrideType, Integer overrideAnim) {
+            public PledgeCombo(String function, ComboEffect effect, String overrideType, String overrideAnim) {
                 this.function = function;
                 this.effect = effect;
                 this.overrideType = overrideType;
@@ -1401,7 +1401,7 @@ public final class MoveEffectsGeneric {
             // The nil test is why the field is an Integer (see PledgeCombo#overrideAnim):
             // Move_Effects_100-17F.rb:106/122/138 pass nil for the second combo entry.
             if (overrideAnim != null) {                                      // :790 @overrideAnim!=nil
-                animId = overrideAnim;                                       // unboxed after the null test
+                animId = user.battle.pbs().move(overrideAnim).id;           // the move id of that name
             }
             super.pbShowAnimation(move, animId, user, targets, hitNum, showAnimation);   // :791 return super
         }

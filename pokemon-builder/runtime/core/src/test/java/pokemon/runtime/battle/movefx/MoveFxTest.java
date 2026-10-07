@@ -196,8 +196,7 @@ class MoveFxTest {
         // Stage 5 / 2c2: pbAccuracyCheck (:112-143), pbCalcAccuracyModifiers
         // (:145-183) and pbIsCritical? (:196-229) are transcribed now - see
         // MoveCalculationsTest - so they are no longer in this list.
-        assertPending("pbCalcDamage (:252-295)",
-                () -> effect.pbCalcDamage(null, null, null, 1));
+        // Stage 5 / 2d: pbCalcDamage (:252-295) is transcribed now - see BattlerUseMoveTest.
         assertPending("pbCalcDamageMultipliers (:296-546)",
                 () -> effect.pbCalcDamageMultipliers(null, null, null, 1, null, 0, null));
     }

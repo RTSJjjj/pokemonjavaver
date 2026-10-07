@@ -62,10 +62,9 @@ import pokemon.runtime.pokemon.Pokemon;
  *     extend classes that live in {@code MoveEffects_000_07F.java} /
  *     {@code MoveEffects_080_0FF.java} (other files of this batch); they are
  *     referenced by name here and must exist for this file to compile.</li>
- * <li>{@code PokeBattle_Move_106/107/108}: Ruby's second combo entry has
- *     {@code nil} for the override animation, which
- *     {@code MoveEffectsGeneric.PokeBattle_PledgeMove.PledgeCombo}'s
- *     {@code int overrideAnim} field cannot express - registered at the line.</li>
+ * <li>{@code PokeBattle_Move_106/107/108}: the second combo entry's {@code nil}
+ *     override animation is {@code null} ({@code PledgeCombo.overrideAnim} is the move's
+ *     internal name since stage 5 / 2d, not an {@code int}).</li>
  * </ul>
  */
 public final class MoveEffects_100_17F {
@@ -180,14 +179,11 @@ public final class MoveEffects_100_17F {
         /** {@code initialize} (:107-112). */
         public PokeBattle_Move_106() {
             // :110-111 @combos = [["107",:SeaOfFire,FIRE,FIREPLEDGE], ["108",:Swamp,nil,nil]]
-            // 登记: 第 2 项 Ruby 的 overrideType/overrideAnim 都是 nil；
-            //   PledgeCombo.overrideType 是 String（可 null）而 overrideAnim 是 int
-            //   （MoveEffectsGeneric.java:1244），无法表达 nil —— 这里传 0 并登记，
-            //   需要该字段改成 Integer 才能逐行等价。
+            // 第 2 项 overrideType/overrideAnim 都是 nil（stage 5 / 2d: overrideAnim 现在是 String，可为 null，与 Ruby 一致）。
             combos = new PledgeCombo[] {
                 new PledgeCombo("107", ComboEffect.SEA_OF_FIRE, "FIRE",
-                        MoveFxPendingApi.PBMoves_id("FIREPLEDGE")),
-                new PledgeCombo("108", ComboEffect.SWAMP, null, 0),
+                        "FIREPLEDGE"),
+                new PledgeCombo("108", ComboEffect.SWAMP, null, null),
             };
         }
     }
@@ -197,11 +193,11 @@ public final class MoveEffects_100_17F {
         /** {@code initialize} (:123-128). */
         public PokeBattle_Move_107() {
             // :126-127 @combos = [["108",:Rainbow,WATER,WATERPLEDGE], ["106",:SeaOfFire,nil,nil]]
-            // 登记: 同上，第 2 项 Ruby 的 overrideType/overrideAnim 是 nil。
+            // 第 2 项 overrideType/overrideAnim 都是 nil（见 PokeBattle_Move_106）。
             combos = new PledgeCombo[] {
                 new PledgeCombo("108", ComboEffect.RAINBOW, "WATER",
-                        MoveFxPendingApi.PBMoves_id("WATERPLEDGE")),
-                new PledgeCombo("106", ComboEffect.SEA_OF_FIRE, null, 0),
+                        "WATERPLEDGE"),
+                new PledgeCombo("106", ComboEffect.SEA_OF_FIRE, null, null),
             };
         }
     }
@@ -211,11 +207,11 @@ public final class MoveEffects_100_17F {
         /** {@code initialize} (:139-144). */
         public PokeBattle_Move_108() {
             // :142-143 @combos = [["106",:Swamp,GRASS,GRASSPLEDGE], ["107",:Rainbow,nil,nil]]
-            // 登记: 同上，第 2 项 Ruby 的 overrideType/overrideAnim 是 nil。
+            // 第 2 项 overrideType/overrideAnim 都是 nil（见 PokeBattle_Move_106）。
             combos = new PledgeCombo[] {
                 new PledgeCombo("106", ComboEffect.SWAMP, "GRASS",
-                        MoveFxPendingApi.PBMoves_id("GRASSPLEDGE")),
-                new PledgeCombo("107", ComboEffect.RAINBOW, null, 0),
+                        "GRASSPLEDGE"),
+                new PledgeCombo("107", ComboEffect.RAINBOW, null, null),
             };
         }
     }
@@ -639,7 +635,7 @@ public final class MoveEffects_100_17F {
             effects.set(PBEffects.Position.FutureSightMove, move.id());      // :449
             effects.set(PBEffects.Position.FutureSightUserIndex, user.index); // :450
             effects.set(PBEffects.Position.FutureSightUserPartyIndex, user.pokemonIndex); // :451
-            if (move.id() == MoveFxPendingApi.PBMoves_id("DOOMDESIRE")) {    // :452 isConst?(@id,PBMoves,:DOOMDESIRE)
+            if ("DOOMDESIRE".equals(move.internalName())) {    // :452 isConst?(@id,PBMoves,:DOOMDESIRE)
                 battle.display(user.pbThis() + "选择了破灭的未来！");         // :453
             } else {
                 battle.display(user.pbThis() + "预知到了攻击！");             // :455
@@ -874,7 +870,7 @@ public final class MoveEffects_100_17F {
                 user.effects.set(PBEffects.Battler.FollowMe,
                         b.effects.intVal(PBEffects.Battler.FollowMe) + 1);   // :650
             }
-            if (move.id() == MoveFxPendingApi.PBMoves_id("RAGEPOWDER")) {    // :652 isConst?(@id,PBMoves,:RAGEPOWDER)
+            if ("RAGEPOWDER".equals(move.internalName())) {    // :652 isConst?(@id,PBMoves,:RAGEPOWDER)
                 user.effects.set(PBEffects.Battler.RagePowder, true);    // :652
             }
             user.battle.display(user.pbThis() + "成为了视线的焦点！");               // :653
@@ -3300,7 +3296,7 @@ public final class MoveEffects_100_17F {
         public boolean pbMoveFailed(BattleMove move, Battler user, Array<Battler> targets) {
             // :2642 NEWEST_BATTLE_MECHANICS && isConst?(@id,PBMoves,:AURAWHEEL)
             if (Battle.NEWEST_BATTLE_MECHANICS
-                    && move.id() == MoveFxPendingApi.PBMoves_id("AURAWHEEL")) {
+                    && "AURAWHEEL".equals(move.internalName())) {
                 // :2643-2644 !isConst?(user.species,PBSpecies,:MORPEKO) && !isConst?(user.effects[TransformSpecies],…)
                 if (!"MORPEKO".equals(species(user))
                         && !"MORPEKO".equals(user.effects

@@ -378,6 +378,8 @@ public final class Battler {
      * ({@code pbInitPokemon:91-92}) and therefore survives.
      */
     public void resetForSwitchIn() {
+        type1 = null;                                            // Battler_Initialize:47-48/81-82 types come from the Pokemon again
+        type2 = null;
         for (int i = 0; i < stages.length; i++) {
             stages[i] = 0;                                       // :127-131
         }
@@ -3198,6 +3200,11 @@ public final class Battler {
     public Array<String> pbTypes(boolean withType3) {
         Array<String> ret = new Array<>();                                       // :315
         Array<String> base = pokemon == null ? new Array<String>() : pokemon.types();
+        if (type1 != null) {                                                     // @type1/@type2 changed by pbChangeTypes
+            base = new Array<>();
+            base.add(type1);
+            if (type2 != null) base.add(type2);
+        }
         if (base.size > 0) {
             ret.add(base.get(0));                                                // :315 ret = [@type1]
         }
@@ -3699,6 +3706,47 @@ public final class Battler {
         if (pokemon != null) pokemon.hp = value;                                 // :94
     }
 
+    /**
+     * {@code @type1} / {@code @type2} when a move or ability changed them
+     * (Battler_ChangeSelf:285-314 {@code pbChangeTypes}); {@code null} = "the
+     * Pokemon's own types" (Battler_Initialize:47-48/81-82). Cleared on switch-in.
+     * 登记: {@code pbUpdate}'s type reset (Battler_Initialize:378-379) is not modelled.
+     */
+    public String type1, type2;
+
+    /** {@code pbChangeTypes(newType)} with a single type name (Battler_ChangeSelf:306-311). */
+    public void pbChangeTypes(String newType) {
+        type1 = newType;                                                         // :308
+        type2 = newType;                                                         // :309
+        effects.set(PBEffects.Battler.Type3, -1);                                // :310
+        effects.set(PBEffects.Battler.BurnUp, false);                            // :312
+        effects.set(PBEffects.Battler.Roost, false);                             // :313
+    }
+
+    /** {@code pbChangeTypes(newType)} with a type list (Battler_ChangeSelf:294-305). */
+    public void pbChangeTypes(Array<String> newType) {
+        Object newType3 = newType.size > 2 ? newType.get(2) : (Object) (-1);     // :302 newType[2] || -1
+        type1 = newType.get(0);                                                  // :303
+        type2 = newType.size > 1 ? newType.get(1) : newType.get(0);              // :304
+        effects.set(PBEffects.Battler.Type3, newType3);                          // :305
+        effects.set(PBEffects.Battler.BurnUp, false);                            // :312
+        effects.set(PBEffects.Battler.Roost, false);                             // :313
+    }
+
+    /** {@code pbChangeTypes(battler)}: copy another battler's types (Battler_ChangeSelf:286-293). */
+    public void pbChangeTypes(Battler newType) {
+        Array<String> newTypes = newType.pbTypes();                              // :287
+        if (newTypes.size == 0) newTypes.add("NORMAL");                          // :288
+        Object newType3 = newType.effects.stringVal(PBEffects.Battler.Type3);    // :289
+        if (newType3 == null) newType3 = -1;
+        if (newType3 instanceof String && newTypes.contains((String) newType3, false)) newType3 = -1;   // :290
+        type1 = newTypes.get(0);                                                 // :291
+        type2 = newTypes.size == 1 ? newTypes.get(0) : newTypes.get(1);          // :292
+        effects.set(PBEffects.Battler.Type3, newType3);                          // :293
+        effects.set(PBEffects.Battler.BurnUp, false);                            // :312
+        effects.set(PBEffects.Battler.Roost, false);                             // :313
+    }
+
     /** {@code usingMultiTurnAttack?} (PokeBattle_Battler:708-716). */
     public boolean usingMultiTurnAttack() {
         if (effects.intVal(PBEffects.Battler.TwoTurnAttack) > 0) return true;   // :709
@@ -3966,6 +4014,97 @@ public final class Battler {
             if (code.equals(data.function)) return true;
         }
         return false;                                                            // :722
+    }
+
+    // ==================================================================
+    // Stage 5 / 2d: the master "use move" flow (bodies in BattlerUseMove /
+    // BattlerTargeting)
+    // ==================================================================
+
+    /** {@code pbUseMove(choice,specialUsage=false)} (Battler_UseMove:170-622). */
+    public void pbUseMove(Object[] choice, boolean specialUsage) {
+        BattlerUseMove.pbUseMove(this, choice, specialUsage);
+    }
+
+    /** {@code pbUseMoveSimple(moveID,target=-1,idxMove=-1,specialUsage=true)} (Battler_UseMove:152-165); the move is its internal name. */
+    public void pbUseMoveSimple(String moveName, int target, int idxMove, boolean specialUsage) {
+        BattlerUseMove.pbUseMoveSimple(this, moveName, target, idxMove, specialUsage);
+    }
+
+    /** {@code pbUseMoveSimple(moveID,target)} with the default {@code idxMove=-1, specialUsage=true}. */
+    public void pbUseMoveSimple(String moveName, int target) {
+        pbUseMoveSimple(moveName, target, -1, true);
+    }
+
+    /** {@code pbProcessMoveHit(move,user,targets,hitNum,skipAccuracyCheck)} (Battler_UseMove:627-809). */
+    public boolean pbProcessMoveHit(BattleMove move, Battler user, Array<Battler> targets, int hitNum,
+                                    boolean skipAccuracyCheck) {
+        return BattlerUseMove.pbProcessMoveHit(this, move, user, targets, hitNum, skipAccuracyCheck);
+    }
+
+    /** {@code pbFindUser(choice,move)} (Battler_UseMove_Targeting:5-7). */
+    public Battler pbFindUser(Object[] choice, BattleMove move) {
+        return BattlerTargeting.pbFindUser(this, choice, move);
+    }
+
+    /** {@code pbChangeUser(choice,move,user)} (Battler_UseMove_Targeting:9-30). */
+    public Battler pbChangeUser(Object[] choice, BattleMove move, Battler user) {
+        return BattlerTargeting.pbChangeUser(this, choice, move, user);
+    }
+
+    /** {@code pbFindTargets(choice,move,user)} (Battler_UseMove_Targeting:35-96). */
+    public Array<Battler> pbFindTargets(Object[] choice, BattleMove move, Battler user) {
+        return BattlerTargeting.pbFindTargets(this, choice, move, user);
+    }
+
+    /** {@code pbChangeTargets(move,user,targets,dragondarts=-1)} (Battler_UseMove_Targeting:101-217). */
+    public Array<Battler> pbChangeTargets(BattleMove move, Battler user, Array<Battler> targets) {
+        return BattlerTargeting.pbChangeTargets(this, move, user, targets);
+    }
+
+    /** Stand-in for {@code participants} (see {@link Battle#pbGainExp}): set once this battler's Exp was given out. */
+    public boolean expAwarded;
+
+    /** {@code pbHyperMode} (Pokemon_ShadowPokemon:400-407): returns at once for any non-Shadow Pokemon, which is all this runtime has. */
+    public void pbHyperMode() {
+        // :401 return if fainted? || !shadowPokemon? || inHyperMode?
+    }
+
+    /** {@code pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-35). */
+    public void pbEffectsOnSwitchIn() {
+        pbEffectsOnSwitchIn(false);
+    }
+
+    public void pbEffectsOnSwitchIn(boolean switchIn) {
+        if (!switchIn) {                                                         // :6
+            for (Battler b : battle.allBattlers()) {                             // :7
+                b.droppedBelowHalfHP = false;                                    // :8
+                b.statsDropped = false;                                          // :9
+            }
+        }
+        // Healing Wish/Lunar Dance/entry hazards
+        if (switchIn) battle.pbOnActiveOne(this);                                // :13
+        // Primal Revert upon entering battle
+        if (!fainted()) battle.pbPrimalReversion(index);                         // :15
+        // Ending primordial weather, checking Trace
+        pbContinualAbilityChecks(true);                                          // :17
+        // Abilities that trigger upon switching in
+        if ((!fainted() && unstoppableAbility(ability)) || abilityActive()) {    // :19
+            BattleHandlers.triggerAbilityOnSwitchIn(ability, this, battle);      // :20
+        }
+        // Check for end of primordial weather
+        battle.pbEndPrimordialWeather();                                         // :23
+        // Items that trigger upon switching in (Air Balloon message)
+        if (switchIn && itemActive()) {                                          // :25
+            BattleHandlers.triggerItemOnSwitchIn(item, this, battle);            // :26
+        }
+        // Berry check, status-curing ability check
+        if (switchIn) pbHeldItemTriggerCheck(0, false);                          // :29
+        pbAbilityStatusCureCheck();                                              // :30
+        for (Battler b : battle.allBattlers()) {                                 // :31
+            b.droppedBelowHalfHP = false;                                        // :32
+            b.statsDropped = false;                                              // :33
+        }
     }
 
     /** {@code pbBeginTurn(_choice)} (Battler_UseMove:71-85). */

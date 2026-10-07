@@ -4,6 +4,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import pokemon.runtime.battle.Battle;
 import pokemon.runtime.battle.BattleHandlers;
+import pokemon.runtime.battle.DamageCalc;
 import pokemon.runtime.battle.BattleMove;
 import pokemon.runtime.battle.Battler;
 import pokemon.runtime.battle.MoveUsage;
@@ -458,7 +459,7 @@ public class MoveEffectBase implements MoveEffect {
         if (effects.intVal(PBEffects.Battler.SuccessiveMove, Integer.MIN_VALUE) != move.id()) {
             effects.set(PBEffects.Battler.SuccessiveMove, -1);
         }
-        if (MoveFxPendingApi.PBMoves_id("BAMBOOSWORD") != move.id()) {      // :19
+        if (!"BAMBOOSWORD".equals(move.internalName())) {      // :19 getConst(PBMoves,:BAMBOOSWORD)!=@id
             effects.set(PBEffects.Battler.BambooSword, 0);
         }
     }
@@ -1043,7 +1044,16 @@ public class MoveEffectBase implements MoveEffect {
     /** {@code pbCalcDamage(user,target,numTargets=1)} (Move_Usage_Calculations.rb:252-295) - not transcribed (decision 10). */
     @Override
     public void pbCalcDamage(BattleMove move, Battler user, Battler target, int numTargets) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Usage_Calculations.rb:252-295 pbCalcDamage");
+        // Move_Usage_Calculations:252-295 lives in DamageCalc.compute; :263
+        // `damageState.critical = pbIsCritical?` comes AFTER the early returns of
+        // :253 (status move) and :254-257 (Disguise/Ice Face/Flame Veil), so the
+        // critical roll (it consumes randomness) is only made on the path that reaches it.
+        boolean critical = false;
+        if (!statusMove(move) && !target.damageState.disguise && !target.damageState.iceface
+                && !target.damageState.flameveil) {
+            critical = pbIsCritical(move, user, target);                         // :263
+        }
+        DamageCalc.compute(user, target, move, user.battle.pbs(), user.battle.random(), critical, numTargets);
     }
 
     /** {@code pbCalcDamageMultipliers(...)} (Move_Usage_Calculations.rb:296-546) - not transcribed (decision 10). */
