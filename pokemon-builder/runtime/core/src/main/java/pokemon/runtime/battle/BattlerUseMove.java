@@ -86,6 +86,7 @@ public final class BattlerUseMove {
         // Use the move
         self.pbUseMove(choice, isStruggle(self, (BattleMove) choice[2]));            // :60
         battle.pbJudge();                                                            // :62
+        battle.pbCalculatePriority();                                                // :64 if DYNAMIC_PRIORITY (Settings:161 = true)
         return true;                                                                 // :65
     }
 

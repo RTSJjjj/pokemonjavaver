@@ -1881,7 +1881,7 @@ public final class MoveEffects_0D5_0FF {
      * 不是「还有几个能上场的后备」）。
      */
     private static int pbAbleNonActiveCount(Battle battle, int idxBattler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle pbAbleNonActiveCount(idxOwnSide)");
+        return battle.pbAbleNonActiveCount(idxBattler);
     }
 
     /**
@@ -1889,7 +1889,7 @@ public final class MoveEffects_0D5_0FF {
      * 0E5 :3011 and 0E7 :3063). 本运行时缺此方法。
      */
     private static boolean battleRules(Battle battle, String rule) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:148 battle.rules[\"" + rule + "\"]");
+        return battle.rules.get(rule) != null && !Boolean.FALSE.equals(battle.rules.get(rule));   // Ruby truthiness of @rules[rule]
     }
 
     /**
@@ -1925,7 +1925,7 @@ public final class MoveEffects_0D5_0FF {
      * 0ED :3266 and 0EE :3300). 本运行时缺此方法。
      */
     private static void pbPursuit(Battle battle, int idxSwitcher) {
-        throw new UnsupportedOperationException("M0 待接线: Battle_Phase_Attack:24 pbPursuit");
+        battle.pbPursuit(idxSwitcher);
     }
 
     /**
@@ -1934,7 +1934,7 @@ public final class MoveEffects_0D5_0FF {
      * 单打视图，且语义只覆盖场上两人）。
      */
     private static Array<Battler> pbPriority(Battle battle, boolean all) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle pbPriority(all)");
+        return battle.pbPriority(all);   // pbPriority(onlySpeedSort)
     }
 
     /**

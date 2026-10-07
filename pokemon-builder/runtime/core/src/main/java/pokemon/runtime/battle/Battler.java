@@ -4061,6 +4061,11 @@ public final class Battler {
     // BattlerTargeting)
     // ==================================================================
 
+    /** {@code pbProcessTurn(choice,tryFlee)} (Battler_UseMove:5-66). */
+    public boolean pbProcessTurn(Object[] choice, boolean tryFlee) {
+        return BattlerUseMove.pbProcessTurn(this, choice, tryFlee);
+    }
+
     /** {@code pbProcessTurn(choice,tryFlee=true)} (Battler_UseMove:5-66). */
     public boolean pbProcessTurn(Object[] choice) {
         return BattlerUseMove.pbProcessTurn(this, choice, true);

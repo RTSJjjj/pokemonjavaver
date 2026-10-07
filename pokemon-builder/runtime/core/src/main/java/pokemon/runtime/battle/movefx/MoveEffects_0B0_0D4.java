@@ -1855,7 +1855,7 @@ public final class MoveEffects_0B0_0D4 {
 
     /** {@code @battle.pbPriority(ignoringFainted)} (Battle_Phase_Attack:...): battlers in priority order. */
     private static Array<Battler> pbPriority(Battle battle, boolean ignoringFainted) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle pbPriority(" + ignoringFainted + ")");
+        return battle.pbPriority(ignoringFainted);
     }
 
     /**

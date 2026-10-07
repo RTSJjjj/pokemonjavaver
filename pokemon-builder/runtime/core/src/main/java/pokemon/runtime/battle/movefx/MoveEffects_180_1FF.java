@@ -2548,7 +2548,7 @@ public final class MoveEffects_180_1FF {
             }
             user.battle.display(user.pbThis() + "回到了"
                     + user.battle.pbGetOwnerName(user.index) + "身边！");       // :1586
-            // 登记: :1587 @battle.pbPursuit(user.index) —— Battle 未暴露 pbPursuit
+            user.battle.pbPursuit(user.index);                                 // :1587
             int oldSub = user.effects.intVal(PBEffects.Battler.Substitute);    // :1588
             if (user.fainted()) {                                              // :1589
                 return;

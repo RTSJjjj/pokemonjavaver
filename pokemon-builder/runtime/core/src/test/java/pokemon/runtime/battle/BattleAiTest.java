@@ -56,7 +56,8 @@ class BattleAiTest {
                 + "\"BULBASAUR\":{\"id\":1,\"internalName\":\"BULBASAUR\",\"name\":\"妙蛙种子\","
                 + "\"types\":[\"GRASS\"],\"baseStats\":[45,49,49,45,65,65],\"rareness\":45,"
                 + "\"weight\":6.9,\"genderRate\":\"Female50Percent\",\"evolutions\":[]}}}");
-        write(tempDir, "moves.json", "{\"total\":4,\"moves\":{"
+        write(tempDir, "moves.json", "{\"total\":5,\"moves\":{"
+                + move("STRUGGLE", "挣扎", 1).replace("\"000\"", "\"002\"") + ","     // the real moves.txt has Struggle (id>0), which an empty moveset uses
                 + move("TACKLE", "撞击", 35) + "," + move("GROWL", "叫声", 40) + ","
                 + move("VINEWHIP", "藤鞭", 25) + "," + move("EMBER", "火花", 25) + "}}");
         pbs = PbsData.parse(tempDir.toFile());

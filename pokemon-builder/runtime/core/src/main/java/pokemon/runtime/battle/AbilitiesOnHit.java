@@ -52,12 +52,7 @@ import pokemon.runtime.pokemon.PbsData;
  * <li>{@code target.form = 0} - :1849: {@code Battler.form()} is read-only here, so
  *     the assignment goes through {@link PendingApi#setForm(Battler, int)}
  *     (already present for HUNGERSWITCH, BattleHandlers_Abilities:2312).</li>
- * <li>{@code battle.choices[user.index][4]} - :602 (DAZZLING): the plugin's
- *     {@code @choices} has a FIFTH slot holding the round's calculated priority
- *     ({@code Battle_Action_AttacksPriority:174 @choices[b.index][4] = pri},
- *     "Move priority saved from pbCalculatePriority"). This runtime's
- *     {@link Battle#choices(int)} has 4 slots and the priority system is not
- *     ported, so the guard is skipped: DAZZLING blocks nothing until then.</li>
+ * <li>{@code battle.choices[user.index][4]} - :602 (DAZZLING): the priority {@link BattleAttackPhase} saved.</li>
  * <li>{@code target.reborn?}/{@code setReborn} + {@code battle.scene.pbReborn1Battler/pbReborn2Battler}
  *     - :4431-4461, :4454-4465: the plugin's revive system + scene; both
  *     SACREDREBORN/ABYSSREBORN bodies are registered in full as a comment.</li>
@@ -133,9 +128,9 @@ final class AbilitiesOnHit {
     private static void registerMoveBlockingAbility() {
         BattleHandlers.MoveBlockingAbility.add("DAZZLING", (ability, bearer, user, targets, move, battle) -> {
             // BattleHandlers_Abilities.rb:600-618
-            // 登记: BattleHandlers_Abilities:602 battle.choices[user.index][4]<=0 是本轮算出的优先度
-            //   (Battle_Action_AttacksPriority:174 @choices[b.index][4] = pri)；本运行时
-            //   Battle.choices(int) 只有 4 槽且优先度系统未落地 → 该守卫跳过。
+            if ((Integer) battle.choices(user.index)[4] <= 0) {                // :602
+                return false;
+            }
             if (!bearer.opposes(user)) {                                       // :603
                 return false;
             }

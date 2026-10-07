@@ -95,14 +95,14 @@ public final class BattleSuccessChecks {
             return false;
         }
         // :396-401 Immunity to priority moves because of Psychic Terrain
-        // 登记: gates on @battle.choices[user.index][4] (the priority pbCalculatePriority
-        // saved). This runtime has neither the fifth choice slot nor pbCalculatePriority
-        // (docs/stage4-wiring-queue.md C6), so the condition cannot be evaluated yet.
-        //
-        //   if @battle.field.terrain==Psychic && target.affectedByTerrain? &&
-        //      target.opposes?(user) && @battle.choices[user.index][4]>0
-        //     display("{1}周围变得十分奇妙！") ; return false
-        //
+        // Move priority saved from pbCalculatePriority: @battle.choices[user.index][4]
+        final int savedPriority = (Integer) battle.choices(user.index)[4];
+        if (battle.field.terrain == PBBattleTerrains.Psychic && target.affectedByTerrain()     // :396
+                && target.opposes(user)                                                         // :397
+                && savedPriority > 0) {                                                         // :398
+            battle.display(target.pbThis() + "周围变得十分奇妙！");                              // :399
+            return false;                                                                       // :400
+        }
         // :403-410 Crafty Shield
         // 登记 (plugin defect): :404 ends in `!move.function == "18E"`, which parses as
         //   `(!move.function) == "18E"` i.e. `false == "18E"` - always false - so this
@@ -134,11 +134,14 @@ public final class BattleSuccessChecks {
         // :422-510 the protect family
         if (effect.canProtectAgainst(move)) {
             // :424-431 Quick Guard
-            // 登记: gates on @battle.choices[user.index][4] (see the Psychic Terrain note).
-            //
-            //   if target.pbOwnSide.effects[PBEffects::QuickGuard] &&
-            //      @battle.choices[user.index][4]>0 && !unseenfist ... return false
-            //
+            if (target.pbOwnSide().effects.truthy(PBEffects.Side.QuickGuard)                    // :424
+                    && savedPriority > 0 && !unseenfist) {                                       // :425
+                battle.commonAnimation("QuickGuard", target);                                    // :426
+                battle.display("快速防守保护了" + target.pbThis(true) + "！");                    // :427
+                target.damageState.protectedFlag = true;                                         // :428
+                battle.successStates[user.index].protectedFlag = true;                           // :429
+                return false;                                                                    // :430
+            }
             // :432-439 Protect
             if (target.effects.truthy(PBEffects.Battler.Protect) && !unseenfist) {              // :433
                 battle.commonAnimation("Protect", target);                                      // :434

@@ -257,10 +257,12 @@ public final class Battle {
         Battler foe = foe();
         Battler player = player();
         if (foe != null && player != null) {
-            execute(foe, player, pickMove(foe, player, null));
+            chooseFor(foe, player, null);                          // Battle_Phase_Command
+            BattleAttackPhase.pbAttackPhase(this);                 // the player's switch/item was played by the screen
         }
         endOfTurn();
         refreshFieldIndices();
+        for (int i = 0; i < choicesStore.length; i++) clearChoice(i);   // Battle_Phase_Command:183
         return result();
     }
     /**
@@ -297,32 +299,53 @@ public final class Battle {
     // ==================================================================
 
     /**
-     * {@code @choices[i]} (Battle_Phase_Command:6-11). Only the
-     * {@code :None}/:SwitchOut distinction is modelled - the runtime executes a
-     * chosen move immediately instead of storing it for the attack phase.
+     * {@code @choices[idxBattler]} (PokeBattle_Battle:72): {@code [action, arg1, arg2,
+     * target, priority]}; {@code [4]} is written by {@code pbCalculatePriority}
+     * (Battle_Action_AttacksPriority:174). One entry per battler index.
      */
-    private final boolean[] switchChoice = new boolean[2];
-    private final int[] switchChoiceParty = { -1, -1 };
+    private final Object[][] choicesStore = newChoices();
+
+    private static Object[][] newChoices() {
+        Object[][] c = new Object[4][];
+        for (int i = 0; i < c.length; i++) {
+            c[i] = new Object[]{":None", 0, null, -1, 0};                  // pbClearChoice's initial state
+        }
+        return c;
+    }
+
+    /** {@code @priority} (PokeBattle_Battle): {@code [battler, speed, sub-priority, priority, tie-breaker]}. */
+    public final java.util.List<Object[]> priority = new java.util.ArrayList<>();
+    /** {@code @priorityTrickRoom}. */
+    public boolean priorityTrickRoom;
+    /** {@code @rules} (PokeBattle_Battle:148 {@code = {}}): battle rules; empty unless a setup fills it. */
+    public final java.util.Map<String, Object> rules = new java.util.HashMap<>();
+
+    /** {@code maxBattlerIndex} (PokeBattle_Battle): singles has battlers 0 and 1. */
+    public int maxBattlerIndex() {
+        return 1;
+    }
 
     /** {@code @choices[idxBattler][0] == :SwitchOut} (:52/:176). */
     public boolean choiceIsSwitch(int idxBattler) {
-        return idxBattler >= 0 && idxBattler < 2 && switchChoice[idxBattler];
+        return ":SwitchOut".equals(choices(idxBattler)[0]);
     }
 
-    /** {@code @choices[idxBattler][1]} (:53/:124-125). */
+    /** {@code @choices[idxBattler][1]} for a switch (:53/:124-125); -1 when none. */
     public int choiceSwitchParty(int idxBattler) {
-        return idxBattler >= 0 && idxBattler < 2 ? switchChoiceParty[idxBattler] : -1;
+        Object[] c = choices(idxBattler);
+        return ":SwitchOut".equals(c[0]) ? (Integer) c[1] : -1;
     }
 
     /** {@code pbClearChoice} (Battle_Phase_Command:5-11). */
     public void clearChoice(int idxBattler) {
-        if (idxBattler < 0 || idxBattler >= 2) {
+        if (idxBattler < 0 || idxBattler >= choicesStore.length) {
             return;
         }
-        switchChoice[idxBattler] = false;
-        switchChoiceParty[idxBattler] = -1;
-        chosenSlot[idxBattler] = -1;                               // :8 @choices[idxBattler][1]
-        chosenMove[idxBattler] = null;                             // :9 @choices[idxBattler][2] = nil
+        Object[] c = choicesStore[idxBattler];
+        c[0] = ":None";                                            // :7
+        c[1] = 0;                                                  // :8
+        c[2] = null;                                               // :9
+        c[3] = -1;                                                 // :10
     }
 
     /** {@code pbCancelChoice} (Battle_Phase_Command:13-23): Mega is not modelled. */
@@ -424,8 +447,11 @@ public final class Battle {
         if (idxBattler < 0 || idxBattler >= 2) {
             return false;
         }
-        switchChoice[idxBattler] = true;                           // :124
-        switchChoiceParty[idxBattler] = idxParty;                  // :125
+        Object[] c = choicesStore[idxBattler];
+        c[0] = ":SwitchOut";                                       // :124
+        c[1] = idxParty;                                           // :125
+        c[2] = null;                                               // :126
+        c[3] = -1;                                                 // :127
         return true;
     }
 
@@ -644,26 +670,11 @@ public final class Battle {
     }
 
     private void runTurn(Battler player, Battler foe) {
-        BattleMove playerMove = pickMove(player, foe, playerController);
-        BattleMove foeMove = pickMove(foe, player, null);
-        int playerPriority = playerMove == null ? 0 : playerMove.priority();
-        int foePriority = foeMove == null ? 0 : foeMove.priority();
-        boolean playerFirst;
-        if (playerPriority != foePriority) {
-            playerFirst = playerPriority > foePriority;
-        } else {
-            playerFirst = player.speed() > foe.speed()
-                    || (player.speed() == foe.speed() && random.nextBoolean());
-        }
-        Battler first = playerFirst ? player : foe;
-        Battler second = playerFirst ? foe : player;
-        BattleMove firstMove = playerFirst ? playerMove : foeMove;
-        BattleMove secondMove = playerFirst ? foeMove : playerMove;
-
-        execute(first, second, firstMove);
-        if (!first.fainted() && !second.fainted()) {
-            execute(second, first, secondMove);
-        }
+        // Battle_Phase_Command: every battler stores its choice (:183 pbClearChoice runs
+        // after the round, below).
+        chooseFor(player, foe, playerController);
+        chooseFor(foe, player, null);
+        BattleAttackPhase.pbAttackPhase(this);                     // Battle_StartAndEnd pbAttackPhase
         // Battle_StartAndEnd:381-386: pbBattleLoop breaks before
         // pbEndOfRoundPhase when a move decided the battle, so the end of round
         // (its damage and its counter) does not run.
@@ -672,21 +683,7 @@ public final class Battle {
         } else {
             endOfRoundMessages.clear();
         }
-    }
-
-    /**
-     * One battler's action for the round: {@code pbProcessTurn} (Battler_UseMove:5-66,
-     * called from {@code pbAttackPhaseMoves} Battle_Phase_Attack:121/131), which runs
-     * {@code pbUseMove} (:170-622). The singles field has one target, so
-     * {@code choice[3]} is {@code -1} (no pre-chosen target) and
-     * {@code pbFindTargets} picks the opposing battler.
-     */
-    private void execute(Battler attacker, Battler defender, BattleMove move) {
-        if (attacker == null || move == null) {
-            return;
-        }
-        Object[] choice = {":UseMove", attacker.moveSlotIndex(move), move, -1};
-        attacker.pbProcessTurn(choice);
+        for (int i = 0; i < choicesStore.length; i++) clearChoice(i);   // Battle_Phase_Command:183
     }
 
     /**
@@ -961,13 +958,6 @@ public final class Battle {
     private void endOfTurn() {
         endOfRoundMessages.clear();
         Array<Battler> fielded = fieldedBySpeed();
-        // Battle_Phase_Attack:174: every battler that survived the round counts
-        // one more turn on the field (@turnCount).
-        for (Battler battler : fielded) {
-            if (!battler.fainted()) {
-                battler.turnCount++;
-            }
-        }
         // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:287-326
         //     Grassy Terrain + Healer/Hydration/Shed Skin + Black Sludge/Leftovers,
         //     then Operation / Aqua Ring / Ingrain. The plugin runs the healing stage
@@ -1572,44 +1562,63 @@ public final class Battle {
             return false;                                          // :73
         }
         Battler battler = battlerAt(idxBattler);
-        if (battler == null) {
+        if (battler == null || idxBattler < 0 || idxBattler >= choicesStore.length) {
             return false;
         }
-        chosenMove[idxBattler & 1] = battler.moveSlot(slot);        // :76 @choices[..][2]
-        chosenSlot[idxBattler & 1] = slot;                          // :75 @choices[..][1]
+        Object[] c = choicesStore[idxBattler];
+        c[0] = ":UseMove";                                         // :74 "Use move"
+        c[1] = slot;                                               // :75 Index of move to be used
+        c[2] = battler.moveSlot(slot);                             // :76 PokeBattle_Move object
+        c[3] = -1;                                                 // :77 No target chosen yet
         return true;
     }
 
-    /** {@code @choices[idxBattler][1]}: the registered slot, -1 when none. */
+    /** {@code pbRegisterTarget(idxBattler,idxTarget)} (Battle_Action_AttacksPriority:100-102). */
+    public void pbRegisterTarget(int idxBattler, int idxTarget) {
+        choicesStore[idxBattler][3] = idxTarget;                   // :101 Set target of move
+    }
+
+    /** {@code @choices[idxBattler][1]} of a registered move: the slot, -1 when none. */
     public int chosenMoveSlot(int idxBattler) {
-        return chosenSlot[idxBattler & 1];
+        Object[] c = choices(idxBattler);
+        return ":UseMove".equals(c[0]) ? (Integer) c[1] : -1;
     }
 
-    /** {@code @choices[idxBattler][2]}: the registered move, null when none. */
+    /** {@code @choices[idxBattler][2]} of a registered move: null when none. */
     public BattleMove chosenMove(int idxBattler) {
-        return chosenMove[idxBattler & 1];
+        Object[] c = choices(idxBattler);
+        return ":UseMove".equals(c[0]) ? (BattleMove) c[2] : null;
     }
 
-    private final BattleMove[] chosenMove = new BattleMove[2];
-    private final int[] chosenSlot = { -1, -1 };
+    /**
+     * Battle_Phase_Command: stores the battler's move choice for the round. The
+     * player's was stored by {@code pbRegisterMove} (the menu), the rest are
+     * picked here (the controller / the plugin's AI, or Struggle via
+     * {@code pbAutoChooseMove} :63-66).
+     */
+    private void chooseFor(Battler user, Battler foe, Controller controller) {
+        if (user == null || user.index < 0 || user.index >= choicesStore.length) {
+            return;
+        }
+        Object[] c = choicesStore[user.index];
+        if (":UseMove".equals(c[0]) && c[2] != null && user.hasUsableMove()) {
+            return;                                                // registered by pbRegisterMove
+        }
+        BattleMove move = pickMove(user, foe, controller);
+        if (move == null) {
+            return;
+        }
+        c[0] = ":UseMove";                                         // :63 / :74
+        c[1] = user.moveSlotIndex(move);                           // :64 -1 for Struggle / :75
+        c[2] = move;                                               // :65 @struggle / :76
+        c[3] = -1;                                                 // :66 / :77
+    }
 
     private BattleMove pickMove(Battler user, Battler foe, Controller controller) {
         // pbFightMenu:68 -> pbAutoChooseMove: no slot can be used, so Struggle
         // (Battle_Action_AttacksPriority:59-67).
         if (!user.hasUsableMove()) {
             return user.struggle(pbs);
-        }
-        // Battle_Phase_Attack:146 b.pbProcessTurn(@choices[b.index]) ->
-        // Battler_UseMove:192 move = choice[2]: the move pbRegisterMove stored
-        // (Battle_Action_AttacksPriority:75-76) is the one used. The choice is
-        // spent here; the plugin clears it at the next command phase
-        // (Battle_Phase_Command:183 pbClearChoice).
-        int side = user.index < 0 ? -1 : (user.index & 1);
-        if (side >= 0 && chosenMove[side] != null) {
-            BattleMove registered = chosenMove[side];
-            chosenMove[side] = null;
-            chosenSlot[side] = -1;
-            return registered;
         }
         if (controller != null) {
             int slot = controller.chooseMove(user, foe, user.moveSlots());
@@ -2276,41 +2285,58 @@ public final class Battle {
         clearChoice(idxBattler);                                    // :6-10
     }
 
-    /**
-     * {@code @choices[idxBattler]} (PokeBattle_Battle:72) as a derived view:
-     * {@code [action, arg1, arg2, arg3]}.
-     *
-     * <p>This runtime stores the four slots in dedicated fields
-     * ({@code switchChoice}/{@code switchChoiceParty}/{@code chosenSlot}/
-     * {@code chosenMove}) and exposes them through {@link #choiceIsSwitch(int)},
-     * {@link #choiceSwitchParty(int)}, {@link #chosenMoveSlot(int)} and
-     * {@link #chosenMove(int)}. Rather than keep a second, writable copy of the
-     * same state, this method assembles the Ruby array on demand, so
-     * {@code battle.choices(idx)[0]} reads exactly like the plugin's
-     * {@code @choices[idxBattler][0]}.</p>
-     *
-     * <p>Slot 3 is the "target chosen yet" marker: {@code :10 -1} after a clear
-     * and {@code -1} for every registered move
-     * (Battle_Action_AttacksPriority:77, {@code # No target chosen yet}).</p>
-     */
+    /** {@code @choices[idxBattler]} (PokeBattle_Battle:72). */
     public Object[] choices(int idxBattler) {
-        String action;
-        Object arg1;
-        Object arg2;
-        if (choiceIsSwitch(idxBattler)) {                           // Battle_Action_Switching:124
-            action = ":SwitchOut";
-            arg1 = choiceSwitchParty(idxBattler);                   // :125
-            arg2 = null;
-        } else if (chosenMoveSlot(idxBattler) >= 0) {                // Battle_Action_AttacksPriority:74-77
-            action = ":UseMove";
-            arg1 = chosenMoveSlot(idxBattler);                      // :75
-            arg2 = chosenMove(idxBattler);                          // :76
-        } else {                                                    // Battle_Phase_Command:7-10
-            action = ":None";
-            arg1 = 0;
-            arg2 = null;
+        if (idxBattler < 0 || idxBattler >= choicesStore.length) {
+            return new Object[]{":None", 0, null, -1, 0};
         }
-        return new Object[] { action, arg1, arg2, -1 };              // :10 [3] = -1
+        return choicesStore[idxBattler];
+    }
+
+    // ------------------------------------------------------------------
+    // Battle_Action_AttacksPriority / Battle_Phase_Attack (BattleAttackPhase)
+    // ------------------------------------------------------------------
+
+    /** {@code pbCalculatePriority(fullCalc=false,indexArray=nil)} (Battle_Action_AttacksPriority:136-248). */
+    public void pbCalculatePriority() {
+        BattleAttackPhase.pbCalculatePriority(this, false, null);
+    }
+
+    public void pbCalculatePriority(boolean fullCalc, int[] indexArray) {
+        BattleAttackPhase.pbCalculatePriority(this, fullCalc, indexArray);
+    }
+
+    /** {@code pbPriority(onlySpeedSort=false)} (Battle_Action_AttacksPriority:253-267). */
+    public Array<Battler> pbPriority(boolean onlySpeedSort) {
+        return BattleAttackPhase.pbPriority(this, onlySpeedSort);
+    }
+
+    /** {@code pbPursuit(idxSwitcher)} (Battle_Phase_Attack:24-48). */
+    public void pbPursuit(int idxSwitcher) {
+        BattleAttackPhase.pbPursuit(this, idxSwitcher);
+    }
+
+    /** {@code pbChoseMoveFunctionCode?(idxBattler,code)} (Battle_Action_AttacksPriority:91-98). */
+    public boolean pbChoseMoveFunctionCode(int idxBattler, String code) {
+        return BattleAttackPhase.pbChoseMoveFunctionCode(this, idxBattler, code);
+    }
+
+    /** {@code pbMoveCanTarget?(idxUser,idxTarget,targetType)} (Battle_Action_AttacksPriority:106-131). */
+    public boolean pbMoveCanTarget(int idxUser, int idxTarget, int targetType) {
+        return BattleAttackPhase.pbMoveCanTarget(this, idxUser, idxTarget, targetType);
+    }
+
+    /** {@code pbAbleNonActiveCount(idxBattler=0)} (PokeBattle_Battle:340-352). */
+    public int pbAbleNonActiveCount(int idxBattler) {
+        Array<Battler> party = partyOf(idxBattler);                // :341
+        Battler active = battlerAt(idxBattler);                    // :342-343 inBattleIndices (one battler per side)
+        int count = 0;                                             // :344
+        for (Battler pkmn : party) {                               // :345
+            if (pkmn == null || pkmn.fainted() || pkmn.pokemon.egg) continue;   // :346 !pkmn.able?
+            if (pkmn == active) continue;                          // :347
+            count += 1;                                            // :348
+        }
+        return count;                                              // :351
     }
 
     /**

@@ -16,10 +16,8 @@ import pokemon.runtime.pokemon.PbsData;
  *
  * <h2>Registered</h2>
  * <ul>
- * <li>{@code :171/:187} {@code @battle.choices[user.index][4]>0} (the priority
- *     {@code pbCalculatePriority} saved - docs/stage4-wiring-queue.md C6) does not
- *     exist yet; {@link #quickGuardAppliesTo(Battler)} is false until it does.
- *     Same registration as {@link BattleSuccessChecks}.</li>
+ * <li>{@code :171/:187} {@code @battle.choices[user.index][4]>0} is the priority
+ *     {@link BattleAttackPhase#pbCalculatePriority} saved ({@link #quickGuardAppliesTo(Battler)}).</li>
  * <li>{@code :113} {@code next if !@battle.choices[b.index][3] == targets} parses
  *     as {@code (!choice) == targets}, which is always false, so it never skips.
  *     Transcribed as written (no skip).</li>
@@ -43,7 +41,7 @@ public final class BattlerTargeting {
     }
 
     private static boolean quickGuardAppliesTo(Battler user) {
-        return false;                                       // see class javadoc: @battle.choices[..][4]
+        return (Integer) user.battle.choices(user.index)[4] > 0;   // @battle.choices[user.index][4]>0
     }
 
     /** {@code b.type1} / {@code b.type2} (PokeBattle_Battler @type1/@type2): the first and second type, {@code type2 == type1} for a single-type battler. */

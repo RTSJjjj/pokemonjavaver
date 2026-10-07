@@ -3744,7 +3744,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battle#pbPriority} (PokeBattle_Battle，按速度排序的场上 battler 数组). 本运行时缺此方法。 */
     private static Array<Battler> pbPriority(Battle battle) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle pbPriority");
+        return battle.pbPriority(false);
     }
 
     /**
@@ -3773,7 +3773,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battle#pbPursuit(idxSwitcher)} (Battle_Phase_Attack:24). 本运行时缺此方法。 */
     private static void pbPursuit(Battle battle, int idxSwitcher) {
-        throw new UnsupportedOperationException("M0 待接线: Battle_Phase_Attack:24 pbPursuit");
+        battle.pbPursuit(idxSwitcher);
     }
 
     /**
