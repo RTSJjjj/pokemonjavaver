@@ -3758,7 +3758,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battle#pbActivateHealingWish(battler)} (Battle_Action_Switching:363). 本运行时缺此方法。 */
     private static void pbActivateHealingWish(Battle battle, Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: Battle_Action_Switching:363 pbActivateHealingWish");
+        battle.pbActivateHealingWish(battler);
     }
 
     /** {@code Battle#pbGetOwnerIndexFromBattlerIndex(idxBattler)} (PokeBattle_Battle:232). 本运行时缺此方法。 */

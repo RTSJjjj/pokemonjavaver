@@ -4731,4 +4731,9 @@ public final class Battler {
                     "插件缺陷: Battler_AbilityAndItem:338 pbHeldItemTriggered(itm, true, false) - forcedItem<=0 对布尔值 NoMethodError");
         }
     }
+
+    /** {@code canTakeHealingWish?} (PokeBattle_Battler:690-693): also works with Lunar Dance. */
+    public boolean canTakeHealingWish() {
+        return canHeal() || pbHasAnyStatus();                            // :692
+    }
 }

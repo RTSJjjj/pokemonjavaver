@@ -291,6 +291,47 @@ public final class InteractiveBattlePort implements BattlePort {
         }
 
         /**
+         * {@code pbEffectsOnSwitchIn(true)} of the battlers that were just sent out
+         * (Battle_Phase_Attack:69, Battle_Action_Switching:235-237): entry hazards,
+         * Healing Wish, abilities and items. The events are taken with {@link #takeEvents()}.
+         *
+         * @return true when something happened that has to be played
+         */
+        public boolean switchInEffects(int[] idxBattlers) {
+            if (result != null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
+            battle.pbSwitchInEffects(idxBattlers);
+            engineEvents.addAll(battle.roundEvents);
+            result = battle.result();
+            applyExpPot();
+            message = null;
+            if (result != null) {
+                endMessage();
+            }
+            return engineEvents.size > 0 || result != null;
+        }
+
+        /** {@code pbOnActiveAll} (Battle_StartAndEnd:354): abilities upon entering battle. */
+        public boolean onActiveAll() {
+            if (result != null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
+            battle.pbOnActiveAllRound();
+            engineEvents.addAll(battle.roundEvents);
+            result = battle.result();
+            message = null;
+            if (result != null) {
+                endMessage();
+            }
+            return engineEvents.size > 0 || result != null;
+        }
+
+        /**
          * {@code pbAttackPhaseSwitch} (Battle_Phase_Attack:57-59): after the recall line, a
          * Pursuit aimed at the switching Pokemon hits before it leaves. The events are
          * taken with {@link #takeEvents()}.

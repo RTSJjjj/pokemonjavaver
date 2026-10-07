@@ -1127,6 +1127,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     // pbStartBattleSendOut's step runner (Battle_StartAndEnd:194-275)
     // =====================================================================
 
+    /** {@code pbOnActiveAll} has run for this battle. */
+    private boolean openingEffectsDone;
+
     /** Runs the plan built by {@link BattleSendOut#plan}. */
     private void stepOpening() {
         InputManager input = context.inputManager();
@@ -1152,6 +1155,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (planIndex >= plan.size()) {
             stage = Stage.BATTLE;                                                // pbBattleLoop
             message = null;
+            if (!openingEffectsDone) {
+                openingEffectsDone = true;
+                if (session.onActiveAll()) {                                     // Battle_StartAndEnd:354 pbOnActiveAll
+                    pursuitContinuation = () -> go(0);
+                    queueRoundMessages();
+                    return;
+                }
+            }
             go(0);
             return;
         }
@@ -1309,6 +1320,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case REPLACE: {
                 // :261 pbReplace -> :313 pbInitialize(party[idxParty],idxParty,batonPass)
                 session.battle.replace(switchIdxBattler, switchIdxParty);
+                if (eorRunning && !eorSwitched.contains(switchIdxBattler)) {
+                    eorSwitched.add(switchIdxBattler);             // :199/:204/:208/:230 switched.push
+                }
                 refreshDataBoxes();
                 switchStep = SwitchStep.SEND;
                 // :318 pbSendOut([[idxBattler,party[idxParty]]]), startBattle=false
@@ -1377,6 +1391,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         return true;
     }
 
+    /** {@code switched} of {@code pbEORSwitch} (Battle_Action_Switching:171, :199/:204/:208/:230). */
+    private final java.util.List<Integer> eorSwitched = new java.util.ArrayList<>();
+
     private void nextEorReplacement() {
         eorIndex++;
         eorParty = -2;
@@ -1388,6 +1405,17 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void stepEorSwitch() {
         if (eorIndex >= eorPlan.size()) {
             eorRunning = false;                                    // :234 break if switched empty
+            if (!eorSwitched.isEmpty()) {
+                // :235-237 pbPriority(true).each { |b| b.pbEffectsOnSwitchIn(true) if switched.include?(b.index) }
+                int[] switched = new int[eorSwitched.size()];
+                for (int i = 0; i < switched.length; i++) switched[i] = eorSwitched.get(i);
+                eorSwitched.clear();
+                if (session.switchInEffects(switched)) {
+                    pursuitContinuation = this::afterRound;        // the loop runs again (:172)
+                    queueRoundMessages();
+                    return;
+                }
+            }
             afterRound();
             return;
         }
@@ -1641,6 +1669,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private void afterPlayerSwitch() {
         session.message = null;
+        // Battle_Phase_Attack:69 b.pbEffectsOnSwitchIn(true): entry hazards, Healing Wish, abilities
+        if (session.switchInEffects(new int[] { 0 })) {
+            pursuitContinuation = () -> {
+                session.foeTurn();                                 // pbAttackPhaseMoves
+                queueRoundMessages();
+            };
+            queueRoundMessages();
+            return;
+        }
         session.foeTurn();                                         // pbAttackPhaseMoves
         queueRoundMessages();
     }

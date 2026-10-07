@@ -287,6 +287,7 @@ public final class Battle {
         if (incoming == null) {
             return false;
         }
+        Battler outgoing = battlerAt(idxBattler);
         incoming.resetForSwitchIn();                               // :313 pbInitialize
         if ((idxBattler & 1) == 0) {
             playerField = idxParty;
@@ -294,6 +295,12 @@ public final class Battle {
             foeField = idxParty;
         }
         refreshFieldIndices();
+        // @battlers[idxBattler] stays the same object in the plugin; here the slot's battler is a
+        // different object, so the move-order table has to point at it (:319).
+        for (Object[] entry : priority) {
+            if (entry[0] == outgoing) entry[0] = incoming;
+        }
+        pbCalculatePriority(false, new int[]{idxBattler});         // :319 if DYNAMIC_PRIORITY
         return true;
     }
 
@@ -345,6 +352,39 @@ public final class Battle {
 
     public void pbStartTerrain(Battler user, int newTerrain, boolean fixedDuration) {
         BattleEndOfRoundPhase.pbStartTerrain(this, user, newTerrain, fixedDuration);
+    }
+
+    /**
+     * {@code pbEffectsOnSwitchIn(true)} for the battlers that were just sent out
+     * (Battle_Phase_Attack:69 for the player's switch, Battle_Action_Switching:235-237 for
+     * {@code pbEORSwitch}); the events are in {@link #roundEvents}.
+     */
+    public void pbSwitchInEffects(int[] idxBattlers) {
+        roundMessages.clear();
+        roundEvents.clear();
+        if (priority.isEmpty()) pbCalculatePriority(true, null);
+        for (Battler b : pbPriority(true)) {                       // :235
+            for (int idx : idxBattlers) {
+                if (b.index == idx) b.pbEffectsOnSwitchIn(true);   // :236
+            }
+        }
+    }
+
+    /** {@code pbOnActiveAll} (Battle_StartAndEnd:354) with its events collected in {@link #roundEvents}. */
+    public void pbOnActiveAllRound() {
+        roundMessages.clear();
+        roundEvents.clear();
+        pbOnActiveAll();
+    }
+
+    /** {@code pbOnActiveAll} (Battle_Action_Switching:338-347). */
+    public void pbOnActiveAll() {
+        BattleSwitching.pbOnActiveAll(this);
+    }
+
+    /** {@code pbActivateHealingWish(battler)} (Battle_Action_Switching:363-382). */
+    public void pbActivateHealingWish(Battler battler) {
+        BattleSwitching.pbActivateHealingWish(this, battler);
     }
 
     /**
@@ -1563,12 +1603,12 @@ public final class Battle {
      * effects and entry hazards. 待接线: belongs to the switching batch.
      */
     public boolean pbOnActiveOne(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: Battle_Action_Switching:386 pbOnActiveOne (entry hazards, switching batch)");
+        return BattleSwitching.pbOnActiveOne(this, battler);
     }
 
     /** {@code pbPrimalReversion(idxBattler)} (Battle_Action_Other:175). 待接线: Mega/Primal batch. */
     public void pbPrimalReversion(int idxBattler) {
-        throw new UnsupportedOperationException("M0 待接线: Battle_Action_Other:175 pbPrimalReversion");
+        BattleSwitching.pbPrimalReversion(this, idxBattler);
     }
 
     /** {@code pbRegisterMove} (Battle_Action_AttacksPriority:70-79). */
