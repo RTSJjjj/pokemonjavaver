@@ -11,12 +11,12 @@ import pokemon.runtime.battle.EffectMap;
 import pokemon.runtime.battle.PBEffects;
 import pokemon.runtime.battle.PBStats;
 import pokemon.runtime.battle.PBTargets;
+import pokemon.runtime.battle.PBWeather;
 import pokemon.runtime.battle.PendingApi;
 import pokemon.runtime.battle.PokeBattle_SceneConstants;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.battle.PBTypeEffectiveness;
 import pokemon.runtime.battle.PBTypes;
-import pokemon.runtime.battle.PBWeather;
 import pokemon.runtime.pokemon.PbsData;
 
 /**
@@ -851,17 +851,90 @@ public class MoveEffectBase implements MoveEffect {
         return move.accuracy();                          // :108 return @accuracy
     }
 
-    /** {@code pbAccuracyCheck(user,target)} (Move_Usage_Calculations.rb:112-143) - not transcribed (decision 10). */
+    /**
+     * {@code pbAccuracyCheck(user,target)} (Move_Usage_Calculations.rb:112-143).
+     * Stage 5 / 2c2. {@code modifiers[BASE_ACC]} stays a whole number (only ever
+     * set to 0 by handlers), so the final {@code BASE_ACC*accuracy/evasion} is
+     * Ruby's integer division.
+     */
     @Override
     public boolean pbAccuracyCheck(BattleMove move, Battler user, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Usage_Calculations.rb:112-143 pbAccuracyCheck");
+        Battle battle = user.battle;
+        if (target.isCommander()) return false;                                          // :113
+        // "Always hit" effects and "always hit" accuracy
+        if (target.effects.intVal(PBEffects.Battler.Telekinesis) > 0) return true;       // :115
+        if (target.effects.truthy(PBEffects.Battler.Minimize) && tramplesMinimize(move, 1)) return true;   // :116
+        int baseAcc = pbBaseAccuracy(move, user, target);                                // :117
+        if (baseAcc == 0) return true;                                                   // :118
+        // Calculate all multiplier effects
+        float[] modifiers = new float[5];                                                // :120
+        modifiers[BattleHandlers.BASE_ACC] = baseAcc;                                    // :121
+        modifiers[BattleHandlers.ACC_STAGE] = user.stage(PBStats.ACCURACY);              // :122
+        modifiers[BattleHandlers.EVA_STAGE] = target.stage(PBStats.EVASION);             // :123
+        modifiers[BattleHandlers.ACC_MULT] = 1.0f;                                       // :124
+        modifiers[BattleHandlers.EVA_MULT] = 1.0f;                                       // :125
+        pbCalcAccuracyModifiers(move, user, target, modifiers);                          // :126
+        // Check if move can't miss
+        if (modifiers[BattleHandlers.BASE_ACC] == 0) return true;                        // :128
+        // Calculation
+        int accStage = Math.min(Math.max((int) modifiers[BattleHandlers.ACC_STAGE], -6), 6) + 6;   // :130
+        int evaStage = Math.min(Math.max((int) modifiers[BattleHandlers.EVA_STAGE], -6), 6) + 6;   // :131
+        int[] stageMul = {3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9};                        // :132
+        int[] stageDiv = {9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3};                        // :133
+        double accuracyD = 100.0 * stageMul[accStage] / stageDiv[accStage];              // :134
+        double evasionD = 100.0 * stageMul[evaStage] / stageDiv[evaStage];               // :135
+        int accuracy = (int) Math.round(accuracyD * modifiers[BattleHandlers.ACC_MULT]); // :136
+        int evasion = (int) Math.round(evasionD * modifiers[BattleHandlers.EVA_MULT]);   // :137
+        if (evasion < 1) evasion = 1;                                                    // :138
+        // Calculation/Blunder Policy
+        boolean ret = battle.pbRandom(100)
+                < (int) modifiers[BattleHandlers.BASE_ACC] * accuracy / evasion;         // :140
+        if (!ret) user.effects.set(PBEffects.Battler.BlunderPolicy, true);               // :141
+        return ret;                                                                      // :142
     }
 
-    /** {@code pbCalcAccuracyModifiers(user,target,modifiers)} (Move_Usage_Calculations.rb:145-183) - not transcribed (decision 10). */
+    /** {@code pbCalcAccuracyModifiers(user,target,modifiers)} (Move_Usage_Calculations.rb:145-183). Stage 5 / 2c2. */
     @Override
     public void pbCalcAccuracyModifiers(BattleMove move, Battler user, Battler target, float[] modifiers) {
-        throw new UnsupportedOperationException(
-                "M0 待接线: Move_Usage_Calculations.rb:145-183 pbCalcAccuracyModifiers");
+        Battle battle = user.battle;
+        String calcType = move.calcType();
+        // Ability effects that alter accuracy calculation
+        if (user.abilityActive()) {                                                      // :147
+            BattleHandlers.triggerAccuracyCalcUserAbility(user.ability, modifiers, user, target, move, calcType);   // :148
+        }
+        user.eachAlly(b -> {                                                             // :151
+            if (!b.abilityActive()) return;                                              // :152
+            BattleHandlers.triggerAccuracyCalcUserAllyAbility(b.ability, modifiers, user, target, move, calcType);   // :153
+        });
+        if (target.abilityActive() && !battle.moldBreaker) {                             // :156
+            BattleHandlers.triggerAccuracyCalcTargetAbility(target.ability, modifiers, user, target, move, calcType);   // :157
+        }
+        // Item effects that alter accuracy calculation
+        if (user.itemActive()) {                                                         // :161
+            BattleHandlers.triggerAccuracyCalcUserItem(user.item, modifiers, user, target, move, calcType);   // :162
+        }
+        if (target.itemActive()) {                                                       // :165
+            BattleHandlers.triggerAccuracyCalcTargetItem(target.item, modifiers, user, target, move, calcType);   // :166
+        }
+        // Other effects, inc. ones that set ACC_MULT or EVA_STAGE to specific values
+        if (battle.field.effects.intVal(PBEffects.Field.Gravity) > 0) {                  // :170
+            modifiers[BattleHandlers.ACC_MULT] *= 5 / 3.0;                               // :171
+        }
+        if (user.effects.truthy(PBEffects.Battler.MicleBerry)) {                         // :173
+            user.effects.set(PBEffects.Battler.MicleBerry, false);                       // :174
+            modifiers[BattleHandlers.ACC_MULT] *= 1.2;                                   // :175
+        }
+        if (target.effects.truthy(PBEffects.Battler.Foresight)
+                && modifiers[BattleHandlers.EVA_STAGE] > 0) {                            // :177
+            modifiers[BattleHandlers.EVA_STAGE] = 0;
+        }
+        if (target.effects.truthy(PBEffects.Battler.MiracleEye)
+                && modifiers[BattleHandlers.EVA_STAGE] > 0) {                            // :178
+            modifiers[BattleHandlers.EVA_STAGE] = 0;
+        }
+        if (battle.pbWeather() == PBWeather.Fog) {                                       // :179-180
+            modifiers[BattleHandlers.ACC_MULT] = Math.round(modifiers[BattleHandlers.ACC_MULT] * 3 / 5);   // :181
+        }
     }
 
     /**
@@ -883,10 +956,44 @@ public class MoveEffectBase implements MoveEffect {
         return 0;                                        // :192 -1 never, 0 normal, 1 always
     }
 
-    /** {@code pbIsCritical?(user,target)} (Move_Usage_Calculations.rb:196-229) - not transcribed (decision 10). */
+    /** {@code pbIsCritical?(user,target)} (Move_Usage_Calculations.rb:196-229). Stage 5 / 2c2. */
     @Override
     public boolean pbIsCritical(BattleMove move, Battler user, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Usage_Calculations.rb:196-229 pbIsCritical?");
+        Battle battle = user.battle;
+        if (target.pbOwnSide().effects.intVal(PBEffects.Side.LuckyChant) > 0) return false;   // :196
+        // Set up the critical hit ratios
+        int[] ratios = Battle.NEWEST_BATTLE_MECHANICS ? new int[] {24, 8, 2, 1} : new int[] {16, 8, 4, 3, 2};   // :198
+        int c = 0;                                                                       // :199
+        // Ability effects that alter critical hit rate
+        if (c >= 0 && user.abilityActive()) {                                            // :201
+            c = BattleHandlers.triggerCriticalCalcUserAbility(user.ability, user, target, c);   // :202
+        }
+        if (c >= 0 && target.abilityActive() && !battle.moldBreaker) {                   // :204
+            c = BattleHandlers.triggerCriticalCalcTargetAbility(target.ability, user, target, c);   // :205
+        }
+        // Item effects that alter critical hit rate
+        if (c >= 0 && user.itemActive()) {                                               // :208
+            c = BattleHandlers.triggerCriticalCalcUserItem(user.item, user, target, c);  // :209
+        }
+        if (c >= 0 && target.itemActive()) {                                             // :211
+            c = BattleHandlers.triggerCriticalCalcTargetItem(target.item, user, target, c);   // :212
+        }
+        if (c < 0) return false;                                                         // :214
+        // Move-specific "always/never a critical hit" effects
+        switch (pbCritialOverride(move, user, target)) {                                 // :216
+            case 1: return true;                                                         // :217
+            case -1: return false;                                                       // :218
+            default: break;
+        }
+        // Other effects
+        if (c > 50) return true;                                                         // :221 Merciless
+        if (user.effects.intVal(PBEffects.Battler.LaserFocus) > 0) return true;          // :222
+        if (highCriticalRate(move)) c += 1;                                              // :223
+        c += user.effects.intVal(PBEffects.Battler.FocusEnergy);                         // :224
+        if (user.inHyperMode() && "SHADOW".equals(move.type())) c += 1;                  // :225
+        if (c >= ratios.length) c = ratios.length - 1;                                   // :226
+        // Calculation
+        return battle.pbRandom(ratios[c]) == 0;                                          // :228
     }
 
     /** {@code pbBaseDamage(baseDmg,user,target)} (Move_Usage_Calculations.rb:234). */
