@@ -758,6 +758,16 @@ public final class Battle {
             pbDisplay("这不能影响" + defender.thisName() + "……");                 // :531
             return;
         }
+        // ↓↓↓ Stage 4 §4 Q1 wiring: Battler_UseMove_SuccessChecks:567-587
+        //     "Immunity to powder-based moves" - a Grass-type (or Overcoat / Safety
+        //     Goggles) target blocks powder moves such as Stun Spore. The helper had
+        //     been transcribed but never called, so the rule did not exist in game.
+        //     (insert-only; the rest of the success-check phase is queued in
+        //     docs/stage4-wiring-queue.md Q1b/Q2)
+        if (!BattleSuccessChecks.pbSuccessCheckAgainstTarget(this, move, attacker, defender)) {
+            return;
+        }
+        // ↑↑↑ end of inserted wiring
         if (move.statusMove() || move.power() <= 0) {
             // :688 move.pbShowAnimation(move.id,user,targets,hitNum): pbProcessMoveHit
             // shows the animation for a status move as well, before its effect.
@@ -770,6 +780,12 @@ public final class Battle {
                 attacker.hp = Math.min(attacker.maxHp(), attacker.hp + Math.max(1, attacker.maxHp() / 2));
                 attacker.syncHp();
             }
+            // ↓↓↓ Stage 4 §4 wiring: Battler_UseMove:543-544 also runs for a
+            //     status move (the call sits outside the damaging branch in Ruby).
+            //     (insert-only)
+            BattlerHitEffects.pbEffectsAfterMove(this, attacker,
+                    animationTargets(move, attacker, defender), move, 0);
+            // ↑↑↑ end of inserted wiring
             return;
         }
         // Battler_UseMove:640-669: the accuracy check runs on hit 0 only
@@ -804,9 +820,24 @@ public final class Battle {
             // @battle.pbAnimation(id,user,targets,hitNum) (ParentalBond is not modelled).
             animation(move, attacker, animationTargets(move, attacker, defender), i);
             int hpBefore = defender.hp;
+            // ↓↓↓ Stage 4 §4 wiring: fill damageState. The legacy path kept the
+            //     damage on locals only, so every handler body reading
+            //     damageState.calcDamage/hpLost/initialHP saw 0.
+            //     (:263 damageState.critical inside pbCalcDamage; Move_Usage:252
+            //      initialHP = the HP before the hit.) (insert-only)
+            defender.damageState.calcDamage = damage;
+            defender.damageState.critical = critical;
+            if (i == 0) {
+                defender.damageState.initialHP = hpBefore;
+            }
+            // ↑↑↑ end of inserted wiring
             defender.hp = Math.max(0, defender.hp - damage);       // :716 pbInflictHPDamage (Move_Usage:257)
             defender.syncHp();
             int hpLost = hpBefore - defender.hp;
+            // ↓↓↓ Stage 4 §4 wiring: the two per-hit damage totals. (insert-only)
+            defender.damageState.hpLost = hpLost;
+            defender.damageState.totalHPLost += hpLost;
+            // ↑↑↑ end of inserted wiring
             total += hpLost;
             // :719 move.pbAnimateHitAndHPLost(user,targets)
             pbAnimateHitAndHPLost(attacker, defender, hpLost, effectiveness);
@@ -820,6 +851,14 @@ public final class Battle {
             }
             // :765-773 the additional effect, rolled for every hit that dealt damage.
             applyEffect(attacker, defender, move, fx, false);
+            // ↓↓↓ Stage 4 §4 wiring: Battler_UseMove:739-742
+            //     targets.each { |b| next if b.damageState.unaffected; pbEffectsOnMakingHit(move,user,b) }
+            //     Ability/item effects such as Static/Rocky Helmet, and Grudge, plus
+            //     Rage/Beak Blast/Shell Trap/Destiny Bond. (insert-only)
+            if (!defender.damageState.unaffected) {
+                BattlerHitEffects.pbEffectsOnMakingHit(this, move, attacker, defender);
+            }
+            // ↑↑↑ end of inserted wiring
             // :806-807 targets.each { |b| b.pbFaint ... }; user.pbFaint ...
             pbFaint(defender);
             pbFaint(attacker);
@@ -854,6 +893,12 @@ public final class Battle {
         // :541-542 Faint if 0 HP
         pbFaint(defender);
         pbFaint(attacker);
+        // ↓↓↓ Stage 4 §4 wiring: Battler_UseMove:543-544
+        //     pbEffectsAfterMove(user,targets,move,realNumHits) - "External/general
+        //     effects after all hits. Eject Button, Shell Bell, etc." (insert-only)
+        BattlerHitEffects.pbEffectsAfterMove(this, attacker,
+                animationTargets(move, attacker, defender), move, realNumHits);
+        // ↑↑↑ end of inserted wiring
         // :553 @battle.pbGainExp
         if (total > 0 && defender.fainted() && !attacker.foe) {
             awardExperience(defender, attacker);
@@ -1175,6 +1220,8 @@ public final class Battle {
         if (applied == 0) {
             return;                                                // :55/:221 return false
         }
+        // :57 @battle.pbCommonAnimation("StatUp",self) if showAnim / :223 "StatDown" (showAnim is true here)
+        commonAnimation(applied > 0 ? "StatUp" : "StatDown", battler);
         int magnitude = Math.min(Math.abs(applied), 3);            // [increment-1,2].min
         String verb = applied > 0
                 ? (magnitude == 1 ? "提升了" : magnitude == 2 ? "大幅提升了" : "巨幅提升了")
@@ -1290,7 +1337,13 @@ public final class Battle {
      * </ul>
      */
     public static final class RoundEvent {
-        public enum Kind { MESSAGE, HIT, HP_CHANGE, FAINT, BGM, ANIMATION }
+        public enum Kind { MESSAGE, HIT, HP_CHANGE, FAINT, BGM, ANIMATION,
+            /** {@code @scene.pbThrow} (Scene_Animations:348-358). */
+            BALL_THROW,
+            /** {@code @scene.pbThrowAndDeflect} (Scene_Animations:389-399). */
+            BALL_DEFLECT,
+            /** {@code @scene.pbThrowSuccess} + {@code pbHideCaptureBall} (Scene_Animations:360-387). */
+            BALL_SUCCESS }
         public final Kind kind;
         /** MESSAGE text, or the BGM name. */
         public final String text;
@@ -1312,6 +1365,22 @@ public final class Battle {
         public final boolean paused;
         /** ANIMATION: which animation to play, and on whom. */
         public final AnimationCall anim;
+        /** BALL_THROW / BALL_DEFLECT / BALL_SUCCESS: the ball being thrown. */
+        public final BallCall ball;
+
+        /** The arguments of {@code pbThrow(ball,shakes,critical,targetBattler)}. */
+        public static final class BallCall {
+            public final int ballType;
+            public final int shakes;
+            public final boolean critical;
+            public final int idxTarget;
+            BallCall(int ballType, int shakes, boolean critical, int idxTarget) {
+                this.ballType = ballType;
+                this.shakes = shakes;
+                this.critical = critical;
+                this.idxTarget = idxTarget;
+            }
+        }
 
         private RoundEvent(Kind kind, String text, boolean brief, HitEvent[] hits,
                            int idxBattler, int oldHp, int newHp, boolean fromPort, boolean paused) {
@@ -1320,6 +1389,12 @@ public final class Battle {
         private RoundEvent(Kind kind, String text, boolean brief, HitEvent[] hits,
                            int idxBattler, int oldHp, int newHp, boolean fromPort, boolean paused,
                            AnimationCall anim) {
+            this(kind, text, brief, hits, idxBattler, oldHp, newHp, fromPort, paused, anim, null);
+        }
+        private RoundEvent(Kind kind, String text, boolean brief, HitEvent[] hits,
+                           int idxBattler, int oldHp, int newHp, boolean fromPort, boolean paused,
+                           AnimationCall anim, BallCall ball) {
+            this.ball = ball;
             this.anim = anim;
             this.kind = kind;
             this.text = text;
@@ -1359,6 +1434,10 @@ public final class Battle {
         static RoundEvent bgm(String name) {
             return new RoundEvent(Kind.BGM, name, false, null, -1, -1);
         }
+        static RoundEvent ball(Kind kind, int ballType, int shakes, boolean critical, int idxTarget) {
+            return new RoundEvent(kind, null, false, null, -1, -1, -1, false, false, null,
+                    new BallCall(ballType, shakes, critical, idxTarget));
+        }
         static RoundEvent animation(AnimationCall call) {
             return new RoundEvent(Kind.ANIMATION, null, false, null, -1, -1, -1, false, false, call);
         }
@@ -1374,6 +1453,9 @@ public final class Battle {
                 case HP_CHANGE: return "HP:" + idxBattler + "/" + oldHp + ">" + newHp;
                 case FAINT: return "FAINT:" + idxBattler;
                 case ANIMATION: return "ANIM:" + anim;
+                case BALL_THROW: return "BALL_THROW:" + ball.ballType + "/" + ball.shakes;
+                case BALL_DEFLECT: return "BALL_DEFLECT:" + ball.ballType;
+                case BALL_SUCCESS: return "BALL_SUCCESS";
                 default: return "BGM:" + text;
             }
         }
@@ -1432,12 +1514,31 @@ public final class Battle {
                 battler.turnCount++;
             }
         }
+        // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:287-326
+        //     Grassy Terrain + Healer/Hydration/Shed Skin + Black Sludge/Leftovers,
+        //     then Operation / Aqua Ring / Ingrain. The plugin runs the healing stage
+        //     (:287) BEFORE the poison (:390) and burn (:423) stages, hence this
+        //     position. (insert-only; the rest of the 60+ stage roster is in
+        //     docs/stage4-eor-roster.md)
+        BattleEndOfRound.pbEORHealing(this, fielded);
+        // ↑↑↑ end of inserted wiring
         for (Battler battler : fielded) {
             poisonDamage(battler);
         }
         for (Battler battler : fielded) {
             burnDamage(battler);
         }
+        // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:685-701
+        //     the field-effect countdowns (Trick Room / Gravity / Water Sport /
+        //     Mud Sport / Wonder Room / Magic Room), each with its end message.
+        //     (insert-only)
+        BattleEndOfRound.pbEORFieldCountdowns(this);
+        // ↑↑↑ end of inserted wiring
+        // ↓↓↓ Stage 4 §4 B4 wiring: Battle_Phase_EndOfRound:725-738
+        //     Slow Start's end message + Bad Dreams/Moody/Speed Boost +
+        //     Flame Orb/Sticky Barb/Toxic Orb + Harvest/Pickup. (insert-only)
+        BattleEndOfRound.pbEOREffect(this, fielded);
+        // ↑↑↑ end of inserted wiring
         for (Battler battler : fielded) {
             battler.flinched = false;
         }
@@ -2679,5 +2780,18 @@ public final class Battle {
     public Object pbPlayer() {
         // 登记: PokeBattle_Battle:226 @player[0] 依赖 PokeBattle_Trainer（未建模）
         return null;
+    }
+
+    // ==================================================================
+    // Stage 4 §4 wiring - bridges for BattlerHitEffects (pure append; no
+    // existing line above this block is changed). The plugin's
+    // pbEffectsAfterMove2 iterates @battle.pbPriority(true), which is this
+    // class's private fieldedBySpeed(); the helper class lives outside so it
+    // needs the accessor.
+    // ==================================================================
+
+    /** {@code @battle.pbPriority(true)} - the battlers on the field, fastest first. */
+    public Array<Battler> wiringFieldedBySpeed() {
+        return fieldedBySpeed();
     }
 }

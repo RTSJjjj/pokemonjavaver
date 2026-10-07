@@ -788,6 +788,12 @@ public final class MenuCapture extends ApplicationAdapter {
                         context.gameState().trainer().party.members().get(0);
                 lead.level = 100;
                 lead.hp = lead.maxHp();
+                // PROBE DEVICE: -Dpokemon.capture.move=<INTERNALNAME> puts that move in slot 0.
+                String probeMove = System.getProperty("pokemon.capture.move");
+                if (probeMove != null && pbs != null && pbs.move(probeMove) != null && lead.moves.size > 0) {
+                    lead.moves.get(0).move = pbs.move(probeMove);
+                    lead.moves.get(0).pp = 20;
+                }
                 mapScreen = new MapScreen(context, 2);
                 context.game().setScreen(mapScreen);
                 context.battlePort().wildBattle("BULBASAUR", 50);
@@ -807,10 +813,16 @@ public final class MenuCapture extends ApplicationAdapter {
                 BattleScreen animScreen = battleScreen();
                 System.out.println("move-anim capture: stage=" + (animScreen == null ? "none" : animScreen.debugStage()));
                 int shots = 0;
-                for (int f = 0; f < 600 && shots < 14; f++) {
+                int animFrames = 0;
+                for (int f = 0; f < 900 && shots < 30; f++) {
                     animScreen = battleScreen();
-                    if (animScreen == null || !"MOVE_ANIM".equals(animScreen.debugStage())) break;
-                    if (f % 9 == 0) {
+                    if (animScreen == null) break;
+                    if (!"MOVE_ANIM".equals(animScreen.debugStage())) {
+                        stepMap(GameAction.CONFIRM);   // close the round's lines, next animation follows
+                        animFrames = 0;
+                        continue;
+                    }
+                    if (animFrames++ % 9 == 0) {
                         shotMap(String.format(java.util.Locale.ROOT, "anim-%02d", shots++));
                     } else {
                         advanceMap(1f / 60f, 1);
