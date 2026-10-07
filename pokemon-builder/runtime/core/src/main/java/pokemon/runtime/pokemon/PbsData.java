@@ -144,6 +144,10 @@ public final class PbsData {
         public String pokedex;
         public String megaStone;
         public Integer unmegaForm;
+        /** {@code MegaMove} (Pokemon forms PBS): the move that lets the base form Mega Evolve (Rayquaza). */
+        public String megaMove;
+        /** {@code MegaMessage}: 0 = default message, 1 = the Rayquaza message. */
+        public Integer megaMessage;
         public Array<LearnMove> moves;
         public Array<Evolution> evolutions;
         public BattlerOffsets battler = new BattlerOffsets();
@@ -861,6 +865,10 @@ public final class PbsData {
             form.megaStone = node.getString("megaStone", null);
             if (child(node, "unmegaForm") != null) {
                 form.unmegaForm = node.getInt("unmegaForm", 0);
+            }
+            form.megaMove = node.getString("megaMove", null);
+            if (child(node, "megaMessage") != null) {
+                form.megaMessage = node.getInt("megaMessage", 0);
             }
             JsonValue moves = child(node, "moves");
             if (moves != null && moves.isArray()) {

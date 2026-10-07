@@ -43,6 +43,9 @@ public final class InteractiveBattlePort implements BattlePort {
     }
     /** $PokemonSystem.battle_rule: false = classic Mega, true = ZA mode. */
     public void zaMode(boolean value) { this.zaMode = value; }
+    /** {@code $PokemonSystem.mega_animation} (Mega evolution:366-369): 0 = the full scene. */
+    private int megaAnimation;
+    public void megaAnimation(int value) { this.megaAnimation = value; }
     /**
      * {@code $PokemonSystem.battlestyle} (PField_Battles:111): 0 = Switch (the
      * game asks before an opponent sends out a new Pokemon), 1 = Set.
@@ -216,6 +219,8 @@ public final class InteractiveBattlePort implements BattlePort {
             this.trainerData = trainerData;
             battle = new Battle(data.get(), random, (user, foe, moves) -> move);
             battle.zaMode = zaMode;
+            battle.fullMegaAnimation = megaAnimation == 0;       // Mega evolution:366-369 za_full_mega_animation?
+            battle.bagHasItem = id -> inventory != null && inventory.has(id);   // $PokemonBag.pbHasItem?
             battle.setCanRun(canRun);       // PField_Battles:101 / :360
             battle.switchStyle = switchStyle();   // PField_Battles:111-112
             // PField_Battles:114-115 battle.showAnims = ($PokemonSystem.battlescene==0),
@@ -240,6 +245,7 @@ public final class InteractiveBattlePort implements BattlePort {
                         : pbs.trainerTypes.get(trainerData.type);
                 // Trainer#fullname (PokeBattle_Trainer:31-33).
                 trainerFullname = (type == null || type.name == null ? "" : type.name + " ") + trainerData.name;
+                battle.opponentName = trainerFullname;                 // PokeBattle_Battle:268
                 // Battle_StartAndEnd:466: the opponent's LoseText, "..." when empty.
                 endSpeech = trainerData.loseText == null || trainerData.loseText.isEmpty()
                         ? "..." : trainerData.loseText;
@@ -470,20 +476,28 @@ public final class InteractiveBattlePort implements BattlePort {
             trainer.money += prizeMoney;
         }
 
-        /** Mega Evolution / Primal Reversion, before choosing the move. */
-        public boolean mega() {
-            if (result != null || battle.player() == null) return false;
-            if (!battle.megaEvolve(battle.player())) {
-                message = "现在无法超级进化。";
-                return false;
-            }
-            message = battle.player().name() + "超级进化为 " + battle.player().pokemon.megaName() + "！";
-            return true;
+        /**
+         * {@code pbCanMegaEvolve?(idxBattler)} (Battle_Action_Other:87-99): whether the fight menu
+         * offers the Mega Evolution button ({@code @scene.pbFightMenu(idxBattler,pbCanMegaEvolve?)},
+         * Battle_Phase_Command:73).
+         */
+        public boolean canMega() {
+            return result == null && battle.player() != null && battle.pbCanMegaEvolve(battle.player().index);
         }
 
-        /** Whether the player can currently Mega Evolve (for the menu). */
-        public boolean canMega() {
-            return result == null && battle.canMegaEvolve(battle.player());
+        /** {@code pbRegisteredMegaEvolution?} (Scene_Commands:110): the button is pressed. */
+        public boolean megaRegistered() {
+            return battle.player() != null && battle.pbRegisteredMegaEvolution(battle.player().index);
+        }
+
+        /** {@code pbToggleRegisteredMegaEvolution} (Battle_Phase_Command:77). */
+        public void toggleMega() {
+            if (battle.player() != null) battle.pbToggleRegisteredMegaEvolution(battle.player().index);
+        }
+
+        /** {@code pbUnregisterMegaEvolution} (Battle_Phase_Command:80): the fight menu was cancelled. */
+        public void unregisterMega() {
+            if (battle.player() != null) battle.pbUnregisterMegaEvolution(battle.player().index);
         }
         /**
          * {@code pbRecallAndReplace}'s round (:256-262) as {@code pbAttackPhaseSwitch}
@@ -907,19 +921,6 @@ public final class InteractiveBattlePort implements BattlePort {
             engineEvents.clear();
             ballEvents.clear();
             message = out.toString();
-            if (battle.zaMode) {
-                // ZA模式 pbEndOfRoundPhase: show the player's super energy.
-                String suffix = "  超级能量：" + battle.zaEnergy(0) + "/" + Battle.ZA_MAX_ENERGY;
-                message += suffix;
-                // The same suffix on the last line the screen shows.
-                for (int i = events.size - 1; i >= 0; i--) {
-                    Battle.RoundEvent last = events.get(i);
-                    if (last.kind == Battle.RoundEvent.Kind.MESSAGE) {
-                        events.set(i, last.withText(last.text + suffix));
-                        break;
-                    }
-                }
-            }
             // The screen's earlier contract kept: when this port's own line
             // (log / closing message) is the last thing shown, it waits for the
             // player like before. The engine's lines keep their own timing.

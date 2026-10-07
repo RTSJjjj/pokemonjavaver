@@ -133,7 +133,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private String item;
     private boolean finished;
     private List<String> rows = new ArrayList<>();
-    private boolean megaRequested;
+    /** {@code pbFightMenu(idxBattler,canMegaEvolve)}'s argument, fixed when the menu opens (Battle_Phase_Command:73). */
+    private boolean megaButton;
     /**
      * {@code pbFightMenu}'s {@code next false} (Battle_Phase_Command:84-86): the
      * move was refused, so the paused line it produced closes back into the fight
@@ -213,6 +214,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private static final float TICK = 1f / 40f;
     private enum Stage {
         INTRO, OPENING, BATTLE, EXP_GAIN, TRAINER_END,
+        /** The full Mega Evolution scene (Mega evolution:9-343). */
+        MEGA_SCENE,
         /**
          * Scene_Animations:239-268 pbHitAndHPLossAnimation / :224-234
          * pbDamageAnimation: the battler flashes and its data box's HP bar runs.
@@ -1127,6 +1130,91 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     // pbStartBattleSendOut's step runner (Battle_StartAndEnd:194-275)
     // =====================================================================
 
+    // =====================================================================
+    // The full Mega Evolution scene (Mega evolution:400-417)
+    // =====================================================================
+
+    /** {@code @battle.pbMegaEvolve}'s Pokemon whose sprite still shows its old form: Pokemon -> form. */
+    private final java.util.IdentityHashMap<Pokemon, Integer> heldForm = new java.util.IdentityHashMap<>();
+    private MegaEvolutionScene megaScene;
+    private int megaSceneBattler = -1;
+
+    private void beginMegaScene(Battle.RoundEvent event) {
+        Battler battler = session.battle.battlerAt(event.idxBattler);
+        if (battler == null || battler.pokemon == null) {
+            resumeRound();
+            return;
+        }
+        megaSceneBattler = event.idxBattler;
+        megaScene = new MegaEvolutionScene(new MegaEvolutionScene.Host() {
+            @Override public BattleSprite addSprite(String id, float x, float y, String file) {
+                BattleSprite sprite = pbAddSprite(id, x, y, file);
+                sprite.origin = PictureEx.Origin.TOP_LEFT;
+                return sprite;
+            }
+
+            @Override public void removeSprite(String id) {
+                sprites.remove(id);
+            }
+
+            @Override public boolean bitmapExists(String file) {
+                return bitmapSize(file) != null;
+            }
+
+            @Override public int[] bitmapSizeOf(String file) {
+                return bitmapSize(file);
+            }
+
+            @Override public String pokemonFile(Pokemon pkmn, int form) {
+                String id = battlerSpriteId(pkmn, false, form);
+                String file = "Graphics/Battlers/" + id;
+                if (bitmapSize(file) == null) {
+                    file = "Graphics/Battlers/" + String.format(java.util.Locale.ROOT, "%03d", pkmn.species.id);
+                }
+                return file;
+            }
+
+            @Override public void playCry(Pokemon pkmn) {
+                session.battle.playCry(pkmn);
+            }
+
+            @Override public void playBgm(String name) {
+                playBattleBgm(name);
+            }
+
+            @Override public String playingBgm() {
+                pokemon.runtime.audio.AudioManager audio = context.audioManager();
+                return audio == null ? null : audio.currentBgmId();
+            }
+
+            @Override public int time() {
+                return session.battle.time;
+            }
+
+            @Override public String backdrop() {
+                return backdropName();
+            }
+        }, battler.pokemon, event.oldHp, event.megaOldForm(), event.megaNewForm());
+        stage = Stage.MEGA_SCENE;
+    }
+
+    private void updateMegaScene() {
+        if (megaScene != null && !megaScene.done()) {
+            return;
+        }
+        if (megaScene != null) {
+            megaScene.dispose();
+        }
+        megaScene = null;
+        Battler battler = session.battle.battlerAt(megaSceneBattler);
+        if (battler != null) {
+            heldForm.remove(battler.pokemon);
+            changePokemon(megaSceneBattler, battler);        // :415-416 @scene.pbChangePokemon + pbRefreshOne
+        }
+        megaSceneBattler = -1;
+        resumeRound();
+    }
+
     /** {@code pbOnActiveAll} has run for this battle. */
     private boolean openingEffectsDone;
 
@@ -1715,6 +1803,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 for (Battle.HitEvent hit : event.hits) holdHp(hit.idxBattler, hit.oldHp);
             } else if (event.kind == Battle.RoundEvent.Kind.HP_CHANGE) {
                 holdHp(event.idxBattler, event.oldHp);
+            } else if (event.kind == Battle.RoundEvent.Kind.MEGA_SCENE
+                    || event.kind == Battle.RoundEvent.Kind.CHANGE_POKEMON) {
+                // The engine already changed the form; the sprite keeps showing the old one until the event plays.
+                Battler changed = session.battle.battlerAt(event.idxBattler);
+                if (changed != null && changed.pokemon != null && !heldForm.containsKey(changed.pokemon)) {
+                    heldForm.put(changed.pokemon, event.kind == Battle.RoundEvent.Kind.MEGA_SCENE
+                            ? event.megaOldForm() : event.oldHp);
+                }
             }
         }
         for (Battle.RoundEvent event : events) {
@@ -1870,9 +1966,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     private void go(int next) {
+        if (page == 1 && next != 1) session.unregisterMega();                     // Battle_Phase_Command:80 (the fight menu was left)
         page = next; cursor.select(0); refresh();
+        megaButton = next == 1 && session.canMega();                              // :73 pbCanMegaEvolve?
         window = next == 1 ? FIGHT_BOX : COMMAND_BOX;
-        megaRequested = false;
         fightMenuRefusal = false;
         partyScreenOpen = false;
         if (partyView != null) partyView.battleChoose(false);
@@ -2214,6 +2311,19 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 return;
             case BALL_SUCCESS:
                 beginBallSuccess(event.ball);
+                return;
+            case CHANGE_POKEMON: {
+                // @scene.pbChangePokemon(battler,battler.pokemon) + pbRefreshOne (Mega evolution:426-427)
+                Battler changed = session.battle.battlerAt(event.idxBattler);
+                if (changed != null) {
+                    heldForm.remove(changed.pokemon);
+                    changePokemon(event.idxBattler, changed);
+                }
+                resumeRound();
+                return;
+            }
+            case MEGA_SCENE:
+                beginMegaScene(event);
                 return;
             case BGM:
                 // Move_Usage:288 pbBGMPlay(name) -> Audio_Play:52-58 ->
@@ -3167,6 +3277,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             if (moveAnim != null && stage == Stage.MOVE_ANIM) {
                 moveAnimTick();
             }
+            if (megaScene != null && stage == Stage.MEGA_SCENE) {
+                megaScene.tick();
+            }
             if (stage == Stage.BALL && ballPhase == 1) {
                 ballWaitTicks++;
             }
@@ -3178,6 +3291,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 stage = Stage.OPENING;
                 planIndex = 0;
             }
+            return;
+        }
+        // ---- the full Mega Evolution scene (Mega evolution:400-417) ----
+        if (stage == Stage.MEGA_SCENE) {
+            updateMegaScene();
             return;
         }
         // ---- Battle_StartAndEnd:194-275 pbStartBattleSendOut ----
@@ -3302,8 +3420,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 if ((cursor.index() & 2) == 0 && moveSlotFilled(cursor.index() + 2)) cursor.select(cursor.index() + 2);
             }
             if (cursor.index() != oldIndex) playCursorSe();                  // :132
-            // Input::A toggles the registered Mega Evolution (applied on the move).
-            if (input.wasPressed(GameAction.SPECIAL) && session.canMega()) megaRequested = !megaRequested;
+            // Input::A toggles the registered Mega Evolution (Battle_Phase_Command:77); it is performed in the attack phase.
+            if (input.wasPressed(GameAction.SPECIAL) && megaButton) session.toggleMega();
         } else {
             // pbCommandMenuEx (Scene_Commands:33-46): the four commands are a 2x2
             // grid - LEFT/RIGHT move within a row, UP/DOWN between the rows.
@@ -3352,7 +3470,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
             go(pick + 1);
         } else if (page == 1) {
-            if (megaRequested && session.canMega()) session.mega();
             // Battle_Phase_Command:84-86: a blank slot is refused outright and the
             // menu stays open ("next false"), while a slot pbRegisterMove refuses
             // (no PP left) shows its pbDisplayPaused line over the menu.
@@ -4015,13 +4132,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         // Mega Evolution button: centred horizontally (user-requested fix; the
         // plugin puts it at x=210, PokeBattle_SceneMenus:275-281), y = barY-h/2.
-        if (session.canMega()) {
+        if (megaButton) {
             Texture mega = assets.graphic("Pictures/Battle", "cursor_mega");
             if (mega != null) {
                 int half = mega.getHeight() / 2;
                 float megaX = (w - mega.getWidth()) / 2f;
                 batch.draw(mega, megaX, h - (BAR_Y - half) - half, mega.getWidth(), half,
-                        0, (megaRequested ? half : 0), mega.getWidth(), half, false, false);
+                        0, (session.megaRegistered() ? half : 0), mega.getWidth(), half, false, false);
             }
         }
     }
@@ -4058,9 +4175,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     /** {@code PokemonBattlerSprite#pbPlayIntroAnimation} callbacks reach this. */
-    static String battlerSpriteId(Pokemon p, boolean back) {
+    String battlerSpriteId(Pokemon p, boolean back) {
+        Integer held = heldForm.get(p);
+        return battlerSpriteId(p, back, held != null ? held : (p.form == null ? 0 : p.form.form));
+    }
+
+    static String battlerSpriteId(Pokemon p, boolean back, int form) {
         String base = String.format("%03d", p.species.id) + (p.shiny ? "s" : "") + (back ? "b" : "");
-        int form = p.form == null ? 0 : p.form.form;
         return form > 0 ? base + "_" + form : base;
     }
 

@@ -13,9 +13,8 @@ import java.util.List;
  * <p>登记 (what this runtime plays elsewhere): {@code pbAttackPhaseCall} (:16-22,
  * {@code :Call} is never a choice here), {@code pbAttackPhaseSwitch} (:50-71) and
  * {@code pbAttackPhaseItems} (:72-93) are performed by the battle screen
- * (the player's switch / item happens before {@code foeTurn}), and
- * {@code pbAttackPhaseMegaEvolution} (:95-103) and the Mega part of
- * {@code pbPursuit} (:35-39) are done when the player chooses (Session.mega).</p>
+ * (the player's switch / item happens before {@code foeTurn}); the Mega Evolutions of
+ * {@code pbAttackPhaseMegaEvolution} (:95-103) and {@code pbPursuit} (:35-39) are {@link BattleMega}'s.</p>
  */
 public final class BattleAttackPhase {
 
@@ -267,7 +266,7 @@ public final class BattleAttackPhase {
             if ("SLEEP".equals(b.status) || "FROZEN".equals(b.status)) continue;       // :32
             if (b.effects.intVal(PBEffects.Battler.SkyDrop) >= 0) continue;           // :33
             if (b.hasActiveAbility("TRUANT") && b.effects.truthy(PBEffects.Battler.Truant)) continue;   // :34
-            // :35-39 Mega Evolve - done when the player chooses (see class javadoc)
+            BattleMega.pbPursuitMegaEvolve(battle, b);                                // :35-39 Mega Evolve
             // Use Pursuit
             choice[3] = idxSwitcher;                                                  // :41 Change Pursuit's target
             if (b.pbProcessTurn(choice, false)) {                                     // :42
@@ -360,7 +359,7 @@ public final class BattleAttackPhase {
         // Perform actions
         pbAttackPhasePriorityChangeMessages(battle);                                  // :186
         // :187-191 call / switch / items: see class javadoc
-        // :192 pbAttackPhaseMegaEvolution: see class javadoc
+        BattleMega.pbAttackPhaseMegaEvolution(battle);                                // :192
         pbAttackPhaseMoves(battle);                                                   // :193
     }
 

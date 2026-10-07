@@ -40,13 +40,35 @@ public final class Battle {
 
     // --- Mega Evolution / ZA mode (Mega evolution + ZA模式) ---
     /** ZA mode ($PokemonSystem.battle_rule == 1): a super-energy system. */
+    /** {@code $PokemonSystem.battle_rule == 1} (ZA模式:8-10): the per-side Mega energy rule. */
     public boolean zaMode;
+    /** ZA模式:6 {@code ZA_MAX_ENERGY}. */
     public static final int ZA_MAX_ENERGY = 3;
-    private final int[] zaEnergy = {ZA_MAX_ENERGY, ZA_MAX_ENERGY};
-    private final boolean[] zaMegaActive = {false, false};
-    private final Battler[] zaMegaPkmn = {null, null};
-    /** Classic mode: one Mega per side per battle (@megaEvolution side/owner). */
-    private final boolean[] megaUsed = {false, false};
+    /** {@code @za_energy} (ZA:14). */
+    public final int[] zaEnergy = {ZA_MAX_ENERGY, ZA_MAX_ENERGY};
+    /** {@code @za_mega_active} (ZA:15). */
+    public final boolean[] zaMegaActive = {false, false};
+    /** {@code @za_mega_pkmn} (ZA:16): the Pokemon that is Mega Evolved, per side. */
+    public final pokemon.runtime.pokemon.Pokemon[] zaMegaPkmn = {null, null};
+    /** {@code @za_mega_requests} (ZA:17): the battler indices that asked to Mega Evolve, per side. */
+    @SuppressWarnings("unchecked")
+    public final java.util.List<Integer>[] zaMegaRequests = new java.util.List[]{new java.util.ArrayList<Integer>(), new java.util.ArrayList<Integer>()};
+    /** {@code @megaEvolution} (PokeBattle_Battle:152-155): {@code [side][owner]} = -1 free, the battler index when registered, -2 used. */
+    public final int[][] megaEvolution = {{-1}, {-1}};
+    /** {@code za_full_mega_animation?} (Mega evolution:366-369): {@code $PokemonSystem.mega_animation == 0}. */
+    public boolean fullMegaAnimation = true;
+    /** {@code $PokemonBag.pbHasItem?(item)} for the player. */
+    public java.util.function.Predicate<String> bagHasItem;
+
+    /** {@code $PokemonBag.pbHasItem?(item)} (Battle_Action_Other:68, :77). */
+    public boolean bagHas(String item) {
+        return bagHasItem != null && bagHasItem.test(item);
+    }
+
+    /** {@code pbOwnedByPlayer?(idxBattler)} (PokeBattle_Battle:222-226): a single trainer owns each side. */
+    public boolean pbOwnedByPlayer(int idxBattler) {
+        return (idxBattler & 1) == 0;
+    }
 
     public Battle(PbsData pbs, Random random, Controller playerController) {
         this.pbs = pbs;
@@ -266,6 +288,7 @@ public final class Battle {
         endOfTurn();
         refreshFieldIndices();
         for (int i = 0; i < choicesStore.length; i++) clearChoice(i);   // Battle_Phase_Command:183
+        BattleMega.pbCommandPhaseZa(this);                         // ZA模式:225-232 (the next command phase starts)
         return result();
     }
     /**
@@ -453,7 +476,9 @@ public final class Battle {
 
     /** {@code pbCancelChoice} (Battle_Phase_Command:13-23): Mega is not modelled. */
     public void cancelChoice(int idxBattler) {
-        clearChoice(idxBattler);
+        // :15-18 UseItem: returning the item to the bag is done by the port
+        pbUnregisterMegaEvolution(idxBattler);                     // :20
+        clearChoice(idxBattler);                                   // :22
     }
 
     /**
@@ -787,6 +812,7 @@ public final class Battle {
             endOfRoundMessages.clear();
         }
         for (int i = 0; i < choicesStore.length; i++) clearChoice(i);   // Battle_Phase_Command:183
+        BattleMega.pbCommandPhaseZa(this);                         // ZA模式:225-232 (the next command phase starts)
     }
 
     /**
@@ -897,7 +923,15 @@ public final class Battle {
             /** {@code @scene.pbThrowAndDeflect} (Scene_Animations:389-399). */
             BALL_DEFLECT,
             /** {@code @scene.pbThrowSuccess} + {@code pbHideCaptureBall} (Scene_Animations:360-387). */
-            BALL_SUCCESS }
+            BALL_SUCCESS,
+            /** {@code @scene.pbChangePokemon} + {@code pbRefreshOne} (Mega evolution:426-427). */
+            CHANGE_POKEMON,
+            /**
+             * The full Mega Evolution scene (Mega evolution:400-417): {@code idxBattler}, the scene kind in
+             * {@code oldHp} (0 Mega, 1 Primal Groudon, 2 Primal Kyogre), the old form in {@code newHp}'s
+             * low half and the new form in its high half.
+             */
+            MEGA_SCENE }
         public final Kind kind;
         /** MESSAGE text, or the BGM name. */
         public final String text;
@@ -992,6 +1026,22 @@ public final class Battle {
             return new RoundEvent(kind, null, false, null, -1, -1, -1, false, false, null,
                     new BallCall(ballType, shakes, critical, idxTarget));
         }
+        /** {@code oldForm} is the form the sprite shows until the event plays. */
+        static RoundEvent changePokemon(int idxBattler, int oldForm) {
+            return new RoundEvent(Kind.CHANGE_POKEMON, null, false, null, idxBattler, oldForm, -1, false, false);
+        }
+        static RoundEvent megaScene(int idxBattler, int sceneKind, int oldForm, int newForm) {
+            return new RoundEvent(Kind.MEGA_SCENE, null, false, null, idxBattler, sceneKind,
+                    (newForm << 16) | (oldForm & 0xFFFF), false, false);
+        }
+        /** MEGA_SCENE: the form before the transformation. */
+        public int megaOldForm() {
+            return newHp & 0xFFFF;
+        }
+        /** MEGA_SCENE: the form after the transformation. */
+        public int megaNewForm() {
+            return newHp >>> 16;
+        }
         static RoundEvent animation(AnimationCall call) {
             return new RoundEvent(Kind.ANIMATION, null, false, null, -1, -1, -1, false, false, call);
         }
@@ -1010,6 +1060,8 @@ public final class Battle {
                 case BALL_THROW: return "BALL_THROW:" + ball.ballType + "/" + ball.shakes;
                 case BALL_DEFLECT: return "BALL_DEFLECT:" + ball.ballType;
                 case BALL_SUCCESS: return "BALL_SUCCESS";
+                case CHANGE_POKEMON: return "CHANGE_POKEMON:" + idxBattler;
+                case MEGA_SCENE: return "MEGA_SCENE:" + idxBattler + "/" + oldHp + "/" + megaOldForm() + ">" + megaNewForm();
                 default: return "BGM:" + text;
             }
         }
@@ -1061,7 +1113,7 @@ public final class Battle {
     private void endOfTurn() {
         endOfRoundMessages.clear();
         BattleEndOfRoundPhase.pbEndOfRoundPhase(this);
-        endOfRoundZa();
+        BattleMega.pbEndOfRoundZa(this);                           // ZA模式:234-271
     }
 
     /** The round's prologue (turn counter, resets, move order) already ran in {@link #pbPursuitOnSwitch}. */
@@ -1111,113 +1163,49 @@ public final class Battle {
     }
 
     /** {@code pbCanMegaEvolve?}: a held Mega Stone, once per battle (ZA: full energy). */
-    public boolean canMegaEvolve(Battler battler) {
-        if (battler == null || battler.pokemon == null || battler.fainted()) {
-            return false;
-        }
-        if (!battler.pokemon.hasMegaForm(pbs) || battler.pokemon.isMega()) {
-            return false;
-        }
-        if (zaMode) {
-            int side = sideOf(battler);
-            if (zaMegaActive[side] || zaEnergy[side] < ZA_MAX_ENERGY) {
-                return false;
-            }
-        } else if (megaUsed[sideOf(battler)]) {
-            return false;
-        }
-        return true;
+    /** The Mega Evolution system lives in {@link BattleMega}. */
+    public boolean pbCanMegaEvolve(int idxBattler) {
+        return BattleMega.pbCanMegaEvolve(this, idxBattler);
     }
 
-    public boolean hasPrimal(Battler battler) {
-        return battler != null && battler.pokemon != null && battler.pokemon.hasPrimalForm()
-                && !battler.pokemon.isPrimal();
+    public boolean pbRegisterMegaEvolution(int idxBattler) {
+        return BattleMega.pbRegisterMegaEvolution(this, idxBattler);
     }
 
-    /** The ZA super energy of one side (0..ZA_MAX_ENERGY). */
-    public int zaEnergy(int side) {
-        return side == 1 ? zaEnergy[1] : zaEnergy[0];
+    public void pbUnregisterMegaEvolution(int idxBattler) {
+        BattleMega.pbUnregisterMegaEvolution(this, idxBattler);
     }
 
-    /** {@code pbMegaEvolve}: switch to the Mega form (or Primal Reversion). */
-    public boolean megaEvolve(Battler battler) {
-        if (battler == null || battler.pokemon == null) {
-            return false;
-        }
-        if (hasPrimal(battler)) {
-            battler.pokemon.makePrimal(pbs);
-            return true;
-        }
-        if (!canMegaEvolve(battler)) {
-            return false;
-        }
-        if (zaMode && zaMegaActive[sideOf(battler)]) {
-            return false;
-        }
-        if (!zaMode && megaUsed[sideOf(battler)]) {
-            return false;
-        }
-        battler.pokemon.makeMega(pbs);
-        if (zaMode) {
-            int side = sideOf(battler);
-            zaMegaActive[side] = true;
-            zaMegaPkmn[side] = battler;
-        } else {
-            // Classic mode: the Mega does not revert mid-battle.
-            megaUsed[sideOf(battler)] = true;
-            zaMegaPkmn[sideOf(battler)] = battler;
-        }
-        return true;
+    public void pbToggleRegisteredMegaEvolution(int idxBattler) {
+        BattleMega.pbToggleRegisteredMegaEvolution(this, idxBattler);
     }
 
-    /** ZA {@code pbEndOfRoundPhase}: deplete an active Mega, recharge otherwise. */
-    private void endOfRoundZa() {
-        if (!zaMode) {
-            return;
-        }
-        for (int side = 0; side < 2; side++) {
-            if (zaMegaActive[side]) {
-                Battler active = zaMegaPkmn[side];
-                if (active == null || active.fainted()) {
-                    zaForceExitMega(side);
-                    continue;
-                }
-                zaEnergy[side]--;
-                if (zaEnergy[side] <= 0) {
-                    zaEnergy[side] = 0;
-                    revertMega(active);
-                }
-            } else if (zaEnergy[side] < ZA_MAX_ENERGY) {
-                zaEnergy[side]++;
-            }
-        }
+    public boolean pbRegisteredMegaEvolution(int idxBattler) {
+        return BattleMega.pbRegisteredMegaEvolution(this, idxBattler);
     }
 
-    private void zaForceExitMega(int side) {
-        Battler active = zaMegaPkmn[side];
-        if (active != null) {
-            revertMega(active);
-        }
-        zaEnergy[side] = 0;
-        zaMegaActive[side] = false;
-        zaMegaPkmn[side] = null;
+    public void pbMegaEvolve(int idxBattler) {
+        BattleMega.pbMegaEvolve(this, idxBattler);
     }
 
-    private void revertMega(Battler battler) {
-        if (battler != null && battler.pokemon != null && battler.pokemon.isMega()) {
-            battler.pokemon.makeUnmega(pbs);
-        }
+    public boolean pbHasMegaRing(int idxBattler) {
+        return BattleMega.pbHasMegaRing(this, idxBattler);
     }
 
-    /** {@code pbEndOfBattle}: a Mega never survives the battle. */
-    private void revertAllMega() {
-        for (int side = 0; side < 2; side++) {
-            if (zaMegaPkmn[side] != null) {
-                revertMega(zaMegaPkmn[side]);
-            }
-            zaMegaPkmn[side] = null;
-            zaMegaActive[side] = false;
-        }
+    public String pbGetMegaRingName(int idxBattler) {
+        return BattleMega.pbGetMegaRingName(this, idxBattler);
+    }
+
+    public void zaForceExitMega(int side) {
+        BattleMega.zaForceExitMega(this, side);
+    }
+
+    public void pbZARevertMega(int idxBattler) {
+        BattleMega.pbZARevertMega(this, idxBattler);
+    }
+
+    public void pbZARevertMegaByPkmn(pokemon.runtime.pokemon.Pokemon pkmn) {
+        BattleMega.pbZARevertMegaByPkmn(this, pkmn);
     }
 
     /**
@@ -1259,6 +1247,8 @@ public final class Battle {
     public boolean trainerBattle;
     /** The player's name, for the outsider check (lines 146-147). */
     public String playerName;
+    /** {@code @opponent[..].fullname} (PokeBattle_Battle:268): the opposing trainer's full name. */
+    public String opponentName;
     /** {@code $game_switches[199]} / {@code [12]} (lines 167-186, 221-257). */
     public boolean levelLockOn;
     public boolean leaguePass;
@@ -1753,7 +1743,7 @@ public final class Battle {
         for (Battler battler : foeParty) {
             battler.syncHp();
         }
-        revertAllMega();
+        BattleMega.pbEndOfBattle(this);                            // ZA模式:207-222
         return new BattleResult(outcome, turns, null);
     }
 
@@ -2409,8 +2399,7 @@ public final class Battle {
         if ((idxBattler & 1) == 0) {                                // :270 the player's own name
             return playerName;
         }
-        // 登记: PokeBattle_Battle:268 对面训练家的 fullname 依赖 PokeBattle_Trainer（未建模）
-        return null;
+        return opponentName;                                        // :268 Trainer#fullname (set by the battle port); null in a wild battle
     }
 
     // ------------------------------------------------------------------

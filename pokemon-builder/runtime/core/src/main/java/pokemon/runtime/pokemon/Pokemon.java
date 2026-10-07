@@ -236,53 +236,116 @@ public final class Pokemon {
     }
 
     // ------------------------------------------------------------------
-    // Mega Evolution / Primal Reversion (Pokemon_MegaEvolution)
+    // Mega Evolution (Pokemon_MegaEvolution:1-76, :125-163)
     // ------------------------------------------------------------------
 
-    /** True when the current form is a Mega form (it has an unmegaForm). */
+    /** {@code hasItem?(item)}. */
+    private boolean holds(String name) {
+        return item != null && item.equalsIgnoreCase(name);
+    }
+
+    /** {@code hasMove?(move)}. */
+    private boolean knowsMoveNamed(String name) {
+        for (MoveSlot slot : moves) {
+            if (slot != null && slot.move != null && name.equalsIgnoreCase(slot.move.internalName)) return true;
+        }
+        return false;
+    }
+
+    private int formNumber() {
+        return form == null ? 0 : form.form;
+    }
+
+    /**
+     * {@code MultipleForms.call("getSpecificMegaForm",self)} (:154-158): only Slowbro registers it
+     * ({@code next 2 if form==0 && hasItem?(:SLOWBRONITE)}); null is Ruby's nil.
+     */
+    private Integer specificMegaForm() {
+        if (isSpecies("SLOWBRO") && formNumber() == 0 && holds("SLOWBRONITE")) return 2;
+        return null;
+    }
+
+    /** {@code MultipleForms.call("getSpecificUnmegaForm",self)} (:159-162). */
+    private Integer specificUnmegaForm() {
+        if (isSpecies("SLOWBRO") && formNumber() == 2) return 0;
+        return null;
+    }
+
+    /** {@code getMegaForm(checkItemOnly=false)} (:6-33): the form number, or 0 if no accessible Mega form. */
+    public int getMegaForm(PbsData data, boolean checkItemOnly) {
+        if (data == null || species == null) return 0;
+        int ret = 0;                                                                // :9
+        Integer specific = specificMegaForm();                                      // :10 hasSpecificMegaForm?
+        if (specific != null) {
+            ret = specific;                                                         // :11
+        } else {
+            for (int i = 1; i < 40; i++) {                                          // :14 formData[@species] (0 is the base form)
+                PbsData.SpeciesForm fSpec = data.form(species.internalName, i);
+                if (fSpec == null) continue;                                        // :16
+                if (fSpec.megaStone != null && !fSpec.megaStone.isEmpty() && holds(fSpec.megaStone)) {   // :18
+                    int unmegaForm = fSpec.unmegaForm == null ? 0 : fSpec.unmegaForm;   // :19
+                    if (formNumber() == unmegaForm) {                               // :20
+                        ret = i;                                                    // :21
+                        break;
+                    }
+                }
+                if (!checkItemOnly) {                                               // :24
+                    if (fSpec.megaMove != null && !fSpec.megaMove.isEmpty() && knowsMoveNamed(fSpec.megaMove)) {   // :26
+                        ret = i;                                                    // :27
+                        break;
+                    }
+                }
+            }
+        }
+        return ret;                                                                 // :32
+    }
+
+    /** {@code getMegaForm} with the default argument. */
+    public int megaFormIndex(PbsData data) {
+        return getMegaForm(data, false);
+    }
+
+    /** {@code getUnmegaForm} (:35-40): -1 when it is not a Mega form. */
+    public int getUnmegaForm(PbsData data) {
+        Integer specific = specificUnmegaForm();
+        if (!isMega() && specific == null) return -1;                               // :36
+        int unmegaForm = form != null && form.unmegaForm != null ? form.unmegaForm : 0;   // :37
+        if (specific != null) unmegaForm = specific;                                // :38
+        return unmegaForm;                                                          // :39
+    }
+
+    /** {@code hasMegaForm?} (:42-45). */
+    public boolean hasMegaForm(PbsData data) {
+        int megaForm = getMegaForm(data, false);                                    // :43
+        return megaForm > 0 && megaForm != formNumber();                            // :44
+    }
+
+    /** {@code mega?} (:47-54): the current form has an UnmegaForm. */
     public boolean isMega() {
         return form != null && form.unmegaForm != null;
     }
 
-    /** {@code getMegaForm}: the form index whose MegaStone the Pokemon holds. */
-    public int megaFormIndex(PbsData data) {
-        if (data == null || species == null) {
-            return 0;
-        }
-        int current = form == null ? 0 : form.form;
-        for (int i = 1; i < 40; i++) {
-            PbsData.SpeciesForm candidate = data.form(species.internalName, i);
-            if (candidate == null || candidate.megaStone == null || candidate.megaStone.isEmpty()) {
-                continue;
-            }
-            if (item == null || !item.equalsIgnoreCase(candidate.megaStone)) {
-                continue;
-            }
-            int unmega = candidate.unmegaForm == null ? 0 : candidate.unmegaForm;
-            if (current == unmega) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    public boolean hasMegaForm(PbsData data) {
-        int index = megaFormIndex(data);
-        return index > 0 && index != (form == null ? 0 : form.form);
-    }
-
-    /** {@code makeMega}: switch to the Mega form (keeps the base species). */
+    /** {@code makeMega} (:58-61). */
     public void makeMega(PbsData data) {
-        int index = megaFormIndex(data);
-        if (index > 0) {
-            setForm(data, index);
-        }
+        int megaForm = getMegaForm(data, false);                                    // :59
+        if (megaForm > 0) setForm(data, megaForm);                                  // :60
     }
 
+    /** {@code makeUnmega} (:63-66). */
     public void makeUnmega(PbsData data) {
-        if (isMega()) {
-            setForm(data, form.unmegaForm == null ? 0 : form.unmegaForm);
-        }
+        int unmegaForm = getUnmegaForm(data);                                       // :64
+        if (unmegaForm >= 0) setForm(data, unmegaForm);                             // :65
+    }
+
+    /**
+     * {@code megaMessage} (:73-75): 0 = default message, 1 = Rayquaza message; the data of the form
+     * {@code getMegaForm} points at.
+     */
+    public int megaMessage(PbsData data) {
+        int megaForm = getMegaForm(data, false);
+        if (data == null || species == null || megaForm <= 0) return 0;
+        PbsData.SpeciesForm f = data.form(species.internalName, megaForm);
+        return f == null || f.megaMessage == null ? 0 : f.megaMessage;
     }
 
     /**
@@ -337,35 +400,45 @@ public final class Pokemon {
                 | (source.nextInt(256) << 24);
     }
 
-    /** Mega form name (the form's formName, or "超级{species}"). */
+    /** {@code megaName} (:68-71): the form's name, else "Mega {species}". */
     public String megaName() {
         if (form != null && form.formName != null && !form.formName.isEmpty()) {
-            return form.formName;
+            return form.formName;                                                   // :70
         }
-        return "超级" + (species == null ? "" : species.name);
+        return "Mega " + (species == null ? "" : species.name);                     // :70 _INTL("Mega {1}",...)
     }
 
-    /** Groudon/Kyogre revert with the Red/Blue Orb (Primal Reversion). */
+    // ------------------------------------------------------------------
+    // Primal Reversion (Pokemon_MegaEvolution:84-123)
+    // ------------------------------------------------------------------
+
+    /** {@code getPrimalForm} registrations (:111-123): 1 for Groudon with the Red Orb / Kyogre with the Blue Orb, else null. */
+    private Integer primalForm() {
+        if (isSpecies("GROUDON") && holds("REDORB")) return 1;                      // :113
+        if (isSpecies("KYOGRE") && holds("BLUEORB")) return 1;                      // :120
+        return null;
+    }
+
+    /** {@code hasPrimalForm?} (:85-88). */
     public boolean hasPrimalForm() {
-        return isSpecies("GROUDON") || isSpecies("KYOGRE");
+        return primalForm() != null;
     }
 
+    /** {@code primal?} (:90-93). */
     public boolean isPrimal() {
-        return hasPrimalForm() && form != null && form.form == 1 && form.unmegaForm != null;
+        Integer v = primalForm();
+        return v != null && v == formNumber();
     }
 
+    /** {@code makePrimal} (:96-99). */
     public void makePrimal(PbsData data) {
-        if (isSpecies("GROUDON") && "REDORB".equals(item)) {
-            setForm(data, 1);
-        } else if (isSpecies("KYOGRE") && "BLUEORB".equals(item)) {
-            setForm(data, 1);
-        }
+        Integer v = primalForm();
+        if (v != null) setForm(data, v);
     }
 
+    /** {@code makeUnprimal} (:101-106): no getUnprimalForm is registered, so {@code primal?} decides. */
     public void makeUnprimal(PbsData data) {
-        if (isPrimal()) {
-            setForm(data, 0);
-        }
+        if (isPrimal()) setForm(data, 0);                                           // :104
     }
 
     private boolean isSpecies(String name) {

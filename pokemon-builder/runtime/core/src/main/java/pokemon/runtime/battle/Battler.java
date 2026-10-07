@@ -4736,4 +4736,23 @@ public final class Battler {
     public boolean canTakeHealingWish() {
         return canHeal() || pbHasAnyStatus();                            // :692
     }
+
+    /**
+     * {@code pbChangeFormTransform(newForm,msg)} (Battler_ChangeSelf:182-195) for a form the Pokemon already
+     * has: the plugin's battler keeps its own {@code @form} until this runs (ZA模式:200-202), while this
+     * runtime reads the form from the Pokemon. {@code oldDmg} is {@code @totalhp-@hp} taken before the change.
+     */
+    public void pbChangeFormTransformApplied(int oldDmg, int oldForm, String msg) {
+        if (fainted() || effects.truthy(PBEffects.Battler.Transform)) {            // :183
+            return;
+        }
+        hp = maxHp() - oldDmg;                                                     // :188 @hp = @totalhp-oldDmg
+        if (Battle.NEWEST_BATTLE_MECHANICS) {                                      // :189
+            effects.set(PBEffects.Battler.WeightChange, 0);
+        }
+        battle.roundEvents.add(Battle.RoundEvent.changePokemon(index, oldForm));            // :190-191 pbChangePokemonTransform + pbRefreshOne
+        if (msg != null && !msg.isEmpty()) {                                       // :192
+            display(msg);
+        }
+    }
 }

@@ -350,6 +350,8 @@ export function parsePokemonForms(text) {
     if (f("pokedex")) entry.pokedex = f("pokedex");
     if (f("megastone")) entry.megaStone = f("megastone");
     if (f("unmegaform")) entry.unmegaForm = intOrNull(f("unmegaform"));
+    if (f("megamove")) entry.megaMove = f("megamove");
+    if (f("megamessage")) entry.megaMessage = intOrNull(f("megamessage"));   // 0 = default message, 1 = Rayquaza's
     if (f("moves")) entry.moves = parseMoveset(f("moves"));
     if (f("evolutions")) entry.evolutions = parseEvolutions(f("evolutions"));
     entry.battler = {

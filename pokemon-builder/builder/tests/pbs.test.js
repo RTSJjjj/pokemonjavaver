@@ -126,6 +126,18 @@ Height = 2.4
   assert.deepEqual(forms.VENUSAUR_1.baseStats, [80, 100, 123, 80, 122, 120]);
 });
 
+test("pokemonforms keeps MegaMove and MegaMessage (Rayquaza's Mega form)", () => {
+  const forms = parsePokemonForms(`[RAYQUAZA,1]
+FormName = Mega Rayquaza
+MegaMove = DRAGONASCENT
+UnmegaForm = 0
+MegaMessage = 1
+`);
+  assert.equal(forms.RAYQUAZA_1.megaMove, "DRAGONASCENT");
+  assert.equal(forms.RAYQUAZA_1.megaMessage, 1);
+  assert.equal(forms.RAYQUAZA_1.unmegaForm, 0);
+});
+
 test("moves/items/abilities/trainertypes normalize their CSV columns", () => {
   const moves = parseMoves('1,MEGAHORN,超级角击,000,120,BUG,Physical,85,10,0,NearOther,0,abef,"角很硬"\n');
   assert.equal(moves.MEGAHORN.power, 120);

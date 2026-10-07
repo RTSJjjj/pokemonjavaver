@@ -142,6 +142,7 @@ public final class RuntimeContext {
             pokemon.runtime.battle.InteractiveBattlePort port =
                     (pokemon.runtime.battle.InteractiveBattlePort) battlePort;
             port.zaMode(settings.battleRule == 1);
+            port.megaAnimation(settings.megaAnimation);   // $PokemonSystem.mega_animation
             // PField_Battles:111: battle.switchStyle = ($PokemonSystem.battlestyle==0).
             port.battleStyle(settings.battlestyle);
             // PField_Battles:114: battle.showAnims = ($PokemonSystem.battlescene==0).
