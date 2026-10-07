@@ -2193,6 +2193,11 @@ public final class Battle {
      * passes a non-positive value (22 {@code pbRandom} sites, all counts), so
      * that difference is documented rather than papered over.</p>
      */
+    /** The battle's single {@code Random} ({@code pbRandom}/{@code rand}); DamageCalc's damage roll uses the same one. */
+    public Random random() {
+        return random;
+    }
+
     public int pbRandom(int x) {
         return random.nextInt(x);
     }

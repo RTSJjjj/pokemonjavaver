@@ -1,6 +1,8 @@
 package pokemon.runtime.battle;
 
 import com.badlogic.gdx.utils.Array;
+import pokemon.runtime.battle.movefx.MoveEffect;
+import pokemon.runtime.battle.movefx.MoveEffectRegistry;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
 
@@ -1219,6 +1221,11 @@ public final class Battler {
             }
         }
         return out;
+    }
+
+    /** {@code allOpposing} (PokeBattle_Battler:837-839)。 */
+    public Array<Battler> allOpposing() {
+        return battle.allOtherSideBattlers(index);                      // :838
     }
 
     /** {@code eachOpposing} (PokeBattle_Battler:833-835)。 */
@@ -3685,6 +3692,15 @@ public final class Battler {
      */
     public int currentMove;
 
+    /** {@code @criticalHits} (PokeBattle_Battler:119-124; the Pokemon-side mirror {@code @pokemon.criticalHits=} has no field in this runtime's Pokemon). */
+    public int criticalHits;
+
+    /** {@code hp=(value)} (PokeBattle_Battler:92-95): writes the battler and its Pokemon. */
+    public void setHp(int value) {
+        hp = value;                                                              // :93
+        if (pokemon != null) pokemon.hp = value;                                 // :94
+    }
+
     /** {@code usingMultiTurnAttack?} (PokeBattle_Battler:708-716). */
     public boolean usingMultiTurnAttack() {
         if (effects.intVal(PBEffects.Battler.TwoTurnAttack) > 0) return true;   // :709
@@ -3787,6 +3803,33 @@ public final class Battler {
                 }
             }
         }
+    }
+
+    /**
+     * {@code pbConfusionDamage(msg)} (Battler_UseMove:130-146): the pseudomove
+     * {@code PokeBattle_Confusion} hits the confused battler. Critical hits are
+     * off: {@code pbCritialOverride} is {@code -1} (Move_Effects_Generic:44;
+     * Move_Usage_Calculations:216-219), so {@code pbIsCritical?} is always false.
+     */
+    public void pbConfusionDamage(String msg) {
+        MoveEffect fx = MoveEffectRegistry.confusion();
+        damageState.reset();                                                     // :131
+        damageState.initialHP = hp;                                              // :132
+        BattleMove confusionMove = MoveEffectRegistry.confusionMove();   // :133
+        confusionMove.setCalcType(fx.pbCalcType(confusionMove, this));           // :134 -1
+        damageState.typeMod = fx.pbCalcTypeMod(confusionMove, confusionMove.calcType(), this, this);   // :135 8
+        Array<Battler> self = new Array<>();
+        self.add(this);
+        MoveUsage.pbCheckDamageAbsorption(fx, confusionMove, this, this);        // :136
+        DamageCalc.compute(this, this, confusionMove, battle.pbs(), battle.random(), false, 1);   // :137
+        MoveUsage.pbReduceDamage(fx, confusionMove, this, this);                 // :138
+        setHp(hp - damageState.hpLost);                                          // :139
+        MoveUsage.pbAnimateHitAndHPLost(this, self);                             // :140
+        battle.display(msg);                                                     // :141 "It hurt itself in its confusion!"
+        MoveUsage.pbRecordDamageLost(fx, confusionMove, this, this);             // :142
+        MoveUsage.pbEndureKOMessage(this);                                       // :143
+        if (fainted()) pbFaint();                                                // :144
+        pbItemHPHealCheck(0, false);                                             // :145
     }
 
     /** {@code pbBeginTurn(_choice)} (Battler_UseMove:71-85). */

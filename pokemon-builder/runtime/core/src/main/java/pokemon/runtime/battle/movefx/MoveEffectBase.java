@@ -6,6 +6,7 @@ import pokemon.runtime.battle.Battle;
 import pokemon.runtime.battle.BattleHandlers;
 import pokemon.runtime.battle.BattleMove;
 import pokemon.runtime.battle.Battler;
+import pokemon.runtime.battle.MoveUsage;
 import pokemon.runtime.battle.EffectMap;
 import pokemon.runtime.battle.PBEffects;
 import pokemon.runtime.battle.PBStats;
@@ -1094,12 +1095,10 @@ public class MoveEffectBase implements MoveEffect {
 
     /**
      * {@code pbHitEffectivenessMessages(user,target,numTargets=1)}
-     * (Move_Usage.rb:322-345) - a battle-flow method (Move_Usage.rb:166-430),
-     * not transcribed in this batch.
+     * (Move_Usage.rb:322-345) - transcribed in {@link MoveUsage} (stage 5 / 2b).
      */
     @Override
     public void pbHitEffectivenessMessages(BattleMove move, Battler user, Battler target, int numTargets) {
-        throw new UnsupportedOperationException(
-                "M0 待接线（战斗流程，归 Battle.execute）: Move_Usage.rb:322-345 pbHitEffectivenessMessages");
+        MoveUsage.pbHitEffectivenessMessages(this, move, user, target, numTargets);   // Move_Usage:322-345 (stage 5 / 2b)
     }
 }

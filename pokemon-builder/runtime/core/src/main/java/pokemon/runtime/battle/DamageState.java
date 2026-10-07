@@ -69,6 +69,14 @@ public final class DamageState {
     /** {@code @terashell} - Tera Shell ability used (PokeBattle_DamageState.rb:24). */
     public boolean terashell;
 
+    /**
+     * {@code attr_accessor :bossHP} (PokeBattle_BOSS:26): how many BOSS "overflow"
+     * stages this battler's damage state has gone through. Ruby's reopened
+     * {@code initialize} (PokeBattle_BOSS:28-32) sets it to 0 once, <b>after</b>
+     * {@code reset}, so {@link #reset()} deliberately does not touch it.
+     */
+    public int bossHP;
+
     /** {@code def initialize; reset; end} (PokeBattle_DamageState.rb:26). */
     public DamageState() {
         reset();
