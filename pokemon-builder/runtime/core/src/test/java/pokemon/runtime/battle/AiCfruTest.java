@@ -54,8 +54,8 @@ class AiCfruTest {
                 + species("GHOSTY", 2, "GHOST", 80, 80, 80, 40, "NONE") + ","
                 + species("DUCK", 3, "WATER", 80, 80, 80, 40, "WATERABSORB") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
-        write(tempDir, "moves.json", "{\"total\":7,\"moves\":{"
-                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + ","
+        write(tempDir, "moves.json", "{\"total\":8,\"moves\":{"
+                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + "," + status("SPIKES", "103") + ","
                 + move("TACKLE", 40, "NORMAL", "Physical", 35) + "," + move("STRONGHIT", 90, "NORMAL", "Physical", 15) + ","
                 + move("WATERGUN", 40, "WATER", "Special", 25) + "," + move("SURF", 90, "WATER", "Special", 15) + "}}");
         write(tempDir, "types.json", "{\"total\":3,\"types\":{"
@@ -144,5 +144,12 @@ class AiCfruTest {
         assertEquals(90, base);
         foe.setHp(foe.maxHp() / 2);
         assertEquals(100, AiNegatives.score(new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST), foe, foe.battle.player(), foe.moveSlot(0), 100));
+    }
+
+    @Test
+    @DisplayName("entry hazards are pointless against a foe with no Pokemon left on the bench (ai_negatives.c:1991-2003: -10)")
+    void hazardsNeedABench() {
+        Battler foe = foe("FAT", 50, "HERO", 50, "SPIKES", "TACKLE");
+        for (int i = 0; i < 10; i++) assertEquals(1, AiMaster.chooseMove(foe.battle, foe, new Random(i)));
     }
 }

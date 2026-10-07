@@ -223,12 +223,7 @@ final class AiNegativeEffects {
         switch (f) {
             case "0D5": case "0D6": case "0D8": case "0D9": {                                     // EFFECT_RESTORE_HP / MORNING_SUN (:1457), EFFECT_REST (:1507)
                 if (f.equals("0D9") && !AiCalc.canRest(battle, atk)) r.viability -= 10;           // EFFECT_REST: CanRest, then AI_RECOVERY
-                if (ctx.goodAi() && AiCalc.takingSecondaryDamage(battle, def)) {                  // DEFAULT_RECOVERY, very smart AI, single battle
-                    if (hpPct == 100) r.viability -= 1;
-                    return true;
-                }
-                if (hpPct == 100) r.viability -= 10;
-                else if (hpPct >= 90) r.viability -= 9;
+                recovery(ctx, atk, def, r);
                 return true;
             }
             case "005": case "006": {                                                             // EFFECT_POISON / TOXIC (:1513)
@@ -356,8 +351,346 @@ final class AiNegativeEffects {
                 return true;
             }
             default:
+                return part3(ctx, atk, def, move, r);
+        }
+    }
+
+    /** {@code AI_RECOVERY:} / {@code DEFAULT_RECOVERY:} (:1457-1493), single battle. */
+    private static void recovery(AiCtx ctx, Battler atk, Battler def, Result r) {
+        int hpPct = AiCalc.healthPercent(atk);
+        if (ctx.goodAi() && AiCalc.takingSecondaryDamage(ctx.battle, def)) {                      // very smart AI, IS_SINGLE_BATTLE
+            if (hpPct == 100) r.viability -= 1;
+            return;
+        }
+        if (hpPct == 100) r.viability -= 10;
+        else if (hpPct >= 90) r.viability -= 9;
+    }
+
+    /** {@code ProtectUses}: how many Protects in a row the battler has used (Essentials keeps the rate that divides the odds). */
+    private static int protectUses(Battler b) {
+        int rate = b.effects.intVal(PBEffects.Battler.ProtectRate);
+        return rate <= 1 ? 0 : rate < 4 ? 1 : 2;
+    }
+
+    private static boolean protectInMoveset(Battler b) {
+        return AiCalc.moveFunctionInMoveset(b, AiCalc.PROTECT);
+    }
+
+    private static boolean anyWeather(Battle battle) {
+        int w = battle.pbWeather();
+        return w != PBWeather.None;
+    }
+
+    /**
+     * Part 3 (ai_negatives.c:1800-2560): Lock-On, Destiny Bond, False Swipe, Heal Bell, Mean Look, Nightmare, Curse, Protect, hazards,
+     * Foresight, Perish Song, weather, Swagger/Flatter, Attract, Safeguard, Burn Up, Baton Pass, Defog, Belly Drum, Future Sight, two-turn
+     * attacks, Fake Out, Stockpile, Torment, Will-O-Wisp, Memento family, Focus Punch, Taunt, Follow Me, Trick, Role Play, Wish, Ingrain,
+     * Magic Coat, Recycle, Yawn. 登记: Skip because they need data this runtime lacks: Sketch/Spite/Mimic/Disable/Encore (last-used move),
+     * Assist, Magic Coat (MagicCoatableMovesInMoveset), Role Play ability tables, HazardClearingMoveInMovesetThatAffects,
+     * Evaporate (:2194), Shadow Shield, Z-Crystal/Max moves.
+     */
+    private static boolean part3(AiCtx ctx, Battler atk, Battler def, BattleMove move, Result r) {
+        Battle battle = ctx.battle;
+        String f = move.function();
+        String atkAbility = atk.ability == null ? "" : atk.ability;
+        String defAbility = atk.hasMoldBreaker() || def.ability == null ? "" : def.ability;
+        BattleMove predicted = ctx.prediction(def);
+        int atkSpeed = AiCalc.speed(atk);
+        int defSpeed = AiCalc.speed(def);
+        switch (f) {
+            case "0A6": case "15E": {                                                             // EFFECT_LOCK_ON (:1802)
+                if (f.equals("15E")) {                                                            // MOVE_LASERFOCUS
+                    if (atk.effects.intVal(PBEffects.Battler.LaserFocus) > 0) r.viability -= 10;
+                    else if ("SHELLARMOR".equals(defAbility) || "BATTLEARMOR".equals(defAbility)) r.viability -= 8;
+                } else if (atk.hasActiveAbility("NOGUARD") || def.hasActiveAbility("NOGUARD")
+                        || (def.effects.intVal(PBEffects.Battler.LockOn) > 0)) {
+                    r.viability -= 10;
+                } else {
+                    substituteCheck(move, atk, def, r);
+                }
+                return true;
+            }
+            case "0E7": {                                                                         // EFFECT_DESTINY_BOND (:1826)
+                if (atk.effects.truthy(PBEffects.Battler.DestinyBond)) r.viability -= 10;
+                return true;
+            }
+            case "0E9": {                                                                         // EFFECT_FALSE_SWIPE (:1832)
+                if (AiCalc.knocksOutXHits(ctx, move, atk, def, 1) && canKnockOutWithoutMove(ctx, move, atk, def)) r.viability -= 10;
+                else r.standardDamage = true;
+                return true;
+            }
+            case "019": {                                                                         // EFFECT_HEAL_BELL (:1840)
+                boolean sound = AiCalc.has(move, 'k');
+                if (!partyMemberStatused(battle, atk, sound)) r.viability -= 10;
+                return true;
+            }
+            case "0EF": {                                                                         // EFFECT_MEAN_LOOK (:1854)
+                if (!move.statusMove()) {
+                    r.standardDamage = true;
+                } else if (def.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || def.effects.intVal(PBEffects.Battler.Trapping) > 0
+                        || def.hasType("GHOST")) {
+                    r.viability -= 10;                                                            // IsTrapped(bankDef,TRUE)
+                }
+                return true;
+            }
+            case "10F": {                                                                         // EFFECT_NIGHTMARE (:1865)
+                if (def.effects.truthy(PBEffects.Battler.Nightmare) || !(def.hasStatus("SLEEP") || "COMATOSE".equals(defAbility))) r.viability -= 10;
+                return true;
+            }
+            case "10D": {                                                                         // EFFECT_CURSE (:1873)
+                if (atk.hasType("GHOST")) {
+                    if (def.effects.truthy(PBEffects.Battler.Curse)) r.viability -= 10;
+                    else if (AiCalc.healthPercent(atk) <= 50) r.viability -= 6;
+                } else if ("CONTRARY".equals(atkAbility)) {
+                    if (atk.stage(PBStats.ATTACK) <= -6 && atk.stage(PBStats.DEFENSE) <= -6 && !AiCalc.statCanRise(atk, PBStats.SPEED)) r.viability -= 10;
+                } else if (!AiCalc.statCanRise(atk, PBStats.ATTACK) && !AiCalc.statCanRise(atk, PBStats.DEFENSE)
+                        && atk.stage(PBStats.SPEED) <= -6) {
+                    r.viability -= 10;
+                }
+                return true;
+            }
+            case "0AA": case "14B": case "14C": case "168": case "0E8": case "0AB": case "0AC": case "14A": case "149": {   // EFFECT_PROTECT (:1904)
+                boolean teamProtect = f.equals("0AB") || f.equals("0AC") || f.equals("14A");
+                if (teamProtect) { r.viability -= 10; return true; }                              // !IS_DOUBLE_BATTLE
+                if (f.equals("149") && !AiCalc.firstTurn(atk)) { r.viability -= 10; return true; }   // MOVE_MATBLOCK
+                if (f.equals("0E8") && (atk.hp == 1 || AiCalc.takingSecondaryDamage(battle, atk))) { r.viability -= 10; return true; }   // MOVE_ENDURE
+                if (def.effects.intVal(PBEffects.Battler.HyperBeam) > 0) { r.viability -= 10; return true; }   // STATUS2_RECHARGE
+                int uses = protectUses(atk);
+                if (uses > 0) {                                                                   // the previous move was also a Protect
+                    if (AiCalc.willFaintFromSecondaryDamage(battle, atk) && !AiCalc.isMoxie(defAbility)) r.viability -= 10;
+                    else if (uses >= 2) r.viability -= 10;
+                    else if (f.equals("14B") && uses > 0) r.viability -= 9;                       // King's Shield
+                    else if (uses == 1 && (ctx.simulatedRng[1] & 1) != 0) r.viability -= 6;       // IS_SINGLE_BATTLE
+                }
+                return true;
+            }
+            case "103": case "104": case "105": case "153": {                                     // EFFECT_SPIKES (:1991)
+                if (AiUtil.benchAlive(battle, def) + 1 <= 1) { r.viability -= 10; return true; }
+                BattleSide side = def.pbOwnSide();
+                if (f.equals("105")) {
+                    if (side.effects.intVal(PBEffects.Side.StealthRock) > 0) r.viability -= 10;
+                } else if (f.equals("104")) {
+                    if (side.effects.intVal(PBEffects.Side.ToxicSpikes) >= 2) r.viability -= 10;
+                } else if (f.equals("153")) {
+                    if (side.effects.intVal(PBEffects.Side.StickyWeb) > 0) r.viability -= 10;
+                } else {
+                    if (side.effects.intVal(PBEffects.Side.Spikes) >= 3) r.viability -= 10;
+                }
+                return true;
+            }
+            case "0A7": case "0A8": {                                                             // EFFECT_FORESIGHT / Miracle Eye (:2042)
+                boolean miracle = f.equals("0A8");
+                if (miracle) {
+                    if (def.effects.truthy(PBEffects.Battler.MiracleEye)) r.viability -= 10;
+                    if (def.stage(PBStats.EVASION) <= -2 || !def.hasType("DARK")) r.viability -= 9;
+                } else {
+                    if (def.effects.truthy(PBEffects.Battler.Foresight)) r.viability -= 10;
+                    else if (def.stage(PBStats.EVASION) <= -2 || !def.hasType("GHOST")) r.viability -= 9;
+                }
+                return true;
+            }
+            case "0E5": {                                                                         // EFFECT_PERISH_SONG (:2074), single battle
+                if (AiUtil.benchAlive(battle, atk) + 1 == 1 && !"SOUNDPROOF".equals(atkAbility) && AiUtil.benchAlive(battle, def) + 1 >= 2) r.viability -= 10;
+                if (def.effects.intVal(PBEffects.Battler.PerishSong) > 0 || def.hasActiveAbility("SOUNDPROOF")) r.viability -= 10;
+                return true;
+            }
+            case "101": case "100": case "102": case "0FF": case "1C0": {                         // EFFECT_SANDSTORM / RAIN_DANCE / HAIL / SUNNY_DAY (:2090,:2192,:2200,:2338)
+                int w = battle.pbWeather();
+                boolean primal = w == PBWeather.HarshSun || w == PBWeather.HeavyRain || w == PBWeather.StrongWinds;
+                boolean same = (f.equals("101") && w == PBWeather.Sandstorm) || (f.equals("100") && w == PBWeather.Rain)
+                        || (f.equals("102") && (w == PBWeather.Hail || w == PBWeather.Snow)) || (f.equals("0FF") && w == PBWeather.Sun)
+                        || (f.equals("1C0") && (w == PBWeather.Snow || w == PBWeather.Hail));
+                if (same || primal) r.viability -= 10;
+                return true;
+            }
+            case "041": case "040": {                                                             // EFFECT_SWAGGER / FLATTER (:2098,:2329)
+                if (!AiCalc.canBeConfused(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                return true;
+            }
+            case "016": {                                                                         // EFFECT_ATTRACT (:2104)
+                if (def.effects.intVal(PBEffects.Battler.Attract) >= 0 || def.fainted() || !oppositeGenders(atk, def)
+                        || (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"OBLIVIOUS", "AROMAVEIL"}))) r.viability -= 10;
+                return true;
+            }
+            case "01A": {                                                                         // EFFECT_SAFEGUARD (:2114)
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0) r.viability -= 10;
+                return true;
+            }
+            case "162": {                                                                         // EFFECT_BURN_UP (:2124)
+                if (!atk.hasType("FIRE")) r.viability -= 10; else r.standardDamage = true;
+                return true;
+            }
+            case "0EE": {                                                                         // U-turn / Volt Switch (EFFECT_BATON_PASS, :2133)
+                r.standardDamage = true;
+                return true;
+            }
+            case "0ED": case "151": {                                                             // Baton Pass / Parting Shot
+                if (AiUtil.benchAlive(battle, atk) == 0) { r.viability -= 10; return true; }
+                if (f.equals("151")) {
+                    if (!AiCalc.statCanBeLowered(def, atk, PBStats.ATTACK) && !AiCalc.statCanBeLowered(def, atk, PBStats.SPATK)) r.viability -= 10;
+                } else {
+                    boolean passable = atk.effects.intVal(PBEffects.Battler.Substitute) > 0 || atk.effects.truthy(PBEffects.Battler.Ingrain)
+                            || atk.effects.truthy(PBEffects.Battler.AquaRing) || anyStatRaised(atk);
+                    if (!passable) r.viability -= 6;
+                }
+                return true;
+            }
+            case "110": {                                                                         // EFFECT_RAPID_SPIN (:2171): Rapid Spin is a damaging move
+                r.standardDamage = true;
+                return true;
+            }
+            case "03A": {                                                                         // EFFECT_BELLY_DRUM (:2230)
+                if ("CONTRARY".equals(atkAbility) || AiCalc.healthPercent(atk) <= 50) r.viability -= 10;
+                return true;
+            }
+            case "111": {                                                                         // EFFECT_FUTURE_SIGHT (:2243)
+                BattlePosition fsPos = battle.field.positions[def.index];          // gWishFutureKnock.futureSightCounter[bankDef]
+                if (fsPos != null && fsPos.effects.intVal(PBEffects.Position.FutureSightCounter) != 0) r.viability -= 10;
+                else r.standardDamage = true;
+                return true;
+            }
+            case "0C3": case "0C4": case "0C7": case "0C8": case "0C9": case "0CA": case "0CB": case "0CC": case "0CD": case "0CE": case "14D": {   // two-turn attacks (:2251-2325)
+                if (atk.hasActiveItem("POWERHERB")) { r.standardDamage = true; return true; }
+                if (f.equals("0C4") && (battle.pbWeather() == PBWeather.Sun || battle.pbWeather() == PBWeather.HarshSun)) {
+                    r.standardDamage = true;
+                    return true;
+                }
+                if (!f.equals("0C3") && !f.equals("0C4") && !f.equals("0C7") && !f.equals("0C8") && predicted != null
+                        && AiCalc.moveWouldHitFirst(ctx, move, atk, def) && AiCalc.oneOf(predicted, "0C9", "0CA", "0CB", "0CC", "0CD", "0CE", "14D")) {
+                    r.viability -= 10;                                                            // don't Fly if the opponent is going to Fly after you
+                }
+                if (AiCalc.willFaintFromSecondaryDamage(battle, atk)) r.viability -= 10;          // attacker will faint while charging
+                if (ctx.goodAi()) {
+                    boolean immobilised = def.hasStatus("PARALYSIS") || def.hasStatus("FROZEN")
+                            || def.effects.intVal(PBEffects.Battler.Attract) >= 0 || (def.hasStatus("SLEEP") && def.statusCount > 1);
+                    if (!immobilised && def.effects.intVal(PBEffects.Battler.Confusion) < 3) {
+                        if (protectInMoveset(def) && !AiCalc.willFaintFromSecondaryDamage(battle, def)) {
+                            r.viability -= 8;
+                        } else if (atkSpeed > defSpeed) {
+                            if (AiCalc.canKnockOut(ctx, def, atk) && predicted != null) r.viability -= 4;
+                        } else if (AiCalc.can2HKO(ctx, def, atk) && predicted != null) {
+                            r.viability -= 8;
+                        }
+                    }
+                }
+                r.standardDamage = true;
+                return true;
+            }
+            case "012": {                                                                         // EFFECT_FAKE_OUT (:2328)
+                if (!AiCalc.firstTurn(atk)) {
+                    r.viability -= 10;
+                } else if (AiCalc.named(move, "FAKEOUT") && AiCalc.choiceLocked(atk)
+                        && (AiUtil.benchAlive(battle, def) + 1 >= 2 || !AiCalc.knocksOutXHits(ctx, move, atk, def, 1))
+                        && AiUtil.benchAlive(battle, atk) == 0) {
+                    r.viability -= 10;                                                            // don't lock the attacker into Fake Out
+                }
+                r.standardDamage = true;
+                return true;
+            }
+            case "112": {                                                                         // EFFECT_STOCKPILE (:2341)
+                if (atk.effects.intVal(PBEffects.Battler.Stockpile) >= 3) r.viability -= 10;
+                return true;
+            }
+            case "113": {                                                                         // EFFECT_SPIT_UP (:2346)
+                if (atk.effects.intVal(PBEffects.Battler.Stockpile) == 0) r.viability -= 10; else r.standardDamage = true;
+                return true;
+            }
+            case "114": {                                                                         // EFFECT_SWALLOW (:2354)
+                if (atk.effects.intVal(PBEffects.Battler.Stockpile) == 0) r.viability -= 10; else recovery(ctx, atk, def, r);
+                return true;
+            }
+            case "0B7": {                                                                         // EFFECT_TORMENT (:2370)
+                if (def.effects.truthy(PBEffects.Battler.Torment) || def.fainted()) { r.viability -= 10; return true; }
+                substituteCheck(move, atk, def, r);
+                return true;
+            }
+            case "00A": {                                                                         // EFFECT_WILL_O_WISP (:2394)
+                if (!AiCalc.canBeBurned(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                return true;
+            }
+            case "0E1": {                                                                         // Final Gambit (EFFECT_MEMENTO, :2403)
+                if (AiUtil.benchAlive(battle, atk) == 0) r.viability -= 10; else r.standardDamage = true;
+                return true;
+            }
+            case "0E2": case "0E3": case "0E4": {                                                 // Memento / Healing Wish / Lunar Dance
+                if (AiUtil.benchAlive(battle, atk) == 0) { r.viability -= 10; return true; }
+                if (f.equals("0E2")) {
+                    if (AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                    else if (def.stage(PBStats.ATTACK) <= -6 && def.stage(PBStats.SPATK) <= -6) r.viability -= 10;
+                    else substituteCheck(move, atk, def, r);
+                }
+                return true;
+            }
+            case "115": case "171": case "172": {                                                 // EFFECT_FOCUS_PUNCH (:2425): Focus Punch, Shell Trap, Beak Blast
+                if (f.equals("172")) { r.standardDamage = true; return true; }
+                if (f.equals("171")) {
+                    if (ctx.goodAi() && (predicted == null || !AiCalc.has(predicted, 'a'))) r.viability -= 10; else r.standardDamage = true;
+                    return true;
+                }
+                if (predicted != null && !AiCalc.blockedBySubstitute(predicted, def, atk) && !predicted.statusMove() && predicted.power() != 0) r.viability -= 10;
+                else r.standardDamage = true;
+                return true;
+            }
+            case "0BA": {                                                                         // EFFECT_TAUNT (:2453)
+                if (def.effects.intVal(PBEffects.Battler.Taunt) > 0 || "OBLIVIOUS".equals(defAbility)) r.viability -= 10;
+                return true;
+            }
+            case "117": case "09C": {                                                             // EFFECT_FOLLOW_ME / HELPING_HAND (:2460): needs an ally
+                r.viability -= 10;
+                return true;
+            }
+            case "0F2": case "0F3": {                                                             // EFFECT_TRICK (:2472): Trick/Switcheroo, Bestow
+                if (f.equals("0F3")) {
+                    if (atk.item == null || atk.item.isEmpty()) r.viability -= 10; else substituteCheck(move, atk, def, r);
+                } else if (java.util.Objects.equals(atk.item, def.item) || "STICKYHOLD".equals(defAbility)) {
+                    r.viability -= 10;
+                } else {
+                    substituteCheck(move, atk, def, r);
+                }
+                return true;
+            }
+            case "0D7": {                                                                         // EFFECT_WISH (:2501)
+                BattlePosition wishPos = battle.field.positions[atk.index];       // gWishFutureKnock.wishCounter[bankAtk]
+                if (wishPos != null && wishPos.effects.intVal(PBEffects.Position.Wish) != 0) r.viability -= 10;
+                return true;
+            }
+            case "0DA": case "0DB": {                                                             // EFFECT_INGRAIN (:2531): Aqua Ring, Ingrain
+                if (f.equals("0DA") ? atk.effects.truthy(PBEffects.Battler.AquaRing) : atk.effects.truthy(PBEffects.Battler.Ingrain)) r.viability -= 10;
+                return true;
+            }
+            case "13B": {                                                                         // EFFECT_SUPERPOWER: Hyperspace Fury (:2546)
+                if (!atk.isSpecies("HOOPA") || atk.form() != 1) r.viability -= 10; else r.standardDamage = true;
+                return true;
+            }
+            case "004": {                                                                         // EFFECT_YAWN (:2541)
+                if (def.effects.intVal(PBEffects.Battler.Yawn) > 0 || def.hasStatus("SLEEP")) r.viability -= 10;
+                else if (!AiCalc.canBePutToSleep(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                return true;
+            }
+            default:
                 return false;
         }
+    }
+
+    private static boolean oppositeGenders(Battler a, Battler b) {
+        int ga = a.pokemon.gender;
+        int gb = b.pokemon.gender;
+        return ga != pokemon.runtime.pokemon.PokemonStats.GENDERLESS && gb != pokemon.runtime.pokemon.PokemonStats.GENDERLESS && ga != gb;
+    }
+
+    private static boolean anyStatRaised(Battler b) {
+        for (int s = PBStats.ATTACK; s <= PBStats.EVASION; s++) if (b.stage(s) > 0) return true;
+        return false;
+    }
+
+    /** {@code PartyMemberStatused(bank,checkSoundproof)}: a team member (incl. the battler) has a status that Heal Bell/Aromatherapy cures. */
+    private static boolean partyMemberStatused(Battle battle, Battler atk, boolean soundMove) {
+        for (Battler b : battle.partyOf(atk.index)) {
+            if (b == null || b.removedFromParty || b.fainted() || b.pokemon.egg) continue;
+            if (b == atk && soundMove && atk.hasActiveAbility("SOUNDPROOF")) continue;
+            if (b.statused()) return true;
+        }
+        return false;
     }
 
     /** {@code SoundMoveInMoveset(bank)}. */
