@@ -421,6 +421,11 @@ public final class MapScreen extends ScreenAdapter {
             }
 
             @Override
+            public int[] triggeredTrainerEvents() {
+                return MapScreen.this.triggeredTrainerEvents();
+            }
+
+            @Override
             public boolean playerOnCharacter(int characterId) {
                 MapCharacter other = characterId < 0 || eventCharacters == null
                         ? player : eventCharacters.character(characterId);
@@ -731,6 +736,8 @@ public final class MapScreen extends ScreenAdapter {
         } else if (context.messageService().visible()) {
             // The running event ended or was cut short while its window was up.
             context.messageService().close();
+        } else if (!sightQueue.isEmpty() && !scriptDriven) {
+            startQueuedSight();                         // the next spotted trainer event starts once the last one is done
         } else if (!scriptDriven) {
             // Controller advances interpolation too; never update the player twice per frame.
             int beforeX = player.x();
@@ -1071,17 +1078,44 @@ public final class MapScreen extends ScreenAdapter {
                 || sightEvents.size == 0) {
             return;
         }
+        // Game_Player:140-148 pbCheckEventTriggerFromDistance starts every spotting event; they run one after another
+        // (the first of two trainers can wait for the second one, PField_Battles:534-558).
+        sightQueue.clear();
         for (SightTriggers.Sight sight : sightEvents) {
-            MapCharacter character = eventCharacters.character(sight.eventId);
+            if (sightSpotsPlayer(sight)) {
+                sightQueue.add(sight.eventId);
+            }
+        }
+        startQueuedSight();
+    }
+
+    /** The events of {@link #checkSightTriggers()} that have not started yet. */
+    private final java.util.ArrayDeque<Integer> sightQueue = new java.util.ArrayDeque<>();
+
+    /** One sight event sees the player now and its current page is an Event Touch page. */
+    private boolean sightSpotsPlayer(SightTriggers.Sight sight) {
+        MapCharacter character = eventCharacters.character(sight.eventId);
+        if (character == null) {
+            return false;
+        }
+        int steps = SightTriggers.lineSteps(character.x(), character.y(), character.direction(),
+                player.x(), player.y(), sight.distance);
+        if (steps < 0) {
+            return false;
+        }
+        if (sight.kind == SightTriggers.Kind.TRAINER && !lineOfSightClear(character, steps)) {
+            return false;
+        }
+        return EventTriggers.eventIdAt(gameState, mapData, character.x(), character.y(),
+                EventTriggers.EVENT_TOUCH) == sight.eventId;
+    }
+
+    /** Starts the next queued sight event whose page still starts (the shared interpreter runs one page at a time). */
+    private void startQueuedSight() {
+        while (!sightQueue.isEmpty()) {
+            int id = sightQueue.poll();
+            MapCharacter character = eventCharacters == null ? null : eventCharacters.character(id);
             if (character == null) {
-                continue;
-            }
-            int steps = SightTriggers.lineSteps(character.x(), character.y(), character.direction(),
-                    player.x(), player.y(), sight.distance);
-            if (steps < 0) {
-                continue;
-            }
-            if (sight.kind == SightTriggers.Kind.TRAINER && !lineOfSightClear(character, steps)) {
                 continue;
             }
             if (startEvent(character.x(), character.y(), EventTriggers.EVENT_TOUCH)) {
@@ -1095,6 +1129,21 @@ public final class MapScreen extends ScreenAdapter {
                 return; // one page at a time: the shared interpreter owns the frame
             }
         }
+    }
+
+    /** {@code pbTriggeredTrainerEvents([2],false)} (Game_Player:104-119): the Trainer(N) events that see the player. */
+    int[] triggeredTrainerEvents() {
+        java.util.List<Integer> ids = new java.util.ArrayList<>();
+        if (eventCharacters != null) {
+            for (SightTriggers.Sight sight : sightEvents) {
+                if (sight.kind == SightTriggers.Kind.TRAINER && sightSpotsPlayer(sight)) {
+                    ids.add(sight.eventId);
+                }
+            }
+        }
+        int[] ret = new int[ids.size()];
+        for (int i = 0; i < ret.length; i++) ret[i] = ids.get(i);
+        return ret;
     }
 
     /** pbEventCanReachPlayer? passability: every tile strictly between is open. */

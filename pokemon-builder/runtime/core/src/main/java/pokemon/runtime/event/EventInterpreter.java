@@ -277,6 +277,14 @@ public final class EventInterpreter {
                 && menuRequest == null
                 && (battlePort == null || !battlePort.pending())
                 && (repeatFrames.size > 0 || pendingSteps != null || stack.size > 0)) {
+            if (waitingFinishEvent >= 0 && (battlePort == null || !battlePort.pending())) {
+                // PField_Battles:574-576: the waiting trainer is done once the battle is won.
+                BattleResult finished = battlePort == null ? null : battlePort.lastResult();
+                if (finished != null && finished.won()) {
+                    state.selfSwitches().set(mapId, waitingFinishEvent, "A", true);
+                }
+                waitingFinishEvent = -1;
+            }
             if (pendingOutcomeVar > 0 && (battlePort == null || !battlePort.pending())) {
                 // PField_Battles:510-516: the finished battle's decision lands
                 // in its outcome variable before the event continues.
@@ -1616,6 +1624,7 @@ public final class EventInterpreter {
                 }
                 String species = ir.getString("species", "");
                 int level = ir.getInt("level", 5);
+                if (doubleRefusalFirst()) return;
                 applyBattleSwitches();
                 // PField_Battles:343 + :359-361: the outcome variable (1 by
                 // default) receives the decision when the battle is over.
@@ -1635,6 +1644,7 @@ public final class EventInterpreter {
                     log.warn("FREE_WILD_BATTLE of an unknown local; skipped");
                     break;
                 }
+                if (doubleRefusalFirst()) return;
                 applyBattleSwitches();
                 pendingOutcomeVar = prepareWildBattle(ir);
                 BattleResult result = battlePort.freeWildBattle(foe);
@@ -1666,6 +1676,11 @@ public final class EventInterpreter {
                     }
                     opponents.add(trainer2);
                 }
+                if (doubleRefusalFirst()) return;
+                if (second == null && deferToSecondTrainer(trainer)) {             // PField_Battles:534-558
+                    break;                                                         // pbTrainerBattle returns false
+                }
+                trainerWithWaiting(opponents);                                     // PField_Battles:564-569
                 if (ir.getBoolean("double", false)) {
                     state.battleRules().record("double", null);                    // :588 setBattleRule("double")
                 }
@@ -2027,6 +2042,7 @@ public final class EventInterpreter {
         }
         String species = wild.group(1);
         int level = Integer.parseInt(wild.group(2));
+        if (doubleRefusalFirst()) return;
         applyBattleSwitches();
         int outcomeVar = prepareWildBattle(null);
         battlePort.wildBattle(species, level);
@@ -2058,9 +2074,99 @@ public final class EventInterpreter {
             program.skipBlock();
             return;
         }
+        if (doubleRefusalFirst()) return;
+        if (deferToSecondTrainer(data)) {                                  // PField_Battles:534-558: returns false
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        java.util.List<PbsData.TrainerData> opponents = new java.util.ArrayList<>();
+        opponents.add(data);
+        trainerWithWaiting(opponents);                                     // PField_Battles:564-569
         int outcomeVar = prepareTrainerBattle();
-        battlePort.trainerBattle(data);
+        applyBattleSwitches();
+        battlePort.trainerBattle(opponents);
         pendingBattleCondition = new BattleCondition(program, command, outcomeVar);
+    }
+
+    /** The refusal of {@code pbPrepareBattle} (PField_Battles:92) was shown for the command that is about to retry. */
+    private boolean doubleRefusalShown;
+
+    /**
+     * PField_Battles:88-93: with the forced-double switch (41) on and fewer than two able Pokemon and no partner,
+     * {@code pbPrepareBattle} shows "你的宝可梦数量不足以进行双打！" and the battle goes on as it was. The line is shown
+     * first and the battle command runs again once it is closed.
+     *
+     * @return true when the message was started (the caller returns and is run again)
+     */
+    private boolean doubleRefusalFirst() {
+        if (doubleRefusalShown) {
+            doubleRefusalShown = false;
+            return false;
+        }
+        if (!state.switches().get(41) || state.partner() != null || ableCount() >= 2) {
+            return false;
+        }
+        doubleRefusalShown = true;
+        if (pendingSteps != null && pendingStepIndex > 0) {
+            pendingStepIndex--;                                            // the step is run again after the message
+        }
+        showHandlerMessage("你的宝可梦数量不足以进行双打！");
+        return true;
+    }
+
+    /** {@code $Trainer.ablePokemonCount}. */
+    private int ableCount() {
+        int count = 0;
+        for (Pokemon p : state.trainer().party.members()) {
+            if (p != null && !p.egg && p.hp > 0) count++;
+        }
+        return count;
+    }
+
+    /** The event whose win marks a waiting trainer's self switch (PField_Battles:574-576), or -1. */
+    private int waitingFinishEvent = -1;
+
+    /**
+     * PField_Battles:534-558: two trainer events spotted the player at once. The first one records itself in
+     * {@code $PokemonTemp.waitingTrainer} and ends without a battle; the second one then fights both.
+     *
+     * @return true when this trainer was recorded to wait (the battle does not start)
+     */
+    private boolean deferToSecondTrainer(PbsData.TrainerData trainer) {
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        if (rules.waitingTrainer != null || mapPort == null) {
+            return false;                                                  // :534 !waitingTrainer
+        }
+        int able = ableCount();
+        if (!(able > 1 || (able > 0 && state.partner() != null))) {       // :535-536
+            return false;
+        }
+        int others = 0;
+        for (int id : mapPort.triggeredTrainerEvents()) {                  // :539 pbTriggeredTrainerEvents([2],false)
+            if (id == eventId) continue;                                   // :542
+            if (state.selfSwitches().get(mapId, id, "A")) continue;        // :543
+            others++;
+        }
+        if (others == 1 && trainer.party.size <= 6) {                      // :554
+            rules.waitingTrainer = new Object[] { trainer, eventId };      // :555
+            return true;                                                   // :556
+        }
+        return false;
+    }
+
+    /**
+     * PField_Battles:562-569: the recorded waiting trainer fights first, and the double rule applies. Its event gets
+     * its self switch when the battle is won (:574-576), which {@link #execute()} does once the battle is over.
+     */
+    private void trainerWithWaiting(java.util.List<PbsData.TrainerData> opponents) {
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        Object[] waiting = rules.waitingTrainer instanceof Object[] ? (Object[]) rules.waitingTrainer : null;
+        if (waiting == null) return;
+        opponents.add(0, (PbsData.TrainerData) waiting[0]);
+        waitingFinishEvent = (Integer) waiting[1];
+        rules.waitingTrainer = null;                                       // :577
+        rules.record("double", null);                                      // :562 setBattleRule("double")
     }
 
     /**
@@ -2158,6 +2264,7 @@ public final class EventInterpreter {
         }
         battlePort.setLevelLock(state.switches().get(199), state.switches().get(12));
         battlePort.setSwitchSource(id -> state.switches().get(id));
+        battlePort.setVariableSource(id -> state.variables().get(id));          // $game_variables[100]: level follow
         // Settings:32 FATEFUL_ENCOUNTER_SWITCH / PField_Encounters:951-955.
         battlePort.setObtainMap(state.currentMapId());
         battlePort.setFatefulEncounter(state.switches().get(32));

@@ -69,6 +69,9 @@ public final class BattleRules {
         return value instanceof Number ? ((Number) value).intValue() : null;
     }
 
+    /** {@code $PokemonTemp.waitingTrainer} (PField_Metadata:213): {trainer data, event id}; not cleared with the rules. */
+    public Object waitingTrainer;
+
     /** {@code clearBattleRules} (PField_Battles:23-25). */
     public void clear() {
         size = null;

@@ -89,6 +89,10 @@ public interface BattlePort {
     default void setSwitchSource(java.util.function.IntPredicate switches) {
     }
 
+    /** {@code $game_variables}: variable 100 is the level-follow mode of trainer battles. */
+    default void setVariableSource(java.util.function.IntUnaryOperator variables) {
+    }
+
     /**
      * PField_Battles:146-151 + :181-188: the map's MetadataEnvironment as a
      * PBEnvironment id (-1 when it declares none), which decides

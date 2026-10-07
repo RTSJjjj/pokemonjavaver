@@ -37,6 +37,7 @@ public final class InteractiveBattlePort implements BattlePort {
     private java.util.function.IntPredicate gameSwitches;
     /** $game_switches[199] / [12] for pbGainExpOne's level lock. */
     private boolean levelLockOn;
+    private java.util.function.IntUnaryOperator gameVariables;
     private boolean leaguePass;
     public InteractiveBattlePort(TrainerState trainer, Inventory inventory, Supplier<PbsData> data, Runnable whiteout, Random random) {
         this.trainer = trainer; this.inventory = inventory; this.data = data; this.whiteout = whiteout; this.random = random;
@@ -159,6 +160,10 @@ public final class InteractiveBattlePort implements BattlePort {
     /** {@code $game_switches} reads switch 60 ("不可捕捉的野外对战"). */
     public void setSwitchSource(java.util.function.IntPredicate switches) {
         this.gameSwitches = switches;
+    }
+    /** {@code $game_variables}: variable 100 is the project's level-follow mode (PField_Battles:468, Battle_StartAndEnd:142). */
+    public void setVariableSource(java.util.function.IntUnaryOperator variables) {
+        this.gameVariables = variables;
     }
     /**
      * PField_Battles:146-151 + :181-188: the map's MetadataEnvironment decides
@@ -287,6 +292,15 @@ public final class InteractiveBattlePort implements BattlePort {
             boolean roomForPartner = foeCount > 1;
             if (!roomForPartner && size != null && !isSingleSize(size)) roomForPartner = true;
             boolean withPartner = partnerParty != null && !noPartner && roomForPartner;
+            int levelFollow = gameVariables == null ? 0 : gameVariables.applyAsInt(100);
+            if (trainerBattle && withPartner && levelFollow > 0) {                   // PField_Battles:468-480
+                int maxLevel = 0;
+                for (Pokemon p : trainer.party.members()) {
+                    if (p == null || p.egg || p.level <= maxLevel) continue;
+                    maxLevel = p.level;
+                }
+                for (Pokemon p : partnerParty) setLevelKeepingHp(p, maxLevel);
+            }
             for (Pokemon p : trainer.party.members()) battle.addPlayer(p);
             if (withPartner) {
                 for (Pokemon p : partnerParty) battle.addPartner(p);
@@ -296,6 +310,25 @@ public final class InteractiveBattlePort implements BattlePort {
                 battle.partnerName = partnerFullname;
                 partnerTrainerType = partnerType;
                 if (size == null) size = "double";                                   // :317 / :486 setBattleRule("double") if !size
+            }
+            if (trainerBattle && levelFollow > 0) {                                  // Battle_StartAndEnd:140-161 "动态等级"
+                int level = 1;
+                java.util.List<Pokemon> mine = new java.util.ArrayList<>();
+                for (Pokemon p : trainer.party.members()) mine.add(p);
+                if (withPartner) for (Pokemon p : partnerParty) mine.add(p);
+                if (levelFollow == 2) {                                              // :145 average level
+                    int sum = 0;
+                    for (Pokemon p : mine) sum += p.level;
+                    level = Math.max(1, mine.isEmpty() ? 0 : sum / mine.size());
+                } else if (levelFollow == 1) {                                       // :150 highest level
+                    for (Pokemon p : mine) if (level < p.level) level = p.level;
+                }
+                for (Array<Pokemon> team : teams) {
+                    for (Pokemon p : team) {
+                        if (p.level == 1) continue;                                  // :157
+                        if (p.level < level) setLevelKeepingHp(p, level);            // :158-159
+                    }
+                }
             }
             for (int owner = 0; owner < teams.size(); owner++) {
                 for (Pokemon p : teams.get(owner)) {
@@ -334,6 +367,15 @@ public final class InteractiveBattlePort implements BattlePort {
                 endSpeech2 = trainerData2.loseText == null || trainerData2.loseText.isEmpty()
                         ? "..." : trainerData2.loseText;
             }
+        }
+
+        /** {@code pkmn.level = level; pkmn.calcStats}: exp follows the level, a full-HP Pokemon stays full. */
+        private void setLevelKeepingHp(Pokemon p, int level) {
+            if (p == null || p.level == level) return;
+            boolean full = p.hp >= p.maxHp();
+            p.level = level;
+            p.exp = pokemon.runtime.pokemon.PokemonStats.experienceForLevel(p.growthRate(), level);
+            p.hp = full ? p.maxHp() : Math.min(p.hp, p.maxHp());
         }
 
         /** {@code ["single","1v1","1v2","1v3"].include?(size)} (PField_Battles:305, :461). */

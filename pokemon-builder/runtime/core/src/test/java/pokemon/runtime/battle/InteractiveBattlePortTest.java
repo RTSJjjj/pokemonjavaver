@@ -346,6 +346,35 @@ class InteractiveBattlePortTest {
         assertTrue(session.replaceMessage(2, 1).startsWith("Friend派出了"), "pbMessagesOnReplace's trainer branch");
     }
 
+    @Test void variable100FollowsTheLevelsInTrainerBattlesOnly() {
+        // PField_Battles:468-480 (the partner takes the player's highest level), Battle_StartAndEnd:140-161 (foes rise to it).
+        trainer.first().level = 30;
+        Pokemon partner = pokemon(5);
+        port.setPartner("", "Friend", java.util.Arrays.asList(partner));
+        port.setVariableSource(id -> id == 100 ? 1 : 0);
+        port.setBattleSize("double");
+        PbsData.TrainerData one = trainerOf("One");
+        one.party.first().level = 10;
+        PbsData.TrainerData two = trainerOf("Two");
+        two.party.first().level = 1;
+        port.trainerBattle(java.util.Arrays.asList(one, two));
+        Battle battle = port.session().battle;
+        assertEquals(30, partner.level);
+        assertEquals(30, battle.battlerAt(1).level(), "an opposing Pokemon below the level is raised");
+        assertEquals(1, battle.battlerAt(3).level(), "a level 1 Pokemon is left alone (:157)");
+    }
+
+    @Test void variable100DoesNotChangeWildBattles() {
+        trainer.first().level = 30;
+        Pokemon partner = pokemon(5);
+        port.setPartner("", "Friend", java.util.Arrays.asList(partner));
+        port.setVariableSource(id -> id == 100 ? 1 : 0);
+        Pokemon wild = pokemon(10);
+        port.freeWildBattle(java.util.Arrays.asList(wild, pokemon(10)));
+        assertEquals(10, wild.level);
+        assertEquals(5, partner.level);
+    }
+
     @Test void partyStartsMarkWhereEachTrainersTeamBegins() {
         port.setPartner("", "Friend", java.util.Arrays.asList(pokemon(20)));
         port.setBattleSize("double");

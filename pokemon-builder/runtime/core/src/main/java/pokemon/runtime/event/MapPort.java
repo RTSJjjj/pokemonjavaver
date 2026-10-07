@@ -44,6 +44,14 @@ public interface MapPort {
     }
 
     /**
+     * {@code $game_player.pbTriggeredTrainerEvents([2],false)} (Game_Player:104-119): ids of the Trainer(N) events that
+     * see the player right now (PField_Battles:539 asks it to find a second trainer for a double battle).
+     */
+    default int[] triggeredTrainerEvents() {
+        return new int[0];
+    }
+
+    /**
      * Wait for Move's Completion (210). RMXP's command carries no target: it
      * waits for the player's forced route and every event's forced route, which
      * is what lets a door script finish walking the hero into the doorway first.
