@@ -346,8 +346,26 @@ public final class BattleAttackPhase {
         }
     }
 
-    /** {@code pbAttackPhase} (:169-194), without the actions the battle screen plays (class javadoc). */
+    /**
+     * {@code pbAttackPhase} (:169-194), without the actions the battle screen plays (class javadoc).
+     * When the screen asked for the switch round's {@code pbPursuit} first
+     * ({@link Battle#pbPursuitOnSwitch}) the prologue (:171-184) has already run.
+     */
     public static void pbAttackPhase(Battle battle) {
+        if (battle.attackPhasePrepared) {
+            battle.attackPhasePrepared = false;
+        } else {
+            pbAttackPhasePrologue(battle);
+        }
+        // Perform actions
+        pbAttackPhasePriorityChangeMessages(battle);                                  // :186
+        // :187-191 call / switch / items: see class javadoc
+        // :192 pbAttackPhaseMegaEvolution: see class javadoc
+        pbAttackPhaseMoves(battle);                                                   // :193
+    }
+
+    /** {@code pbAttackPhase} :170-184: the resets and the round's move order. */
+    public static void pbAttackPhasePrologue(Battle battle) {
         // @scene.pbBeginAttackPhase - nothing to do without a scene
         // Reset certain effects
         for (int i = 0; i <= battle.maxBattlerIndex(); i++) {                         // :172
@@ -369,10 +387,5 @@ public final class BattleAttackPhase {
         }
         // Calculate move order for this round
         pbCalculatePriority(battle, true, null);                                      // :184
-        // Perform actions
-        pbAttackPhasePriorityChangeMessages(battle);                                  // :186
-        // :187-191 call / switch / items: see class javadoc
-        // :192 pbAttackPhaseMegaEvolution: see class javadoc
-        pbAttackPhaseMoves(battle);                                                   // :193
     }
 }

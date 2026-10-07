@@ -253,7 +253,8 @@ public final class Battle {
     /** Items, switching and failed escapes spend the player's action. */
     public BattleResult foeTurn() {
         if (result() != null) return result();
-        turns++;
+        if (!roundStarted) turns++;                                // pbPursuitOnSwitch already advanced it
+        roundStarted = false;
         roundMessages.clear();
         roundEvents.clear();
         Battler foe = foe();
@@ -1010,6 +1011,35 @@ public final class Battle {
         endOfRoundMessages.clear();
         BattleEndOfRoundPhase.pbEndOfRoundPhase(this);
         endOfRoundZa();
+    }
+
+    /** The round's prologue (turn counter, resets, move order) already ran in {@link #pbPursuitOnSwitch}. */
+    public boolean attackPhasePrepared;
+    /** {@code turns} was already advanced for this round by {@link #pbPursuitOnSwitch}. */
+    private boolean roundStarted;
+
+    /**
+     * {@code pbAttackPhase} up to {@code pbAttackPhaseSwitch}'s {@code pbPursuit(b.index)}
+     * (Battle_Phase_Attack:169-186, :50-59) for a round whose player action is a switch:
+     * the opposing battler has chosen its move, the order is calculated, and a Pursuit
+     * aimed at the switcher hits before it leaves. The caller shows the recall line first
+     * (:57) and plays {@link #roundEvents} before the recall animation (:68).
+     * 登记: :186 {@code pbAttackPhasePriorityChangeMessages} then plays after the switch, not before it.
+     */
+    public void pbPursuitOnSwitch(int idxSwitcher) {
+        turns++;
+        roundMessages.clear();
+        roundEvents.clear();
+        roundStarted = true;
+        Battler foe = foe();
+        Battler player = player();
+        if (foe == null || player == null) {
+            return;
+        }
+        chooseFor(foe, player, null);                              // Battle_Phase_Command
+        BattleAttackPhase.pbAttackPhasePrologue(this);             // :171-184
+        attackPhasePrepared = true;
+        pbPursuit(idxSwitcher);                                    // :59
     }
 
     /** {@code pbEndOfRoundPhase}. */

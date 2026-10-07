@@ -291,6 +291,30 @@ public final class InteractiveBattlePort implements BattlePort {
         }
 
         /**
+         * {@code pbAttackPhaseSwitch} (Battle_Phase_Attack:57-59): after the recall line, a
+         * Pursuit aimed at the switching Pokemon hits before it leaves. The events are
+         * taken with {@link #takeEvents()}.
+         *
+         * @return true when something happened that has to be played first
+         */
+        public boolean pursuitOnSwitch() {
+            if (result != null || battle.player() == null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
+            battle.pbPursuitOnSwitch(battle.player().index);
+            engineEvents.addAll(battle.roundEvents);
+            result = battle.result();
+            applyExpPot();
+            message = null;
+            if (result != null) {
+                endMessage();
+            }
+            return engineEvents.size > 0 || result != null;
+        }
+
+        /**
          * The rest of the round after the player's action:
          * {@code pbAttackPhaseMoves} / {@code pbEndOfRoundPhase}. Whatever this
          * action already printed ({@code message}) comes first, then the lines the
