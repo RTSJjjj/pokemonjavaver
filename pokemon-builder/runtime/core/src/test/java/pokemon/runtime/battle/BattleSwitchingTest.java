@@ -130,28 +130,105 @@ class BattleSwitchingTest {
         assertEquals(BattleResult.Outcome.DRAW, battle.result().outcome);
     }
 
+    /** {@code @scene}: records every call and answers from a script. */
+    static final class ScriptedScene implements Battle.Scene {
+        final java.util.List<String> log = new java.util.ArrayList<>();
+        final java.util.ArrayDeque<Integer> parties = new java.util.ArrayDeque<>();
+        final java.util.ArrayDeque<Boolean> confirms = new java.util.ArrayDeque<>();
+
+        @Override public void pbPartyScreen(int idxBattler, boolean canCancel, java.util.function.IntFunction<String> block) {
+            log.add("party:" + idxBattler + (canCancel ? ":cancel" : ""));
+            int pick = parties.isEmpty() ? -1 : parties.poll();
+            if (pick >= 0) {
+                assertNull(block.apply(pick), "the party screen accepted a Pokemon the block refuses");
+            }
+        }
+
+        @Override public boolean pbDisplayConfirmMessage(String msg) {
+            log.add("confirm:" + msg);
+            return confirms.isEmpty() || confirms.poll();
+        }
+
+        @Override public void pbRecall(int idxBattler) {
+            log.add("recall:" + idxBattler);
+        }
+
+        @Override public void pbShowPartyLineup(int side) {
+            log.add("lineup:" + side);
+        }
+
+        @Override public void pbSendOutBattlers(int[] idxBattlers, boolean startBattle) {
+            log.add("sendout:" + idxBattlers[0]);
+        }
+    }
+
+    private static final String NL = String.valueOf((char) 10);
+
     @Test
-    @DisplayName("B2: pbEORSwitch plans the player's replacement in a wild battle")
-    void eorSwitchPlanWild(@TempDir Path tempDir) throws Exception {
+    @DisplayName("pbEORSwitch: the player's fainted Pokemon in a wild battle - question, party screen, lineup, line, send-out (:209-231, :256-262)")
+    void eorSwitchWild(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle battle = battle(data, "HERO", "FOE");
+        battle.addPlayer(pokemon(data, "HERO", 20));
+        Battler second = battle.playerParty().get(1);
+        battle.player().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.parties.add(1);
+        battle.scene = scene;
+
+        battle.pbEORSwitch(false);
+
+        // :221 the question, :228 pbGetReplacementPokemonIndex (lax), :257 no recall of a fainted one, :259, :326
+        assertEquals(java.util.Arrays.asList("confirm:要更换宝可梦吗？", "party:0", "lineup:0", "sendout:0"), scene.log);
+        assertSame(second, battle.player());
+        // :260 pbMessagesOnReplace: the opposing Pokemon is at full HP
+        assertEquals("加油啊！" + NL + second.name(), battle.roundMessages.peek());
+    }
+
+    @Test
+    @DisplayName("pbEORSwitch: answering no tries to run, and a failed run still switches (:221-224)")
+    void eorSwitchWildRefusedRun(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle battle = battle(data, "HERO", "FOE");
+        battle.addPlayer(pokemon(data, "HERO", 20));
+        battle.setCanRun(false);                                   // Battle_Action_Running:74-76 returns 0
+        battle.player().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.confirms.add(false);
+        scene.parties.add(1);
+        battle.scene = scene;
+
+        battle.pbEORSwitch(false);
+
+        assertEquals(1, battle.playerFieldIndex(), ":222 pbRun(...)<=0 -> :227 switch");
+        assertTrue(battle.roundMessages.contains("逃跑失败了！", false));
+        assertEquals(0, battle.decision);
+    }
+
+    @Test
+    @DisplayName("pbEORSwitch: answering no and getting away ends the battle as an escape (Battle_Action_Running:143-153)")
+    void eorSwitchWildRun(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "FOE");
         battle.addPlayer(pokemon(data, "HERO", 20));
         battle.player().hp = 0;
+        // make the fastest opponent slower than the runner so the rate is 256 (:143-145)
+        battle.foe().pokemon.level = 1;
+        battle.player().pokemon.level = 100;
+        ScriptedScene scene = new ScriptedScene();
+        scene.confirms.add(false);
+        battle.scene = scene;
 
-        com.badlogic.gdx.utils.Array<Battle.Replacement> plan = battle.eorSwitchPlan(false);
-        assertEquals(1, plan.size, "only the player's side has a replacement");
-        Battle.Replacement replacement = plan.first();
-        assertEquals(0, replacement.idxBattler);
-        assertTrue(replacement.playerSide);
-        assertFalse(replacement.ownerChooses);
-        // :221 the wild-battle form asks "要更换宝可梦吗？".
-        assertTrue(replacement.askConfirm);
-        assertFalse(replacement.bossBattle);
+        battle.pbEORSwitch(false);
+
+        assertEquals(3, battle.decision, ":152 @decision = 3");
+        assertEquals(BattleResult.Outcome.ESCAPE, battle.result().outcome);
+        assertEquals(0, battle.playerFieldIndex(), "nothing was sent out");
     }
 
     @Test
-    @DisplayName("B2: a wild Boss (battleRank>1) is not asked about, it just switches")
-    void eorSwitchPlanBoss(@TempDir Path tempDir) throws Exception {
+    @DisplayName("pbEORSwitch: a wild Boss (battleRank>1) is not asked about, it just switches (:218-220)")
+    void eorSwitchBoss(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Pokemon foe = pokemon(data, "FOE", 20);
         foe.battleRank = 3;
@@ -160,56 +237,159 @@ class BattleSwitchingTest {
                 .addPlayer(pokemon(data, "HERO", 20))
                 .addFoe(foe);
         battle.player().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.parties.add(1);
+        battle.scene = scene;
 
-        Battle.Replacement replacement = battle.eorSwitchPlan(false).first();
-        // :211-219 bossBattle is true, so :218-220 sets switch = true without a
-        // question and without the run attempt.
-        assertTrue(replacement.bossBattle);
-        assertFalse(replacement.askConfirm);
+        battle.pbEORSwitch(false);
+
+        assertEquals(java.util.Arrays.asList("party:0", "lineup:0", "sendout:0"), scene.log);
     }
 
     @Test
-    @DisplayName("B2: a wild foe is never replaced, a trainer's is")
-    void eorSwitchPlanFoeSide(@TempDir Path tempDir) throws Exception {
+    @DisplayName("pbEORSwitch: a wild foe is never replaced, a trainer's is by the AI (:179-180, :203)")
+    void eorSwitchFoeSide(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle wild = battle(data, "HERO", "FOE");
+        wild.addFoe(pokemon(data, "FOE", 20));
         wild.foe().hp = 0;
-        assertEquals(0, wild.eorSwitchPlan(false).size,
-                ":179 a wild Pokemon cannot switch out");
+        ScriptedScene wildScene = new ScriptedScene();
+        wild.scene = wildScene;
+        wild.pbEORSwitch(false);
+        assertEquals(0, wild.foeFieldIndex(), ":179 a wild Pokemon cannot switch out");
+        assertTrue(wildScene.log.isEmpty());
 
         Battle trainer = battle(data, "HERO", "FOE");
         trainer.trainerBattle = true;
+        trainer.switchStyle = false;
+        trainer.opponentName = "Rival";
         trainer.addFoe(pokemon(data, "FOE", 20));
+        Battler next = trainer.foeParty().get(1);
         trainer.foe().hp = 0;
-        com.badlogic.gdx.utils.Array<Battle.Replacement> plan = trainer.eorSwitchPlan(false);
-        assertEquals(1, plan.size);
-        assertFalse(plan.first().playerSide);
-        assertFalse(plan.first().ownerChooses, ":180 the AI picks");
+        ScriptedScene scene = new ScriptedScene();
+        trainer.scene = scene;
+        trainer.pbEORSwitch(false);
+        assertSame(next, trainer.foe());
+        assertEquals(java.util.Arrays.asList("lineup:1", "sendout:1"), scene.log, ":180 the AI picks, no question without the Switch style");
+        assertEquals("Rival派出了" + NL + next.name() + "！", trainer.roundMessages.peek());
     }
 
     @Test
-    @DisplayName("B2: a trainer battle makes the player pick its replacement (:205-208)")
-    void eorSwitchPlanPlayerInTrainerBattle(@TempDir Path tempDir) throws Exception {
+    @DisplayName("pbEORSwitch: the Switch style offers the player a change before the opponent's next Pokemon (:185-202)")
+    void eorSwitchOffer(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle battle = battle(data, "HERO", "FOE");
+        battle.trainerBattle = true;
+        battle.switchStyle = true;
+        battle.opponentName = "Rival";
+        battle.addPlayer(pokemon(data, "HERO", 20));
+        battle.addFoe(pokemon(data, "FOE", 20));
+        Battler mine = battle.playerParty().get(1);
+        Battler theirs = battle.foeParty().get(1);
+        battle.foe().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.confirms.add(true);
+        scene.parties.add(1);
+        battle.scene = scene;
+
+        battle.pbEORSwitch(false);
+
+        assertEquals("confirm:Rival将要派出" + theirs.name() + "。" + NL + "要更换宝可梦吗？", scene.log.get(0));
+        assertEquals("party:0:cancel", scene.log.get(1), ":195 pbSwitchInBetween(0,false,true)");
+        // :198 the player's Pokemon is recalled and replaced first, then the opponent's (:203)
+        assertEquals(java.util.Arrays.asList("recall:0", "lineup:0", "sendout:0", "lineup:1", "sendout:1"),
+                scene.log.subList(2, scene.log.size()));
+        assertSame(mine, battle.player());
+        assertSame(theirs, battle.foe());
+    }
+
+    @Test
+    @DisplayName("pbEORSwitch: cancelling the offered change leaves the player's Pokemon (:196)")
+    void eorSwitchOfferCancelled(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle battle = battle(data, "HERO", "FOE");
+        battle.trainerBattle = true;
+        battle.switchStyle = true;
+        battle.addPlayer(pokemon(data, "HERO", 20));
+        battle.addFoe(pokemon(data, "FOE", 20));
+        Battler lead = battle.player();
+        battle.foe().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.confirms.add(true);
+        scene.parties.add(-1);
+        battle.scene = scene;
+
+        battle.pbEORSwitch(false);
+
+        assertSame(lead, battle.player());
+        assertEquals(1, battle.foeFieldIndex());
+    }
+
+    @Test
+    @DisplayName("pbEORSwitch: a trainer battle makes the player pick its replacement without a question (:205-208)")
+    void eorSwitchPlayerInTrainerBattle(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "FOE");
         battle.trainerBattle = true;
         battle.addPlayer(pokemon(data, "HERO", 20));
         battle.player().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.parties.add(1);
+        battle.scene = scene;
 
-        Battle.Replacement replacement = battle.eorSwitchPlan(false).first();
-        assertTrue(replacement.playerSide);
-        assertTrue(replacement.ownerChooses, ":206 pbGetReplacementPokemonIndex");
-        assertFalse(replacement.askConfirm);
+        battle.pbEORSwitch(false);
+
+        assertEquals(java.util.Arrays.asList("party:0", "lineup:0", "sendout:0"), scene.log);
+        assertEquals(1, battle.playerFieldIndex());
     }
 
     @Test
-    @DisplayName("B2: a decided battle has no end-of-round switch (:168-169)")
-    void eorSwitchPlanStopsWhenDecided(@TempDir Path tempDir) throws Exception {
+    @DisplayName("pbEORSwitch: a decided battle has no end-of-round switch (:168-169)")
+    void eorSwitchStopsWhenDecided(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "FOE");
         battle.player().hp = 0;
         battle.foe().hp = 0;
-        assertEquals(0, battle.eorSwitchPlan(false).size);
+        ScriptedScene scene = new ScriptedScene();
+        battle.scene = scene;
+        battle.pbEORSwitch(false);
+        assertTrue(scene.log.isEmpty());
+        assertEquals(5, battle.decision);
+    }
+
+    @Test
+    @DisplayName("pbCanSwitch?: trapping effects and trapping abilities refuse the switch (:69-107)")
+    void trappedCannotSwitch(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle battle = battle(data, "HERO", "FOE");
+        battle.addPlayer(pokemon(data, "HERO", 20));
+        assertTrue(battle.pbCanSwitch(0, 1));
+        battle.player().effects.set(PBEffects.Battler.MeanLook, 1);
+        assertEquals(battle.player().pbThis() + "无法离开战斗！", battle.canSwitch(0, 1));   // :82-88
+        battle.player().effects.set(PBEffects.Battler.MeanLook, -1);
+        battle.player().effects.set(PBEffects.Battler.Ingrain, true);
+        assertFalse(battle.pbCanSwitch(0, 1));                                              // :83
+        battle.player().hp = 0;
+        assertTrue(battle.pbCanSwitch(0, 1), ":54 a fainted battler can always be replaced");
+    }
+
+    @Test
+    @DisplayName("pbReplace with Baton Pass keeps the effects and stat stages (Battler_Initialize:66-70, :113-124)")
+    void batonPassKeepsEffects(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Battle battle = battle(data, "HERO", "FOE");
+        battle.addPlayer(pokemon(data, "HERO", 20));
+        battle.player().stages[0] = 2;
+        battle.player().effects.set(PBEffects.Battler.Ingrain, true);
+        battle.player().effects.set(PBEffects.Battler.LockOn, 5);
+        Battler incoming = battle.playerParty().get(1);
+
+        battle.pbRecallAndReplace(0, 1, false, true);
+
+        assertSame(incoming, battle.player());
+        assertEquals(2, incoming.stages[0]);
+        assertTrue(incoming.effects.truthy(PBEffects.Battler.Ingrain));
+        assertEquals(2, incoming.effects.intVal(PBEffects.Battler.LockOn), ":117 LockOn is reapplied as 2");
     }
 
     @Test
@@ -229,8 +409,8 @@ class BattleSwitchingTest {
     }
 
     @Test
-    @DisplayName("B2: the getter routes a trainer's replacement to the AI (:241-253)")
-    void getReplacementPokemonIndex(@TempDir Path tempDir) throws Exception {
+    @DisplayName("B2: pbSwitchInBetween sends the player to the party screen and a trainer's Pokemon to the AI (:155-158)")
+    void switchInBetween(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "FOE");
         battle.trainerBattle = true;
@@ -238,11 +418,16 @@ class BattleSwitchingTest {
         battle.addFoe(pokemon(data, "FOE", 20));
         battle.player().hp = 0;
         battle.foe().hp = 0;
+        ScriptedScene scene = new ScriptedScene();
+        scene.parties.add(1);
+        battle.scene = scene;
 
-        // :156 the player chooses through the party screen, which the screen owns.
-        assertEquals(Battle.OWNER_CHOOSES, battle.getReplacementPokemonIndex(0));
-        // :157 a trainer's Pokemon goes straight to the AI.
-        assertEquals(1, battle.getReplacementPokemonIndex(1));
+        // :156 the player chooses through the scene's party screen
+        assertEquals(1, battle.pbSwitchInBetween(0, true, false));
+        assertEquals(java.util.Arrays.asList("party:0"), scene.log);
+        // :157 a trainer's Pokemon goes straight to the AI
+        assertEquals(1, battle.pbSwitchInBetween(1, false, false));
+        assertEquals(1, scene.log.size());
     }
 
     @Test

@@ -20,8 +20,7 @@ import java.util.List;
  * <li>:273-274 {@code @battle.pbCommonAnimation("SeaOfFire")}: {@code @battle} is nil inside
  *     {@code PokeBattle_Battle}, so the plugin raises NoMethodError when a Sea of Fire is up. The
  *     call is skipped here instead of crashing the battle.</li>
- * <li>:743-748 {@code pbEORSwitch} / {@code pbEORShiftDistantBattlers}: the replacement of a fainted
- *     Pokemon is played by the battle screen after the round (singles never shifts).</li>
+ * <li>:748 {@code pbEORShiftDistantBattlers}: only moves distant battlers when the battle is not a single battle.</li>
  * <li>:345-353 Hyper Mode damage and :706-715 Hyper Mode waking: Shadow Pokemon are not modelled
  *     ({@link Battler#inHyperMode()} is false).</li>
  * <li>:751-798 {@code lastAttacker}/{@code lastFoeAttacker}, the reset of the effects below.</li>
@@ -774,7 +773,8 @@ public final class BattleEndOfRoundPhase {
         if (battle.decision > 0) return;                                              // :740
         // Form checks
         for (Battler b : priority) b.pbCheckForm(true);                               // :742
-        // :744 pbEORSwitch / :748 pbEORShiftDistantBattlers: see class javadoc
+        battle.pbEORSwitch(false);                                                    // :744
+        // :748 pbEORShiftDistantBattlers: only moves distant battlers in triple battles
         if (battle.decision > 0) return;                                              // :745
         // Try to make Trace work, check for end of primordial weather
         for (Battler b : priority) b.pbContinualAbilityChecks();                      // :750

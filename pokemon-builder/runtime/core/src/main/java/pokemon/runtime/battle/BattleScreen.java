@@ -370,20 +370,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private int recallPhase;
 
     /**
-     * {@code pbEORSwitch} (Battle_Action_Switching:165-239): the replacements
-     * the round still owes, and where in that list the screen is.
+     * The engine's scene call that is being played as a single step of {@code pbRecallAndReplace}
+     * (Battle_Action_Switching:257/259/326): RECALL, SHOW_PARTY_LINEUP or SEND_OUT; null otherwise.
      */
-    private final List<Battle.Replacement> eorPlan = new ArrayList<>();
-    private int eorIndex;
-    private boolean eorRunning;
-    /**
-     * The replacement's {@code idxParty}. -2 = still to be decided, -1 = nothing
-     * to send out (the Ruby's {@code pbSwitchInBetween} returned -1).
-     */
-    private int eorParty = -2;
-    /** Which decision of one {@code pbEORSwitch} iteration is pending. */
-    private enum EorPhase { PICK, CONFIRM_OPPONENT, CONFIRM_OWN, PARTY, PLAYING }
-    private EorPhase eorPhase = EorPhase.PICK;
+    private Battle.SceneCall.Kind requestKind;
+    /** The engine's {@code pbPartyScreen} block (Battle_Action_Switching:138-149) while its party screen is open. */
+    private java.util.function.IntFunction<String> partyValidator;
+    /** The party screen's answer went to the engine; the update must not return to the command menu. */
+    private boolean partyHandedOver;
 
     /**
      * {@code pbShowCommands} (PokeBattle_Scene:202-237): the message window stays
@@ -477,7 +471,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** {@code pbEORSwitch}'s current phase (Battle_Action_Switching:165-239). */
     public String debugEor() {
-        return eorRunning ? eorPhase.name() + "@" + eorIndex : (partyScreenOpen ? "PARTY" : "none");
+        return session.suspended() ? "ENGINE:" + session.request().kind : (partyScreenOpen ? "PARTY" : "none");
     }
 
     /** {@code pbFadeOutAndHide}'s frame counter, for the probe (-1 when idle). */
@@ -1373,6 +1367,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     }
                     return true;
                 }
+                if (requestKind != null) {                        // @scene.pbRecall(idxBattler) alone (:257)
+                    finishRequestStep(null);
+                    return true;
+                }
                 switchStep = SwitchStep.LINEUP;
                 recallPhase = 0;
                 return true;
@@ -1388,6 +1386,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     return true;
                 }
                 if (inPartyAnimation()) {
+                    return true;
+                }
+                if (requestKind != null) {                        // @scene.pbShowPartyLineup alone (:259)
+                    finishRequestStep(null);
                     return true;
                 }
                 switchStep = SwitchStep.MESSAGE;
@@ -1408,9 +1410,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case REPLACE: {
                 // :261 pbReplace -> :313 pbInitialize(party[idxParty],idxParty,batonPass)
                 session.battle.replace(switchIdxBattler, switchIdxParty);
-                if (eorRunning && !eorSwitched.contains(switchIdxBattler)) {
-                    eorSwitched.add(switchIdxBattler);             // :199/:204/:208/:230 switched.push
-                }
                 refreshDataBoxes();
                 switchStep = SwitchStep.SEND;
                 // :318 pbSendOut([[idxBattler,party[idxParty]]]), startBattle=false
@@ -1432,6 +1431,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 // :325-331 @peer.pbOnEnteringBattle / pbResetMoveIndex / pbSetSeen /
                 // @usedInBattle have no counterpart here; the send-out sequence
                 // itself called pbChangePokemon + pbRefresh (:104-105).
+                if (requestKind != null) {                        // @scene.pbSendOutBattlers alone (:326)
+                    finishRequestStep(null);
+                    return true;
+                }
                 Runnable done = switchCurrent == null ? null : switchCurrent.done;
                 switchCurrent = null;
                 switchStep = SwitchStep.NONE;
@@ -1447,147 +1450,63 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     // =====================================================================
-    // Battle_Action_Switching:165-239 pbEORSwitch
+    // Battle_Action_Switching:136-332: the engine's scene calls
     // =====================================================================
 
     /**
-     * {@code pbEORSwitch} (Battle_Action_Switching:165-239): sends out a
-     * replacement for every fainted battler that still has one left. The Ruby
-     * runs it at the end of {@code pbEndOfRoundPhase}
-     * (Battle_Phase_EndOfRound:744).
-     *
-     * @return true while it is running
+     * The engine ({@code pbEORSwitch}, {@code pbSwitchInBetween}, {@code pbRecallAndReplace}, ...) waits on
+     * {@code call}; the events it produced before are already played. {@link InteractiveBattlePort.Session#answer}
+     * lets it carry on.
      */
-    private boolean beginEorSwitch() {
-        if (eorRunning) {
-            return true;
-        }
-        com.badlogic.gdx.utils.Array<Battle.Replacement> plan =
-                session.battle.eorSwitchPlan(false);
-        if (plan.size == 0) {
-            return false;                                          // :168-169
-        }
-        eorPlan.clear();
-        for (Battle.Replacement replacement : plan) {
-            eorPlan.add(replacement);
-        }
-        eorIndex = 0;
-        eorParty = -2;
-        eorPhase = EorPhase.PICK;
-        eorRunning = true;
-        stepEorSwitch();
-        return true;
-    }
-
-    /** {@code switched} of {@code pbEORSwitch} (Battle_Action_Switching:171, :199/:204/:208/:230). */
-    private final java.util.List<Integer> eorSwitched = new java.util.ArrayList<>();
-
-    private void nextEorReplacement() {
-        eorIndex++;
-        eorParty = -2;
-        eorPhase = EorPhase.PICK;
-        stepEorSwitch();
-    }
-
-    /** One iteration of {@code pbEORSwitch}'s {@code loop do ... end} (:172-238). */
-    private void stepEorSwitch() {
-        if (eorIndex >= eorPlan.size()) {
-            eorRunning = false;                                    // :234 break if switched empty
-            if (!eorSwitched.isEmpty()) {
-                // :235-237 pbPriority(true).each { |b| b.pbEffectsOnSwitchIn(true) if switched.include?(b.index) }
-                int[] switched = new int[eorSwitched.size()];
-                for (int i = 0; i < switched.length; i++) switched[i] = eorSwitched.get(i);
-                eorSwitched.clear();
-                if (session.switchInEffects(switched)) {
-                    pursuitContinuation = this::afterRound;        // the loop runs again (:172)
-                    queueRoundMessages();
-                    return;
-                }
-            }
-            afterRound();
-            return;
-        }
-        if (eorPhase != EorPhase.PICK) {
-            return;                        // a question / the party screen / a switch is up
-        }
-        Battle.Replacement replacement = eorPlan.get(eorIndex);
-        if (!replacement.playerSide) {
-            // :179 next if wildBattle? && opposes?(idxBattler) - already applied by
-            // eorSwitchPlan.
-            // :180 idxPartyNew = pbSwitchInBetween(idxBattler)
-            eorParty = session.battle.getReplacementPokemonIndex(replacement.idxBattler);
-            if (eorParty < 0) {
-                nextEorReplacement();
+    private void beginRequest(Battle.SceneCall call) {
+        switch (call.kind) {
+            case PARTY_SCREEN:
+                // @scene.pbPartyScreen(idxBattler,canCancel){ |idxParty,partyScene| ... } (:138)
+                partyValidator = call.validator;
+                openPartyScreen(call.idxBattler, false, call.canCancel, false);
                 return;
-            }
-            // :185-202 the "Switch" battle style offers the player a change of
-            // their own Pokemon. :187 @battlers[0].effects[PBEffects::Outrage]==0
-            // (no Outrage effect in this runtime).
-            if (session.battle.switchStyle && trainerBattle
-                    && !session.battle.battlerAt(0).fainted()
-                    && session.battle.canChooseNonActive(0)) {
-                eorPhase = EorPhase.CONFIRM_OPPONENT;
-                String question = session.ownerName(1) + "将要派出"
-                        + session.partyName(replacement.idxBattler, eorParty) + "。\n要更换宝可梦吗？";
-                // :193 pbDisplayConfirm -> PokeBattle_Scene:198-200
-                // pbShowCommands(msg,[是,否],1): B answers "否".
-                showChoice(question, 1, pick -> {
-                    if (pick == 0) {
-                        // :196-199 idxPlayerPartyNew = pbSwitchInBetween(0,false,true)
-                        offeredSwitchPending = true;
-                        eorPhase = EorPhase.PARTY;
-                        openPartyScreen(0, false, true, false);
-                    } else {
-                        playEorReplacement(replacement);
-                    }
+            case CONFIRM:
+                // @scene.pbDisplayConfirmMessage(msg) -> PokeBattle_Scene:198-200 pbShowCommands(msg,[是,否],1): B answers "否".
+                showChoice(call.text, 1, pick -> {
+                    session.answer(pick == 0);
+                    queueRoundMessages();
                 });
                 return;
-            }
-            playEorReplacement(replacement);
-            return;
-        }
-        // :209-231 the player's Pokemon fainted in a wild battle / :205-208 in a
-        // trainer battle.
-        if (replacement.bossBattle || trainerBattle) {             // :218-220 / :206-207
-            eorPhase = EorPhase.PARTY;
-            openPartyScreen(replacement.idxBattler, true, false, false);
-            return;
-        }
-        eorPhase = EorPhase.CONFIRM_OWN;
-        // :221 pbDisplayConfirm -> PokeBattle_Scene:199 pbShowCommands(msg,[是,否],1).
-        showChoice("要更换宝可梦吗？", 1, pick -> {                      // :221
-            if (pick == 0) {
-                eorPhase = EorPhase.PARTY;
-                openPartyScreen(replacement.idxBattler, true, false, false);
+            case RECALL:
+                // @scene.pbRecall(idxBattler) (:257): the recall animation and the data box leaving
+                requestKind = call.kind;
+                switchIdxBattler = call.idxBattler;
+                recallPhase = 0;
+                switchStep = SwitchStep.RECALL;
                 return;
-            }
-            // :222 switch = (pbRun(idxBattler,true)<=0)
-            int ran = session.run(true);
-            if (ran == 1) {                                       // fled - the battle ends
-                // pbRun already put its own line in session.message (:151).
-                queueRoundMessages();
+            case SHOW_PARTY_LINEUP:
+                // @scene.pbShowPartyLineup(idxBattler&1) (:259)
+                requestKind = call.kind;
+                switchIdxBattler = call.idxBattler;
+                recallPhase = 0;
+                switchStep = SwitchStep.LINEUP;
                 return;
-            }
-            eorPhase = EorPhase.PARTY;
-            openPartyScreen(replacement.idxBattler, true, false, false);
-        });
+            case SEND_OUT:
+            default:
+                // @scene.pbSendOutBattlers(sendOuts,startBattle) (:326), after pbReplace (:313) swapped the battler
+                requestKind = call.kind;
+                switchIdxBattler = call.idxBattlers[0];
+                refreshDataBoxes();
+                switchStep = SwitchStep.SEND;
+                sendOut = new BattleAnimations.SendOutSequence(this,
+                        java.util.Collections.singletonList(call.idxBattlers), call.startBattle);
+                sendOut.update();
+                return;
+        }
     }
 
-    /**
-     * :229-230 / :203 {@code pbRecallAndReplace}. The Switch-style offer
-     * replaces the player's Pokemon first (:197-198), then the opponent's.
-     */
-    private void playEorReplacement(Battle.Replacement replacement) {
-        eorPhase = EorPhase.PLAYING;
-        queueRecallAndReplace(replacement.idxBattler, eorParty, false, this::nextEorReplacement);
-    }
-
-    /** :197-198 {@code pbMessageOnRecall(@battlers[0]); pbRecallAndReplace(0,...)}. */
-    private void playOfferedPlayerSwitch(int idxParty) {
-        eorPhase = EorPhase.PLAYING;
-        queueRecallAndReplace(0, idxParty, true, null);
-        queueRecallAndReplace(eorPlan.get(eorIndex).idxBattler, eorParty, false,
-                this::nextEorReplacement);
+    /** One of the engine's animation calls has played: it carries on and its events are queued. */
+    private void finishRequestStep(Object answer) {
+        requestKind = null;
+        switchStep = SwitchStep.NONE;
+        recallPhase = 0;
+        session.answer(answer);
+        queueRoundMessages();
     }
 
     // ---------------------------------------------------------------------
@@ -1621,24 +1540,31 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         int idxBattler = partyScreenBattler;
         boolean register = partyRegister;
         boolean laxOnly = partyCheckLaxOnly;
+        java.util.function.IntFunction<String> validator = partyValidator;
         if (chosen < 0) {                                          // pbPartyScreen canCancel
             partyScreenOpen = false;
-            if (register) {
-                go(0);                                             // pbPartyMenu returned false
-            } else if (eorRunning) {
-                // :196-199 pbSwitchInBetween(0,false,true) cancelled: the offer is
-                // declined and the opponent's Pokemon is sent out.
-                playEorReplacement(eorPlan.get(eorIndex));
-            } else {
-                go(0);
+            if (validator != null) {
+                // The engine's pbPartyScreen returns -1 (:137 ret): the block never accepted a Pokemon.
+                partyValidator = null;
+                partyHandedOver = true;
+                page = 0;
+                session.answer(null);
+                queueRoundMessages();
+                return;
             }
+            go(0);                                                 // pbPartyMenu returned false
             return;
         }
-        String refusal = laxOnly
-                ? session.battle.canSwitchLax(idxBattler, chosen)       // :140
-                : session.battle.canSwitch(idxBattler, chosen);         // :142
-        if (refusal == null && register && !session.battle.registerSwitch(idxBattler, chosen)) {
-            refusal = "";                                          // :145
+        String refusal;
+        if (validator != null) {
+            refusal = validator.apply(chosen);                     // the engine's block (:139-148)
+        } else {
+            refusal = laxOnly
+                    ? session.battle.canSwitchLax(idxBattler, chosen)       // :140
+                    : session.battle.canSwitch(idxBattler, chosen);         // :142
+            if (refusal == null && register && !session.battle.registerSwitch(idxBattler, chosen)) {
+                refusal = "";                                      // :145
+            }
         }
         if (refusal != null) {
             // partyScene.pbDisplay(...) - the party screen stays open underneath.
@@ -1648,30 +1574,23 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         partyScreenOpen = false;
+        if (validator != null) {
+            // :147 ret = idxParty (set by the block): the engine carries on with the choice.
+            partyValidator = null;
+            partyHandedOver = true;
+            page = 0;
+            session.answer(null);
+            queueRoundMessages();
+            return;
+        }
         if (register) {
             // pbAttackPhaseSwitch:57 pbMessageOnRecall, :59 pbPursuit, :68 pbRecallAndReplace
             go(0);
             beginPlayerSwitch(idxBattler, chosen);
             return;
         }
-        if (eorRunning) {
-            if (eorPhase == EorPhase.PARTY) {
-                if (offeredSwitchPending) {
-                    offeredSwitchPending = false;
-                    playOfferedPlayerSwitch(chosen);
-                } else {
-                    // :228 pbGetReplacementPokemonIndex - the owner's choice.
-                    eorParty = chosen;
-                    playEorReplacement(eorPlan.get(eorIndex));
-                }
-            }
-            return;
-        }
         go(0);
     }
-
-    /** The Switch-style offer's party screen (:196): the player's switch comes first. */
-    private boolean offeredSwitchPending;
 
     /** {@code pbShowCommands(msg,[是否],defaultValue)} (PokeBattle_Scene:202-237). */
     private void showChoice(String question, int defaultValue,
@@ -1910,6 +1829,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // keeps the input and pbShowCommands' window never sees it.
         stage = Stage.BATTLE;
         heldExp = -1f;
+        if (session.suspended()) {
+            // The engine (pbEORSwitch, a move's pbSwitchInBetween, ...) waits on a scene call.
+            beginRequest(session.request());
+            return;
+        }
         if (pursuitContinuation != null) {
             Runnable continuation = pursuitContinuation;
             pursuitContinuation = null;
@@ -1917,9 +1841,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 continuation.run();
                 return;
             }
-        }
-        if (beginEorSwitch()) {
-            return;
         }
         if (beginTrainerEnd()) {
             return;
@@ -2836,11 +2757,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         roundPlayback = false;
         heldHp[0] = -1;
         heldHp[1] = -1;
-        if (messageReleased) {
+        if (messageReleased && !session.suspended()) {
             message = null;
             messageReleased = false;
         }
-        briefMessage = false;
+        if (!session.suspended()) {
+            briefMessage = false;         // the engine's next scene call keeps the lingering brief line
+        }
         waitMessageFrames = 0;
     }
 
@@ -3263,7 +3186,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 + " queue=" + queue.size()
                 + " choice=" + (choiceOptions != null)
                 + " switch=" + switchStep
-                + " eor=" + (eorRunning ? eorPhase + "#" + eorIndex : "off")
+                + " engine=" + (session.suspended() ? session.request().kind.name() : "off")
                 + " anims=" + animations.size()
                 + " sendOut=" + (sendOut == null ? "-" : (sendOut.done() ? "done" : "running"))
                 + " party=" + partyScreenOpen
@@ -3383,11 +3306,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (updateSwitch()) {
             return;
         }
-        // ---- pbEORSwitch's questions and party screen (Battle_Action_Switching:165-239) ----
-        if (eorRunning && eorPhase == EorPhase.PICK) {
-            stepEorSwitch();
-            return;
-        }
         // ---- message window (pbDisplayMessage / pbDisplayPausedMessage) ----
         if (message != null && !messageReleased) {
             tickMessage(input);
@@ -3407,8 +3325,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 if (!partyScreenOpen) {
                     // The command-menu form of pbPartyScreen returns to the
                     // command phase unless a switch was registered (which
-                    // finishPartyScreen has already taken over).
-                    if (switchStep != SwitchStep.NONE || eorRunning) {
+                    // finishPartyScreen has already taken over) or the answer went to the engine.
+                    if (partyHandedOver) {
+                        partyHandedOver = false;
+                        return;
+                    }
+                    if (switchStep != SwitchStep.NONE) {
                         return;
                     }
                     go(0);
@@ -4216,6 +4138,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     @Override public void resize(int width, int height) { viewport.update(width, height, true); }
     @Override public void dispose() {
+        session.abortEngine();
         batch.dispose(); assets.dispose(); font.dispose(); narrowFont.dispose(); smallFont.dispose();
         if (spriteShader != null) spriteShader.dispose();
     }

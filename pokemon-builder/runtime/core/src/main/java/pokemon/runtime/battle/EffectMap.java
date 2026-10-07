@@ -75,6 +75,12 @@ public final class EffectMap {
         map.clear();
     }
 
+    /** Baton Pass: the incoming battler keeps the outgoing one's {@code @effects} (Battler_Initialize:66-70, pbInitEffects(true)). */
+    public void copyFrom(EffectMap other) {
+        map.clear();
+        map.putAll(other.map);
+    }
+
     /**
      * Ruby truthiness of {@code @effects[idx]}: {@code nil} and {@code false}
      * are falsy, <b>everything else including {@code 0} and {@code ""} is

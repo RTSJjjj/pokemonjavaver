@@ -64,8 +64,8 @@ class BattleApiTest {
         assertTrue(battle.sideStatUps[0].isEmpty());
         assertTrue(battle.sideStatUps[1].isEmpty());
 
-        // :41 @scene - 登记 placeholder, and the injected tables.
-        assertNull(battle.scene);
+        // :41 @scene - answered without a screen until the battle screen installs its own, and the injected tables.
+        assertTrue(battle.scene instanceof Battle.HeadlessScene);
         assertSame(data, battle.pbs());
 
         // :52 @turnCount (Java's turns()).
@@ -337,8 +337,8 @@ class BattleApiTest {
         Battle alone = battle(data, "HERO", "FOE");
         assertEquals(-1, alone.pbGetReplacementPokemonIndex(0, true));
 
-        // random=false opens the party screen (the screen owns it).
-        assertEquals(Battle.OWNER_CHOOSES, battle.pbGetReplacementPokemonIndex(0));
+        // random=false is pbSwitchInBetween (:251): without a screen the headless scene takes the first Pokemon the block accepts.
+        assertEquals(1, battle.pbGetReplacementPokemonIndex(0));
     }
 
     @Test

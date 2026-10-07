@@ -266,6 +266,7 @@ public final class Battle {
     }
 
     public BattleResult result() {
+        if (this.decision == 3) return finish(BattleResult.Outcome.ESCAPE);   // @decision = 3 (Battle_Action_Running:152 etc.)
         int decision = judge();
         if (decision == 2) return finish(BattleResult.Outcome.LOSS);
         if (decision == 1) return finish(BattleResult.Outcome.WIN);
@@ -302,6 +303,11 @@ public final class Battle {
      * {@link Battler#resetForSwitchIn()}.</p>
      */
     public boolean replace(int idxBattler, int idxParty) {
+        return replace(idxBattler, idxParty, false);
+    }
+
+    /** {@code pbReplace(idxBattler,idxParty,batonPass)}'s {@code pbInitialize} (Battle_Action_Switching:313). */
+    public boolean replace(int idxBattler, int idxParty, boolean batonPass) {
         Array<Battler> party = partyOf(idxBattler);
         if (party == null || idxParty < 0 || idxParty >= party.size) {
             return false;
@@ -312,12 +318,24 @@ public final class Battle {
         }
         Battler outgoing = battlerAt(idxBattler);
         incoming.resetForSwitchIn();                               // :313 pbInitialize
+        if (batonPass && outgoing != null && outgoing != incoming) {
+            incoming.pbInheritBatonPass(outgoing);                 // Battler_Initialize:68 pbInitEffects(true) keeps the passed effects
+        }
         if ((idxBattler & 1) == 0) {
             playerField = idxParty;
         } else {
             foeField = idxParty;
         }
         refreshFieldIndices();
+        if (outgoing != null && outgoing != incoming) {
+            // Ruby's @battlers[idxBattler] is ONE object that now holds the new Pokemon; here every party member is
+            // its own Battler, so the leaving one keeps naming the slot (until the next refreshFieldIndices) for the
+            // effect code that goes on with its reference (user.index, user.pbEffectsOnSwitchIn(true), ...).
+            outgoing.index = idxBattler;
+        }
+        if (batonPass && outgoing != null && outgoing != incoming) {
+            incoming.initEffects(true);                            // Battler_Initialize:68 pbInitEffects(batonPass)
+        }
         // @battlers[idxBattler] stays the same object in the plugin; here the slot's battler is a
         // different object, so the move-order table has to point at it (:319).
         for (Object[] entry : priority) {
@@ -511,42 +529,108 @@ public final class Battle {
         if (candidate.fainted()) {
             return candidate.name() + "已经无法战斗了！";            // :24-28
         }
-        if (candidate.index == idxBattler) {
+        if (battlerAt(idxBattler) == candidate) {
             return candidate.name() + "已经参与战斗了！";            // :29-33 pbFindBattler
         }
         return null;
     }
 
     /**
-     * {@code pbCanSwitch?} (Battle_Action_Switching:41-113). The
-     * ability/item/trapping branches (:55-107) need the ability and PBEffects
-     * systems, neither of which this runtime has; this project's data reaches
-     * the Ghost branch (:67) and otherwise allows the switch.
+     * {@code pbCanSwitch?(idxBattler,idxParty=-1,partyScene=nil)} (Battle_Action_Switching:41-113).
+     *
+     * @return null when the battler can switch out; otherwise the {@code partyScene.pbDisplay} line the plugin
+     *         shows in the party screen ("" for the branches that show nothing)
      */
     public String canSwitch(int idxBattler, int idxParty) {
+        // Check whether party Pokemon can switch in
         String lax = canSwitchLax(idxBattler, idxParty);           // :43
         if (lax != null) {
             return lax;
         }
-        // :46-51 another battler on the same side already chose this party
-        // entry. Singles fields one battler per side, so there is no other
-        // chooser.
-        Battler battler = battlerAt(idxBattler);
+        // Make sure another battler isn't already choosing to switch to the party Pokemon
+        for (Battler b : eachSameSideBattler(idxBattler)) {        // :46
+            Object[] c = choices(b.index);
+            if (!":SwitchOut".equals(c[0]) || !Integer.valueOf(idxParty).equals(c[1])) {   // :47
+                continue;
+            }
+            return partyOf(idxBattler).get(idxParty).name() + "已经被选择了！";          // :48-49
+        }
+        // Check whether battler can switch out
+        Battler battler = battlerAt(idxBattler);                   // :53
         if (battler == null) {
             return "";
         }
-        if (battler.fainted()) {
-            return null;                                          // :54
+        if (battler.fainted()) {                                   // :54
+            return null;
         }
-        // :56-65 triggerCertainSwitchingUserAbility/Item - no abilities/items.
-        if (NEWEST_BATTLE_MECHANICS && battler.hasType("GHOST")) {
-            return null;                                          // :67
+        // Ability/item effects that allow switching no matter what
+        if (battler.abilityActive()) {                             // :56
+            if (BattleHandlers.triggerCertainSwitchingUserAbility(battler.ability, battler, this)) {   // :57
+                return null;                                       // :58
+            }
         }
-        // :69-107 Octolock / Jaw Lock / Trapping / Mean Look / Ingrain /
-        // NoRetreat / CurseNail / FierceKilling / FairyLock / trapping
-        // abilities and items: none of these effects exist in this runtime.
-        // :108-111 Commander is a multi-battler mechanic.
-        return null;
+        if (battler.itemActive()) {                                // :61
+            if (BattleHandlers.triggerCertainSwitchingUserItem(battler.item, battler, this)) {         // :62
+                return null;                                       // :63
+            }
+        }
+        // Other certain switching effects
+        if (NEWEST_BATTLE_MECHANICS && battler.pbHasType("GHOST")) {   // :67
+            return null;
+        }
+        // Other certain trapping effects
+        if (battler.effects.intVal(PBEffects.Battler.OctolockUser) >= 0) {   // :69
+            return battler.pbThis() + "无法离开战斗！";             // :70
+        }
+        if (battler.effects.truthy(PBEffects.Battler.JawLock)) {   // :73
+            for (Battler b : allBattlersRaw()) {                   // :74 @battlers.each
+                if (battler.effects.intVal(PBEffects.Battler.JawLockUser) == b.index && !b.fainted()) {   // :75
+                    return battler.pbThis() + "无法离开战斗！";     // :76
+                }
+            }
+        }
+        if (battler.effects.intVal(PBEffects.Battler.Trapping) > 0                  // :81
+                || battler.effects.intVal(PBEffects.Battler.MeanLook) >= 0          // :82
+                || battler.effects.truthy(PBEffects.Battler.Ingrain)                // :83
+                || battler.effects.truthy(PBEffects.Battler.NoRetreat)              // :84
+                || battler.effects.intVal(PBEffects.Battler.CurseNail) > 0          // :85 咒钉
+                || battler.effects.intVal(PBEffects.Battler.FierceKilling) > 0      // :86 断刃鏖杀
+                || field.effects.intVal(PBEffects.Field.FairyLock) > 0) {           // :87
+            return battler.pbThis() + "无法离开战斗！";             // :88
+        }
+        // Trapping abilities/items
+        for (Battler b : eachOtherSideBattler(idxBattler)) {       // :92
+            if (!b.abilityActive()) {                              // :93
+                continue;
+            }
+            if (BattleHandlers.triggerTrappingTargetAbility(b.ability, battler, b, this)) {   // :94
+                return b.pbThis() + "的" + b.abilityName() + "生效了" + NL + "对方无法离开战斗！";   // :95-96
+            }
+        }
+        for (Battler b : eachOtherSideBattler(idxBattler)) {       // :100
+            if (!b.itemActive()) {                                 // :101
+                continue;
+            }
+            if (BattleHandlers.triggerTrappingTargetItem(b.item, battler, b, this)) {         // :102
+                return b.pbThis() + "的" + b.itemName() + "生效了" + NL + "对方无法离开战斗！";      // :103-104
+            }
+        }
+        if (battler.effects.truthy(PBEffects.Battler.Commander)) { // :108
+            return battler.pbThis() + "无法被换上！";               // :109
+        }
+        return null;                                               // :112
+    }
+
+    private static final String NL = String.valueOf((char) 10);
+
+    /** {@code @battlers} without the fainted filter (the Ruby's plain {@code @battlers.each}). */
+    private Array<Battler> allBattlersRaw() {
+        Array<Battler> out = new Array<>();
+        for (int i = 0; i < 2; i++) {
+            Battler b = battlerAt(i);
+            if (b != null) out.add(b);
+        }
+        return out;
     }
 
     /** {@code pbCanChooseNonActive?} (Battle_Action_Switching:115-120). */
@@ -581,23 +665,6 @@ public final class Battle {
         c[2] = null;                                               // :126
         c[3] = -1;                                                 // :127
         return true;
-    }
-
-    /**
-     * {@code pbGetReplacementPokemonIndex(idxBattler,false)}
-     * (Battle_Action_Switching:241-253): the owner chooses through
-     * {@code pbSwitchInBetween}. For the player that is the party screen, which
-     * this method cannot show - it returns {@link #OWNER_CHOOSES} and the battle
-     * screen asks. A trainer's Pokemon goes straight to the AI
-     * ({@code :157 pbDefaultChooseNewEnemy}).
-     */
-    public static final int OWNER_CHOOSES = -2;
-
-    public int getReplacementPokemonIndex(int idxBattler) {
-        if ((idxBattler & 1) == 0) {                               // :156 pbOwnedByPlayer?
-            return OWNER_CHOOSES;                                  // pbPartyScreen
-        }
-        return defaultChooseNewEnemy(idxBattler);                  // :157
     }
 
     /**
@@ -668,76 +735,6 @@ public final class Battle {
         return Math.round(pbs.effectiveness(type, target.types()) * 4f);
     }
 
-    /**
-     * One fainted battler {@code pbEORSwitch} (Battle_Action_Switching:165-239)
-     * has to replace, with the branch that decides who picks the replacement.
-     */
-    public static final class Replacement {
-        public int idxBattler;
-        /** {@code pbOwnedByPlayer?(idxBattler)}. */
-        public boolean playerSide;
-        /** Trainer battle: the owner picks through the party screen (:205-208). */
-        public boolean ownerChooses;
-        /** Wild battle: {@code pbDisplayConfirm("要更换宝可梦吗？")} decides (:221-226). */
-        public boolean askConfirm;
-        /** {@code :218-220} bossBattle (a foe with {@code battleRank>1}). */
-        public boolean bossBattle;
-    }
-
-    /**
-     * The replacement pass of {@code pbEORSwitch} (Battle_Action_Switching:165-239):
-     * every fainted battler that still has a Pokemon to send out, in field-slot
-     * order. The Ruby runs the whole replacement itself, including the party
-     * screen and the confirmation prompts; this runtime's screen owns that UI,
-     * so the engine only reports what has to happen.
-     *
-     * @param favorDraws {@code pbEORSwitch}'s argument (:166-167): false when
-     *                   called from the end of a round.
-     */
-    public Array<Replacement> eorSwitchPlan(boolean favorDraws) {
-        Array<Replacement> plan = new Array<>();
-        int decision = judge();                                    // :168 pbJudge
-        if (decision != 0 && !favorDraws) {
-            return plan;                                           // :166
-        }
-        if (decision == 5 && favorDraws) {
-            return plan;                                           // :167
-        }
-        if (decision != 0) {
-            return plan;                                           // :169
-        }
-        for (int idxBattler = 0; idxBattler < 2; idxBattler++) {    // :174 @battlers.each
-            Battler battler = battlerAt(idxBattler);
-            if (battler == null || !battler.fainted()) {
-                continue;                                          // :175-176
-            }
-            if (!canChooseNonActive(idxBattler)) {
-                continue;                                          // :177
-            }
-            Replacement replacement = new Replacement();
-            replacement.idxBattler = idxBattler;
-            replacement.playerSide = (idxBattler & 1) == 0;
-            if (!replacement.playerSide) {                          // :178 opponent
-                if (!trainerBattle) {
-                    continue;                                      // :179 wild Pokemon can't switch
-                }
-                replacement.ownerChooses = false;                   // :180 pbSwitchInBetween
-            } else if (trainerBattle) {                             // :205
-                replacement.ownerChooses = true;                    // :206-207
-            } else {                                               // :209 wild battle
-                for (Battler opposing : opposingBattlers(idxBattler)) {   // :211-216
-                    if (opposing.pokemon != null && opposing.pokemon.battleRank > 1) {
-                        replacement.bossBattle = true;
-                        break;
-                    }
-                }
-                replacement.askConfirm = !replacement.bossBattle;   // :218-226
-            }
-            plan.add(replacement);
-        }
-        return plan;
-    }
-
     public Array<Battler> playerParty() {
         return playerParty;
     }
@@ -749,8 +746,8 @@ public final class Battle {
     /**
      * Runs the battle until one side is out of able Pokemon or {@code maxTurns}
      * is reached; HP is written back onto the Pokemon either way. A fainted
-     * battler is replaced by the next able one like {@code pbEORSwitch} does,
-     * but without any of its prompts (there is no UI here).
+     * battler is replaced by {@code pbEORSwitch} (at the end of the round) with
+     * the {@link HeadlessScene} answering its prompts (there is no UI here).
      */
     public BattleResult run(int maxTurns) {
         while (turns < maxTurns) {
@@ -761,40 +758,8 @@ public final class Battle {
             turns++;
             roundEvents.clear();       // no scene plays them in a headless battle
             runTurn(player(), foe());
-            headlessEorSwitch();
         }
         return finish(BattleResult.Outcome.ESCAPE);
-    }
-
-    /** {@code pbEORSwitch} (Battle_Action_Switching:165-239) with no UI. */
-    private void headlessEorSwitch() {
-        if (judge() != 0) {                                        // :168-169
-            return;
-        }
-        for (int side = 0; side < 2; side++) {                     // :174 @battlers.each
-            Array<Battler> party = partyBySide(side);
-            int field = side == 0 ? playerField : foeField;
-            if (field < 0 || !party.get(field).fainted()) {
-                continue;                                          // :175-176
-            }
-            // :177 pbCanChooseNonActive? + :180/:206 pbGetReplacementPokemonIndex
-            // (the AI picks; the player would be prompted).
-            int next = firstAble(party);
-            if (next < 0) {
-                continue;
-            }
-            if (side == 0) {
-                playerField = next;
-            } else {
-                // :179 a wild Pokemon never switches out, so a wild foe's slot
-                // stays empty and the battle is judged as won.
-                if (!trainerBattle) {
-                    continue;
-                }
-                foeField = next;
-            }
-        }
-        refreshFieldIndices();
     }
 
     private void runTurn(Battler player, Battler foe) {
@@ -1910,15 +1875,6 @@ public final class Battle {
      */
     public final java.util.List<int[]>[] sideStatUps = newSideStatUps();
 
-    /**
-     * {@code @scene} (PokeBattle_Battle:41) - 登记: PokeBattle_Battle:41. The
-     * scene ({@code PokeBattle_Scene} / {@code PokeBattle_AnimationPlayer} /
-     * {@code Graphics}) is not modelled in this runtime, so this is a
-     * placeholder that stays {@code null}; the 21 call sites are all registered
-     * (see {@link #showAbilitySplash(Battler)} and friends).
-     */
-    public Object scene;
-
     /** {@code @sideStatUps = [{}, {}]} (PokeBattle_Battle:182): two empty sides. */
     @SuppressWarnings("unchecked")
     private static java.util.List<int[]>[] newSideStatUps() {
@@ -2378,57 +2334,129 @@ public final class Battle {
         return true;                                                // :27
     }
 
-    /** {@code pbGetReplacementPokemonIndex(idxBattler,false)} (Battle_Action_Switching:241-253). */
+    /** {@code pbGetReplacementPokemonIndex(idxBattler,random=false)} (Battle_Action_Switching:241-253). */
     public int pbGetReplacementPokemonIndex(int idxBattler) {
-        return getReplacementPokemonIndex(idxBattler);              // :251 pbSwitchInBetween
+        return BattleSwitchAction.pbGetReplacementPokemonIndex(this, idxBattler, false);
+    }
+
+    /** {@code pbGetReplacementPokemonIndex(idxBattler,random)} (Battle_Action_Switching:241-253). */
+    public int pbGetReplacementPokemonIndex(int idxBattler, boolean random) {
+        return BattleSwitchAction.pbGetReplacementPokemonIndex(this, idxBattler, random);
+    }
+
+    /** {@code pbRecallAndReplace(idxBattler,idxParty)} (Battle_Action_Switching:256-262). */
+    public void pbRecallAndReplace(int idxBattler, int idxParty) {
+        BattleSwitchAction.pbRecallAndReplace(this, idxBattler, idxParty, false, false);
+    }
+
+    /** {@code pbRecallAndReplace(idxBattler,idxParty,randomReplacement,batonPass)} (Battle_Action_Switching:256-262). */
+    public void pbRecallAndReplace(int idxBattler, int idxParty, boolean randomReplacement, boolean batonPass) {
+        BattleSwitchAction.pbRecallAndReplace(this, idxBattler, idxParty, randomReplacement, batonPass);
+    }
+
+    /** {@code pbEORSwitch(favorDraws=false)} (Battle_Action_Switching:165-239). */
+    public void pbEORSwitch(boolean favorDraws) {
+        BattleSwitchAction.pbEORSwitch(this, favorDraws);
+    }
+
+    /** {@code pbSwitchInBetween(idxBattler,checkLaxOnly=false,canCancel=false)} (Battle_Action_Switching:155-158). */
+    public int pbSwitchInBetween(int idxBattler, boolean checkLaxOnly, boolean canCancel) {
+        return BattleSwitchAction.pbSwitchInBetween(this, idxBattler, checkLaxOnly, canCancel);
+    }
+
+    /** {@code pbMessageOnRecall(battler)} (Battle_Action_Switching:264-281). */
+    public void pbMessageOnRecall(Battler battler) {
+        BattleSwitchAction.pbMessageOnRecall(this, battler);
+    }
+
+    /** {@code pbRun(idxBattler,duringBattle=false)} (Battle_Action_Running:36-157). */
+    public int pbRun(int idxBattler, boolean duringBattle) {
+        return BattleSwitchAction.pbRun(this, idxBattler, duringBattle);
+    }
+
+    /** {@code @runCommand} (PokeBattle_Battle): how often the player tried to flee. */
+    public int runCommand;
+
+    /** {@code pbDisplayConfirm(msg)} (PokeBattle_Battle:785-787): {@code @scene.pbDisplayConfirmMessage(msg)}. */
+    public boolean pbDisplayConfirm(String msg) {
+        return scene.pbDisplayConfirmMessage(msg);
     }
 
     /**
-     * {@code pbGetReplacementPokemonIndex(idxBattler,random=false)}
-     * (Battle_Action_Switching:241-253).
-     *
-     * <p>The {@code random=true} branch is fully transcribed ({@code :242-249});
-     * the {@code random=false} branch opens the party screen through
-     * {@code pbSwitchInBetween} ({@code :251}), which the battle screen owns, so
-     * it delegates to the existing {@link #getReplacementPokemonIndex(int)}.</p>
+     * {@code @scene}'s calls that wait for the player or an animation. The battle screen's implementation
+     * hands each call to the screen and the engine waits for it ({@link EngineCoroutine}); the default answers
+     * them without a screen.
      */
-    public int pbGetReplacementPokemonIndex(int idxBattler, boolean random) {
-        if (random) {
-            if (!pbCanSwitch(idxBattler)) {                         // :243 return -1 if !pbCanSwitch?
-                return -1;
-            }
-            Array<Battler> party = partyOf(idxBattler);             // :244-247 eachInTeamFromBattlerIndex
-            Array<Integer> choices = new Array<>();
-            for (int i = 0; i < party.size; i++) {
-                if (canSwitchLax(idxBattler, i) == null) {
-                    choices.add(i);
+    public interface Scene {
+        /** {@code @scene.pbPartyScreen(idxBattler,canCancel){ |idxParty,partyScene| ... }}: the block returns the refusal line or null. */
+        void pbPartyScreen(int idxBattler, boolean canCancel, java.util.function.IntFunction<String> block);
+
+        /** {@code @scene.pbDisplayConfirmMessage(msg)}. */
+        boolean pbDisplayConfirmMessage(String msg);
+
+        /** {@code @scene.pbRecall(idxBattler)} (Scene_Animations:148-166). */
+        void pbRecall(int idxBattler);
+
+        /** {@code @scene.pbShowPartyLineup(side)}. */
+        void pbShowPartyLineup(int side);
+
+        /** {@code @scene.pbSendOutBattlers(sendOuts,startBattle)} (Scene_Animations:85-143). */
+        void pbSendOutBattlers(int[] idxBattlers, boolean startBattle);
+    }
+
+    /** One scene call that waits (what {@link Scene} hands over to the battle screen). */
+    public static final class SceneCall {
+        public enum Kind { PARTY_SCREEN, CONFIRM, RECALL, SHOW_PARTY_LINEUP, SEND_OUT }
+
+        public final Kind kind;
+        public final int idxBattler;
+        public final boolean canCancel;
+        public final java.util.function.IntFunction<String> validator;
+        public final String text;
+        public final int[] idxBattlers;
+        public final boolean startBattle;
+        /** What the screen answers: the confirm's Boolean; nothing for the others. */
+        public Object result;
+
+        SceneCall(Kind kind, int idxBattler, boolean canCancel, java.util.function.IntFunction<String> validator,
+                String text, int[] idxBattlers, boolean startBattle) {
+            this.kind = kind;
+            this.idxBattler = idxBattler;
+            this.canCancel = canCancel;
+            this.validator = validator;
+            this.text = text;
+            this.idxBattlers = idxBattlers;
+            this.startBattle = startBattle;
+        }
+    }
+
+    /** The scene without a screen: the first Pokemon the block accepts, "yes" to every question. */
+    public static final class HeadlessScene implements Scene {
+        @Override public void pbPartyScreen(int idxBattler, boolean canCancel, java.util.function.IntFunction<String> block) {
+            int count = 6;
+            for (int i = 0; i < count; i++) {
+                if (block.apply(i) == null) {
+                    return;
                 }
             }
-            if (choices.size == 0) {                                // :248
-                return -1;
-            }
-            return choices.get(pbRandom(choices.size));             // :249
         }
-        return getReplacementPokemonIndex(idxBattler);              // :251
+
+        @Override public boolean pbDisplayConfirmMessage(String msg) {
+            return true;
+        }
+
+        @Override public void pbRecall(int idxBattler) {
+        }
+
+        @Override public void pbShowPartyLineup(int side) {
+        }
+
+        @Override public void pbSendOutBattlers(int[] idxBattlers, boolean startBattle) {
+        }
     }
 
-    /**
-     * {@code pbRecallAndReplace(idxBattler,idxParty,randomReplacement=false,batonPass=false)}
-     * (Battle_Action_Switching:256-262).
-     *
-     * <p>登记: Battle_Action_Switching:257 ({@code @scene.pbRecall}), :258
-     * ({@code battler.pbAbilitiesOnSwitchOut}), :259
-     * ({@code @scene.pbShowPartyLineup}) and :260 ({@code pbMessagesOnReplace})
-     * - scene/Battler sides not landed. The actual swap ({@code :261 pbReplace})
-     * is the existing {@link #replace(int, int)}.</p>
-     */
-    public void pbRecallAndReplace(int idxBattler, int idxParty) {
-        // 登记: Battle_Action_Switching:257 依赖 PokeBattle_Scene（未建模）
-        // 登记: Battle_Action_Switching:258 依赖 Battler#pbAbilitiesOnSwitchOut（未落地）
-        // 登记: Battle_Action_Switching:259 依赖 PokeBattle_Scene（未建模）
-        // 登记: Battle_Action_Switching:260 依赖 pbMessagesOnReplace / PokeBattle_Scene（未建模）
-        replace(idxBattler, idxParty);                              // :261 pbReplace
-    }
+    /** {@code @scene}. */
+    public Scene scene = new HeadlessScene();
 
     /** {@code pbClearChoice(idxBattler)} (Battle_Phase_Command:5-11): the existing {@link #clearChoice(int)}. */
     public void pbClearChoice(int idxBattler) {

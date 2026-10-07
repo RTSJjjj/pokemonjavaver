@@ -883,10 +883,7 @@ public final class MoveEffects_0D5_0FF {
                 if (newPkmn < 0) {                                           // :3189
                     continue;
                 }
-                // :3190 登记: Ruby 的第三实参 randomReplacement=true 在 Battle.pbRecallAndReplace
-                //        (Battle_Action_Switching:256-262) 的 2 参运行时签名里没有对应档，
-                //        按运行时形状调用
-                battle.pbRecallAndReplace(b.index, newPkmn);
+                battle.pbRecallAndReplace(b.index, newPkmn, true, false);    // :3190 (randomReplacement=true)
                 battle.display(b.pbThis() + "被拖入了战斗！");                 // :3191
                 battle.pbClearChoice(b.index);                               // :3192
                 switchedBattlers.add(b.index);                               // :3193
@@ -951,8 +948,7 @@ public final class MoveEffects_0D5_0FF {
                 if (newPkmn < 0) {                                           // :3232
                     continue;
                 }
-                // :3233 登记: 同 0EB 的 :3190（randomReplacement=true 无对应档）
-                battle.pbRecallAndReplace(b.index, newPkmn);
+                battle.pbRecallAndReplace(b.index, newPkmn, true, false);    // :3233 (randomReplacement=true)
                 battle.display(b.pbThis() + "被拖入了战斗！");                 // :3234
                 battle.pbClearChoice(b.index);                               // :3235
                 switchedBattlers.add(b.index);                               // :3236
@@ -1003,9 +999,7 @@ public final class MoveEffects_0D5_0FF {
             if (newPkmn < 0) {                                               // :3269
                 return;
             }
-            // :3270 登记: Ruby 的后两实参 (randomReplacement=false,batonPass=true) 在
-            //        Battle.pbRecallAndReplace 的 2 参运行时签名里没有对应档
-            battle.pbRecallAndReplace(user.index, newPkmn);
+            battle.pbRecallAndReplace(user.index, newPkmn, false, true);        // :3270 (randomReplacement=false,batonPass=true)
             battle.pbClearChoice(user.index);                                // :3271
             battle.moldBreaker = false;                                      // :3272
             switchedBattlers.add(user.index);                                // :3273

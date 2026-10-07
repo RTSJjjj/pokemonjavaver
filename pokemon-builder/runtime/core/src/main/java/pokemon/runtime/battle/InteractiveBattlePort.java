@@ -233,6 +233,7 @@ public final class InteractiveBattlePort implements BattlePort {
             if (gameSwitches != null) battle.gameSwitches = gameSwitches;   // $game_switches (Battler_UseMove_SuccessChecks:157,165)
             battle.badges = trainer.badges;
             battle.setCryPlayer(cryPlayer);       // Battler_UseMove_SuccessChecks:318-319
+            battle.scene = new CoroutineScene();   // @scene
             for (Pokemon p : trainer.party.members()) battle.addPlayer(p);
             for (Pokemon p : foes) { battle.addFoe(p); trainer.registerSeen(p); }
             // Battle_StartAndEnd:194-228: the "wants to battle" line. It is
@@ -266,6 +267,128 @@ public final class InteractiveBattlePort implements BattlePort {
             return battle.player() != null && battle.pbCanShowCommands(battle.player().index);
         }
 
+        // -----------------------------------------------------------------
+        // The engine runs as a coroutine (EngineCoroutine): a scene call that has to wait for the player or an
+        // animation (the party screen of pbSwitchInBetween, a yes/no question, the recall and send-out of
+        // pbRecallAndReplace) stops it, the battle screen plays the events so far and the call, and the engine
+        // carries on from the same place (Battle_Action_Switching:136-332).
+        // -----------------------------------------------------------------
+
+        /** The engine call that is stopped on a scene call, or null. */
+        private EngineCoroutine engine;
+        /** What the action that started {@link #engine} does with the engine's events once it has stopped or ended. */
+        private Runnable engineTail;
+        /** The scene call {@link #engine} is waiting on. */
+        private Battle.SceneCall request;
+
+        /**
+         * Runs {@code body} as the engine until it ends or stops on a scene call, then {@code tail}.
+         */
+        private void drive(Runnable body, Runnable tail) {
+            if (engine != null) {
+                throw new IllegalStateException("the engine is still waiting on " + request.kind);
+            }
+            engine = new EngineCoroutine(body);
+            engineTail = tail;
+            continueEngine();
+        }
+
+        private void continueEngine() {
+            EngineCoroutine running = engine;
+            boolean finished = running.resume();
+            engineEvents.addAll(battle.roundEvents);
+            battle.roundEvents.clear();
+            if (finished) {
+                engine = null;
+                request = null;
+            } else {
+                request = running.pending();
+            }
+            engineTail.run();
+        }
+
+        /** True while the engine waits on a scene call ({@link #request()}). */
+        public boolean suspended() {
+            return engine != null;
+        }
+
+        /** The scene call the engine waits on. */
+        public Battle.SceneCall request() {
+            return request;
+        }
+
+        /**
+         * The screen has played {@link #request()}; the engine carries on. Its events from here on are taken
+         * with {@link #takeEvents()}.
+         */
+        public void answer(Object value) {
+            request.result = value;
+            continueEngine();
+        }
+
+        /** The screen is closing: lets a waiting engine thread end. */
+        public void abortEngine() {
+            if (engine != null) {
+                engine.abort();
+                engine = null;
+            }
+        }
+
+        /** What most engine calls do with their events once they stop or end. */
+        private void roundTail() {
+            applyExpPot();
+            message = null;
+            endMessage();
+        }
+
+        /** {@code @scene}: the battle screen plays what the engine waits on. */
+        private final class CoroutineScene implements Battle.Scene {
+            private final Battle.HeadlessScene headless = new Battle.HeadlessScene();
+
+            private boolean onEngine() {
+                return engine != null && engine.onEngineThread();
+            }
+
+            @Override public void pbPartyScreen(int idxBattler, boolean canCancel, java.util.function.IntFunction<String> block) {
+                if (!onEngine()) {
+                    headless.pbPartyScreen(idxBattler, canCancel, block);
+                    return;
+                }
+                engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.PARTY_SCREEN, idxBattler, canCancel, block,
+                        null, null, false));
+            }
+
+            @Override public boolean pbDisplayConfirmMessage(String msg) {
+                if (!onEngine()) {
+                    return headless.pbDisplayConfirmMessage(msg);
+                }
+                Object answer = engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.CONFIRM, -1, false, null,
+                        msg, null, false));
+                return Boolean.TRUE.equals(answer);
+            }
+
+            @Override public void pbRecall(int idxBattler) {
+                if (onEngine()) {
+                    engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.RECALL, idxBattler, false, null,
+                            null, null, false));
+                }
+            }
+
+            @Override public void pbShowPartyLineup(int side) {
+                if (onEngine()) {
+                    engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.SHOW_PARTY_LINEUP, side, false, null,
+                            null, null, false));
+                }
+            }
+
+            @Override public void pbSendOutBattlers(int[] idxBattlers, boolean startBattle) {
+                if (onEngine()) {
+                    engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.SEND_OUT, -1, false, null,
+                            null, idxBattlers, startBattle));
+                }
+            }
+        }
+
         /**
          * {@code pbBossBuffPhase} (PokeBattle_BOSS:37-90) at the start of a round. The events are taken
          * with {@link #takeEvents()}.
@@ -278,11 +401,8 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
-            battle.pbBossBuffPhase();
-            engineEvents.addAll(battle.roundEvents);
-            message = null;
-            endMessage();
-            return engineEvents.size > 0;
+            drive(battle::pbBossBuffPhase, this::roundTail);
+            return events.size > 0 || engine != null;
         }
 
         /**
@@ -295,11 +415,7 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
-            result = battle.step();
-            engineEvents.addAll(battle.roundEvents);
-            applyExpPot();
-            message = null;
-            endMessage();
+            drive(() -> result = battle.step(), this::roundTail);
             return true;
         }
 
@@ -321,23 +437,21 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
-            battle.roundMessages.clear();
-            battle.roundEvents.clear();
-            battle.pbAutoChooseMove(user.index, true);             // :43-67 (its lines are in roundEvents)
-            Array<Battle.RoundEvent> chosen = new Array<>(battle.roundEvents);
-            result = battle.step();
-            engineEvents.addAll(chosen);
-            engineEvents.addAll(battle.roundEvents);
-            applyExpPot();
-            message = null;
-            endMessage();
+            drive(() -> {
+                battle.roundMessages.clear();
+                battle.roundEvents.clear();
+                battle.pbAutoChooseMove(user.index, true);         // :43-67 (its lines are in roundEvents)
+                engineEvents.addAll(battle.roundEvents);
+                battle.roundEvents.clear();
+                result = battle.step();
+            }, this::roundTail);
             return true;
         }
 
         /**
          * {@code pbEffectsOnSwitchIn(true)} of the battlers that were just sent out
-         * (Battle_Phase_Attack:69, Battle_Action_Switching:235-237): entry hazards,
-         * Healing Wish, abilities and items. The events are taken with {@link #takeEvents()}.
+         * (Battle_Phase_Attack:69, Battle_Action_Switching:235-237): entry hazards, Healing Wish, abilities and
+         * items. The events are taken with {@link #takeEvents()}.
          *
          * @return true when something happened that has to be played
          */
@@ -347,15 +461,11 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
-            battle.pbSwitchInEffects(idxBattlers);
-            engineEvents.addAll(battle.roundEvents);
-            result = battle.result();
-            applyExpPot();
-            message = null;
-            if (result != null) {
-                endMessage();
-            }
-            return engineEvents.size > 0 || result != null;
+            drive(() -> {
+                battle.pbSwitchInEffects(idxBattlers);
+                result = battle.result();
+            }, this::roundTail);
+            return events.size > 0 || engine != null || result != null;
         }
 
         /** {@code pbOnActiveAll} (Battle_StartAndEnd:354): abilities upon entering battle. */
@@ -365,14 +475,14 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
-            battle.pbOnActiveAllRound();
-            engineEvents.addAll(battle.roundEvents);
-            result = battle.result();
-            message = null;
-            if (result != null) {
+            drive(() -> {
+                battle.pbOnActiveAllRound();
+                result = battle.result();
+            }, () -> {
+                message = null;
                 endMessage();
-            }
-            return engineEvents.size > 0 || result != null;
+            });
+            return events.size > 0 || engine != null || result != null;
         }
 
         /**
@@ -388,15 +498,12 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             log.clear();
             engineEvents.clear();
-            battle.pbPursuitOnSwitch(battle.player().index);
-            engineEvents.addAll(battle.roundEvents);
-            result = battle.result();
-            applyExpPot();
-            message = null;
-            if (result != null) {
-                endMessage();
-            }
-            return engineEvents.size > 0 || result != null;
+            int idxBattler = battle.player().index;
+            drive(() -> {
+                battle.pbPursuitOnSwitch(idxBattler);
+                result = battle.result();
+            }, this::roundTail);
+            return events.size > 0 || engine != null || result != null;
         }
 
         /**
@@ -413,10 +520,10 @@ public final class InteractiveBattlePort implements BattlePort {
             log.clear();
             engineEvents.clear();
             addLog(printed);
-            result = battle.foeTurn();
-            engineEvents.addAll(battle.roundEvents);
-            message = null;
-            endMessage();
+            drive(() -> result = battle.foeTurn(), () -> {
+                message = null;
+                endMessage();
+            });
             return result;
         }
 
@@ -456,14 +563,9 @@ public final class InteractiveBattlePort implements BattlePort {
             if (!battle.registerMove(user.index, slot)) return false;
             log.clear();
             engineEvents.clear();
-            result = battle.step();
-            // Battler_UseMove:305 / Battler_ChangeSelf:71 and the rest of the
-            // round's events, in order (the opponent's included).
-            engineEvents.addAll(battle.roundEvents);
-            // Battle_ExpAndMoveLearning:298-307: the exp pot grows with the gain.
-            applyExpPot();
-            message = null;
-            endMessage();
+            // Battler_UseMove:305 / Battler_ChangeSelf:71 and the rest of the round's events, in order
+            // (the opponent's included); Battle_ExpAndMoveLearning:298-307: the exp pot grows with the gain.
+            drive(() -> result = battle.step(), this::roundTail);
             return true;
         }
 

@@ -107,4 +107,59 @@ class InteractiveBattlePortTest {
         port.finish();
         assertEquals(1, whiteouts, "the rule does not leak into the next battle");
     }
+    @Test void faintedLeadStopsTheEngineOnEachSceneCallOfPbEORSwitch() {
+        // Battle_Action_Switching:165-239 + :256-262: the engine asks the screen, one call at a time, and carries on
+        // from the same place with the answer.
+        trainer.party.add(pokemon(20));
+        trainer.first().hp = 1;
+        port.freeWildBattle(pokemon(100));
+        InteractiveBattlePort.Session session = port.session();
+
+        assertTrue(session.chooseMove(0));
+        assertTrue(session.suspended(), "the lead fainted: pbEORSwitch asks whether to switch (:221)");
+        assertNull(session.result);
+        assertEquals(Battle.SceneCall.Kind.CONFIRM, session.request().kind);
+        assertTrue(session.takeEvents().size > 0, "the round's lines are there to be played first");
+
+        session.answer(true);                                       // :221 yes
+        assertEquals(Battle.SceneCall.Kind.PARTY_SCREEN, session.request().kind);   // :228 -> :251 pbSwitchInBetween
+        assertNull(session.request().validator.apply(1), "the block accepts party slot 1 (:140-148)");
+        session.answer(null);                                       // the party screen accepted party slot 1
+
+        assertEquals(Battle.SceneCall.Kind.SHOW_PARTY_LINEUP, session.request().kind);   // :259 (a fainted one is not recalled, :257)
+        session.answer(null);
+        assertEquals(Battle.SceneCall.Kind.SEND_OUT, session.request().kind);             // :326
+        assertEquals(1, session.battle.playerFieldIndex(), "pbReplace (:313) ran before the send-out");
+        session.answer(null);
+
+        assertFalse(session.suspended());
+        assertNull(session.result);
+        assertSame(trainer.party.get(1), session.battle.player().pokemon);
+    }
+    @Test void uTurnInTheMiddleOfAMoveAsksTheScreenAndTheRoundGoesOn() {
+        // Move_Effects_080-0FF:3284-3309 pbEndOfMoveUsageEffect -> pbGetReplacementPokemonIndex -> pbRecallAndReplace:
+        // the move's effect is stopped on the party screen and carries on with the answer.
+        PbsData.Move uturn = new PbsData.Move(); uturn.id = 2; uturn.internalName = "UTURN"; uturn.name = "急速折返";
+        uturn.type = "BUG"; uturn.power = 70; uturn.pp = 20; uturn.category = "Physical"; uturn.function = "0EE";
+        uturn.target = "NearOther"; data.moves.put("UTURN", uturn);
+        trainer.first().moves.clear();
+        trainer.first().moves.add(new Pokemon.MoveSlot(uturn));
+        trainer.party.add(pokemon(20));
+        port.freeWildBattle(pokemon(20));
+        InteractiveBattlePort.Session session = port.session();
+        Battler lead = session.battle.player();
+
+        assertTrue(session.chooseMove(0));
+        assertTrue(session.suspended(), "U-turn asks which Pokemon comes in (:3302)");
+        assertEquals(Battle.SceneCall.Kind.PARTY_SCREEN, session.request().kind);
+        assertNull(session.request().validator.apply(1));
+        session.answer(null);
+        while (session.suspended()) {                                 // recall (:257), lineup (:259), send-out (:326)
+            session.answer(null);
+        }
+
+        assertEquals(1, session.battle.playerFieldIndex());
+        assertNotSame(lead, session.battle.player());
+        assertEquals(1, session.battle.turns(), "the round went on after the switch");
+    }
 }

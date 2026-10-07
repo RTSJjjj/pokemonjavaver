@@ -2562,7 +2562,7 @@ public final class MoveEffects_180_1FF {
             // 登记: :1594 @battle.moldBreaker = false —— Battle 未暴露 moldBreaker 的写入口
             switchedBattlers.add(user.index);                                  // :1595
             // 登记: :1596 user.pbEffectsOnSwitchIn(true) —— Battler 尚无 pbEffectsOnSwitchIn
-            user.effects.set(PBEffects.Battler.Substitute, oldSub);            // :1597
+            user.battle.battlerAt(user.index).effects.set(PBEffects.Battler.Substitute, oldSub);   // :1597 (user is the slot's battler: the one that came in)
         }
     }
 

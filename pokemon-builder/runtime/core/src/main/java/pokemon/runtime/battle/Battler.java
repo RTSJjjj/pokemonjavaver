@@ -366,6 +366,18 @@ public final class Battler {
         faintedFlag = hp == 0;                                   // :157 @fainted = (@hp==0)
     }
 
+    /**
+     * {@code pbInitialize(pkmn,idxParty,batonPass=true)} (Battler_Initialize:66-70): the incoming Pokemon is the
+     * same {@code PokeBattle_Battler} object in the plugin, so the effects and the stat stages the previous
+     * Pokemon had stay on it; this runtime has one object per party member, so they are copied over.
+     */
+    public void pbInheritBatonPass(Battler outgoing) {
+        effects.copyFrom(outgoing.effects);
+        System.arraycopy(outgoing.stages, 0, stages, 0, stages.length);
+        System.arraycopy(outgoing.hitStages, 0, hitStages, 0, hitStages.length);
+        effectsInitialized = true;                               // pbInitEffects(false) must not run on top of the passed effects
+    }
+
     /** Copies the battle HP and status back onto the Pokemon. */
     public void syncHp() {
         pokemon.hp = Math.max(0, hp);
@@ -1017,6 +1029,19 @@ public final class Battler {
     }
 
     /**
+     * The battler that holds this one's field slot now. Ruby's {@code @battlers[idx]} stays the same object when
+     * {@code pbReplace} swaps the Pokemon; a reference to the Pokemon that left ({@link Battle#replace} leaves its
+     * {@code index} on the slot) therefore means the one that came in.
+     */
+    private Battler currentInSlot() {
+        if (battle == null || index < 0 || index > 1) {
+            return this;
+        }
+        Battler current = battle.battlerAt(index);
+        return current == null ? this : current;
+    }
+
+    /**
      * {@code pbThis(lowerCase=false)} (PokeBattle_Battler:214-231)。
      *
      * <p>本类已有的 {@link #thisName()} 是 M0 前的手写版（只按 {@code foe}/{@code trainerBattle}/
@@ -1025,6 +1050,10 @@ public final class Battler {
      * {@code lowerCase} 在插件里三分支返回同一字符串（作者留的坑，照抄）。</p>
      */
     public String pbThis(boolean lowerCase) {
+        Battler inSlot = currentInSlot();
+        if (inSlot != this) {
+            return inSlot.pbThis(lowerCase);                           // this Pokemon was replaced: the slot's battler is "self"
+        }
         if (opposes(0)) {                                              // :215
             if (trainerBattle) {                                       // :216 @battle.trainerBattle?
                 return "对手的" + name();                               // :217
@@ -4155,6 +4184,11 @@ public final class Battler {
     }
 
     public void pbEffectsOnSwitchIn(boolean switchIn) {
+        Battler inSlot = currentInSlot();
+        if (inSlot != this) {
+            inSlot.pbEffectsOnSwitchIn(switchIn);                      // this Pokemon was replaced (pbReplace): the slot's battler enters
+            return;
+        }
         if (!switchIn) {                                                         // :6
             for (Battler b : battle.allBattlers()) {                             // :7
                 b.droppedBelowHalfHP = false;                                    // :8
