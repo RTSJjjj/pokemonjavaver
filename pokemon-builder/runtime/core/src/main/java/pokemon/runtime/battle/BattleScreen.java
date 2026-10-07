@@ -1533,9 +1533,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         partyScreenOpen = false;
         if (register) {
-            // pbAttackPhaseSwitch:57 pbMessageOnRecall + :68 pbRecallAndReplace
+            // pbAttackPhaseSwitch:57 pbMessageOnRecall, :59 pbPursuit, :68 pbRecallAndReplace
             go(0);
-            queueRecallAndReplace(idxBattler, chosen, true, this::afterPlayerSwitch);
+            beginPlayerSwitch(idxBattler, chosen);
             return;
         }
         if (eorRunning) {
@@ -1614,6 +1614,26 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     // ---------------------------------------------------------------------
     // The round's tail
     // ---------------------------------------------------------------------
+
+    /** What {@link #afterRound()} runs once the events of {@code pbPursuit} (Battle_Phase_Attack:59) have played. */
+    private Runnable pursuitContinuation;
+
+    /**
+     * {@code pbAttackPhaseSwitch} (Battle_Phase_Attack:56-68): the recall line, then a
+     * Pursuit aimed at the switcher, then the recall and the send-out. Without a Pursuit
+     * (the usual case) it is the plain recall-and-replace.
+     */
+    private void beginPlayerSwitch(int idxBattler, int idxParty) {
+        String recall = session.recallMessage(idxBattler);                 // :57 (before the Pursuit hits)
+        if (!session.pursuitOnSwitch()) {                                  // :59
+            queueRecallAndReplace(idxBattler, idxParty, true, this::afterPlayerSwitch);
+            return;
+        }
+        pursuitContinuation = () -> queueRecallAndReplace(idxBattler, idxParty, false,
+                this::afterPlayerSwitch);                                  // :68
+        pushMessages(recall, false);
+        queueRoundMessages();
+    }
 
     /**
      * {@code pbAttackPhase}'s remainder after the player's switch
@@ -1757,6 +1777,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // keeps the input and pbShowCommands' window never sees it.
         stage = Stage.BATTLE;
         heldExp = -1f;
+        if (pursuitContinuation != null) {
+            Runnable continuation = pursuitContinuation;
+            pursuitContinuation = null;
+            if (session.result == null) {                             // :60 return if @decision>0
+                continuation.run();
+                return;
+            }
+        }
         if (beginEorSwitch()) {
             return;
         }
