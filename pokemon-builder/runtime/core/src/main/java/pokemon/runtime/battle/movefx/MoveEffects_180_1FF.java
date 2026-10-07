@@ -2819,8 +2819,7 @@ public final class MoveEffects_180_1FF {
                 return;
             }
             int hpGain = Math.round(target.damageState.hpLost / 2.0f);        // :1757
-            // 登记: :1758 user.pbRecoverHPFromDrain(hpGain,target) —— Battler 尚无
-            //       pbRecoverHPFromDrain（Battler_ChangeSelf:33-48，属下一批）
+            user.pbRecoverHPFromDrain(hpGain, target);                        // :1758
             super.pbEffectAgainstTarget(move, user, target);                  // :1759
         }
     }

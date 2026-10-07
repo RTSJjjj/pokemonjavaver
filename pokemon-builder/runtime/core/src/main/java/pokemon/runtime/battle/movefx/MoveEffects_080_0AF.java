@@ -1839,7 +1839,7 @@ public final class MoveEffects_080_0AF {
      * this layer.</p>
      */
     private static boolean switching(Battle battle) {
-        throw new UnsupportedOperationException("M0 待接线: Battle_Phase_Attack:25 @battle.switching");
+        return battle.switching;                                // Battle_Phase_Attack:25 @switching
     }
 
     /**
@@ -1851,7 +1851,7 @@ public final class MoveEffects_080_0AF {
      * move to {@code MoveFxPendingApi} or land on {@code Battler}.</p>
      */
     private static int pbWeight(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:700 pbWeight");
+        return battler.pbWeight();                             // PokeBattle_Battler:281-292
     }
 
     /**
@@ -1875,8 +1875,7 @@ public final class MoveEffects_080_0AF {
      * form cannot be answered either.</p>
      */
     private static boolean inTwoTurnAttack(Battler battler, String... functionCodes) {
-        throw new UnsupportedOperationException(
-                "M0 待接线: PokeBattle_Battler:718 inTwoTurnAttack?(" + String.join(",", functionCodes) + ")");
+        return battler.inTwoTurnAttack(functionCodes);         // PokeBattle_Battler:718-723
     }
 
     /**
@@ -2044,7 +2043,7 @@ public final class MoveEffects_080_0AF {
      * <p><b>待接线 local stub</b> - the runtime has no commander state.</p>
      */
     private static boolean isCommander(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler isCommander?");
+        return battler.isCommander();
     }
 
     /**
@@ -2056,7 +2055,8 @@ public final class MoveEffects_080_0AF {
      * battle.</p>
      */
     private static String lastMoveUsed(Battle battle) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle @lastMoveUsed");
+        PbsData.Move m = battle.lastMoveUsed > 0 ? battle.pbs().moveById(battle.lastMoveUsed) : null;   // PokeBattle_Battle @lastMoveUsed (id; -1 = none)
+        return m == null ? null : m.internalName;
     }
 
     /**
@@ -2068,8 +2068,7 @@ public final class MoveEffects_080_0AF {
      * Ruby {@code target=nil}).</p>
      */
     private static void pbUseMoveSimple(Battler user, String moveInternalName, Integer targetIndex) {
-        throw new UnsupportedOperationException(
-                "M0 待接线: Move_Effects_080-0FF.rb:1224/1317 pbUseMoveSimple");
+        user.pbUseMoveSimple(moveInternalName, targetIndex == null ? -1 : targetIndex);   // Battler_UseMove:152 (target=nil -> -1)
     }
 
     /**

@@ -1526,6 +1526,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         if (refusal != null) {
             // partyScene.pbDisplay(...) - the party screen stays open underneath.
+            // Battle_Action_Switching:136-150 loops: the chooser starts again after the line.
+            partyView.battleChoose(true, partyCanCancel);
             showBattleMessage(refusal.isEmpty() ? "不能换上这只宝可梦。" : refusal, true);
             return;
         }
@@ -1995,7 +1997,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         // A message shown over the party screen is partyScene.pbDisplay
         // (Battle_Action_Switching:138-143): it closes back into that screen.
-        if (partyScreenOpen) return;
+        if (partyScreenOpen) {
+            window = COMMAND_BOX;          // the party screen is drawn only over the command box: show it again
+            return;
+        }
         // A refused move's line closes back into the fight menu (Scene_Commands:104
         // pbShowWindow(FIGHT_BOX)); the round has not started, so nothing follows.
         if (fightMenuRefusal && page == 1) {

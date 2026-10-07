@@ -1863,8 +1863,8 @@ public final class MoveEffects_0D5_0FF {
      * {@code Battler#pbRecoverHPFromDrain(amt,target,msg=nil)}
      * (Battler_ChangeSelf:33-39, used by 0DD :2800 and 0DE :2824). 本运行时缺此方法。
      */
-    private static int pbRecoverHPFromDrain(Battler battler, int amount, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:33-39 pbRecoverHPFromDrain");
+    private static void pbRecoverHPFromDrain(Battler battler, int amount, Battler target) {
+        battler.pbRecoverHPFromDrain(amount, target);
     }
 
     /**
@@ -1872,7 +1872,7 @@ public final class MoveEffects_0D5_0FF {
      * 本运行时缺此方法。
      */
     private static void pbSleepSelf(Battler battler, String msg, int duration) {
-        throw new UnsupportedOperationException("M0 待接线: Battler pbSleepSelf(msg,duration) (0D9 :2712)");
+        battler.pbSleepSelf(msg, duration);
     }
 
     /**
@@ -1897,7 +1897,7 @@ public final class MoveEffects_0D5_0FF {
      * 0F7 :3782). 本运行时缺此方法。
      */
     private static void pbFlinch(Battler battler, Battler user) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_Statuses:619 pbFlinch");
+        battler.pbFlinch(user);
     }
 
     // The name-taking pbHeldItemTriggerCheck used by Bug Bite/Pluck (0F4 :3544)
@@ -1917,7 +1917,7 @@ public final class MoveEffects_0D5_0FF {
      * {@code pbPrimalReversion}、{@code BattleHandlers.triggerAbilityOnSwitchIn} 等一整套入场钩子）。
      */
     private static void pbEffectsOnSwitchIn(Battler battler, boolean switchIn) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_AbilityAndItem:5-35 pbEffectsOnSwitchIn");
+        battler.pbEffectsOnSwitchIn(switchIn);
     }
 
     /**
@@ -1942,7 +1942,7 @@ public final class MoveEffects_0D5_0FF {
      * 0EC :3187). 本运行时缺此方法（没有 commander 状态）。
      */
     private static boolean isCommander(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:866-869 isCommander?");
+        return battler.isCommander();
     }
 
     // ------------------------------------------------------------------

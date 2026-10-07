@@ -1810,6 +1810,67 @@ public final class Battler {
         return amt;                                                      // :30
     }
 
+    /**
+     * {@code pbWeight} (PokeBattle_Battler:281-292)。登记: {@code @pokemon.weight} 取
+     * {@code species.weight} 的整数部分，与 CaptureCalculator(重球 :182-199)读同一份数据。
+     */
+    public int pbWeight() {
+        int ret = pokemon != null && pokemon.species != null ? (int) pokemon.species.weight : 500;   // :282
+        ret += effects.intVal(PBEffects.Battler.WeightChange);           // :283
+        if (ret < 1) {                                                   // :284
+            ret = 1;
+        }
+        if (abilityActive() && !battle.moldBreaker) {                    // :285
+            ret = (int) BattleHandlers.triggerWeightCalcAbility(ability, this, ret);   // :286
+        }
+        if (itemActive()) {                                              // :288
+            ret = (int) BattleHandlers.triggerWeightCalcItem(item, this, ret);         // :289
+        }
+        return Math.max(ret, 1);                                         // :291
+    }
+
+    /** {@code canChangeType?} (PokeBattle_Battler:585-589)。 */
+    public boolean canChangeType() {
+        return !"MULTITYPE".equals(ability) && !"RKSSYSTEM".equals(ability);   // :586-588
+    }
+
+    /** {@code hasRaisedStatStages?} (Battler_StatStages:383-386)。 */
+    public boolean hasRaisedStatStages() {
+        for (int s : PBStats.EACH_BATTLE_STAT) {                         // :384
+            if (stage(s) > 0) {
+                return true;
+            }
+        }
+        return false;                                                    // :385
+    }
+
+    /** {@code pbRecoverHPFromDrain(amt,target,msg=nil)} (Battler_ChangeSelf:33-48)。 */
+    public void pbRecoverHPFromDrain(int amount, Battler target) {
+        pbRecoverHPFromDrain(amount, target, null);
+    }
+
+    public void pbRecoverHPFromDrain(int amount, Battler target, String msg) {
+        int amt = amount;
+        if (target.hasActiveAbility("LIQUIDOOZE")) {                     // :34
+            PendingApi.pbShowAbilitySplash(battle, target);              // :35
+            pbReduceHP(amt);                                             // :36
+            battle.display(pbThis() + "吸到了污泥浆！");                  // :37
+            PendingApi.pbHideAbilitySplash(battle, target);              // :38
+            pbItemHPHealCheck(0, false);                                 // :39 pbItemHPHealCheck
+        } else {
+            if (msg == null || msg.isEmpty()) {                          // :41
+                msg = pbThis() + "回复了HP！";
+            }
+            battle.display(msg);                                         // :42
+            if (canHeal()) {                                             // :43
+                if (hasActiveItem("BIGROOT")) {                          // :44
+                    amt = (int) Math.floor(amt * 1.3);
+                }
+                pbRecoverHP(amt);                                        // :45
+            }
+        }
+    }
+
     /** {@code canHeal?} (PokeBattle_Battler:684-688)，16 次。 */
     public boolean canHeal() {
         if (fainted() || hp >= maxHp()) {                                // :685

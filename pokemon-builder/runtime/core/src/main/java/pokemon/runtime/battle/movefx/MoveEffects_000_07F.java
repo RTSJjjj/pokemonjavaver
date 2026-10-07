@@ -105,7 +105,7 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#canChangeType?} (PokeBattle_Battler:585-589). */
     private static boolean canChangeType(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:585-589 canChangeType?");
+        return battler.canChangeType();                   // PokeBattle_Battler:585-589
     }
 
     /** {@code Battler#pbCheckFormOnMovesetChange} (Battler_ChangeSelf:217-225). */
@@ -115,7 +115,7 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-12). */
     private static void pbEffectsOnSwitchIn(Battler battler, boolean switchIn) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_AbilityAndItem:5-12 pbEffectsOnSwitchIn");
+        battler.pbEffectsOnSwitchIn(switchIn);
     }
 
     /**
@@ -127,7 +127,7 @@ public final class MoveEffects_000_07F {
      * documented deviation {@code AbilitiesOnHit:487-489} also relies on.</p>
      */
     private static boolean pbHasMove(Battler battler, String internalName) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:551-553 pbHasMove?");
+        return battler.pbHasMove(battler.moveIdOf(internalName));   // PokeBattle_Battler:551-553
     }
 
     /** {@code Battler#attack=} ({@code attr_accessor :attack}, PokeBattle_Battler:15). */
@@ -163,7 +163,7 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#pbWeight} (PokeBattle_Battler:281-292). */
     private static int pbWeight(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:281-292 pbWeight");
+        return battler.pbWeight();                             // PokeBattle_Battler:281-292
     }
 
     /** {@code Battler#addSideStatUps(stat,increment)} (PokeBattle_Battler:892-895). */

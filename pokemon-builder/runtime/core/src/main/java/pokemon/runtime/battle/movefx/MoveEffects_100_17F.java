@@ -3637,12 +3637,12 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battler#canChangeType?} (PokeBattle_Battler:585-589). 本运行时缺此方法。 */
     private static boolean canChangeType(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:585-589 canChangeType?");
+        return battler.canChangeType();
     }
 
     /** {@code Battler#hasRaisedStatStages?} (Battler_StatStages:383-386). 本运行时缺此方法。 */
     private static boolean hasRaisedStatStages(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_StatStages:383-386 hasRaisedStatStages?");
+        return battler.hasRaisedStatStages();
     }
 
     /**
@@ -3650,7 +3650,7 @@ public final class MoveEffects_100_17F {
      * 参数按本运行时的招式身份（内部名）取，{@code null} 即 Ruby 的 -1。本运行时缺此方法。
      */
     private static boolean pbHasMove(Battler battler, String moveInternalName) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:551-553 pbHasMove?");
+        return battler.pbHasMove(battler.moveIdOf(moveInternalName));
     }
 
     /**
@@ -3663,7 +3663,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battler#usingMultiTurnAttack?} (PokeBattle_Battler:708-711). 本运行时缺此方法。 */
     private static boolean usingMultiTurnAttack(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:708-711 usingMultiTurnAttack?");
+        return battler.usingMultiTurnAttack();
     }
 
     /** {@code Battler#belched?} (PokeBattle_Battler:756-758). 本运行时缺此方法。 */
@@ -3672,8 +3672,8 @@ public final class MoveEffects_100_17F {
     }
 
     /** {@code Battler#pbRecoverHPFromDrain(amt,target,msg=nil)} (Battler_ChangeSelf:33-39). 本运行时缺此方法。 */
-    private static int pbRecoverHPFromDrain(Battler battler, int amount, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:33-39 pbRecoverHPFromDrain");
+    private static void pbRecoverHPFromDrain(Battler battler, int amount, Battler target) {
+        battler.pbRecoverHPFromDrain(amount, target);
     }
 
     /** {@code Battler#species} (PokeBattle_Battler，返回种族内部名). 本运行时缺此方法。 */
@@ -3708,7 +3708,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battler#pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-39). 本运行时缺此方法。 */
     private static void pbEffectsOnSwitchIn(Battler battler, boolean switchIn) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_AbilityAndItem:5-39 pbEffectsOnSwitchIn");
+        battler.pbEffectsOnSwitchIn(switchIn);
     }
 
     /**

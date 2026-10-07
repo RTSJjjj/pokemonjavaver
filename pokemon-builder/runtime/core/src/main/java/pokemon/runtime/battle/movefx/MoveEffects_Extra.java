@@ -808,7 +808,7 @@ public final class MoveEffects_Extra {
 
     /** {@code user.currentMove = @id} (Pokemon_ShadowPokemon:598). */
     private static void setCurrentMove(Battler user, int moveId) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler currentMove=");
+        user.currentMove = moveId;                              // PokeBattle_Battler:38
     }
 
     /**

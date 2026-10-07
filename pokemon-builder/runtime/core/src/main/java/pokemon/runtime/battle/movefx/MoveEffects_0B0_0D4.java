@@ -1235,7 +1235,7 @@ public final class MoveEffects_0B0_0D4 {
             if (target.damageState.substitute) {                              // :2226
                 return;
             }
-            pbFlinch(target);                                                 // :2227 target.pbFlinch(user)
+            target.pbFlinch(user);                                            // :2227 target.pbFlinch(user)
         }
     }
 
@@ -1807,51 +1807,50 @@ public final class MoveEffects_0B0_0D4 {
 
     /** {@code user.pbUseMoveSimple(moveID)} (PokeBattle_Battler:...). */
     private static void pbUseMoveSimple(Battler user, int moveId) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler pbUseMoveSimple(" + moveId + ")");
+        pbUseMoveSimple(user, moveId, -1);
     }
 
     /** {@code user.pbUseMoveSimple(moveID,targetIndex)} (PokeBattle_Battler:...). */
     private static void pbUseMoveSimple(Battler user, int moveId, int targetIndex) {
-        throw new UnsupportedOperationException(
-                "M0 待接线: PokeBattle_Battler pbUseMoveSimple(" + moveId + "," + targetIndex + ")");
+        PbsData.Move m = user.battle.pbs().moveById(moveId);
+        user.pbUseMoveSimple(m == null ? null : m.internalName, targetIndex);   // Battler_UseMove:152-165
     }
 
     /** {@code user.currentMove = @id} (PokeBattle_Battler:38 {@code attr_accessor :currentMove}). */
     private static void setCurrentMove(Battler user, int moveId) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:38 currentMove= (" + moveId + ")");
+        user.currentMove = moveId;                              // PokeBattle_Battler:38
     }
 
     /** {@code target.pbFlinch(user)} (Battler_ChangeSelf:...). */
     private static void pbFlinch(Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf pbFlinch");
+        target.pbFlinch();
     }
 
     /** {@code user.pbConfuse(msg)} (Battler_Statuses:531-540). */
     private static void pbConfuse(Battler user, String msg) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_Statuses:531 pbConfuse");
+        user.pbConfuse(msg);
     }
 
     /** {@code user.pbAddTarget(targets,user,target,move,showMessages)} (Battler_UseMove_Targeting:...). */
     private static boolean battlerPbAddTarget(Battler user, Array<Battler> targets, Battler target, BattleMove move,
                                        boolean showMessages) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_UseMove_Targeting pbAddTarget");
+        return pokemon.runtime.battle.BattlerTargeting.pbAddTarget(user, targets, user, target, move, showMessages, false);   // Battler_UseMove_Targeting:243 (5th arg is nearOnly)
     }
 
     /** {@code user.pbAddTargetRandomFoe(targets,user,move,showMessages)} (Battler_UseMove_Targeting:...). */
     private static void battlerPbAddTargetRandomFoe(Battler user, Array<Battler> targets, BattleMove move,
                                              boolean showMessages) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_UseMove_Targeting pbAddTargetRandomFoe");
+        pokemon.runtime.battle.BattlerTargeting.pbAddTargetRandomFoe(user, targets, user, move, showMessages);   // :262 (4th arg is nearOnly)
     }
 
     /** {@code target.pbWeight} (PokeBattle_Battler:700-706). */
     private static int pbWeight(Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:700 pbWeight");
+        return target.pbWeight();
     }
 
     /** {@code Battler#inTwoTurnAttack?(*functionCodes)} (PokeBattle_Battler:718-723). */
     private static boolean inTwoTurnAttack(Battler battler, String... functionCodes) {
-        throw new UnsupportedOperationException(
-                "M0 待接线: PokeBattle_Battler:718 inTwoTurnAttack?(" + String.join(",", functionCodes) + ")");
+        return battler.inTwoTurnAttack(functionCodes);
     }
 
     /** {@code @battle.pbPriority(ignoringFainted)} (Battle_Phase_Attack:...): battlers in priority order. */
