@@ -67,7 +67,7 @@ public final class Battler {
         this.ability = pokemon.ability == null ? "" : pokemon.ability;
         this.item = pokemon.item == null ? "" : pokemon.item;
         // ↑↑↑ end of inserted wiring
-        this.hp = Math.max(0, pokemon.hp);
+        this.hp = Math.max(0, pokemon.hp * bossHpRank(pokemon));   // Battler_Initialize:79 @hp = pkmn.hp * rank
         this.status = pokemon.status == null ? "" : pokemon.status;
         if ("SLEEP".equals(status)) {
             this.sleepTurns = 3;
@@ -114,8 +114,20 @@ public final class Battler {
         return pokemon.level;
     }
 
+    /**
+     * {@code BOSS_HP_RANK} (PokeBattle_BOSS:3), indexed by {@code pokemon.battleRank}
+     * (PokeBattle_BOSS:6 allows 1..7). Like Ruby, an index past the table is an error.
+     */
+    private static final int[] BOSS_HP_RANK = { 1, 1, 2, 5, 10, 15, 15, 20 };
+
+    /** {@code BOSS_HP_RANK[pkmn.battleRank]} (Battler_Initialize:44/78/366). */
+    private static int bossHpRank(Pokemon pokemon) {
+        return BOSS_HP_RANK[pokemon.battleRank];
+    }
+
+    /** {@code @totalhp = pkmn.totalhp * rank} (Battler_Initialize:45/79/367). */
     public int maxHp() {
-        return pokemon.maxHp();
+        return pokemon.maxHp() * bossHpRank(pokemon);
     }
 
     public boolean fainted() {
