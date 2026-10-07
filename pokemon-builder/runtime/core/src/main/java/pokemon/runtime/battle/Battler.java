@@ -2441,7 +2441,7 @@ public final class Battler {
         pbAbilityStatusCureCheck();                                        // :299
         if ("SLEEP".equals(status) && effects.intVal(PBEffects.Battler.Outrage) > 0) { // :305
             effects.set(PBEffects.Battler.Outrage, 0);                     // :306
-            lastMoveUsed = null;                                           // :307 @currentMove = 0
+            currentMove = 0;                                               // :307 @currentMove = 0 (was mis-mapped to lastMoveUsed = null before stage 5)
         }
     }
 
@@ -3671,6 +3671,215 @@ public final class Battler {
             }
         }
         return false;
+    }
+
+    // ==================================================================
+    // Stage 5 / 2a: turn bookkeeping (Battler_UseMove:71-128) and its helpers
+    // ==================================================================
+
+    /**
+     * {@code @currentMove} (Battler_UseMove:104/178/241, Battler_Statuses:307):
+     * the PBS move id of the multi-turn attack in progress. {@code 0} = none
+     * (Ruby leaves it {@code nil} until first written; {@code usingMultiTurnAttack?}
+     * guards every read, so {@code 0} is equivalent).
+     */
+    public int currentMove;
+
+    /** {@code usingMultiTurnAttack?} (PokeBattle_Battler:708-716). */
+    public boolean usingMultiTurnAttack() {
+        if (effects.intVal(PBEffects.Battler.TwoTurnAttack) > 0) return true;   // :709
+        if (effects.intVal(PBEffects.Battler.HyperBeam) > 0) return true;       // :710
+        if (effects.intVal(PBEffects.Battler.Rollout) > 0) return true;         // :711
+        if (effects.intVal(PBEffects.Battler.Outrage) > 0) return true;         // :712
+        if (effects.intVal(PBEffects.Battler.Uproar) > 0) return true;          // :713
+        if (effects.intVal(PBEffects.Battler.Bide) > 0) return true;            // :714
+        return false;                                                            // :715
+    }
+
+    /**
+     * {@code pbHasMove?(move_id)} (PokeBattle_Battler:551-556). {@code eachMove}
+     * is this runtime's {@code pokemon.moves} (blank slots are not stored).
+     */
+    public boolean pbHasMove(int moveId) {
+        if (moveId <= 0) return false;                                           // :553
+        for (Pokemon.MoveSlot slot : pokemon.moves) {                            // :554 eachMove
+            if (slot != null && slot.move != null && slot.move.id == moveId) return true;
+        }
+        return false;                                                            // :555
+    }
+
+    /** {@code getID(PBMoves,:X)} for the PBS id of a move's internal name; {@code -1} when absent (the {@code -1} sentinel of Ruby's {@code @lastMoveUsed}). */
+    public int moveIdOf(String internalName) {
+        pokemon.runtime.pokemon.PbsData pbsData = battle == null ? null : battle.pbs();
+        pokemon.runtime.pokemon.PbsData.Move data =
+                pbsData == null || internalName == null ? null : pbsData.move(internalName);
+        return data == null ? -1 : data.id;
+    }
+
+    /** {@code pbEncoredMoveIndex} (PokeBattle_Battler:729-738). */
+    public int pbEncoredMoveIndex() {
+        if (effects.intVal(PBEffects.Battler.Encore) == 0
+                || effects.intVal(PBEffects.Battler.EncoreMove) == 0) {          // :730
+            return -1;
+        }
+        int ret = -1;                                                            // :731
+        for (int i = 0; i < pokemon.moves.size; i++) {                           // :732 eachMoveWithIndex
+            Pokemon.MoveSlot slot = pokemon.moves.get(i);
+            if (slot == null || slot.move == null
+                    || slot.move.id != effects.intVal(PBEffects.Battler.EncoreMove)) {   // :733
+                continue;
+            }
+            ret = i;                                                             // :734
+            break;                                                               // :735
+        }
+        return ret;                                                              // :737
+    }
+
+    /** {@code hasMoldBreaker?} (PokeBattle_Battler:573-575). */
+    public boolean hasMoldBreaker() {
+        return hasActiveAbility(new String[] {"MOLDBREAKER", "TERAVOLT", "TURBOBLAZE", "SHATTERFIST",
+                "ETERNALFLAME", "ETRTNALIGHT", "ENDLESSDARKN"});                 // :574
+    }
+
+    /** {@code pbCanConfuseSelf?(showMessages)} (Battler_Statuses:527-529). */
+    public boolean pbCanConfuseSelf(boolean showMessages) {
+        return pbCanConfuse(null, showMessages, null, true);                     // :528
+    }
+
+    /** {@code pbContinualAbilityChecks(onSwitchIn=false)} (Battler_AbilityAndItem:82-117). */
+    public void pbContinualAbilityChecks() {
+        pbContinualAbilityChecks(false);
+    }
+
+    /** {@code pbContinualAbilityChecks(onSwitchIn)} (Battler_AbilityAndItem:82-117). */
+    public void pbContinualAbilityChecks(boolean onSwitchIn) {
+        battle.pbEndPrimordialWeather();                                         // :84
+        if (hasActiveAbility("COMMANDER")) {                                     // :85
+            BattleHandlers.triggerAbilityOnSwitchIn(ability, this, battle);      // :86
+        }
+        if (hasActiveAbility("TRACE")) {                                         // :89
+            if (hasActiveItem("ABILITYSHIELD")) {                                // :90
+                if (onSwitchIn) {                                                // :91
+                    battle.showAbilitySplash(this);                              // :92
+                    battle.display(pbThis() + "的特性\n被特性护具的效果保护了！");  // :93
+                    battle.hideAbilitySplash(this);                              // :94
+                }
+            } else {
+                Array<Battler> choices = new Array<>();                          // :97
+                for (Battler b : battle.eachOtherSideBattler(index)) {           // :98
+                    if (b.ungainableAbility(b.ability)
+                            || "POWEROFALCHEMY".equals(b.ability)
+                            || "RECEIVER".equals(b.ability)
+                            || "TRACE".equals(b.ability)) {                      // :99-102
+                        continue;
+                    }
+                    choices.add(b);                                              // :103
+                }
+                if (choices.size > 0) {                                          // :105
+                    Battler choice = choices.get(battle.pbRandom(choices.size)); // :106
+                    battle.showAbilitySplash(this);                              // :107
+                    ability = choice.ability;                                    // :108
+                    battle.display(pbThis() + "复制了" + choice.pbThis(true) + "的" + choice.abilityName() + "！");   // :109
+                    battle.hideAbilitySplash(this);                              // :110
+                    if (!onSwitchIn && (unstoppableAbility(ability) || abilityActive())) {   // :111
+                        BattleHandlers.triggerAbilityOnSwitchIn(ability, this, battle);      // :112
+                    }
+                }
+            }
+        }
+    }
+
+    /** {@code pbBeginTurn(_choice)} (Battler_UseMove:71-85). */
+    public void pbBeginTurn(Object[] choice) {
+        effects.set(PBEffects.Battler.BeakBlast, false);                         // :73
+        effects.set(PBEffects.Battler.DestinyBondPrevious,
+                effects.truthy(PBEffects.Battler.DestinyBond));                  // :74
+        effects.set(PBEffects.Battler.DestinyBond, false);                       // :75
+        effects.set(PBEffects.Battler.Grudge, false);                            // :76
+        effects.set(PBEffects.Battler.MoveNext, false);                          // :77
+        effects.set(PBEffects.Battler.Quash, 0);                                 // :78
+        effects.set(PBEffects.Battler.ShellTrap, false);                         // :79
+        if (effects.intVal(PBEffects.Battler.Encore) > 0 && pbEncoredMoveIndex() < 0) {   // :81
+            effects.set(PBEffects.Battler.Encore, 0);                            // :82
+            effects.set(PBEffects.Battler.EncoreMove, 0);                        // :83
+        }
+    }
+
+    /**
+     * {@code pbCancelMoves} (Battler_UseMove:92-109): called when a multi-turn
+     * move is disrupted. Hyper Beam's effect is NOT cancelled (:90).
+     */
+    public void pbCancelMoves() {
+        if (effects.intVal(PBEffects.Battler.Outrage) == 1 && pbCanConfuseSelf(false)) {   // :95
+            pbConfuse(pbThis() + "因为过于疲劳而混乱了！");                        // :96
+        }
+        effects.set(PBEffects.Battler.TwoTurnAttack, 0);                         // :99
+        effects.set(PBEffects.Battler.Rollout, 0);                               // :100
+        effects.set(PBEffects.Battler.Outrage, 0);                               // :101
+        effects.set(PBEffects.Battler.Uproar, 0);                                // :102
+        effects.set(PBEffects.Battler.Bide, 0);                                  // :103
+        currentMove = 0;                                                         // :104
+        effects.set(PBEffects.Battler.FuryCutter, 0);                            // :106
+        effects.set(PBEffects.Battler.BambooSword, 0);                           // :107
+        effects.set(PBEffects.Battler.SuccessiveMove, -1);                       // :108
+    }
+
+    /** {@code pbEndTurn(_choice)} (Battler_UseMove:111-128). */
+    public void pbEndTurn(Object[] choice) {
+        lastRoundMoved = battle.turnCount();                                     // :112 Done something this round
+        if (effects.intVal(PBEffects.Battler.GorillaTactics) < 0 && lastMoveUsed != null
+                && hasActiveAbility("GORILLATACTICS")) {                         // :114
+            effects.set(PBEffects.Battler.GorillaTactics, moveIdOf(lastMoveUsed));   // :115
+        }
+        if (effects.intVal(PBEffects.Battler.ChoiceBand) < 0
+                && hasActiveItem(new String[] {"CHOICEBAND", "CHOICESPECS", "CHOICESCARF"})) {   // :117-118
+            if (lastMoveUsed != null && pbHasMove(moveIdOf(lastMoveUsed))) {    // :119
+                effects.set(PBEffects.Battler.ChoiceBand, moveIdOf(lastMoveUsed));          // :120
+            } else if (lastRegularMoveUsed != null && pbHasMove(moveIdOf(lastRegularMoveUsed))) {   // :121
+                effects.set(PBEffects.Battler.ChoiceBand, moveIdOf(lastRegularMoveUsed));   // :122
+            }
+        }
+        if (effects.intVal(PBEffects.Battler.Charge) == 1) {                     // :125
+            effects.set(PBEffects.Battler.Charge, 0);
+        }
+        effects.set(PBEffects.Battler.GemConsumed, 0);                           // :126
+        for (Battler b : battle.eachBattler()) {                                 // :127
+            b.pbContinualAbilityChecks();                                        // :127 Trace, end primordial weathers
+        }
+    }
+
+    /**
+     * The {@code Pokemon.MoveSlot} behind a {@code BattleMove}, i.e. Ruby's
+     * {@code move.realMove} (Battler_ChangeSelf:136). {@code null} when the move
+     * is not in the moveset - Ruby's {@code pp<0} object (Struggle,
+     * Move_Effects_Generic:57; {@code pbUseMoveSimple} Battler_UseMove:160).
+     * Bridge: this runtime's {@link BattleMove} carries no {@code pp} field.
+     */
+    private Pokemon.MoveSlot slotOf(BattleMove move) {
+        if (move == null || move.internalName() == null) return null;
+        for (Pokemon.MoveSlot slot : pokemon.moves) {
+            if (slot != null && slot.move != null && move.internalName().equals(slot.move.internalName)) {
+                return slot;
+            }
+        }
+        return null;
+    }
+
+    /** {@code pbReducePP(move)} (Battler_ChangeSelf:141-148). */
+    public boolean pbReducePP(BattleMove move) {
+        if (usingMultiTurnAttack()) return true;                                 // :142
+        Pokemon.MoveSlot slot = slotOf(move);
+        if (slot == null) return true;                                           // :143 move.pp<0 (see slotOf)
+        if (slot.maxPp <= 0) return true;                                        // :144 move.totalpp<=0
+        if (slot.pp == 0) return false;                                          // :145
+        if (slot.pp > 0) pbSetPP(move.internalName(), slot.pp - 1);              // :146
+        return true;                                                             // :147
+    }
+
+    /** {@code pbReducePPOther(move)} (Battler_ChangeSelf:150-152). */
+    public void pbReducePPOther(BattleMove move) {
+        Pokemon.MoveSlot slot = slotOf(move);
+        if (slot != null && slot.pp > 0) pbSetPP(move.internalName(), slot.pp - 1);   // :151
     }
 
     /**
