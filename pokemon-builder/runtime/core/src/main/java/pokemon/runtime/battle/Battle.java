@@ -29,14 +29,17 @@ public final class Battle {
     private int turns;
 
     /**
-     * {@code @party1}/ {@code @party2}'s field slot: which party entry each side
-     * currently has on the field. {@code pbSetUpSides}
-     * (Battle_StartAndEnd:116-189) puts the first able Pokemon of each side in
-     * its slot and {@code pbReplace} (:309-318) moves the slot to the
-     * replacement. -1 = that side has nothing on the field.
+     * {@code @sideSizes} (PokeBattle_Battle:47, :117): the number of battlers per side. This runtime supports 1 and 2
+     * (single and double battles, including 1v2 / 2v1); triples are not modelled.
      */
-    private int playerField = -1;
-    private int foeField = -1;
+    private final int[] sideSizes = {1, 1};
+
+    /**
+     * {@code @battlers}: for each battler index (2*position+side) the party entry that is on the field there.
+     * {@code pbSetUpSides} (Battle_StartAndEnd:116-189) fills it and {@code pbReplace} (:309-318) changes a slot.
+     * -1 = nothing on the field at that index.
+     */
+    private final int[] fieldParty = {-1, -1, -1, -1};
 
     // --- Mega Evolution / ZA mode (Mega evolution + ZA模式) ---
     /** ZA mode ($PokemonSystem.battle_rule == 1): a super-energy system. */
@@ -65,9 +68,78 @@ public final class Battle {
         return bagHasItem != null && bagHasItem.test(item);
     }
 
-    /** {@code pbOwnedByPlayer?(idxBattler)} (PokeBattle_Battle:222-226): a single trainer owns each side. */
+    /** {@code pbOwnedByPlayer?(idxBattler)} (PokeBattle_Battle:287-290). */
     public boolean pbOwnedByPlayer(int idxBattler) {
-        return (idxBattler & 1) == 0;
+        if (opposes(idxBattler, 0)) return false;                                  // :288
+        return pbGetOwnerIndexFromBattlerIndex(idxBattler) == 0;                   // :289
+    }
+
+    /** {@code pbGetOwnerFromPartyIndex(idxBattler,idxParty).name}-ish: the other trainer's name for the error line (:19-20). */
+    private String pbGetOwnerNameFromPartyIndex(int idxBattler, int idxParty) {
+        int idxTrainer = pbGetOwnerIndexFromPartyIndex(idxBattler, idxParty);
+        if (opposes(idxBattler, 0)) return idxTrainer > 0 ? opponentName2 : opponentName;
+        return idxTrainer > 0 ? partnerName : playerName;
+    }
+
+    /** {@code opposes?(idxBattler1,idxBattler2=0)} (PokeBattle_Battle:538-542). */
+    public boolean opposes(int idxBattler1, int idxBattler2) {
+        return (idxBattler1 & 1) != (idxBattler2 & 1);                             // :541
+    }
+
+    /**
+     * {@code pbGetOwnerIndexFromBattlerIndex(idxBattler)} (PokeBattle_Battle:232-243): the trainer (within its
+     * side) that controls that battler index.
+     */
+    public int pbGetOwnerIndexFromBattlerIndex(int idxBattler) {
+        int side = idxBattler & 1;
+        int length = pbTrainerCount(side);                                         // :233-234 (0 = no trainer: a wild side)
+        switch (length) {                                                          // :235
+            case 2: {
+                int n = pbSideSize(side);                                          // :237
+                if (n == 3) return new int[] {0, 0, 1}[idxBattler / 2];            // :238
+                return idxBattler / 2;                                             // :239
+            }
+            case 3:
+                return idxBattler / 2;                                             // :240
+            default:
+                return 0;                                                          // :242
+        }
+    }
+
+    /** {@code pbGetOwnerIndexFromPartyIndex(idxBattler,idxParty)} (PokeBattle_Battle:250-257). */
+    public int pbGetOwnerIndexFromPartyIndex(int idxBattler, int idxParty) {
+        Array<Battler> party = partyOf(idxBattler);
+        return idxParty < 0 || idxParty >= party.size || party.get(idxParty) == null ? 0 : party.get(idxParty).ownerIndex;
+    }
+
+    /** {@code pbIsOwner?(idxBattler,idxParty)} (PokeBattle_Battle:281-285). */
+    public boolean pbIsOwner(int idxBattler, int idxParty) {
+        return pbGetOwnerIndexFromBattlerIndex(idxBattler) == pbGetOwnerIndexFromPartyIndex(idxBattler, idxParty);
+    }
+
+    /** {@code pbNumPositions(side,idxTrainer)} (PokeBattle_Battle:294-302). */
+    public int pbNumPositions(int side, int idxTrainer) {
+        int ret = 0;
+        for (int i = 0; i < pbSideSize(side); i++) {
+            if (pbGetOwnerIndexFromBattlerIndex(i * 2 + side) != idxTrainer) continue;
+            ret += 1;
+        }
+        return ret;
+    }
+
+    /** {@code pbTeamIndexRangeFromBattlerIndex(idxBattler)} (PokeBattle_Battle:381-387): [start,end) of the owner's team in the party. */
+    public int[] pbTeamIndexRangeFromBattlerIndex(int idxBattler) {
+        int owner = pbGetOwnerIndexFromBattlerIndex(idxBattler);
+        Array<Battler> party = partyOf(idxBattler);
+        int start = party.size;
+        int end = 0;
+        for (int i = 0; i < party.size; i++) {
+            if (party.get(i) != null && party.get(i).ownerIndex == owner) {
+                start = Math.min(start, i);
+                end = Math.max(end, i + 1);
+            }
+        }
+        return start > end ? new int[] {0, 0} : new int[] {start, end};
     }
 
     public Battle(PbsData pbs, Random random, Controller playerController) {
@@ -104,25 +176,89 @@ public final class Battle {
     }
 
     public Battle addPlayer(Pokemon pokemon) {
+        return addMember(pokemon, false, 0);
+    }
+
+    /** The partner trainer's Pokemon ({@code @player[1]}, party1starts[1]): added after all of the player's own. */
+    public Battle addPartner(Pokemon pokemon) {
+        return addMember(pokemon, false, 1);
+    }
+
+    public Battle addFoe(Pokemon pokemon) {
+        return addMember(pokemon, true, 0);
+    }
+
+    /** The second opposing trainer's Pokemon ({@code @opponent[1]}): added after all of the first one's. */
+    public Battle addFoeSecondTrainer(Pokemon pokemon) {
+        return addMember(pokemon, true, 1);
+    }
+
+    private Battle addMember(Pokemon pokemon, boolean foe, int owner) {
         if (pokemon != null) {
-            Battler battler = new Battler(pokemon, false);
+            Battler battler = new Battler(pokemon, foe);
+            battler.ownerIndex = owner;
             battler.trainerBattle = trainerBattle;
-            playerParty.add(battler);
-            playerField = firstAble(playerParty);                 // pbSetUpSides:179
+            (foe ? foeParty : playerParty).add(battler);
+            pbSetUpSides();
             refreshFieldIndices();
         }
         return this;
     }
 
-    public Battle addFoe(Pokemon pokemon) {
-        if (pokemon != null) {
-            Battler battler = new Battler(pokemon, true);
-            battler.trainerBattle = trainerBattle;
-            foeParty.add(battler);
-            foeField = firstAble(foeParty);                       // pbSetUpSides:179
-            refreshFieldIndices();
+    /**
+     * {@code pbSetUpSides} (Battle_StartAndEnd:116-189): puts each trainer's first able Pokemon on the field, as
+     * many as the positions that trainer controls; a wild side puts every wild Pokemon on its own position.
+     */
+    public void pbSetUpSides() {
+        for (int i = 0; i < fieldParty.length; i++) {
+            fieldParty[i] = -1;
         }
+        for (int side = 0; side < 2; side++) {                                        // :118
+            Array<Battler> party = partyBySide(side);
+            if (side == 1 && wildBattle()) {                                          // :120
+                for (int i = 0; i < party.size && i < sideSizes[1]; i++) {            // :121-122 (a wild party is as big as the side)
+                    fieldParty[2 * i + side] = i;
+                }
+                continue;                                                             // :128
+            }
+            int trainers = pbTrainerCount(side);
+            int[] requireds = new int[Math.max(1, trainers)];                         // :132-138
+            for (int i = 0; i < sideSizes[side]; i++) {
+                requireds[pbGetOwnerIndexFromBattlerIndex(i * 2 + side)] += 1;
+            }
+            int battlerNumber = 0;                                                    // :175
+            for (int idxTrainer = 0; idxTrainer < requireds.length; idxTrainer++) {   // :176
+                int placed = 0;
+                for (int i = 0; i < party.size; i++) {                                // :178 eachInTeam(side,idxTrainer)
+                    Battler pkmn = party.get(i);
+                    if (pkmn == null || pkmn.ownerIndex != idxTrainer) continue;
+                    if (pkmn.fainted() || pkmn.pokemon.egg) continue;                 // :179 next if !pkmn.able?
+                    fieldParty[2 * battlerNumber + side] = i;                         // :180-181
+                    battlerNumber += 1;                                               // :183
+                    placed += 1;
+                    if (placed >= requireds[idxTrainer]) break;                       // :184
+                }
+            }
+        }
+    }
+
+    /** {@code @sideSizes = [a,b]} (PokeBattle_Battle:197-206 setBattleMode). */
+    public Battle setSideSizes(int player, int opposing) {
+        sideSizes[0] = player;
+        sideSizes[1] = opposing;
+        pbSetUpSides();
+        refreshFieldIndices();
         return this;
+    }
+
+    /** The number of trainers on a side ({@code @player.length} / {@code @opponent.length}); 0 for a wild side. */
+    public int pbTrainerCount(int side) {
+        if (side == 1 && wildBattle()) return 0;
+        int count = 1;
+        for (Battler b : partyBySide(side)) {
+            if (b != null) count = Math.max(count, b.ownerIndex + 1);
+        }
+        return count;
     }
 
     /**
@@ -164,11 +300,11 @@ public final class Battle {
             battler.field = field;
             battler.pbs = pbs;
         }
-        if (playerField >= 0) {
-            playerParty.get(playerField).index = 0;               // :180 2*slot+side
-        }
-        if (foeField >= 0) {
-            foeParty.get(foeField).index = 1;
+        for (int idx = 0; idx < fieldParty.length; idx++) {
+            Battler b = battlerAt(idx);
+            if (b != null) {
+                b.index = idx;                                    // :180 2*slot+side
+            }
         }
         // Battler_Initialize:74 pbInitEffects(false) for every battler that has just taken a slot.
         for (Battler battler : playerParty) {
@@ -208,25 +344,32 @@ public final class Battle {
         return !trainerBattle;
     }
 
-    /** {@code @battlers[0]} via {@code @party1order} (PokeBattle_Battle:315-321). */
+    /** {@code @battlers[0]} (the player's first position). */
     public Battler player() {
-        return playerField < 0 || playerField >= playerParty.size ? null : playerParty.get(playerField);
+        return battlerAt(0);
     }
-    /** The player's party slot on the field ({@code @party1order[0]}). */
+    /** The player's party entry on battler index 0 ({@code @party1order[0]}). */
     public int playerFieldIndex() {
-        return playerField;
+        return fieldParty[0];
     }
-    /** The opposing side's party slot on the field. */
+    /** The opposing side's party entry on battler index 1. */
     public int foeFieldIndex() {
-        return foeField;
+        return fieldParty[1];
+    }
+    /** The party entry on battler index {@code idxBattler} (-1 = nothing). */
+    public int fieldPartyIndex(int idxBattler) {
+        return idxBattler < 0 || idxBattler >= fieldParty.length ? -1 : fieldParty[idxBattler];
     }
     /** {@code @battlers[1]}. */
     public Battler foe() {
-        return foeField < 0 || foeField >= foeParty.size ? null : foeParty.get(foeField);
+        return battlerAt(1);
     }
-    /** {@code @battlers[idxBattler]} for the two singles slots. */
+    /** {@code @battlers[idxBattler]}: null when nothing stands there. */
     public Battler battlerAt(int idxBattler) {
-        return (idxBattler & 1) == 0 ? player() : foe();
+        if (idxBattler < 0 || idxBattler >= fieldParty.length) return null;
+        int idxParty = fieldParty[idxBattler];
+        Array<Battler> party = partyOf(idxBattler);
+        return idxParty < 0 || idxParty >= party.size ? null : party.get(idxParty);
     }
     /** {@code pbParty(idxBattler)} (PokeBattle_Battle:307-309). */
     public Array<Battler> partyOf(int idxBattler) {
@@ -321,11 +464,7 @@ public final class Battle {
         if (batonPass && outgoing != null && outgoing != incoming) {
             incoming.pbInheritBatonPass(outgoing);                 // Battler_Initialize:68 pbInitEffects(true) keeps the passed effects
         }
-        if ((idxBattler & 1) == 0) {
-            playerField = idxParty;
-        } else {
-            foeField = idxParty;
-        }
+        fieldParty[idxBattler] = idxParty;
         refreshFieldIndices();
         if (outgoing != null && outgoing != incoming) {
             // Ruby's @battlers[idxBattler] is ONE object that now holds the new Pokemon; here every party member is
@@ -464,9 +603,9 @@ public final class Battle {
         return pkmn.name();                                        // :649 (the player owns the whole side)
     }
 
-    /** {@code maxBattlerIndex} (PokeBattle_Battle): singles has battlers 0 and 1. */
+    /** {@code maxBattlerIndex} (PokeBattle_Battle:219-221). */
     public int maxBattlerIndex() {
-        return 1;
+        return sideSizes[0] > sideSizes[1] ? (sideSizes[0] - 1) * 2 : sideSizes[1] * 2 - 1;
     }
 
     /** {@code @choices[idxBattler][0] == :SwitchOut} (:52/:176). */
@@ -523,9 +662,9 @@ public final class Battle {
         if (candidate.pokemon.egg) {
             return "蛋不能进行战斗！";                              // :14-17
         }
-        // :18-23 !pbIsOwner?(idxBattler,idxParty): a single trainer owns the
-        // whole side in this runtime (pbGetOwnerIndexFromPartyIndex always
-        // returns 0), so the check cannot fail.
+        if (!pbIsOwner(idxBattler, idxParty)) {                   // :18
+            return "不能将宝可梦与" + pbGetOwnerNameFromPartyIndex(idxBattler, idxParty) + "的宝可梦替换！";   // :19-22
+        }
         if (candidate.fainted()) {
             return candidate.name() + "已经无法战斗了！";            // :24-28
         }
@@ -626,7 +765,7 @@ public final class Battle {
     /** {@code @battlers} without the fainted filter (the Ruby's plain {@code @battlers.each}). */
     private Array<Battler> allBattlersRaw() {
         Array<Battler> out = new Array<>();
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i <= maxBattlerIndex(); i++) {
             Battler b = battlerAt(i);
             if (b != null) out.add(b);
         }
@@ -715,12 +854,7 @@ public final class Battle {
 
     /** {@code battler.eachOpposing} for the two singles slots. */
     private Array<Battler> opposingBattlers(int idxBattler) {
-        Array<Battler> out = new Array<>();
-        Battler opposing = battlerAt(idxBattler ^ 1);
-        if (opposing != null && !opposing.fainted()) {
-            out.add(opposing);
-        }
-        return out;
+        return eachOtherSideBattler(idxBattler);                   // battler.eachOpposing
     }
 
     /**
@@ -1610,13 +1744,87 @@ public final class Battle {
             new DamageState.SuccessState(), new DamageState.SuccessState(),
     };
 
-    /**
-     * {@code pbSideSize(index)} (PokeBattle_Battle:215-217). This runtime only
-     * has the singles field (sideSize is fixed at 1; doubles are the last batch
-     * of the rewrite).
-     */
+    /** {@code pbSideSize(index)} (PokeBattle_Battle:215-217). */
     public int pbSideSize(int index) {
-        return 1;
+        return sideSizes[index & 1];
+    }
+
+    /**
+     * {@code pbGetOpposingIndicesInOrder(idxBattler)} (PokeBattle_Battle:496-533): the opposing battler indices, the
+     * most "opposite" first. Only the side sizes 1 and 2 exist here.
+     */
+    public int[] pbGetOpposingIndicesInOrder(int idxBattler) {
+        switch (pbSideSize(0)) {                                                   // :497
+            case 1:
+                switch (pbSideSize(1)) {                                           // :499
+                    case 1:                                                        // :500 1v1 single
+                        if (opposes(idxBattler, 0)) return new int[] {0};          // :501
+                        return new int[] {1};                                      // :502
+                    case 2:                                                        // :503 1v2
+                        if (opposes(idxBattler, 0)) return new int[] {0};          // :504
+                        return new int[] {3, 1};                                   // :505
+                    default:
+                        break;
+                }
+                break;
+            case 2:
+                switch (pbSideSize(1)) {                                           // :511
+                    case 1:                                                        // :512 2v1
+                        if (opposes(idxBattler, 0)) return new int[] {0, 2};       // :513
+                        return new int[] {1};                                      // :514
+                    case 2:                                                        // :515 2v2 double
+                        return new int[][] {{3, 1}, {2, 0}, {1, 3}, {0, 2}}[idxBattler];   // :516
+                    default:
+                        break;
+                }
+                break;
+            default:
+                break;
+        }
+        return new int[] {idxBattler};                                             // :532
+    }
+
+    /** {@code nearBattlers?(idxBattler1,idxBattler2)} (PokeBattle_Battle:544-568); sides larger than 2 do not exist here. */
+    public boolean nearBattlers(int idxBattler1, int idxBattler2) {
+        if (idxBattler1 == idxBattler2) return false;                              // :545
+        return true;                                                               // :546 pbSideSize(0)<=2 && pbSideSize(1)<=2
+    }
+
+    /**
+     * {@code pbSwapBattlers(idxA,idxB)} (PokeBattle_Battle:593-624): two battlers of the same trainer change
+     * positions. 登记: :601 {@code @scene.pbSwapBattlerSprites} - the screen reads the battlers' slots.
+     */
+    public boolean pbSwapBattlers(int idxA, int idxB) {
+        if (battlerAt(idxA) == null || battlerAt(idxB) == null) return false;      // :594
+        // Can't swap if battlers aren't owned by the same trainer
+        if (opposes(idxA, idxB)) return false;                                     // :596
+        if (pbGetOwnerIndexFromBattlerIndex(idxA) != pbGetOwnerIndexFromBattlerIndex(idxB)) return false;   // :597
+        int tmpParty = fieldParty[idxA];                                           // :598
+        fieldParty[idxA] = fieldParty[idxB];
+        fieldParty[idxB] = tmpParty;
+        Object[] tmpChoice = choicesStore[idxA];                                   // :600
+        choicesStore[idxA] = choicesStore[idxB];
+        choicesStore[idxB] = tmpChoice;
+        refreshFieldIndices();                                                     // :599 the battlers' @index
+        // Swap the target of any battlers' effects that point at either of the swapped battlers
+        // NOTE: LeechSeed is not swapped, because drained HP goes to whichever Pokemon is in the position.
+        int[] effectsToSwap = {PBEffects.Battler.Attract, PBEffects.Battler.BideTarget, PBEffects.Battler.CounterTarget,
+                PBEffects.Battler.LockOnPos, PBEffects.Battler.MeanLook, PBEffects.Battler.MirrorCoatTarget,
+                PBEffects.Battler.SkyDrop, PBEffects.Battler.TrappingUser};         // :609-616
+        for (Battler b : eachBattler()) {                                          // :617
+            for (int i : effectsToSwap) {                                          // :618
+                if (!b.effects.has(i)) continue;
+                int value = b.effects.intVal(i);
+                if (value != idxA && value != idxB) continue;                      // :619
+                b.effects.set(i, value == idxA ? idxB : idxA);                     // :620
+            }
+        }
+        return true;                                                               // :623
+    }
+
+    /** {@code singleBattle?} (PokeBattle_Battle:211-213). */
+    public boolean singleBattle() {
+        return pbSideSize(0) == 1 && pbSideSize(1) == 1;
     }
 
     /** {@code pbJudge} (Battle_StartAndEnd:587-594): writes {@code @decision}. */
@@ -2190,7 +2398,7 @@ public final class Battle {
      */
     public Array<Battler> allBattlers() {
         Array<Battler> out = new Array<>();
-        for (int idx = 0; idx < 2; idx++) {                         // :438/:441
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {         // :438/:441
             Battler b = battlerAt(idx);
             if (b != null && !b.fainted()) {
                 out.add(b);
@@ -2256,7 +2464,7 @@ public final class Battle {
     private Array<Battler> sideBattlers(int idxBattler, boolean sameSide) {
         Array<Battler> out = new Array<>();
         int side = idxBattler & 1;
-        for (int idx = 0; idx < 2; idx++) {
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
             Battler b = battlerAt(idx);
             if (b != null && ((idx & 1) == side) == sameSide && !b.fainted()) {
                 out.add(b);
@@ -2507,11 +2715,15 @@ public final class Battle {
     /** {@code pbAbleNonActiveCount(idxBattler=0)} (PokeBattle_Battle:340-352). */
     public int pbAbleNonActiveCount(int idxBattler) {
         Array<Battler> party = partyOf(idxBattler);                // :341
-        Battler active = battlerAt(idxBattler);                    // :342-343 inBattleIndices (one battler per side)
+        java.util.List<Integer> inBattleIndices = new java.util.ArrayList<>();   // :342
+        for (Battler b : eachSameSideBattler(idxBattler)) {        // :343
+            inBattleIndices.add(b.pokemonIndex);
+        }
         int count = 0;                                             // :344
-        for (Battler pkmn : party) {                               // :345
+        for (int idxParty = 0; idxParty < party.size; idxParty++) {   // :345
+            Battler pkmn = party.get(idxParty);
             if (pkmn == null || pkmn.fainted() || pkmn.pokemon.egg) continue;   // :346 !pkmn.able?
-            if (pkmn == active) continue;                          // :347
+            if (inBattleIndices.contains(idxParty)) continue;      // :347
             count += 1;                                            // :348
         }
         return count;                                              // :351
@@ -2527,11 +2739,18 @@ public final class Battle {
      * this runtime's existing {@code playerName}.</p>
      */
     public String pbGetOwnerName(int idxBattler) {
-        if ((idxBattler & 1) == 0) {                                // :270 the player's own name
-            return playerName;
+        int idxTrainer = pbGetOwnerIndexFromBattlerIndex(idxBattler);   // :267
+        if (opposes(idxBattler, 0)) {                               // :268 Opponent
+            return idxTrainer > 0 ? opponentName2 : opponentName;   // Trainer#fullname (set by the battle port); null in a wild battle
         }
-        return opponentName;                                        // :268 Trainer#fullname (set by the battle port); null in a wild battle
+        if (idxTrainer > 0) return partnerName;                     // :269 Ally trainer
+        return playerName;                                          // :270 Player
     }
+
+    /** {@code @opponent[1].fullname} (the second opposing trainer). */
+    public String opponentName2;
+    /** {@code @player[1].fullname} (the partner trainer). */
+    public String partnerName;
 
     // ------------------------------------------------------------------
     // E. Ability lookup, Pokedex and trainer

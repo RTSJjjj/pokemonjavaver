@@ -486,6 +486,9 @@ public final class Battler {
     /** {@code @pokemonIndex} (Battler_Initialize:96)：队伍槽位，换人/经验要用。 */
     public int pokemonIndex = -1;
 
+    /** The trainer (within its side) that owns this Pokemon: 0 = the player / the first opponent, 1 = the partner / the second opponent. */
+    public int ownerIndex;
+
     /** {@code @droppedBelowHalfHP} (Battler_Initialize:163)。 */
     public boolean droppedBelowHalfHP;
 
@@ -931,19 +934,7 @@ public final class Battler {
      * 槽位并做同样的过滤。
      */
     private Array<Battler> fieldBattlers() {
-        Array<Battler> out = new Array<>();
-        if (battle == null) {
-            return out;
-        }
-        Battler p = battle.player();
-        Battler f = battle.foe();
-        if (p != null && !p.fainted()) {                              // :438 `b && !b.fainted?`
-            out.add(p);
-        }
-        if (f != null && !f.fainted()) {
-            out.add(f);
-        }
-        return out;
+        return battle == null ? new Array<>() : battle.eachBattler();   // :438 `b && !b.fainted?`
     }
 
     /** 场上某槽位的 battler（= {@code @battle.battlers[idx]}）；越界/空位返回 {@code null}。 */
@@ -951,7 +942,7 @@ public final class Battler {
         if (battle == null) {
             return null;
         }
-        return (idx & 1) == 0 ? battle.player() : battle.foe();
+        return battle.battlerAt(idx);
     }
 
     /**
@@ -1189,7 +1180,10 @@ public final class Battler {
      * 不在对面且 {@code pbGetOwnerIndexFromBattlerIndex==0}；本运行时 1v1 下等价于「自己是玩家侧」。
      */
     public boolean pbOwnedByPlayer() {
-        return !opposes(0);                                             // :288 false if opposes?
+        if (battle == null || index < 0) {
+            return !foe;                                                // benched: no slot to ask
+        }
+        return battle.pbOwnedByPlayer(index);                           // :796-798
     }
 
     /**
@@ -1199,7 +1193,7 @@ public final class Battler {
      * 本运行时是 1v1（{@code Battle} 只有 player()/foe()）→ 等价于「不是同一个位置」。
      */
     public boolean near(int i) {
-        return index != i;                                              // :545-546
+        return battle == null ? index != i : battle.nearBattlers(index, i);   // :790-793
     }
 
     /** {@code near?(battler)}：{@code i = i.index if i.respond_to?("index")} (:791)。 */
@@ -1213,14 +1207,18 @@ public final class Battler {
      * （{@code [0]} 或 {@code [1]}）实现。
      */
     public Battler pbDirectOpposing(boolean unfaintedOnly) {
-        Battler other = fieldBattlerAt(index ^ 1);                      // :843-847
-        if (other == null) {
-            return null;                                                // :853 @battle.battlers[@index^1]
+        for (int i : battle.pbGetOpposingIndicesInOrder(index)) {       // :843
+            Battler b = fieldBattlerAt(i);
+            if (b == null) continue;                                    // :844
+            if (unfaintedOnly && b.fainted()) break;                    // :845
+            return b;                                                   // :846
         }
-        if (!unfaintedOnly || !other.fainted()) {                       // :845 break if unfaintedOnly && fainted?
-            return other;
+        // Wanted an unfainted battler but couldn't find one; make do with a fainted battler
+        for (int i : battle.pbGetOpposingIndicesInOrder(index)) {       // :850
+            Battler b = fieldBattlerAt(i);
+            if (b != null) return b;                                    // :851
         }
-        return other;                                                   // :850-852 兜底也返回它
+        return fieldBattlerAt(index ^ 1);                               // :853 @battle.battlers[@index^1]
     }
 
     /** {@code eachAlly} (PokeBattle_Battler:823-827)：遍历未倒下的同伴（**排除自己**）。 */

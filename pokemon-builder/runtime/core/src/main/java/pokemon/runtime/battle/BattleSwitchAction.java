@@ -83,7 +83,7 @@ public final class BattleSwitchAction {
         List<Integer> switched = new ArrayList<>();                                    // :171
         while (true) {                                                                 // :172
             switched.clear();                                                          // :173
-            for (int idxBattler = 0; idxBattler < 2; idxBattler++) {                   // :174 @battlers.each (singles)
+            for (int idxBattler = 0; idxBattler <= battle.maxBattlerIndex(); idxBattler++) {   // :174 @battlers.each
                 Battler b = battle.battlerAt(idxBattler);
                 if (b == null || !b.fainted()) {                                       // :175
                     continue;
@@ -169,7 +169,8 @@ public final class BattleSwitchAction {
             }
             List<Integer> choices = new ArrayList<>();                                 // :244 Find all Pokemon that can switch in
             Array<Battler> party = battle.partyOf(idxBattler);
-            for (int i = 0; i < party.size; i++) {                                     // :245 eachInTeamFromBattlerIndex
+            int[] team = battle.pbTeamIndexRangeFromBattlerIndex(idxBattler);
+            for (int i = team[0]; i < team[1]; i++) {                                  // :245 eachInTeamFromBattlerIndex
                 if (party.get(i) == null) {
                     continue;
                 }
@@ -268,8 +269,9 @@ public final class BattleSwitchAction {
     /** {@code pbLastInTeam(idxBattler)} (PokeBattle_Battle:412-423). */
     public static int pbLastInTeam(Battle battle, int idxBattler) {
         Array<Battler> party = battle.partyOf(idxBattler);                             // :413
+        int[] team = battle.pbTeamIndexRangeFromBattlerIndex(idxBattler);              // :415
         int ret = -1;                                                                  // :416
-        for (int i = 0; i < party.size; i++) {                                         // :417
+        for (int i = team[0]; i < team[1]; i++) {                                      // :417-418 (the owner's team only)
             Battler pkmn = party.get(i);
             if (pkmn == null || pkmn.fainted() || pkmn.pokemon.egg) {                  // :419 !pkmn.able?
                 continue;
