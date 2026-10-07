@@ -4755,4 +4755,73 @@ public final class Battler {
             display(msg);
         }
     }
+
+    // ==================================================================
+    // PokeBattle_BOSS:95-153
+    // ==================================================================
+
+    /** {@code hasAnyNegativeEffects} (PokeBattle_BOSS:95-122). */
+    public boolean hasAnyNegativeEffects() {
+        return !((status == null || status.isEmpty())                               // :96 @status == 0
+                && effects.intVal(PBEffects.Battler.Confusion) == 0                 // :97
+                && effects.intVal(PBEffects.Battler.Attract) == -1                  // :98
+                && !effects.truthy(PBEffects.Battler.Nightmare)                     // :99
+                && !effects.truthy(PBEffects.Battler.SaltCure)                      // :100
+                && effects.intVal(PBEffects.Battler.Yawn) == 0                      // :101
+                && effects.intVal(PBEffects.Battler.Encore) == 0                    // :102
+                && effects.intVal(PBEffects.Battler.EncoreMove) == 0                // :103
+                && !effects.truthy(PBEffects.Battler.GastroAcid)                    // :104
+                && !effects.truthy(PBEffects.Battler.Torment)                       // :105
+                && effects.intVal(PBEffects.Battler.HealBlock) == 0                 // :106
+                && !effects.truthy(PBEffects.Battler.Foresight)                     // :107
+                && effects.intVal(PBEffects.Battler.Disable) == 0                   // :108
+                && effects.intVal(PBEffects.Battler.LockOn) == 0                    // :109
+                && effects.intVal(PBEffects.Battler.LockOnPos) == -1                // :110
+                && effects.intVal(PBEffects.Battler.Taunt) == 0                     // :111
+                && effects.intVal(PBEffects.Battler.Telekinesis) == 0               // :112
+                && !effects.truthy(PBEffects.Battler.Curse)                         // :113
+                && effects.intVal(PBEffects.Battler.PerishSong) == 0                // :114
+                && effects.intVal(PBEffects.Battler.LeechSeed) == -1                // :115
+                && effects.intVal(PBEffects.Battler.Trapping) == 0                  // :116
+                && !effects.truthy(PBEffects.Battler.SmackDown)                     // :117
+                && effects.intVal(PBEffects.Battler.ThroatChop) == 0                // :118
+                && !effects.truthy(PBEffects.Battler.TarShot)                       // :119
+                && !effects.truthy(PBEffects.Battler.Octolock)                      // :120
+                && effects.intVal(PBEffects.Battler.OctolockUser) == -1);           // :121
+    }
+
+    /** {@code removeAllNegativeEffects(contains_stages=false)} (PokeBattle_BOSS:123-153). */
+    public void removeAllNegativeEffects(boolean containsStages) {
+        pbCureStatus(false);                                                        // :124
+        effects.set(PBEffects.Battler.Confusion, 0);                                // :125
+        effects.set(PBEffects.Battler.Attract, -1);                                 // :126
+        effects.set(PBEffects.Battler.Nightmare, false);                            // :127
+        effects.set(PBEffects.Battler.SaltCure, false);                             // :128
+        effects.set(PBEffects.Battler.Yawn, 0);                                     // :129
+        effects.set(PBEffects.Battler.Encore, 0);                                   // :130
+        effects.set(PBEffects.Battler.EncoreMove, 0);                               // :131
+        effects.set(PBEffects.Battler.GastroAcid, false);                           // :132
+        effects.set(PBEffects.Battler.Torment, false);                              // :133
+        effects.set(PBEffects.Battler.HealBlock, 0);                                // :134
+        effects.set(PBEffects.Battler.Foresight, false);                            // :135
+        effects.set(PBEffects.Battler.Disable, 0);                                  // :136
+        effects.set(PBEffects.Battler.LockOn, 0);                                   // :137
+        effects.set(PBEffects.Battler.LockOnPos, -1);                               // :138
+        effects.set(PBEffects.Battler.Taunt, 0);                                    // :139
+        effects.set(PBEffects.Battler.Telekinesis, 0);                              // :140
+        effects.set(PBEffects.Battler.Curse, false);                                // :141
+        effects.set(PBEffects.Battler.PerishSong, 0);                               // :142
+        effects.set(PBEffects.Battler.LeechSeed, -1);                               // :143
+        effects.set(PBEffects.Battler.Trapping, 0);                                 // :144
+        effects.set(PBEffects.Battler.SmackDown, false);                            // :145
+        effects.set(PBEffects.Battler.ThroatChop, 0);                               // :146
+        effects.set(PBEffects.Battler.TarShot, false);                              // :147
+        effects.set(PBEffects.Battler.Octolock, false);                             // :148
+        effects.set(PBEffects.Battler.OctolockUser, -1);                            // :149
+        if (containsStages) {                                                       // :150
+            for (int stat : PBStats.EACH_BATTLE_STAT) {                             // :151
+                if (stage(stat) < 0) setStage(stat, 0);
+            }
+        }
+    }
 }

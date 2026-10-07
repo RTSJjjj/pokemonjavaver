@@ -1246,12 +1246,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             if (!openingEffectsDone) {
                 openingEffectsDone = true;
                 if (session.onActiveAll()) {                                     // Battle_StartAndEnd:354 pbOnActiveAll
-                    pursuitContinuation = () -> go(0);
+                    pursuitContinuation = this::goCommandPhase;
                     queueRoundMessages();
                     return;
                 }
             }
-            go(0);
+            goCommandPhase();
             return;
         }
         BattleSendOut.Step step = plan.get(planIndex);
@@ -1929,6 +1929,35 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         stage = Stage.BATTLE;
+        goCommandPhase();
+    }
+
+    /**
+     * The start of a round: {@code pbBossBuffPhase} (Battle_StartAndEnd:376), then the command phase
+     * ({@code pbCommandPhase}, :378).
+     */
+    private void goCommandPhase() {
+        if (session.bossBuffPhase()) {
+            pursuitContinuation = this::enterCommandMenu;
+            queueRoundMessages();
+            return;
+        }
+        enterCommandMenu();
+    }
+
+    /**
+     * {@code pbCommandPhaseLoop} (Battle_Phase_Command:197-263) for the player: a battler whose commands
+     * cannot be shown (:208) keeps its forced choice and the round goes on without a menu.
+     */
+    private void enterCommandMenu() {
+        if (!session.canShowCommands()) {
+            session.forcedRound();
+            queueSessionEvents();
+            if (message == null && queue.isEmpty()) {
+                afterRound();
+            }
+            return;
+        }
         go(0);
     }
 

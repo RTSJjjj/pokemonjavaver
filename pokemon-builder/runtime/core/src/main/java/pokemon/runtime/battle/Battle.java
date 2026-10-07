@@ -287,7 +287,7 @@ public final class Battle {
         }
         endOfTurn();
         refreshFieldIndices();
-        for (int i = 0; i < choicesStore.length; i++) clearChoice(i);   // Battle_Phase_Command:183
+        pbClearChoicesForNextRound();                              // Battle_Phase_Command:181-190
         BattleMega.pbCommandPhaseZa(this);                         // ZA模式:225-232 (the next command phase starts)
         return result();
     }
@@ -811,7 +811,7 @@ public final class Battle {
         } else {
             endOfRoundMessages.clear();
         }
-        for (int i = 0; i < choicesStore.length; i++) clearChoice(i);   // Battle_Phase_Command:183
+        pbClearChoicesForNextRound();                              // Battle_Phase_Command:181-190
         BattleMega.pbCommandPhaseZa(this);                         // ZA模式:225-232 (the next command phase starts)
     }
 
@@ -1143,6 +1143,109 @@ public final class Battle {
         BattleAttackPhase.pbAttackPhasePrologue(this);             // :171-184
         attackPhasePrepared = true;
         pbPursuit(idxSwitcher);                                    // :59
+    }
+
+    /**
+     * The start of {@code pbCommandPhase} (Battle_Phase_Command:181-190), run once the round is over (nothing
+     * reads the choices in between): choices are reset only where commands can be shown, so a battler in the
+     * middle of a multi-turn attack keeps its forced choice; a registered but unused Mega Evolution is dropped.
+     */
+    private void pbClearChoicesForNextRound() {
+        for (int i = 0; i <= maxBattlerIndex(); i++) {                         // :181
+            Battler b = battlerAt(i);
+            if (b == null) continue;                                           // :182
+            if (pbCanShowCommands(i)) pbClearChoice(i);                        // :183
+        }
+        for (int side = 0; side < 2; side++) {                                 // :186
+            for (int i = 0; i < megaEvolution[side].length; i++) {            // :187
+                if (megaEvolution[side][i] >= 0) megaEvolution[side][i] = -1;  // :188
+            }
+        }
+    }
+
+    /** {@code pbBossBuffPhase} (PokeBattle_BOSS:37-90): runs at the start of every round, before the command phase. */
+    public void pbBossBuffPhase() {
+        roundMessages.clear();
+        roundEvents.clear();
+        for (Battler b : eachBattler()) {                                      // :38
+            if (b.pbOwnedByPlayer()) continue;                                 // :40
+            // BOSS恢复异常状态和清强化
+            int rank = b.pokemon.battleRank;                                   // :42
+            if (rank > 2) {                                                    // :43
+                if (turnCount() == 0) {                                        // :44
+                    if (!bossRaiseRandomStat(b)) continue;                     // :45-55
+                    continue;                                                  // :57
+                }
+                int ret = random.nextInt(9000);                                // :59
+                int perish = b.effects.intVal(PBEffects.Battler.PerishSong);
+                if (perish == 1 || perish == 2) ret = 3999;                    // :60
+                if (ret < 4000) {                                              // :61
+                    playCry(b.pokemon);                                        // :62-63 pbSEPlay(pbCryFile)
+                    if (ret < 1000) {                                          // :64
+                        if (!bossRaiseRandomStat(b)) continue;                 // :65-75
+                    } else if (ret < 3000) {                                   // :76
+                        for (Battler t : b.allOpposing()) {                    // :77 eachOpposing
+                            for (int s : PBStats.EACH_BATTLE_STAT) {           // :78
+                                if (t.stage(s) > 0) t.setStage(s, 0);
+                            }
+                            t.effects.set(PBEffects.Battler.FocusEnergy, 0);   // :79
+                        }
+                        display("<c3=FFEE88,FF6600>" + b.pbThis() + "凭借它的力量\n清除了对手的能力提升！</c3>");   // :81
+                    } else if (b.hasAnyNegativeEffects()) {                    // :82
+                        b.removeAllNegativeEffects(true);                      // :83
+                        displayBrief("<c3=FFEE88,FF6600>" + b.pbThis() + "凭借它的力量\n移除了受到的不好效果！</c3>");   // :84
+                    }
+                    // :86 pbWait(80)
+                }
+            }
+        }
+    }
+
+    /** :45-55 / :65-75: raise one random main stat by 1; false when none can be raised ({@code next}). */
+    private boolean bossRaiseRandomStat(Battler b) {
+        java.util.List<Integer> randomUp = new java.util.ArrayList<>();
+        for (int s : PBStats.EACH_MAIN_BATTLE_STAT) {                          // :46
+            if (b.pbCanRaiseStatStage(s, b)) randomUp.add(s);                  // :47
+        }
+        if (randomUp.isEmpty()) return false;                                  // :49
+        int r = pbRandom(randomUp.size());                                     // :50
+        int stat = randomUp.get(r);                                            // :51
+        b.pbRaiseStatStageBasic(stat, 1, true);                                // :52
+        commonAnimation("StatUp", b);                                          // :53
+        displayBrief("<c3=FFEE88,FF6600>" + b.pbThis() + "凭借它的力量\n提高了" + PBStats.getName(stat) + "！</c3>");   // :54-55
+        return true;
+    }
+
+    /**
+     * {@code pbAutoChooseMove(idxBattler,showMessages=true)} (Battle_Action_AttacksPriority:36-68), singles:
+     * Encore forces its move, otherwise Struggle.
+     */
+    public boolean pbAutoChooseMove(int idxBattler, boolean showMessages) {
+        Battler battler = battlerAt(idxBattler);                               // :37
+        if (battler.fainted()) {                                               // :38
+            pbClearChoice(idxBattler);                                         // :39
+            return true;                                                       // :40
+        }
+        // Encore
+        int idxEncoredMove = battler.pbEncoredMoveIndex();                     // :43
+        Object[] c = choicesStore[idxBattler];
+        if (idxEncoredMove >= 0 && pbCanChooseMove(idxBattler, idxEncoredMove, false, false)) {   // :44
+            BattleMove encoreMove = battler.moveSlot(idxEncoredMove);          // :45
+            c[0] = ":UseMove";                                                 // :46
+            c[1] = idxEncoredMove;                                             // :47
+            c[2] = encoreMove;                                                 // :48
+            c[3] = -1;                                                         // :49
+            return true;                                                       // :50 singleBattle?
+        }
+        // Struggle
+        if (pbOwnedByPlayer(idxBattler) && showMessages) {                     // :60
+            displayPaused(battler.name() + "没有招式可使用了！");                  // :61
+        }
+        c[0] = ":UseMove";                                                     // :63
+        c[1] = -1;                                                             // :64
+        c[2] = battler.struggle(pbs);                                          // :65 @struggle
+        c[3] = -1;                                                             // :66
+        return true;                                                           // :67
     }
 
     /** {@code pbEndOfRoundPhase}. */

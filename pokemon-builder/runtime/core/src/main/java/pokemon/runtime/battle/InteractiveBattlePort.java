@@ -258,15 +258,54 @@ public final class InteractiveBattlePort implements BattlePort {
          * branch (:46) needs PBEffects.
          */
         public boolean canShowFightMenu() {
-            Battler user = battle.player();
-            return user != null && user.hasUsableMove();
+            return battle.player() != null && battle.pbCanShowFightMenu(battle.player().index);   // :43-55
+        }
+
+        /** {@code pbCanShowCommands?(idxBattler)} (Battle_Phase_Command:35-41). */
+        public boolean canShowCommands() {
+            return battle.player() != null && battle.pbCanShowCommands(battle.player().index);
         }
 
         /**
-         * {@code pbAutoChooseMove} (Battle_Action_AttacksPriority:36-67): the move
-         * the player uses when the fight menu cannot be shown, i.e. Struggle
-         * ({@code pbFightMenu:68} calls this when {@code pbCanShowFightMenu?} is
-         * false because no slot can be chosen).
+         * {@code pbBossBuffPhase} (PokeBattle_BOSS:37-90) at the start of a round. The events are taken
+         * with {@link #takeEvents()}.
+         *
+         * @return true when something has to be played
+         */
+        public boolean bossBuffPhase() {
+            if (result != null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
+            battle.pbBossBuffPhase();
+            engineEvents.addAll(battle.roundEvents);
+            message = null;
+            endMessage();
+            return engineEvents.size > 0;
+        }
+
+        /**
+         * A round whose commands cannot be shown (Battle_Phase_Command:208: a multi-turn attack in progress):
+         * the forced choice stays and the round simply runs.
+         */
+        public boolean forcedRound() {
+            if (result != null || battle.player() == null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
+            result = battle.step();
+            engineEvents.addAll(battle.roundEvents);
+            applyExpPot();
+            message = null;
+            endMessage();
+            return true;
+        }
+
+        /**
+         * {@code pbAutoChooseMove} (Battle_Action_AttacksPriority:36-67): the move the player uses when the
+         * fight menu cannot be shown ({@code pbFightMenu:68}) - Encore's move, or Struggle.
          */
         public boolean autoChooseMove() {
             if (result != null || battle.player() == null) {
@@ -277,18 +316,17 @@ public final class InteractiveBattlePort implements BattlePort {
                 battle.clearChoice(user.index);
                 return true;
             }
-            // :43-58 the Encore branch needs PBEffects[Encore] and
-            // pbEncoredMoveIndex; this runtime has neither.
-            if (user.hasUsableMove()) {
+            if (battle.pbCanShowFightMenu(user.index)) {
                 return false;                                      // pbCanShowFightMenu? was true
             }
-            // :60-62 pbDisplayPaused("{1}没有招式可使用了！")
             log.clear();
             engineEvents.clear();
-            addLog(user.name() + "没有招式可使用了！");
-            // :63-66 @choices = [:UseMove, -1, @struggle, -1]; the engine's
-            // pickMove already falls back to Struggle for such a battler.
+            battle.roundMessages.clear();
+            battle.roundEvents.clear();
+            battle.pbAutoChooseMove(user.index, true);             // :43-67 (its lines are in roundEvents)
+            Array<Battle.RoundEvent> chosen = new Array<>(battle.roundEvents);
             result = battle.step();
+            engineEvents.addAll(chosen);
             engineEvents.addAll(battle.roundEvents);
             applyExpPot();
             message = null;
