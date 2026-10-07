@@ -185,4 +185,24 @@ class BossCatchTest {
         assertEquals(1, battle.foe().hp);
         assertTrue(battle.roundMessages.contains("好可惜...\n差一点就能成功了", false));
     }
+
+    private int capturedExpAwards(boolean expGain) {
+        Answers answers = new Answers();
+        answers.confirm = true;
+        answers.ball = "POKEBALL";
+        Battle battle = bossBattle(3, answers, new Hooks());
+        battle.expGain = expGain;
+        battle.foe().pokemon.species.baseExp = 100;     // the fixture species gives no Exp otherwise (:105-107)
+        assertEquals(java.util.List.of(0), battle.foe().participants);   // Battler_Initialize:400-405
+        battle.foe().setHp(0);
+        battle.foe().pbFaint();
+        return battle.lastExpAwards.size;
+    }
+
+    @Test
+    @DisplayName("setBattleRule(\"noexp\") (battle.expGain=false) gives no Exp for the capture (Battle_ExpAndMoveLearning:8)")
+    void noExpRule() {
+        assertEquals(1, capturedExpAwards(true));
+        assertEquals(0, capturedExpAwards(false));
+    }
 }

@@ -2270,6 +2270,10 @@ public final class EventInterpreter {
         if (rules.canLose != null) {
             battlePort.setCanLose(rules.canLose);
         }
+        // PField_Battles:105 battle.expGain = battleRules["expGain"] if !battleRules["expGain"].nil?
+        if (rules.expGain != null) {
+            battlePort.setExpGain(rules.expGain);
+        }
         // PField_Battles:112 setBattleRule("switchstyle"/"setstyle").
         if (rules.switchStyle != null) {
             battlePort.setSwitchStyle(rules.switchStyle);
@@ -2298,6 +2302,10 @@ public final class EventInterpreter {
         }
         if (rules.canRun != null) {
             battlePort.setCanRun(rules.canRun);
+        }
+        // PField_Battles:105 battle.expGain = battleRules["expGain"] if !battleRules["expGain"].nil?
+        if (rules.expGain != null) {
+            battlePort.setExpGain(rules.expGain);
         }
         if (rules.disablePokeBalls != null) {
             battlePort.setDisablePokeBalls(rules.disablePokeBalls);

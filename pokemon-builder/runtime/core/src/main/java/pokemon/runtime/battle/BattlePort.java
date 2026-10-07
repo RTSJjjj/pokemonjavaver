@@ -68,6 +68,13 @@ public interface BattlePort {
     }
 
     /**
+     * {@code setBattleRule("noExp")} (PField_Battles:38, applied by {@code pbPrepareBattle:105}
+     * {@code battle.expGain = battleRules["expGain"]}): whether the next battle gives Exp.
+     */
+    default void setExpGain(boolean value) {
+    }
+
+    /**
      * {@code setBattleRule("disablePokeballs")} (PField_Battles:109): no Poke
      * Ball may be thrown in the next battle.
      */

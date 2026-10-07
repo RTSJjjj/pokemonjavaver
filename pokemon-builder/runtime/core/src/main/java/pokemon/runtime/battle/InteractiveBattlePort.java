@@ -153,6 +153,9 @@ public final class InteractiveBattlePort implements BattlePort {
     }
     public BattleResult lastResult() { return lastResult; }
     public void setCanLose(boolean value) { this.canLose = value; }
+    /** {@code setBattleRule("noExp")}: {@code battle.expGain} (PField_Battles:105) of the next battle. */
+    public void setExpGain(boolean value) { this.expGain = value; }
+    private boolean expGain = true;                 // PokeBattle_Battle:145 @expGain = true
     /** {@code setBattleRule("canRun")} / pbWildBattle's {@code canRun}. */
     public void setCanRun(boolean value) { this.canRun = value; }
     /** {@code setBattleRule("disablePokeballs")} applies to the next battle. */
@@ -201,6 +204,7 @@ public final class InteractiveBattlePort implements BattlePort {
         boolean whiteOut = BattleAftermath.onEndBattle(trainer, data.get(), random, result, canLose);
         if (whiteOut && whiteout != null) whiteout.run();
         canLose = false;
+        expGain = true;
         canRun = true;
         switchStyleRule = null;
         battleAnimsRule = null;
@@ -290,6 +294,7 @@ public final class InteractiveBattlePort implements BattlePort {
             battle.showAnims = battleAnimsRule != null ? battleAnimsRule : battlescene == 0;
             battle.trainerBattle = trainerBattle;
             battle.playerName = trainer.name;
+            battle.expGain = expGain;       // PField_Battles:105
             battle.levelLockOn = levelLockOn;
             battle.leaguePass = leaguePass;
             if (gameSwitches != null) battle.gameSwitches = gameSwitches;   // $game_switches (Battler_UseMove_SuccessChecks:157,165)

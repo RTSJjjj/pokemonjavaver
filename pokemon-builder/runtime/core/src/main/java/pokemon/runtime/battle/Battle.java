@@ -1822,6 +1822,9 @@ public final class Battle {
     /** {@code @internalBattle} (PokeBattle_Battle:61, initialised true at :138). */
     public boolean internalBattle = true;
 
+    /** {@code @expGain} (PokeBattle_Battle:68/145): whether Pokemon can gain Exp/EVs; {@code setBattleRule("noExp")} turns it off. */
+    public boolean expGain = true;
+
     /** {@code $game_switches[id]}: bound by the port (see {@code setSwitchSource}); all off when unbound. */
     public java.util.function.IntPredicate gameSwitches = id -> false;
 
@@ -2171,6 +2174,7 @@ public final class Battle {
      * 登记: :11/:23-32/:45-56 Exp All and Exp Share are not modelled; :42 pbGainEVsOne is not here.
      */
     private void awardParticipants(Battler b) {
+        if (!internalBattle || !expGain) return;                                     // Battle_ExpAndMoveLearning:8
         for (int partic : new java.util.ArrayList<>(b.participants)) {               // :19
             Array<Battler> p1 = partyOf(0);
             if (partic < 0 || partic >= p1.size) continue;
