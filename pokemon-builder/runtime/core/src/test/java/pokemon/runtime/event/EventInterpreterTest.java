@@ -279,6 +279,27 @@ class EventInterpreterTest {
     }
 
     @Test
+    @DisplayName("$game_player.x/.y script conditions read the hero's tile (map36 event 6)")
+    void playerPositionScriptConditions() {
+        state.setPlayerPosition(10, 16, 2);
+        interpreter.start(program(
+                cmd(0, 111, 0, array(12, "$game_player.y==16")),
+                cmd(1, 121, 1, array(1, 1, 0)),
+                cmd(2, 412, 0, null),
+                cmd(3, 111, 0, array(12, "$game_player.y==18")),
+                cmd(4, 121, 1, array(2, 2, 0)),
+                cmd(5, 412, 0, null),
+                cmd(6, 111, 0, array(12, "$game_player.x>=10")),
+                cmd(7, 121, 1, array(3, 3, 0)),
+                cmd(8, 412, 0, null)), 1, 5);
+        interpreter.update(0f);
+        assertTrue(state.switches().get(1), "y==16 must match the hero's row");
+        assertFalse(state.switches().get(2), "y==18 must not");
+        assertTrue(state.switches().get(3), "x>=10 must match");
+        assertTrue(warnings.isEmpty(), () -> "unexpected warnings: " + warnings);
+    }
+
+    @Test
     @DisplayName("party-size script conditions read the live party")
     void partySizeScriptConditions() {
         interpreter.start(program(
@@ -493,7 +514,7 @@ class EventInterpreterTest {
     }
 
     @Test
-    @DisplayName("Transfer Player asks the map port and ends the event")
+    @DisplayName("Transfer Player asks the map port and waits for the swap")
     void transferPlayer() {
         interpreter.start(program(
                 cmd(0, 201, 0, array(0, 3, 5, 7, 2, 0)),
@@ -501,9 +522,36 @@ class EventInterpreterTest {
         interpreter.update(0f);
         assertEquals(List.of("3,5,7,2"), transfers);
         assertEquals(InterpreterState.WAIT_TRANSFER, interpreter.state());
-        assertFalse(state.switches().get(1)); // RMXP ends the event at the transfer
+        assertFalse(state.switches().get(1), "the event waits for the transfer");
 
-        interpreter.stop();
+        // RMXP command_201 only advances its index (0046.rb:1031-1042): once the
+        // screen applied the transfer the event continues with the next command.
+        interpreter.resumeAfterTransfer();
+        assertEquals(InterpreterState.RUNNING, interpreter.state());
+        interpreter.update(0f);
+        assertTrue(state.switches().get(1));
+        assertEquals(InterpreterState.FINISHED, interpreter.state());
+    }
+
+    @Test
+    @DisplayName("an in-map transfer continues the autorun page instead of restarting it (map6/event29)")
+    void sameMapTransferContinuesTheEvent() {
+        // The real map6 event 29 page 2 shape: the cutscene transfers the player
+        // to another tile of the SAME map (201: [0, 6, 7, 20, 6, 0]) in the
+        // middle and only then flips self switch B. Rebuilding the map here
+        // restarted the still-active autorun page forever.
+        interpreter.start(program(
+                cmd(0, 201, 0, array(0, 6, 7, 20, 6, 0)),
+                cmd(1, 123, 0, array("B", 0)),
+                cmd(2, 0, 0, array())), 6, 29);
+        interpreter.update(0f);
+        assertEquals(List.of("6,7,20,6"), transfers, "the transfer stays on map 6");
+        assertEquals(InterpreterState.WAIT_TRANSFER, interpreter.state());
+
+        interpreter.resumeAfterTransfer();
+        interpreter.update(0f);
+        assertTrue(state.selfSwitches().get(6, 29, "B"),
+                "the page must continue past the transfer, not run from command 0");
         assertEquals(InterpreterState.FINISHED, interpreter.state());
     }
 

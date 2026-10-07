@@ -938,6 +938,74 @@ class ScriptIrExecutionTest {
         assertEquals(InterpreterState.FINISHED, call.state());
     }
 
+    @Test
+    @DisplayName("pbBridgeOn sets $PokemonGlobal.bridge to the Ruby default 2, pbBridgeOff to 0")
+    void bridgeCommands() {
+        ir("map2/event5/page1/cmd80", "{\"command\":\"SET_BRIDGE\",\"on\":true}");
+        interpreter.start(program(block(0, "map2/event5/page1/cmd80")), 2, 5);
+        interpreter.update(0f);
+        assertEquals(EventInterpreter.DEFAULT_BRIDGE_HEIGHT, state.bridge(),
+                "PField_Field:1363 - def pbBridgeOn(height=2)");
+        assertEquals(InterpreterState.FINISHED, interpreter.state());
+
+        ir("map2/event5/page1/cmd81", "{\"command\":\"SET_BRIDGE\",\"on\":false}");
+        interpreter.start(program(block(0, "map2/event5/page1/cmd81")), 2, 5);
+        interpreter.update(0f);
+        assertEquals(0, state.bridge(), "pbBridgeOff stores 0");
+    }
+
+    @Test
+    @DisplayName("Control Variable random operand rolls from + rand(to-from+1) (Interpreter:840)")
+    void randomVariableOperand() {
+        // The float_plate pages use [26,26,0,2,1,3]: variable 26 = 1..3, which
+        // picks one of the three SE pitches. Before this the operand type was
+        // reported as unsupported and no branch ever matched.
+        final long seed = 20261231L;
+        interpreter.attachRandom(new java.util.Random(seed));
+        java.util.Random reference = new java.util.Random(seed);
+        EventCommand roll = command(0, 122, "[26,26,0,2,1,3]");
+
+        boolean sawAllThree = true;
+        boolean[] seen = new boolean[4];
+        for (int i = 0; i < 40; i++) {
+            interpreter.start(program(roll), 2, 5);
+            interpreter.update(0f);
+            int expected = 1 + reference.nextInt(3);
+            assertEquals(expected, state.variables().get(26),
+                    "roll " + i + " must match 1 + rand(3)");
+            assertTrue(expected >= 1 && expected <= 3);
+            seen[expected] = true;
+        }
+        for (int value = 1; value <= 3; value++) {
+            sawAllThree &= seen[value];
+        }
+        assertTrue(sawAllThree, "all three pitches occur in 40 rolls");
+    }
+
+    @Test
+    @DisplayName("Control Variable remainder by 1 leaves the variable alone (Interpreter:883-885)")
+    void remainderByOneKeepsTheValue() {
+        state.variables().set(5, 7);
+        interpreter.start(program(command(0, 122, "[5,5,5,0,1]")), 2, 5);
+        interpreter.update(0f);
+        assertEquals(7, state.variables().get(5),
+                "`next if value == 1 || value == 0` - not 7 % 1");
+    }
+
+    @Test
+    @DisplayName("Control Variable clamps to +/-99999999 (Interpreter:888-890)")
+    void variableClamp() {
+        state.variables().set(9, 99999999);
+        interpreter.start(program(command(0, 122, "[9,9,1,0,5]")), 2, 5);
+        interpreter.update(0f);
+        assertEquals(99999999, state.variables().get(9), "the add at the cap is skipped");
+
+        state.variables().set(9, -99999999);
+        interpreter.start(program(command(0, 122, "[9,9,2,0,5]")), 2, 5);
+        interpreter.update(0f);
+        assertEquals(-99999999, state.variables().get(9), "the subtract at the cap is skipped");
+    }
+
     private static EventCommand command(int index, int code, String parameters) {        EventCommand command = new EventCommand();
         command.index = index;
         command.code = code;

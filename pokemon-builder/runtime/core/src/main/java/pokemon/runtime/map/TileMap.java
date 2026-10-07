@@ -17,10 +17,14 @@ public final class TileMap {
     /** PBTerrain terrain tags this project uses (see 0167.rb). */
     public static final int TERRAIN_LEDGE = 1;
     public static final int TERRAIN_GRASS = 2;
+    /** PBTerrain::StillWater - {@code hasReflections?} (0167.rb:80). */
+    public static final int TERRAIN_STILL_WATER = 6;
     public static final int TERRAIN_TALL_GRASS = 10;
     public static final int TERRAIN_NEUTRAL = 13;
     public static final int TERRAIN_SOOT_GRASS = 14;
     public static final int TERRAIN_BRIDGE = 15;
+    /** PBTerrain::Puddle - {@code hasReflections?} too. */
+    public static final int TERRAIN_PUDDLE = 16;
 
     private final int width;
     private final int height;
@@ -89,6 +93,12 @@ public final class TileMap {
      * Top-down passage check for one side of a tile: a set direction bit blocks.
      * A passable priority-zero tile terminates the search; transparent overlays do not.
      * Collision checks this for BOTH the source side and the opposite destination side.
+     *
+     * <p>This is the "all other events" half of {@code Game_Map#passable?}
+     * (0025.rb:163-222); the source has no bridge rule here - a bridge tile is
+     * judged by its own passage bits like any other tile. Only the player goes
+     * through {@link #playerPassable} (Game_Map:162), which is where
+     * {@code $PokemonGlobal.bridge} lives.</p>
      */
     public boolean passable(int column, int row, int directionBit) {
         if (!valid(column, row)) {
@@ -99,14 +109,63 @@ public final class TileMap {
             if (tile <= 0) {
                 continue;
             }
-            // This project's PBTerrain: Neutral=13, Bridge=15. R4 walks
-            // underneath bridges (bridge state 0); surfing/bridge state comes later.
-            if (tileset.terrainTag(tile) == 13 || tileset.terrainTag(tile) == 15) continue;
+            if (tileset.terrainTag(tile) == TERRAIN_NEUTRAL) continue;
             if ((tileset.passage(tile) & directionBit) != 0) {
                 return false;
             }
             // A passable priority-zero upper tile replaces the ground below it.
             if (tileset.priority(tile) == 0) return true;
+        }
+        return true;
+    }
+
+    /**
+     * {@code Game_Map#playerPassable?} (0025.rb:225-252): the player's own tile
+     * half of the passage check. It is the only path that looks at
+     * {@code $PokemonGlobal.bridge}:
+     *
+     * <ul>
+     *   <li>bridge 0 - bridge tiles are skipped, so the tile below decides
+     *       (walking under, or up to, the bridge);</li>
+     *   <li>bridge &gt; 0 - the first bridge tile scanned answers on its own
+     *       passage bits and stops the search (walking on the bridge);</li>
+     *   <li>every other tile behaves like {@link #passable}.</li>
+     * </ul>
+     *
+     * @param bridgeHeight {@code $PokemonGlobal.bridge}
+     */
+    public boolean playerPassable(int column, int row, int directionBit, int bridgeHeight) {
+        if (!valid(column, row)) {
+            return false;
+        }
+        for (int layer = TOP_LAYER; layer >= GROUND_LAYER; layer--) {
+            int tile = tileId(layer, column, row);
+            if (tile <= 0) {
+                continue;
+            }
+            int terrain = tileset.terrainTag(tile);
+            // `next if PBTerrain.isBridge?(terrain) && $PokemonGlobal.bridge==0`
+            if (terrain == TERRAIN_BRIDGE && bridgeHeight == 0) {
+                continue;
+            }
+            // `elsif isBridge? && bridge>0 then return (passage & bit == 0 &&
+            //  passage & 0x0f != 0x0f)` - the bridge tile decides, immediately.
+            if (terrain == TERRAIN_BRIDGE) {
+                int passage = tileset.passage(tile);
+                return (passage & directionBit) == 0 && (passage & 0x0f) != 0x0f;
+            }
+            if (terrain == TERRAIN_NEUTRAL) {
+                continue;
+            }
+            int passage = tileset.passage(tile);
+            // `if passage & bit != 0 || passage & 0x0f == 0x0f` - the second
+            // clause only bites for the direction-less jump check (bit 0).
+            if ((passage & directionBit) != 0 || (passage & 0x0f) == 0x0f) {
+                return false;
+            }
+            if (tileset.priority(tile) == 0) {
+                return true;
+            }
         }
         return true;
     }
@@ -118,6 +177,18 @@ public final class TileMap {
      * while the player walks over a bridge above grass.
      */
     public int terrainTag(int column, int row, boolean countBridge) {
+        return terrainTag(column, row, countBridge, 0);
+    }
+
+    /**
+     * {@code Game_Map#terrain_tag(x, y, countBridge)} (0025.rb:304-313) with the
+     * bridge state: the source skips a bridge tile only when
+     * {@code !countBridge && $PokemonGlobal.bridge == 0}, so on a bridge the
+     * bridge tile answers instead of the tile below it.
+     *
+     * @param bridgeHeight {@code $PokemonGlobal.bridge}
+     */
+    public int terrainTag(int column, int row, boolean countBridge, int bridgeHeight) {
         if (!valid(column, row) || tileset == null) {
             return 0;
         }
@@ -127,7 +198,7 @@ public final class TileMap {
                 continue;
             }
             int terrain = tileset.terrainTag(tile);
-            if (!countBridge && terrain == TERRAIN_BRIDGE) {
+            if (!countBridge && terrain == TERRAIN_BRIDGE && bridgeHeight == 0) {
                 continue;
             }
             if (terrain > 0 && terrain != TERRAIN_NEUTRAL) {
@@ -142,6 +213,8 @@ public final class TileMap {
      * ({@code passable?(x, y, 0)}): only a tile that blocks <em>all four</em>
      * directions stops a jump, so a character can jump over obstacles and down
      * ledges. A passable priority-zero tile terminates the search as passable.
+     * Like {@link #passable} this is the non-player half of the source check;
+     * the player's jump goes through {@link #playerPassable} (Game_Map:162).
      */
     public boolean passableAnyDirection(int column, int row) {
         if (!valid(column, row)) {
@@ -152,7 +225,7 @@ public final class TileMap {
             if (tile <= 0) {
                 continue;
             }
-            if (tileset.terrainTag(tile) == 13 || tileset.terrainTag(tile) == 15) continue;
+            if (tileset.terrainTag(tile) == TERRAIN_NEUTRAL) continue;
             if ((tileset.passage(tile) & 0x0f) == 0x0f) {
                 return false;
             }

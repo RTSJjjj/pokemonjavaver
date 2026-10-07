@@ -68,6 +68,103 @@ class FieldInteractionsTest {
     }
 
     @Test
+    @DisplayName("toggleFloatPlates reads the step's destination tile, as $game_player.x does")
+    void toggleFloatPlatesUsesTheStepDestination() {
+        File dataRoot = TestData.runtimeDataRoot();
+        assumeTrue(dataRoot != null, "runtime data (generated/) not available");
+        GameDatabase database = GameDatabase.load(dataRoot.getAbsolutePath(), dataRoot);
+        try {
+            MapData data = database.map(207);
+            MapData.EventData on = null;
+            MapData.EventData off = null;
+            for (MapData.EventData event : data.events) {
+                if (event.name != null && event.name.contains("float_plate")) {
+                    if (on == null) {
+                        on = event;
+                    } else if (off == null) {
+                        off = event;
+                    }
+                }
+            }
+            assertNotNull(on, "map 207 carries the plugin's floating plates");
+            assertNotNull(off);
+
+            GameState state = new GameState();
+            // The player is still drawn on the old tile but has already
+            // committed to the plate: RMXP's move_generic sets @x/@y when the
+            // step starts, which is what $game_player.x reports here.
+            MapCharacter player = new MapCharacter(on.x, on.y - 1, data.width, data.height,
+                    "hero");
+            player.isPlayer = true;
+            assertTrue(player.startMove(on.x, on.y, 2), "the step onto the plate starts");
+            assertEquals(on.x, player.logicalX(), "the logical tile is the destination");
+            assertEquals(on.y, player.logicalY());
+            assertEquals(on.y - 1, player.y(), "the drawn tile only moves when the step lands");
+
+            state.enterMap(207, off.x, off.y);
+            FieldInteractions.toggleFloatPlates(state, data, player.logicalX(), player.logicalY());
+
+            assertTrue(state.selfSwitches().get(207, on.id, "A"),
+                    "the plate the player is walking onto switches on during the step");
+            assertFalse(state.selfSwitches().get(207, off.id, "A"),
+                    "every other plate switches off");
+        } finally {
+            database.dispose();
+        }
+    }
+
+    @Test
+    @DisplayName("every float_plate page pair is the RMXP shape the toggle needs (real data)")
+    void floatPlatePageShape() {
+        File dataRoot = TestData.runtimeDataRoot();
+        assumeTrue(dataRoot != null, "runtime data (generated/) not available");
+        GameDatabase database = GameDatabase.load(dataRoot.getAbsolutePath(), dataRoot);
+        try {
+            int plates = 0;
+            for (int mapId : new int[] { 60, 207, 209, 210, 371 }) {
+                MapData data = database.map(mapId);
+                for (MapData.EventData event : data.events) {
+                    if (event.name == null || !event.name.contains("float_plate")) {
+                        continue;
+                    }
+                    plates++;
+                    assertEquals(2, event.pages.size,
+                            "map " + mapId + " event " + event.id + " has the two plate pages");
+                    MapData.EventPageData up = event.pages.get(0);
+                    MapData.EventPageData down = event.pages.get(1);
+                    assertEquals(0, up.trigger, "page 1 (self switch off) is an action page");
+                    assertFalse(up.conditions.selfSwitchValid);
+                    assertEquals(1, down.trigger,
+                            "page 2 is Player Touch - the plate reacts to being stepped on");
+                    assertTrue(down.conditions.selfSwitchValid);
+                    assertEquals("A", down.conditions.selfSwitchCh);
+                    assertTrue(down.commands.size > 0, "page 2 carries the plate's SE");
+
+                    // Control Variable 26 = random(1..3), then three SE branches:
+                    // the pitch the plate plays. operandType 2 is the random
+                    // operand the interpreter used to reject.
+                    boolean rolled = false;
+                    for (int i = 0; i < down.commands.size; i++) {
+                        pokemon.runtime.data.EventCommand command = down.commands.get(i);
+                        if (command.code == 122 && command.parameters != null
+                                && command.parameters.getInt(0) == 26
+                                && command.parameters.getInt(3) == 2) {
+                            assertEquals(1, command.parameters.getInt(4), "rand from 1");
+                            assertEquals(3, command.parameters.getInt(5), "rand to 3");
+                            rolled = true;
+                        }
+                    }
+                    assertTrue(rolled, "map " + mapId + " event " + event.id
+                            + " rolls the SE pitch before branching");
+                }
+            }
+            assertTrue(plates >= 100, "the plugin's plate maps carry their plates: " + plates);
+        } finally {
+            database.dispose();
+        }
+    }
+
+    @Test
     @DisplayName("pushBoulder steps the boulder one tile in a free direction (real map 135)")
     void pushBoulder() {
         File dataRoot = TestData.runtimeDataRoot();

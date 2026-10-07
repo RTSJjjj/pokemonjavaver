@@ -293,6 +293,29 @@ final class PbMessage {
      */
     void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, WindowSkin speech, float w, float h) {
         if (!active) return;
+        renderWindow(b, a, f, skin, speech, w, h);
+    }
+
+    /**
+     * A message window that is still on screen after its text finished
+     * ({@code pbMessageDisplay} leaves the scene's own {@code msgwindow} showing; only
+     * {@code pbMessage} disposes the window it created).
+     */
+    static void renderResting(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin speech,
+                              String text, float w, float h) {
+        float msgHeight = BORDER + 2 * ROW;                      // :989 pbBottomLeftLines(msgwindow,2)
+        float msgTop = h - msgHeight;
+        Color[] mc = MenuPanel.textColors(speech);
+        MenuPanel.window(b, a, speech, 0f, h - msgTop - msgHeight, w, msgHeight);
+        String[] lines = (text == null ? "" : text).split("\n", -1);
+        for (int i = 0; i < lines.length && i < 2; i++) {
+            float top = msgTop + 16f + i * ROW + (ROW - f.lineHeight()) / 2f;
+            f.draw(b, lines[i], 16f, h - top, mc[0], mc[1]);
+        }
+    }
+
+    private void renderWindow(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, WindowSkin speech,
+                              float w, float h) {
         float msgHeight = BORDER + 2 * ROW;                      // :988 pbBottomLeftLines(msgwindow,2)
         float msgTop = h - msgHeight;
         Color[] mc = MenuPanel.textColors(speech);

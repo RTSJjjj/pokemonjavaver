@@ -54,9 +54,22 @@ public final class EventInterpreter {
             Pattern.compile("^\\$game_switches\\[(\\d+)\\]\\s*(?:==\\s*(true|false))?$");
     private static final Pattern SCRIPT_VARIABLE =
             Pattern.compile("^\\$game_variables\\[(\\d+)\\]\\s*(==|>=|<=|>|<|!=)\\s*(-?\\d+)$");
+    /**
+     * {@code $game_player.x == 10} / {@code $game_player.y < 18}: cutscene pages
+     * pick a move route from the hero's tile (map36 event 6 branches on it).
+     */
+    private static final Pattern SCRIPT_PLAYER_POSITION =
+            Pattern.compile("^\\$game_player\\.(x|y)\\s*(==|>=|<=|>|<|!=)\\s*(-?\\d+)$");
     /** Essentials {@code get_character(N).onEvent?}: the player stands on N. */
     private static final Pattern SCRIPT_ON_EVENT =
             Pattern.compile("^get_character\\(\\s*(-?\\d+)\\s*\\)\\.onEvent\\?$");
+    /**
+     * PField_Field:1363: {@code def pbBridgeOn(height=2)} - the Ruby default is
+     * what an argument-less {@code pbBridgeOn} stores in
+     * {@code $PokemonGlobal.bridge}.
+     */
+    public static final int DEFAULT_BRIDGE_HEIGHT = 2;
+
     /** Essentials {@code isTempSwitchOn?("A")} / {@code isTempSwitchOff?("A")}. */
     private static final Pattern SCRIPT_TEMP_SWITCH =
             Pattern.compile("^isTempSwitch(On|Off)\\?\\(\\s*\"([A-D])\"\\s*\\)$");
@@ -752,6 +765,13 @@ public final class EventInterpreter {
             operand = intParam(p, 4, 0);
         } else if (operandType == 1) {
             operand = state.variables().get(Math.max(1, intParam(p, 4, 1)));
+        } else if (operandType == 2) {
+            // Interpreter:840 `@parameters[4] + rand(@parameters[5] - @parameters[4] + 1)`.
+            // The float_plate puzzle pages depend on this: they roll variable 26
+            // between 1 and 3 and branch on it to pick the SE pitch.
+            int from = intParam(p, 4, 0);
+            int to = intParam(p, 5, from);
+            operand = from + random.nextInt(Math.max(1, to - from + 1));
         } else {
             unsupported(command, "variable operand type " + operandType + " (needs party / script data)");
             program.advance();
@@ -776,9 +796,9 @@ public final class EventInterpreter {
     }
 
     /**
-     * Transfer Player (201). RMXP ends the running event at this point and
-     * waits for the map change, so the interpreter stops here and the screen
-     * performs the switch at the end of the frame.
+     * Transfer Player (201). RMXP's {@code command_201} advances its index and
+     * returns false: the event waits for the map swap and then continues with
+     * the next command (the screen performs the swap at the end of the frame).
      */
     private void transferPlayer(EventProgram program, EventCommand command) {
         JsonValue p = command.parameters;
@@ -800,9 +820,23 @@ public final class EventInterpreter {
             program.advance();
             return;
         }
-        program.finish();
+        program.advance();
         mapPort.transfer(mapId, x, y, direction, fade);
         interpreterState = InterpreterState.WAIT_TRANSFER;
+    }
+
+    /**
+     * The queued Transfer Player (201) has been carried out: the event
+     * continues with the command after it, exactly like RMXP's
+     * {@code command_201} (which only advances {@code @index}). A transfer that
+     * keeps the player on the same map does not rebuild the map, so the running
+     * page - an autorun cutscene such as map6/event29 - has to continue instead
+     * of being restarted from command 0.
+     */
+    public void resumeAfterTransfer() {
+        if (interpreterState == InterpreterState.WAIT_TRANSFER) {
+            interpreterState = InterpreterState.RUNNING;
+        }
     }
 
     /** Set Move Route (209): parse the route and hand it to the map side. */
@@ -1460,6 +1494,15 @@ public final class EventInterpreter {
                 }
                 break;
             }
+            case "SET_BRIDGE": {
+                // PField_Field:1363-1369: pbBridgeOn(height=2) sets
+                // $PokemonGlobal.bridge to its height, pbBridgeOff to 0.
+                // Every event of this project calls pbBridgeOn without an
+                // argument (script-event audit: one argument shape), so the IR
+                // carries the flag and the Ruby default height applies here.
+                state.bridge(ir.getBoolean("on", false) ? DEFAULT_BRIDGE_HEIGHT : 0);
+                break;
+            }
             // ---- P3: berry plants (PField_BerryPlants:313-590) ----
             case "BERRY_PLANT": {
                 if (mapPort == null || eventId < 0 || pbs == null) {
@@ -1983,21 +2026,39 @@ public final class EventInterpreter {
         program.advance();
     }
 
+    /**
+     * Interpreter:865-893 - one group assignment. The source skips a write that
+     * cannot change the value (add/subtract at the ±99999999 cap, multiply and
+     * divide by 1, remainder by 0 or 1) and clamps to ±99999999 afterwards;
+     * {@code next} and "write the same value" are indistinguishable here, so
+     * only the cases with a real difference keep the guard.
+     */
     private static int applyOperation(int operation, int current, int operand) {
+        final int limit = 99999999;
+        int value;
         switch (operation) {
             case 1:
-                return current + operand;
+                value = current >= limit ? current : current + operand;
+                break;
             case 2:
-                return current - operand;
+                value = current <= -limit ? current : current - operand;
+                break;
             case 3:
-                return current * operand;
+                value = operand == 1 ? current : current * operand;
+                break;
             case 4:
-                return operand == 0 ? current : current / operand;
+                value = operand == 0 || operand == 1 ? current : current / operand;
+                break;
             case 5:
-                return operand == 0 ? current : current % operand;
+                // `next if value == 1 || value == 0`: remainder by 1 leaves the
+                // variable alone instead of zeroing it.
+                value = operand == 0 || operand == 1 ? current : current % operand;
+                break;
             default:
-                return operand;
+                value = operand;
+                break;
         }
+        return Math.max(-limit, Math.min(limit, value));
     }
 
     // ------------------------------------------------------------------
@@ -2354,9 +2415,10 @@ public final class EventInterpreter {
 
     /**
      * Evaluates the script conditions the runtime can answer without a Ruby
-     * translator: {@code $game_switches[n]}, {@code $game_variables[n]} and
-     * self switches. Everything else is reported and treated as false until
-     * R7 translates it (project3 section 29).
+     * translator: {@code $game_switches[n]}, {@code $game_variables[n]},
+     * {@code $game_player.x/.y}, the party size and self switches. Everything
+     * else is reported and treated as false until R7 translates it (project3
+     * section 29).
      */
     private boolean scriptCondition(String script, EventCommand command) {
         String text = script.trim();
@@ -2365,6 +2427,13 @@ public final class EventInterpreter {
             int id = Math.max(1, Integer.parseInt(variable.group(1)));
             int value = Integer.parseInt(variable.group(3));
             return compare(variable.group(2), state.variables().get(id), value);
+        }
+        Matcher playerPosition = SCRIPT_PLAYER_POSITION.matcher(text);
+        if (playerPosition.matches()) {
+            int value = "x".equals(playerPosition.group(1))
+                    ? state.playerX() : state.playerY();
+            return compare(playerPosition.group(2), value,
+                    Integer.parseInt(playerPosition.group(3)));
         }
         Matcher switchCondition = SCRIPT_SWITCH.matcher(text);
         if (switchCondition.matches()) {

@@ -338,7 +338,7 @@ public final class PauseMenuOverlay implements Disposable {
                 if (tradeView.update(input)) back();
                 break;
             case SETUP:
-                if (genderView.update(input)) back();
+                if (genderView.update(input)) { genderView.dispose(); back(); }
                 break;
             case MAP:
                 if (townMapView.update(input, delta)) back();
@@ -449,6 +449,11 @@ public final class PauseMenuOverlay implements Disposable {
             region.flip(false, true);
             batch.draw(region, 0, 0, width, height);
         }
+        if (sub == Sub.SETUP) {
+            // pbGenderSelector runs on top of the game screen: no pause-menu background.
+            genderView.render(batch, assets, font, skin, speech);
+            return;
+        }
         Texture background = assets.mpm("bg");
         if (background != null) {
             batch.setColor(1, 1, 1, snapshot == null ? 1 : .70f);
@@ -475,7 +480,6 @@ public final class PauseMenuOverlay implements Disposable {
             case STORAGE: storageView.render(batch, assets, font, skin, speech, detailFont); break;
             case PC: pcView.render(batch, assets, font, skin, speech, detailFont); break;
             case TRADE: tradeView.render(batch, assets, font, skin); break;
-            case SETUP: genderView.render(batch, assets, font, skin); break;
             case SAVE:
                 saveView.render(batch, assets, font, skin, speech, detailFont);
                 break;

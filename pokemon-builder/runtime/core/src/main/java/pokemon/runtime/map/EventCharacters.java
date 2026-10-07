@@ -351,6 +351,16 @@ public final class EventCharacters {
                 continue;
             }
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, data.events.get(i));
+            if (page == activePages[i]) {
+                // RGSS Game_Event#refresh returns as soon as the resolved page
+                // object is the same one. The version bump that got us here came
+                // from some other event (a parallel page flipping switches), so
+                // the movement flags a running route switched on - through
+                // (37), always on top (39), direction fix (35), speed (29) -
+                // must survive. Re-applying the page here reset them every frame
+                // on maps whose parallel event writes switches.
+                continue;
+            }
             MapData.EventGraphic graphic = page == null ? null : page.graphic;
             if (graphic != null && graphic.tileId == 0 && graphic.characterName != null
                     && !graphic.characterName.isEmpty()) {

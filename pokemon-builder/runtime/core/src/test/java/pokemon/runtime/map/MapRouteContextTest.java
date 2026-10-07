@@ -98,6 +98,22 @@ class MapRouteContextTest {
                         continue; // the raw collision must allow it to prove the block
                     }
                     assertFalse(context.step(npc, 2), "the player blocks a named character");
+
+                    // RGSS passableEx? (0021:187) returns true for @through, and
+                    // move route codes 37/38 are what the cutscenes use to walk
+                    // an NPC over the hero (map36 event 6).
+                    MoveRoutePlayer pass = new MoveRoutePlayer(route(37));
+                    pass.update(0f, npc, context);
+                    assertTrue(npc.through, "move route code 37 turns through on");
+                    MoveRoutePlayer solid = new MoveRoutePlayer(route(38));
+                    solid.update(0f, npc, context);
+                    assertFalse(npc.through, "move route code 38 turns it off again");
+
+                    pass = new MoveRoutePlayer(route(37, 2));
+                    pass.update(0f, npc, context);
+                    assertTrue(npc.isMoving() || npc.y() == y + 1,
+                            "with through on, the step onto the hero's tile starts");
+
                     MapCharacter ghost = new MapCharacter(x, y, map.width(), map.height(), "");
                     assertTrue(context.step(ghost, 2), "a nameless character may step onto the player");
                     checked = true;

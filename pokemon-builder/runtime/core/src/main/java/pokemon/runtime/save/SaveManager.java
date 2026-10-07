@@ -117,6 +117,7 @@ public final class SaveManager {
         root.addChild("quests", quests);
         root.addChild("followerToggled", new JsonValue(state.followerToggled()));
         root.addChild("strengthUsed", new JsonValue(state.pokemonMapStrengthUsed()));
+        root.addChild("bridge", new JsonValue(state.bridge()));
         root.addChild("trainer", trainerJson(state.trainer()));
         return root.toJson(JsonWriter.OutputType.json);
     }
@@ -396,6 +397,9 @@ public final class SaveManager {
         }
         state.followerToggled(root.getBoolean("followerToggled", false));
         state.pokemonMapStrengthUsed(root.getBoolean("strengthUsed", false));
+        // $PokemonGlobal.bridge (pbBridgeOn/pbBridgeOff). An older save without
+        // the key means "not on a bridge", which is the field default.
+        state.bridge(root.getInt("bridge", 0));
         // P1: the trainer / party / PC storage. A v1 document has no "trainer"
         // key (or a null one) and simply leaves the party empty.
         loadTrainer(root.get("trainer"), state.trainer());

@@ -40,6 +40,8 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
 
     private final ObjectMap<String, Music> musics = new ObjectMap<>();
     private final ObjectMap<String, Sound> sounds = new ObjectMap<>();
+    /** Ids that failed to resolve: not rescanned (and not re-logged) on every play. */
+    private final com.badlogic.gdx.utils.ObjectSet<String> unresolvedSounds = new com.badlogic.gdx.utils.ObjectSet<>();
     /** The SE samples currently sounding (pbSEStop stops them all). */
     private final java.util.LinkedHashSet<Sound> activeSe = new java.util.LinkedHashSet<>();
     private AudioManifestData manifest;
@@ -124,6 +126,7 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     /** Called once the database (and with it the manifest) is loaded. */
     public void attach(AudioManifestData manifest, File dataRoot) {
         this.manifest = manifest;
+        unresolvedSounds.clear();
         this.dataRoot = dataRoot;
     }
 
@@ -660,15 +663,25 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     }
 
     private Sound sound(String logicalId, String type) {
+        // A loaded sample is reused as is: resolving the id again (a manifest
+        // scan with a case-insensitive fallback plus a File#isFile stat) on every
+        // play stalls cursor-heavy screens such as the party menu.
+        Sound sound = sounds.get(logicalId);
+        if (sound != null) {
+            return sound;
+        }
+        if (unresolvedSounds.contains(logicalId)) {
+            return null;                       // already reported once
+        }
         File file = fileOf(logicalId, type);
         if (file == null) {
+            if (ready()) {
+                unresolvedSounds.add(logicalId);
+            }
             return null;
         }
-        Sound sound = sounds.get(logicalId);
-        if (sound == null) {
-            sound = backend.newSound(file);
-            sounds.put(logicalId, sound);
-        }
+        sound = backend.newSound(file);
+        sounds.put(logicalId, sound);
         return sound;
     }
 

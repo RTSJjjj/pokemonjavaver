@@ -185,6 +185,7 @@ public final class PartyView {
         java.util.Arrays.fill(preselected, false);
         java.util.Arrays.fill(switching, false);
         helpVisible = true;                                    // :675
+        prefetchIndex = 0;
         detailsPokemon = party.get(0);                         // :679 PokemonPartyDetailsPanel.new(@viewport, @party[0])
         detailsText = "";                                      // :210
         expBar.pokemon(detailsPokemon);                        // :222
@@ -1161,6 +1162,8 @@ public final class PartyView {
     // =====================================================================
 
     private float screenH;
+    /** Next party slot whose battler sprite is preloaded by {@link #render}. */
+    private int prefetchIndex;
 
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, MenuFont smallFont) {
         float w = ScreenMetrics.logicalWidth(), h = ScreenMetrics.logicalHeight();
@@ -1168,6 +1171,13 @@ public final class PartyView {
         if (summary != null) {
             summary.render(b, a, f, skin);
             return;
+        }
+        // The details panel's battler sprite is decoded from disk the first time a
+        // Pokemon is selected, which shows as a hitch on every cursor move. Load
+        // one Pokemon's sprite per frame while the screen is idle instead.
+        if (prefetchIndex < 6) {
+            Pokemon next = party.get(prefetchIndex++);
+            if (next != null) battler(a, next);
         }
         Color[] tc = MenuPanel.textColors(skin);
         // :652 addBackgroundPlane partybg (z=0)

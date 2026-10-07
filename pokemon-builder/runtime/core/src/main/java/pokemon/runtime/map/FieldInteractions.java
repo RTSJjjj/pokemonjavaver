@@ -31,8 +31,22 @@ public final class FieldInteractions {
      * toggle_liefeng_switches: on the plate maps, every event named
      * {@code float_plate} sets self switch A to "the player stands on me" and
      * clears it everywhere else.
+     *
+     * <p>The source compares against {@code $game_player.x}/{@code .y}, which
+     * RMXP moves to the destination tile when a step <em>starts</em>. The map
+     * screen therefore passes the {@link MapCharacter#logicalX() logical} tile;
+     * this overload keeps the plain {@code GameState} position for callers that
+     * have no character (a transfer or a headless test).</p>
      */
     public static void toggleFloatPlates(GameState state, MapData data) {
+        if (state == null) {
+            return;
+        }
+        toggleFloatPlates(state, data, state.playerX(), state.playerY());
+    }
+
+    /** {@code toggle_liefeng_switches} against an explicit player tile. */
+    public static void toggleFloatPlates(GameState state, MapData data, int playerX, int playerY) {
         if (state == null || data == null || !reactsToPlates(data.mapId)) {
             return;
         }
@@ -40,7 +54,7 @@ public final class FieldInteractions {
             if (event.name == null || !event.name.contains(FLOAT_PLATE_EVENT)) {
                 continue;
             }
-            boolean onPlate = event.x == state.playerX() && event.y == state.playerY();
+            boolean onPlate = event.x == playerX && event.y == playerY;
             state.selfSwitches().set(data.mapId, event.id, "A", onPlate);
         }
     }

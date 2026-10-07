@@ -39,7 +39,8 @@ public final class Collision {
     }
 
     /** Tile events are checked before the map layers, as in the source Game_Map. */
-    private static boolean passage(GameState state, TileMap map, MapData data, int x, int y, int bit) {
+    private static boolean passage(GameState state, TileMap map, MapData data,
+                                   MapCharacter character, int x, int y, int bit) {
         for (MapData.EventData event : data.events) {
             if (event.x != x || event.y != y) continue;
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
@@ -48,6 +49,12 @@ public final class Collision {
             if (tile <= 0 || map.tileset().terrainTag(tile) == 13) continue;
             if ((map.tileset().passage(tile) & bit) != 0) return false;
             if (map.tileset().priority(tile) == 0) return true;
+        }
+        // Game_Map:162: `return playerPassable?(x, y, d, self_event) if
+        // self_event==$game_player`. The bridge state is part of that method
+        // only, so every other character keeps the plain tile rule.
+        if (character != null && character.isPlayer) {
+            return map.playerPassable(x, y, bit, state == null ? 0 : state.bridge());
         }
         return map.passable(x, y, bit);
     }
@@ -82,8 +89,8 @@ public final class Collision {
         int bit = directionBit(direction);
         if (bit == 0 || !map.valid(x, y) || !map.valid(tx, ty)) return false;
         if (character.through) return true;
-        return passage(state, map, data, x, y, bit)
-                && passage(state, map, data, tx, ty, directionBit(10 - direction))
+        return passage(state, map, data, character, x, y, bit)
+                && passage(state, map, data, character, tx, ty, directionBit(10 - direction))
                 && !characterAt(state, data, tx, ty);
     }
 
@@ -108,11 +115,11 @@ public final class Collision {
             return true;
         }
         boolean verticalThenHorizontal =
-                passage(state, map, data, x, y, directionBit(vert))
-                && passage(state, map, data, x, ny, directionBit(horz));
+                passage(state, map, data, character, x, y, directionBit(vert))
+                && passage(state, map, data, character, x, ny, directionBit(horz));
         boolean horizontalThenVertical =
-                passage(state, map, data, x, y, directionBit(horz))
-                && passage(state, map, data, nx, y, directionBit(vert));
+                passage(state, map, data, character, x, y, directionBit(horz))
+                && passage(state, map, data, character, nx, y, directionBit(vert));
         return (verticalThenHorizontal || horizontalThenVertical)
                 && !characterAt(state, data, nx, ny);
     }
@@ -132,7 +139,13 @@ public final class Collision {
         if (character.through) {
             return true;
         }
-        return map.passableAnyDirection(x, y) && !characterAt(state, data, x, y);
+        // Game_Character#jump asks passable?(new_x, new_y, 0); for the player
+        // that is playerPassable? again (Game_Map:162), so a bridge tile answers
+        // its own passage bits while $PokemonGlobal.bridge is up.
+        boolean tile = character.isPlayer
+                ? map.playerPassable(x, y, 0, state == null ? 0 : state.bridge())
+                : map.passableAnyDirection(x, y);
+        return tile && !characterAt(state, data, x, y);
     }
 
     /**

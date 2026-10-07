@@ -73,6 +73,22 @@ public final class MenuFont implements Disposable {
      * {@code y == lineHeight()} sits exactly on the bottom edge, because the
      * menu font anchors at the top of the text and draws downwards.
      */
+    /**
+     * True when the font really has a glyph for this character. The incremental
+     * FreeType font generates glyphs on demand and answers null for characters the
+     * font file lacks, so callers draw a box instead of risking the missing glyph.
+     */
+    public boolean hasGlyph(int codePoint) {
+        if (font == null || codePoint > 0xFFFF) {
+            return false;
+        }
+        try {
+            return font.getData().getGlyph((char) codePoint) != null;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
     public float lineHeight() {
         return font == null ? 0f : font.getData().lineHeight;
     }

@@ -26,7 +26,7 @@ public final class MapRenderer {
     private final boolean[] emptyAutotiles = new boolean[7];
     private final Texture[] characters;
     private final MapData.EventGraphic[] eventGraphics;
-    private final long[] tilesAndEvents;
+    private long[] tilesAndEvents;
     private long[] drawOrder;
     /** Event indices drawn by the entity path (R6: NPCs walk smoothly). */
     private boolean[] runtimeEvents = new boolean[0];
@@ -34,6 +34,8 @@ public final class MapRenderer {
     private float elapsed;
     /** State version of the currently loaded event graphics (R5). */
     private long pageVersion;
+    /** {@code $PokemonGlobal.bridge} the tile draw order was built with. */
+    private long builtBridge = -1;
 
     private final Array<MapCharacter> entities = new Array<>();
     private Texture[] entityTextures = new Texture[0];
@@ -97,6 +99,18 @@ public final class MapRenderer {
             loadAutotile(i);
         }
         cells = map.width() * map.height();
+        pageVersion = state.version();
+        rebuildTileOrder();
+        drawOrder = tilesAndEvents;
+    }
+
+    /**
+     * Rebuilds the static tile + map-event draw order. The bridge half of
+     * {@link #tileDepth(int, int, int, int)} depends on
+     * {@code $PokemonGlobal.bridge}, so this runs again whenever that flips
+     * ({@code pbBridgeOn} / {@code pbBridgeOff}).
+     */
+    private void rebuildTileOrder() {
         long[] order = new long[cells * 3 + map.events().size];
         int count = 0;
         for (int layer = 0; layer < 3; layer++)
@@ -104,7 +118,8 @@ public final class MapRenderer {
                 for (int col = 0; col < map.width(); col++) {
                     int id = map.tileId(layer, col, row);
                     if (id < 48) continue;
-                    int depth = tileDepth(row, map.tileset().priority(id));
+                    int depth = tileDepth(row, map.tileset().priority(id),
+                            map.tileset().terrainTag(id), state.bridge());
                     order[count++] = ((long) depth << 32) | (layer * cells + row * map.width() + col);
                 }
         // Every event keeps a draw slot: a switch can activate a page with a
@@ -113,8 +128,7 @@ public final class MapRenderer {
             order[count++] = ((long) eventDepth(map.events().get(i).y) << 32) | (3 * cells + i);
         tilesAndEvents = Arrays.copyOf(order, count);
         Arrays.sort(tilesAndEvents);
-        drawOrder = tilesAndEvents;
-        pageVersion = state.version();
+        builtBridge = state.bridge();
     }
 
     /**
@@ -244,6 +258,37 @@ public final class MapRenderer {
     }
 
     static int tileDepth(int row, int priority) { return priority == 0 ? 0 : (row + priority + 1) * TILE; }
+
+    /** A bridge tile while the hero is on a bridge: drawn under every character. */
+    static final int BRIDGE_DEPTH = 1;
+    /** {@code PBTerrain.hasReflections?} tiles (StillWater / Puddle). */
+    static final int REFLECTION_DEPTH = -100;
+
+    /**
+     * Tilemap_XP:408-414 - the z of one map tile, with the terrain and the
+     * bridge state the plain priority formula cannot see.
+     *
+     * <ul>
+     *   <li>{@code PBTerrain.hasReflections?} (StillWater / Puddle) draws at
+     *       -100, below everything: that surface only carries reflections.</li>
+     *   <li>A bridge tile while {@code $PokemonGlobal.bridge > 0} draws at 1,
+     *       so the hero walks visibly <em>on</em> the deck once
+     *       {@code pbBridgeOn} fired.</li>
+     *   <li>Without the bridge state the tile keeps its priority z and covers
+     *       whoever is underneath it - which is exactly what walking below a
+     *       bridge (without its script) must look like.</li>
+     * </ul>
+     */
+    static int tileDepth(int row, int priority, int terrain, int bridgeHeight) {
+        if (terrain == TileMap.TERRAIN_STILL_WATER || terrain == TileMap.TERRAIN_PUDDLE) {
+            return REFLECTION_DEPTH;
+        }
+        if (bridgeHeight > 0 && terrain == TileMap.TERRAIN_BRIDGE) {
+            return BRIDGE_DEPTH;
+        }
+        return tileDepth(row, priority);
+    }
+
     static int eventDepth(int row) { return (row + 1) * TILE + 16; }
     public void update(float delta) { elapsed += Math.max(0f, delta); }
 
@@ -372,6 +417,14 @@ public final class MapRenderer {
     /** Rebuilds when the interpolated screen depth changes, with no per-frame array allocation. */
     private void rebuildOrderIfNeeded() {
         boolean changed = false;
+        if (state.bridge() != builtBridge) {
+            // pbBridgeOn / pbBridgeOff moved every bridge tile's z
+            // (Tilemap_XP:410): the hero must appear on top of the deck he is
+            // standing on, and below it while he walks underneath.
+            rebuildTileOrder();
+            drawOrder = new long[tilesAndEvents.length + entities.size];
+            changed = true;
+        }
         for (int i = 0; i < entities.size; i++) {
             int depth = entityDepth(entities.get(i));
             if (depth != entityDepths[i]) {

@@ -85,8 +85,16 @@ public final class MapRouteContext implements MoveRoutePlayer.Context {
      * passable for a character that has a graphic, so a trainer walks up to
      * the hero and stops on the tile next to them instead of stepping onto
      * (through) them.
+     *
+     * <p>{@code @through} short-circuits that whole method
+     * ({@code 0021-Game_Character.rb:187}), so move route code 37 lets a
+     * cutscene NPC walk over the hero - without this the map36 event 6 route
+     * was bumped and the following "wait for move's completion" stalled.</p>
      */
     private boolean playerBlocks(MapCharacter character, int x, int y) {
+        if (character.through) {
+            return false; // passableEx? returns true before the player check
+        }
         return x == player.x() && y == player.y()
                 && !player.through
                 && character.characterName != null && !character.characterName.isEmpty();

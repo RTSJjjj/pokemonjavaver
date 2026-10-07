@@ -210,6 +210,36 @@ class EventCharactersTest {
     }
 
     @Test
+    @DisplayName("a running route's through / always-on-top survive a refresh of an unchanged page")
+    void routeFlagsSurviveUnchangedPageRefresh() {
+        MapData data = mapData();
+        GameState state = new GameState();
+        state.enterMap(data.mapId, 0, 0);
+        EventCharacters events = new EventCharacters(data, new TileMap(data, null), state);
+        MapCharacter npc = events.character(2);
+
+        MoveRoute route = MoveRoute.parse(new JsonReader().parse(
+                "{\"list\":[{\"code\":37},{\"code\":39},{\"code\":0}],\"skippable\":true}"));
+        events.setMoveRoute(2, route);
+        events.update(0f, new MoveRoutePlayer.Context() {
+            @Override
+            public boolean step(MapCharacter character, int direction) {
+                return false;
+            }
+        });
+        assertTrue(npc.through, "code 37 turns through on");
+        assertTrue(npc.alwaysOnTop, "code 39 turns always-on-top on");
+
+        // A parallel event elsewhere flips a switch: MapScreen refreshes the
+        // pages, but this event's page object is unchanged, so RGSS
+        // Game_Event#refresh returns early and the route's flags must stay.
+        state.switches().set(3, true);
+        events.refreshGraphics();
+        assertTrue(npc.through, "through must survive the refresh");
+        assertTrue(npc.alwaysOnTop, "always on top must survive the refresh");
+    }
+
+    @Test
     @DisplayName("an event move route actually walks the NPC")
     void npcRouteMovesTheCharacter() {
         MapData data = mapData();

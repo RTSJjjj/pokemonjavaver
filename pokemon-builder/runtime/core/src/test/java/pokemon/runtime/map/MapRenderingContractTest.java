@@ -37,4 +37,27 @@ class MapRenderingContractTest {
         assertTrue(MapRenderer.tileDepth(4, 2) > MapRenderer.eventDepth(5));
         assertTrue(MapRenderer.tileDepth(4, 2) < MapRenderer.eventDepth(6));
     }
+
+    @Test void bridgeTilesLayerUnderTheHeroOnlyWhileTheBridgeIsUp() {
+        int row = 10;
+        // Bridge off (no pbBridgeOn yet): the deck keeps its priority z and
+        // covers a character walking below it - the intended "under the bridge"
+        // picture.
+        assertTrue(MapRenderer.tileDepth(row, 5, TileMap.TERRAIN_BRIDGE, 0)
+                > MapRenderer.eventDepth(row));
+        // Bridge on: the deck drops below every character, so the hero walks
+        // visibly on top of it.
+        assertEquals(MapRenderer.BRIDGE_DEPTH,
+                MapRenderer.tileDepth(row, 5, TileMap.TERRAIN_BRIDGE, 2));
+        assertTrue(MapRenderer.tileDepth(row, 5, TileMap.TERRAIN_BRIDGE, 2)
+                < MapRenderer.eventDepth(row));
+        // Other terrain keeps the priority formula.
+        assertEquals(MapRenderer.tileDepth(row, 5),
+                MapRenderer.tileDepth(row, 5, TileMap.TERRAIN_GRASS, 2));
+        // PBTerrain.hasReflections? (StillWater / Puddle) draws below everything.
+        assertEquals(MapRenderer.REFLECTION_DEPTH,
+                MapRenderer.tileDepth(row, 5, TileMap.TERRAIN_STILL_WATER, 2));
+        assertEquals(MapRenderer.REFLECTION_DEPTH,
+                MapRenderer.tileDepth(row, 0, TileMap.TERRAIN_PUDDLE, 0));
+    }
 }

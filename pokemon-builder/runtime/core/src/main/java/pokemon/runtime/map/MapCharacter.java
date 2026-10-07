@@ -95,6 +95,29 @@ public final class MapCharacter {
 
     public int x() { return x; }
     public int y() { return y; }
+
+    /**
+     * RMXP {@code Game_Character#x} / {@code #y} <em>during a step</em>: the
+     * source sets {@code @x}/{@code @y} to the destination when the step starts
+     * and glides {@code @real_x}/{@code @real_y} there, so every reader of the
+     * player's tile sees the destination for the whole step. This port keeps
+     * {@link #x()} on the source tile until the step lands, so the destination
+     * is exposed here for the readers that depend on the RMXP behaviour (the
+     * {@code float_plate} toggle reads {@code $game_player.x}). A jump already
+     * stores its landing tile immediately, so it needs no special case.
+     */
+    public int logicalX() { return hasStep() ? toX : x; }
+
+    /** RMXP {@code $game_player.y} during a step; see {@link #logicalX()}. */
+    public int logicalY() { return hasStep() ? toY : y; }
+
+    /**
+     * True for {@code $game_player}. {@code Game_Map#passable?} hands only the
+     * player to {@code playerPassable?} (Game_Map:162), which is the one method
+     * that consults {@code $PokemonGlobal.bridge}.
+     */
+    public boolean isPlayer;
+
     public int direction() { return direction; }
     public float speed() { return speed; }
     public void speed(float tilesPerSecond) { this.speed = Math.max(0.1f, tilesPerSecond); }

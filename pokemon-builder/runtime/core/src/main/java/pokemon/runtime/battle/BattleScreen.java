@@ -772,6 +772,37 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
     }
 
+    /**
+     * {@code PokemonBattlerShadowSprite#setPokemonBitmap / #pbSetPosition}
+     * (PokeBattle_SceneElements:639-688): the species' shadow picture
+     * ({@code pbCheckPokemonShadowBitmapFiles} falls back to
+     * {@code battler_shadow_<MetricBattlerShadowSize or 2>}), centred on the
+     * battler's base position; a foe's x also takes {@code MetricBattlerShadowX*2}
+     * (Pokemon_Sprites:352-355).
+     */
+    private void pbSetShadowPosition(BattleSprite shadow, int idxBattler, int sideSize) {
+        Battler battler = shadow.battler;
+        PbsData.BattlerOffsets m = null;
+        if (battler != null && battler.pokemon != null && battler.pokemon.species != null) {
+            m = battler.pokemon.form != null && battler.pokemon.form.battler != null
+                    ? battler.pokemon.form.battler : battler.pokemon.species.battler;
+        }
+        int size = m != null && m.shadowSize > 0 ? m.shadowSize : 2;            // :147 || 2
+        shadow.name = "Graphics/Pictures/Battle/battler_shadow_" + size;         // :148
+        int[] bmp = bitmapSize(shadow.name);
+        shadow.bitmapWidth = bmp == null ? -1 : bmp[0];
+        shadow.bitmapHeight = bmp == null ? -1 : bmp[1];
+        shadow.origin = PictureEx.Origin.CENTER;                                 // :666-668 pbSetOrigin
+        shadow.z = 3;                                                            // :673
+        float[] pos = PokeBattle_SceneConstants.battlerPosition(idxBattler, sideSize);   // :675
+        shadow.x = pos[0];
+        shadow.y = pos[1];
+        if (m != null && (idxBattler & 1) == 1) {                                // Pokemon_Sprites:353-355
+            shadow.x += m.shadowX * 2;
+        }
+        shadow.updateOrigin();
+    }
+
     /** {@code PokemonBattlerSprite#pbSetPosition} (PokeBattle_SceneElements:568-582). */
     private void pbSetPokemonSpritePosition(BattleSprite sprite, int sideSize) {
         int index = sprite.battler == null ? 0 : sprite.battler.index;           // @index
@@ -1110,6 +1141,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         BattleSprite shadow = sprites.get("shadow_" + idxBattler);               // :321
         if (shadow != null) {
             shadow.battler = battler;
+            pbSetShadowPosition(shadow, idxBattler, sideSize(idxBattler));      // :686-688 setPokemonBitmap
             // showShadow? (Pokemon_Sprites:369-373) returns true unconditionally.
             shadow.visible = true;                                              // :327
         }
@@ -4020,13 +4052,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 drawDataBox(batch, sprite, h);
                 continue;
             }
-            if (sprite.kind == BattleSprite.Kind.SHADOW) {
-                // PokemonBattlerShadowSprite needs pbLoadPokemonShadowBitmap
-                // (Pokemon_Sprites), which this batch does not transcribe.
-                // Reported to the user; the sprite still exists so the
-                // animations can read and toggle its visibility.
-                continue;
-            }
             Texture texture = spriteTexture(sprite);
             if (texture == null) {
                 continue;
@@ -4127,6 +4152,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case IMAGE:
             case TRAINER_BACK:
             case TRAINER_FRONT:
+            case SHADOW:
                 return texture(sprite.name);
             case POKEMON:
                 // PBAnimationPlayerX swaps the sprite's bitmap (:815/:840-844).

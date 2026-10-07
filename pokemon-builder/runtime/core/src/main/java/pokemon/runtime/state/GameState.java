@@ -48,6 +48,15 @@ public final class GameState {
      */
     private boolean pokemonMapStrengthUsed;
     /**
+     * Essentials {@code $PokemonGlobal.bridge} (PField_Field:1363-1369): the
+     * height a bridge is drawn at, 0 = not on a bridge. {@code pbBridgeOn} sets
+     * it to its {@code height} argument (2 by default) and {@code pbBridgeOff}
+     * back to 0; {@code Game_Map#playerPassable?} makes the bridge tiles under
+     * the player passable only while it is above 0. Part of the save, like
+     * {@code PokemonGlobal} itself.
+     */
+    private int bridge;
+    /**
      * PField_Field:1399-1416: {@code $PokemonGlobal.partner} =
      * [trainerType, name, id, party]; null when no partner is registered.
      */
@@ -226,6 +235,15 @@ public final class GameState {
         this.pokemonMapStrengthUsed = value;
     }
 
+    /** Essentials {@code $PokemonGlobal.bridge}: 0 = off, {@code pbBridgeOn}'s height otherwise. */
+    public int bridge() {
+        return bridge;
+    }
+
+    public void bridge(int value) {
+        this.bridge = Math.max(0, value);
+    }
+
     /**
      * Essentials {@code $PokemonGlobal.nextBattleBGM} / {@code nextBattleME} /
      * {@code nextBattleCaptureME} (PField_Battles:5-7). The event commands
@@ -350,6 +368,7 @@ public final class GameState {
         quests.clear();
         followerToggled = false;
         pokemonMapStrengthUsed = false;
+        bridge = 0;
         partner = null;
         clearNextBattleAudio();
         mapId = -1;

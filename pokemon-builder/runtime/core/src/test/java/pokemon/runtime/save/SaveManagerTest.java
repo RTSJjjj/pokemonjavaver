@@ -29,6 +29,7 @@ class SaveManagerTest {
         state.inventory().add("ORANBERRY", 3);
         state.playerId(1);
         state.pokemonMapStrengthUsed(true);
+        state.bridge(2); // $PokemonGlobal.bridge, pbBridgeOn's height
         return state;
     }
 
@@ -48,6 +49,7 @@ class SaveManagerTest {
         assertFalse(actual.selfSwitches().get(7, 12, "A"));
         assertEquals(3, actual.inventory().count("ORANBERRY"));
         assertEquals(expected.pokemonMapStrengthUsed(), actual.pokemonMapStrengthUsed());
+        assertEquals(expected.bridge(), actual.bridge());
     }
 
     @Test

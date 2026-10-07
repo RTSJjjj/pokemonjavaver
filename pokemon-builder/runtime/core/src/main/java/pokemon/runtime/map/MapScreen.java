@@ -261,6 +261,10 @@ public final class MapScreen extends ScreenAdapter {
         // RMXP rebuilds the screen state on map setup: the black tone a door
         // applied before the transfer must not survive into the new map.
         context.screenEffects().clearTone();
+        // Scene_Map#transfer_player:70 calls pbBridgeOff: leaving the map drops
+        // $PokemonGlobal.bridge, so the next map starts with bridge tiles in
+        // their "covers the character" z until its own bridge script fires.
+        gameState.bridge(0);
         if (direction != 0) {
             gameState.setPlayerPosition(spawn[0], spawn[1], direction);
         }
@@ -500,11 +504,18 @@ public final class MapScreen extends ScreenAdapter {
             /** R6.30: toggle_liefeng_switches - the floating-plate puzzle maps. */
             @Override
             public void togglePlateSwitches() {
-                FieldInteractions.toggleFloatPlates(gameState, mapData);
+                // The plugin reads $game_player.x/.y, which during a step is the
+                // destination tile (Game_Character#move_generic sets @x/@y when
+                // the step starts), so the plate's page flips while the player
+                // is still walking onto it - that is what makes the landing
+                // Player Touch check below fire on the pressed page.
+                FieldInteractions.toggleFloatPlates(gameState, mapData,
+                        player.logicalX(), player.logicalY());
             }
         });
         player = new MapCharacter(spawn[0], spawn[1],
                 tileMap.width(), tileMap.height(), playerCharacter);
+        player.isPlayer = true;
         player.runningCharacterName = playerRunningCharacter;
         // R6.28: the grass rustle fires on steps, not on spawning in the grass.
         lastPlayerTile = new int[] {player.x(), player.y()};
@@ -756,7 +767,7 @@ public final class MapScreen extends ScreenAdapter {
                 if (player.x() != beforeX || player.y() != beforeY || playerLanded) {
                     // RMXP checks Player Touch (1) and Event Touch (2) together,
                     // and only on the frame the player stepped onto the tile.
-                    startTouchEvent(player.x(), player.y()); // Player Touch: arrived
+                    startOwnTileTouch();                     // Player Touch: arrived
                     checkEventTouch();                       // Event Touch: same tile
                     checkSightTriggers();                    // L6b: Trainer(N)/Counter(N) sight
                 } else {
@@ -765,6 +776,11 @@ public final class MapScreen extends ScreenAdapter {
                     // obstacle without a touch event plays the bump SE.
                     if (blockedStep && !touched) {
                         playBumpSe();
+                    }
+                    // A page that turned Player Touch after the landing check
+                    // (the floating plates) still has to run - see the method.
+                    if (!touched) {
+                        startOwnTileTouch();
                     }
                 }
             }
@@ -917,8 +933,20 @@ public final class MapScreen extends ScreenAdapter {
     /**
      * Transfer Player (201): builds the target screen and swaps it in. The old
      * screen disposes itself because Game.setScreen does not dispose screens.
+     *
+     * <p>A transfer that keeps the player on the map they are already standing
+     * on must NOT rebuild the screen. Essentials' {@code Scene_Map#transfer_player}
+     * only calls {@code $MapFactory.setup} when the map id changes
+     * ({@code 0047.rb:71-73}); rebuilding would drop the running event's
+     * interpreter and restart the still-active autorun page from its first
+     * command, which loops forever on map6/event29 page 2 (user report
+     * 2026-10-05).</p>
      */
     private void switchMap(RuntimeContext.Transfer transfer) {
+        if (mapData != null && transferStaysInMap(mapData.mapId, transfer.mapId)) {
+            transferWithinMap(transfer);
+            return;
+        }
         try {
             if (transfer.fade != 0) {
                 context.screenEffects().fade(0, true); // the new map starts black
@@ -934,6 +962,70 @@ public final class MapScreen extends ScreenAdapter {
                 interpreter.stop();
             }
         }
+    }
+
+    /**
+     * Essentials' {@code Scene_Map#transfer_player} sets the map up only when
+     * the map id actually changes ({@code 0047.rb:71-73}); a Transfer Player
+     * inside the current map keeps the map and its running event alive.
+     */
+    public static boolean transferStaysInMap(int currentMapId, int targetMapId) {
+        return targetMapId == currentMapId;
+    }
+
+    /**
+     * In-map Transfer Player (201): the hero jumps to the target tile while the
+     * map and its event state stay untouched. RMXP's {@code Game_Player#moveto}
+     * is not a step, so the destination must not roll an encounter or rustle the
+     * grass, and {@code command_201} leaves the event running - the interpreter
+     * resumes with the command after the transfer.
+     */
+    private void transferWithinMap(RuntimeContext.Transfer transfer) {
+        if (transfer.fade != 0) {
+            // The frame before the swap already faded the screen to black
+            // (update's transfer fade); a rebuilt screen fades back in, so the
+            // in-place path has to do the same instead of staying black.
+            context.screenEffects().fade(12, false);
+        }
+        player.teleport(transfer.x, transfer.y);
+        if (transfer.direction != 0) {
+            player.face(transfer.direction);
+        }
+        gameState.setPlayerPosition(player.x(), player.y(), player.direction());
+        // Scene_Map#transfer_player:70: every transfer (same map included)
+        // starts with pbBridgeOff.
+        gameState.bridge(0);
+        // Not a walked step: suppress the grass rustle / encounter roll that
+        // updateGrassRustle would otherwise see on the next frame.
+        lastPlayerTile = new int[] {player.x(), player.y()};
+        // A teleport is not a walk, so RMXP's player-touch check (which runs
+        // only on a stepped frame) must not fire at the destination: the map35
+        // portal pairs teleport onto each other and would bounce forever.
+        latchOwnTouchTile();
+        cameraScroll.reset();
+        followPlayer();
+        if (interpreter != null) {
+            interpreter.resumeAfterTransfer();
+        }
+    }
+
+    /**
+     * Marks the player's current tile as already player-touch checked. A
+     * teleport (201 / 202 on the player) is not a step, so the page under the
+     * hero must not start until the player walks off and back on.
+     */
+    private void latchOwnTouchTile() {
+        if (player == null || mapData == null || gameState == null) {
+            return;
+        }
+        ownTouchTileX = player.x();
+        ownTouchTileY = player.y();
+        MapData.EventPageData page = EventTriggers.pageAt(gameState, mapData, ownTouchTileX, ownTouchTileY,
+                EventTriggers.PLAYER_TOUCH);
+        ownTouchEventId = page == null ? -1
+                : EventTriggers.eventIdAt(gameState, mapData, ownTouchTileX, ownTouchTileY,
+                        EventTriggers.PLAYER_TOUCH);
+        ownTouchPage = page == null ? -1 : page.page;
     }
 
     /** Starts the action-trigger page (trigger 0) of the event the player faces. */
@@ -971,10 +1063,59 @@ public final class MapScreen extends ScreenAdapter {
         }
     }
 
-    /** Player Touch (trigger 1): the player just finished a step onto the tile. */
-    private void startTouchEvent(int x, int y) {
-        startEvent(x, y, EventTriggers.PLAYER_TOUCH);
+    /**
+     * Player Touch (trigger 1) on the tile the player stands on:
+     * {@code Game_Player#update_event_triggering}:404
+     * {@code check_event_trigger_here([1,2])}.
+     *
+     * <p>RMXP runs that check on the landing frame and reads
+     * {@code $game_player.x}, which already holds the destination while the step
+     * runs, so a page that a parallel event flips during the step is active by
+     * the time the check runs. This port resolves the player's tile when the
+     * step lands, so the same page can turn Player Touch one or more frames
+     * later (the floating plates do - see {@code toggle_liefeng_switches}).
+     * Re-running the check while the player stands there closes that gap; the
+     * latch keeps it to one start per event + page, so a page that stays Player
+     * Touch under the player is not restarted every frame.</p>
+     *
+     * @return true when a page started
+     */
+    private boolean startOwnTileTouch() {
+        if (interpreter == null || interpreter.running()) {
+            return false;
+        }
+        int x = player.x();
+        int y = player.y();
+        if (x != ownTouchTileX || y != ownTouchTileY) {
+            // A new tile: nothing has started here yet. (Reset by tile rather
+            // than by the landing branch so a teleport onto a page cannot be
+            // suppressed by a latch from the tile the player came from.)
+            ownTouchTileX = x;
+            ownTouchTileY = y;
+            ownTouchEventId = -1;
+            ownTouchPage = -1;
+        }
+        MapData.EventPageData page = EventTriggers.pageAt(gameState, mapData, x, y,
+                EventTriggers.PLAYER_TOUCH);
+        if (page == null) {
+            return false;
+        }
+        int id = EventTriggers.eventIdAt(gameState, mapData, x, y, EventTriggers.PLAYER_TOUCH);
+        if (id == ownTouchEventId && page.page == ownTouchPage) {
+            return false;
+        }
+        ownTouchEventId = id;
+        ownTouchPage = page.page;
+        arrivalDoorPage = false;
+        interpreter.start(page.commands, mapData.mapId, id);
+        return true;
     }
+
+    /** Player Touch page already started at the player's current tile. */
+    private int ownTouchTileX = Integer.MIN_VALUE;
+    private int ownTouchTileY = Integer.MIN_VALUE;
+    private int ownTouchEventId = -1;
+    private int ownTouchPage = -1;
 
     /**
      * Player Touch when the destination is blocked by the event itself: RMXP
@@ -2554,7 +2695,10 @@ public final class MapScreen extends ScreenAdapter {
             return;
         }
         wildEncounters.onMap(mapData.mapId);
-        int tag = tileMap.terrainTag(player.x(), player.y(), true);
+        // PField_Encounters:153 uses $game_map.terrain_tag(x, y) - the default
+        // countBridge = false, so a bridge tile above the player only answers
+        // while $PokemonGlobal.bridge is up; underneath it the tile below does.
+        int tag = tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge());
         WildEncounters.WildEncounter encounter =
                 wildEncounters.roll(context.pbsData(), mapData.mapId, tag, encounterRandom);
         if (encounter == null) {
