@@ -459,6 +459,17 @@ public final class MenuCapture extends ApplicationAdapter {
             // Move animations: a wild battle played through the lead's first move, sampled
             // while PBAnimationPlayerX runs (Scene_Animations:542-586).
             boolean moveAnimCapture = args.length > 2 && "move-anim".equals(args[2]);
+            // Doubles: a wild double battle whose two player battlers choose one after the other
+            // (Battle_Phase_Command:197-263), with the target menu (Scene_Commands:419-474).
+            boolean doubleCapture = args.length > 2 && "double".equals(args[2]);
+            // Two opposing trainers and a partner (pbDoubleTrainerBattle + a partner trainer), played to the end with CONFIRM.
+            boolean doubleTrainerCapture = args.length > 2 && "double-trainer".equals(args[2]);
+            // A wild double battle in which the first battler switches and the second attacks ("double-switch"),
+            // or the first battler uses a Potion and the second a Poke Ball ("double-bag").
+            boolean doubleSwitchCapture = args.length > 2 && "double-switch".equals(args[2]);
+            boolean doubleBagCapture = args.length > 2 && "double-bag".equals(args[2]);
+            // The second battler faints at the end of the round, so pbEORSwitch asks for its replacement.
+            boolean doubleFaintCapture = args.length > 2 && "double-faint".equals(args[2]);
             if (multiTrainerCapture || faintCapture) {
                 pokemon.runtime.pokemon.PbsData.TrainerData opponent = null;
                 if (multiTrainerCapture && pbs != null) {
@@ -707,6 +718,184 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 60f, 30);
                     shotMap("l1-battle-trainer-end" + i);
                 }
+            } else if (doubleSwitchCapture || doubleBagCapture || doubleFaintCapture) {
+                String tag = doubleSwitchCapture ? "dsw" : (doubleBagCapture ? "dbg" : "dfa");
+                int foeLevel = doubleFaintCapture ? 50 : 5;
+                if (doubleFaintCapture) {
+                    context.gameState().trainer().party.members().get(1).hp = 1;   // Charmander, battler 2
+                    context.gameState().trainer().party.members().get(0).level = 50;
+                    context.gameState().trainer().party.members().get(0).hp =
+                            context.gameState().trainer().party.members().get(0).maxHp();
+                }
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().setBattleSize("double");
+                context.battlePort().freeWildBattle(java.util.Arrays.asList(
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("PIDGEY"), foeLevel, pbs),
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("RATTATA"), foeLevel, pbs)));
+                renderMap();
+                advanceMap(1f / 60f, 106);
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 1200);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> !s.debugSendingOut() && "BATTLE".equals(s.debugStage())
+                        && s.debugWindow() == 2 && s.debugCommandBattler() == 0, 1500);
+                if (doubleFaintCapture) {
+                    // nothing scripted: both battlers attack
+                } else if (doubleSwitchCapture) {
+                    stepMap(GameAction.DOWN);              // 队伍
+                    stepMap(GameAction.CONFIRM);
+                    advanceUntilBattle(s -> s.debugPage() == 3, 200);
+                    shotMap(tag + "-party");
+                    stepMap(GameAction.RIGHT);
+                    stepMap(GameAction.RIGHT);             // the third member
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 8);
+                    shotMap(tag + "-party-menu");
+                    stepMap(GameAction.CONFIRM);           // 换上
+                } else {
+                    stepMap(GameAction.RIGHT);             // 背包
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 20);
+                    shotMap(tag + "-bag");
+                    stepMap(GameAction.CONFIRM);           // the first item
+                    advanceMap(1f / 60f, 10);
+                    shotMap(tag + "-bag-item");
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 10);
+                    shotMap(tag + "-bag-use");
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 10);
+                    shotMap(tag + "-bag-target");
+                    stepMap(GameAction.CONFIRM);
+                }
+                String lastStage = "";
+                int shots = 0;
+                for (int i = 0; i < 160 && battleScreen() != null; i++) {
+                    BattleScreen live = battleScreen();
+                    String key = live.debugStage() + "/" + live.debugWindow() + "/" + live.debugPage() + "/"
+                            + live.debugCommandBattler() + "/" + live.debugSendingOut() + "/" + live.debugSwitch();
+                    if (!key.equals(lastStage) && shots < 60) {
+                        lastStage = key;
+                        shotMap(String.format(java.util.Locale.ROOT, "%s-%02d-%s", tag, shots++,
+                                live.debugStage().toLowerCase(java.util.Locale.ROOT)));
+                    }
+                    if (doubleFaintCapture && live.debugPage() == 3 && live.debugMessage() == null) {
+                        stepMap(GameAction.RIGHT);
+                        stepMap(GameAction.RIGHT);
+                    }
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 8);
+                }
+                System.out.println(tag + " capture: finished, shots=" + shots + " " + (battleScreen() == null ? "" : battleScreen().debugBattlers()));
+            } else if (doubleTrainerCapture) {
+                java.util.List<pokemon.runtime.pokemon.PbsData.TrainerData> foes = new java.util.ArrayList<>();
+                String partnerType = null;
+                for (com.badlogic.gdx.utils.ObjectMap.Entry<String, pokemon.runtime.pokemon.PbsData.TrainerData> entry : pbs.trainers) {
+                    pokemon.runtime.pokemon.PbsData.TrainerData candidate = entry.value;
+                    if (candidate.party.size != 1 || candidate.type == null) continue;
+                    pokemon.runtime.pokemon.PbsData.TrainerType type = pbs.trainerTypes.get(candidate.type);
+                    if (type == null) continue;
+                    if (locator.find("Trainers", "trainer" + type.internalName + ".png") == null
+                            && locator.find("Trainers",
+                                    String.format(java.util.Locale.ROOT, "trainer%03d.png", type.id)) == null) continue;
+                    if (foes.size() < 2) {
+                        candidate.party.first().level = 5;
+                        foes.add(candidate);
+                    } else if (partnerType == null) {
+                        partnerType = candidate.type;
+                    }
+                    if (foes.size() == 2 && partnerType != null) break;
+                }
+                if (foes.size() < 2 || partnerType == null) throw new IllegalStateException("no trainers for the capture");
+                for (pokemon.runtime.pokemon.Pokemon mon : context.gameState().trainer().party.members()) {
+                    mon.level = 50;
+                    mon.exp = pokemon.runtime.pokemon.PokemonStats.experienceForLevel(mon.growthRate(), 50);
+                    mon.hp = mon.maxHp();
+                }
+                System.out.println("double-trainer capture: " + foes.get(0).type + " " + foes.get(0).name + " + "
+                        + foes.get(1).type + " " + foes.get(1).name + ", partner type " + partnerType);
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().setPartner(partnerType, "小伙伴", java.util.Arrays.asList(
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("PIKACHU"), 5, pbs)));
+                context.battlePort().setBattleSize("double");
+                context.battlePort().trainerBattle(foes);
+                renderMap();
+                advanceMap(1f / 60f, 16);          // entry
+                advanceUntilBattle(s -> true, 1500);
+                String lastStage = "";
+                int shots = 0;
+                for (int i = 0; i < 400 && battleScreen() != null; i++) {
+                    BattleScreen live = battleScreen();
+                    String key = live.debugStage() + "/" + live.debugWindow() + "/" + live.debugPage() + "/"
+                            + live.debugCommandBattler() + "/" + live.debugSendingOut();
+                    if (!key.equals(lastStage) && shots < 80) {
+                        lastStage = key;
+                        shotMap(String.format(java.util.Locale.ROOT, "dt-%02d-%s", shots++,
+                                live.debugStage().toLowerCase(java.util.Locale.ROOT)));
+                    }
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 8);
+                }
+                System.out.println("double-trainer capture: finished, shots=" + shots);
+            } else if (doubleCapture) {
+                if (pbs == null || pbs.species("PIDGEY") == null || pbs.species("RATTATA") == null) {
+                    throw new IllegalStateException("the double capture needs PIDGEY and RATTATA");
+                }
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().setBattleSize("double");
+                context.battlePort().freeWildBattle(java.util.Arrays.asList(
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("PIDGEY"), 5, pbs),
+                        new pokemon.runtime.pokemon.Pokemon(pbs.species("RATTATA"), 5, pbs)));
+                renderMap();
+                advanceMap(1f / 60f, 106);         // entry + intro
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 1200);
+                shotMap("dbl-wild-message");
+                stepMap(GameAction.CONFIRM);       // into the send-out
+                advanceUntilBattle(s -> !s.debugSendingOut() && "BATTLE".equals(s.debugStage())
+                        && s.debugWindow() == 2 && s.debugCommandBattler() == 0, 1500);
+                shotMap("dbl-command-1");
+                System.out.println("double capture: battlers=" + battleScreen().debugBattlers());
+                stepMap(GameAction.CONFIRM);       // 战斗
+                advanceUntilBattle(s -> s.debugPage() == 1, 200);
+                shotMap("dbl-fight-1");
+                stepMap(GameAction.CONFIRM);       // slot 0 -> the target menu
+                advanceUntilBattle(s -> s.debugPage() == 5, 200);
+                shotMap("dbl-target-1");
+                System.out.println("double capture: target=" + battleScreen().debugTarget());
+                stepMap(GameAction.RIGHT);
+                advanceMap(1f / 60f, 6);
+                shotMap("dbl-target-1-right");
+                System.out.println("double capture: target after RIGHT=" + battleScreen().debugTarget());
+                stepMap(GameAction.CONFIRM);       // the first battler is done
+                advanceUntilBattle(s -> s.debugCommandBattler() == 2 && s.debugWindow() == 2, 200);
+                shotMap("dbl-command-2");
+                stepMap(GameAction.CANCEL);        // "Cancel": back to the first battler
+                advanceUntilBattle(s -> s.debugCommandBattler() == 0 && s.debugWindow() == 2, 200);
+                shotMap("dbl-back-to-1");
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> s.debugPage() == 1, 200);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> s.debugPage() == 5, 200);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> s.debugCommandBattler() == 2 && s.debugWindow() == 2, 200);
+                stepMap(GameAction.CONFIRM);       // 战斗
+                advanceUntilBattle(s -> s.debugPage() == 1, 200);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> s.debugPage() == 5, 200);
+                shotMap("dbl-target-2");
+                stepMap(GameAction.CONFIRM);       // both chose: the round runs
+                for (int i = 0; i < 40; i++) {
+                    advanceMap(1f / 60f, 20);
+                    shotMap(String.format(java.util.Locale.ROOT, "dbl-round-%02d", i));
+                    BattleScreen live = battleScreen();
+                    if (live != null && "BATTLE".equals(live.debugStage()) && live.debugWindow() == 2
+                            && live.debugCommandBattler() == 0) break;
+                    stepMap(GameAction.CONFIRM);
+                }
+                System.out.println("double capture: after the round " + battleScreen().debugBattlers()
+                        + " battler=" + battleScreen().debugCommandBattler());
             } else if (fightStatusCapture || fightNoPpCapture) {
                 // B6 evidence (task-2 §8.1 / §8.2), a wild battle with a prepared
                 // lead:

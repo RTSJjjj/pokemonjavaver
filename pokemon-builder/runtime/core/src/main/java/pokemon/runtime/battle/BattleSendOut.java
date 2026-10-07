@@ -57,6 +57,18 @@ final class BattleSendOut {
      */
     static List<Step> plan(Battle battle, boolean trainerBattle, String trainerFullname,
             int opponentCount, IntPredicate switches) {
+        String[] opponents = new String[Math.max(0, opponentCount)];
+        java.util.Arrays.fill(opponents, trainerFullname);
+        return plan(battle, trainerBattle, opponents, new String[] { null }, switches);
+    }
+
+    /**
+     * The plan with every trainer's own name: {@code opponents[i]} is {@code @opponent[i].fullname},
+     * {@code players[i]} is {@code @player[i].fullname} (index 0, the player, is never printed).
+     */
+    static List<Step> plan(Battle battle, boolean trainerBattle, String[] opponents, String[] players,
+            IntPredicate switches) {
+        int opponentCount = opponents.length;
         List<Step> steps = new ArrayList<>();
         // ---- "Want to battle" messages (Battle_StartAndEnd:195-228) ----
         if (!trainerBattle) {                                    // :196
@@ -93,15 +105,15 @@ final class BattleSendOut {
         } else {   // Trainer battle (:217)
             switch (opponentCount) {                             // :218
                 case 1:
-                    steps.add(paused(trainerFullname + "\n向你发起挑战！"));   // :220
+                    steps.add(paused(opponents[0] + "\n向你发起挑战！"));   // :220
                     break;
                 case 2:
-                    steps.add(paused(trainerFullname + "、" + trainerFullname
+                    steps.add(paused(opponents[0] + "、" + opponents[1]
                             + "\n向你发起挑战！"));                   // :222-223
                     break;
                 case 3:
                     // The plugin's own text ends with a half-width "!" here (:225).
-                    steps.add(paused(trainerFullname + "、" + trainerFullname + "、" + trainerFullname
+                    steps.add(paused(opponents[0] + "、" + opponents[1] + "、" + opponents[2]
                             + "\n向你发起挑战!"));                    // :225-226
                     break;
                 default:
@@ -115,7 +127,7 @@ final class BattleSendOut {
             }
             StringBuilder msg = new StringBuilder();             // :232
             List<Integer> toSendOut = new ArrayList<>();         // :233
-            int trainerCount = side == 0 ? 1 : Math.max(1, opponentCount);   // :234 @player / @opponent
+            int trainerCount = side == 0 ? Math.max(1, players.length) : Math.max(1, opponentCount);   // :234 @player / @opponent
             for (int i = 0; i < trainerCount; i++) {             // :236 each_with_index
                 if (side == 0 && i == 0) {                       // :237 The player's message is shown last
                     continue;
@@ -123,19 +135,20 @@ final class BattleSendOut {
                 if (msg.length() > 0) {
                     msg.append("\r\n");                          // :238
                 }
-                int[] sent = sentBattlers(battle, side);          // :239 sendOuts[side][i]
+                int[] sent = sentBattlers(battle, side, i);       // :239 sendOuts[side][i]
+                String fullname = side == 0 ? players[i] : opponents[i];   // t.fullname
                 switch (sent.length) {                           // :240
                     case 1:
-                        msg.append(trainerFullname).append("派出了\n")
+                        msg.append(fullname).append("派出了\n")
                                 .append(name(battle, sent[0])).append("！");       // :242
                         break;
                     case 2:
-                        msg.append(trainerFullname).append("派出了\n")
+                        msg.append(fullname).append("派出了\n")
                                 .append(name(battle, sent[0])).append("和")
                                 .append(name(battle, sent[1])).append("！");       // :244-245
                         break;
                     case 3:
-                        msg.append(trainerFullname).append("派出了\n")
+                        msg.append(fullname).append("派出了\n")
                                 .append(name(battle, sent[0])).append("、 ")
                                 .append(name(battle, sent[1])).append("和")
                                 .append(name(battle, sent[2])).append("！");       // :247-248
@@ -152,7 +165,7 @@ final class BattleSendOut {
                 if (msg.length() > 0) {
                     msg.append("\r\n");                          // :254
                 }
-                int[] sent = sentBattlers(battle, side);          // :255 sendOuts[side][0]
+                int[] sent = sentBattlers(battle, side, 0);       // :255 sendOuts[side][0]
                 switch (sent.length) {                           // :256
                     case 1:
                         msg.append("去吧！\n").append(name(battle, sent[0])).append("！");   // :258
@@ -191,13 +204,15 @@ final class BattleSendOut {
      * side sends out. A wild battle never fills side 1 (:120-129 returns before
      * the trainer loop).
      */
-    private static int[] sentBattlers(Battle battle, int side) {
-        if (side == 0) {
-            Battler player = battle.player();
-            return player == null || player.index < 0 ? new int[0] : new int[] { player.index };
+    private static int[] sentBattlers(Battle battle, int side, int idxTrainer) {
+        List<Integer> out = new ArrayList<>();
+        for (int idx = side; idx <= battle.maxBattlerIndex(); idx += 2) {   // pbSetUpSides:180 ret[side][idxTrainer].push(idxBattler)
+            Battler b = battle.battlerAt(idx);
+            if (b != null && b.ownerIndex == idxTrainer) out.add(idx);
         }
-        Battler foe = battle.foe();
-        return foe == null || foe.index < 0 ? new int[0] : new int[] { foe.index };
+        int[] ret = new int[out.size()];
+        for (int i = 0; i < ret.length; i++) ret[i] = out.get(i);
+        return ret;
     }
 
     /** {@code @battlers[idxBattler].name} (:242/258). */
@@ -217,20 +232,7 @@ final class BattleSendOut {
 
     /** {@code @battlers[idx]}: slot 0 is the player's side, slot 1 the opposing one. */
     static Battler battler(Battle battle, int idxBattler) {
-        if ((idxBattler & 1) == 0) {
-            for (Battler battler : battle.playerParty()) {
-                if (battler.index == idxBattler) {
-                    return battler;
-                }
-            }
-            return null;
-        }
-        for (Battler battler : battle.foeParty()) {
-            if (battler.index == idxBattler) {
-                return battler;
-            }
-        }
-        return null;
+        return battle.battlerAt(idxBattler);
     }
 
     private static Step paused(String message) {

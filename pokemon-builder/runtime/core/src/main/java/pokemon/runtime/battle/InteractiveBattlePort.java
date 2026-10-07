@@ -218,6 +218,8 @@ public final class InteractiveBattlePort implements BattlePort {
         public String endSpeech2;
         /** The partner trainer's {@code fullname}, or null when none fights with the player. */
         public String partnerFullname;
+        /** The partner trainer's trainer type (its back sprite), or null. */
+        public String partnerTrainerType;
         public BattleResult result;
         public String message;
         /** pbGainExp:58-61: the "经验储罐" line played after the awards. */
@@ -292,6 +294,7 @@ public final class InteractiveBattlePort implements BattlePort {
                 PbsData.TrainerType type = pbs == null || partnerType == null ? null : pbs.trainerTypes.get(partnerType);
                 partnerFullname = (type == null || type.name == null ? "" : type.name + " ") + partnerName;   // Trainer#fullname
                 battle.partnerName = partnerFullname;
+                partnerTrainerType = partnerType;
                 if (size == null) size = "double";                                   // :317 / :486 setBattleRule("double") if !size
             }
             for (int owner = 0; owner < teams.size(); owner++) {
@@ -678,9 +681,62 @@ public final class InteractiveBattlePort implements BattlePort {
             if (result != null || battle.player() == null) {
                 return false;
             }
+            return pursuitOnSwitch(battle.player().index);
+        }
+
+        /**
+         * {@code pbAttackPhaseSwitch}'s start for a double battle (Battle_Phase_Attack:171-184): the turn counts and the
+         * priority order is known, so the screen can play the player's switches in {@code pbPriority} order. The
+         * events (a Quick Claw line, ...) are taken with {@link #takeEvents()}.
+         *
+         * @return true when something has to be played first
+         */
+        public boolean beginSwitchPhase() {
+            if (result != null) {
+                return false;
+            }
             log.clear();
             engineEvents.clear();
-            int idxBattler = battle.player().index;
+            drive(battle::pbBeginSwitchPhase, this::roundTail);
+            return events.size > 0 || engine != null;
+        }
+
+        /** The player's battlers that switch this round, in {@code pbPriority} order (Battle_Phase_Attack:51-52). */
+        public int[] switchOrder() {
+            return battle.playerSwitchersInOrder();
+        }
+
+        /** {@code @choices[idxBattler][1]} of a registered switch: the party entry coming in. */
+        public int switchParty(int idxBattler) {
+            return battle.choiceSwitchParty(idxBattler);
+        }
+
+        /** True when {@code idxBattler} has registered a switch this round. */
+        public boolean switching(int idxBattler) {
+            return battle.choiceIsSwitch(idxBattler);
+        }
+
+        /**
+         * The rest of a double battle's round once every player battler has its command and none switches: the
+         * moves of {@code pbAttackPhase} and the end of the round (the command phase of the opponent and the
+         * partner has already stored their choices).
+         */
+        public boolean startRound() {
+            if (result != null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
+            drive(() -> result = battle.step(), this::roundTail);
+            return true;
+        }
+
+        public boolean pursuitOnSwitch(int idxBattler) {
+            if (result != null) {
+                return false;
+            }
+            log.clear();
+            engineEvents.clear();
             drive(() -> {
                 battle.pbPursuitOnSwitch(idxBattler);
                 result = battle.result();
@@ -908,6 +964,8 @@ public final class InteractiveBattlePort implements BattlePort {
 
         /** {@code pbGetOwnerName} (PokeBattle_Battle:266-271). */
         public String ownerName(int idxBattler) {
+            String name = battle.pbGetOwnerName(idxBattler);       // :267-270 (the partner and the second opponent included)
+            if (name != null) return name;
             if ((idxBattler & 1) == 1) {
                 return trainerFullname == null ? "" : trainerFullname;
             }
@@ -941,7 +999,8 @@ public final class InteractiveBattlePort implements BattlePort {
             if ((idxBattler & 1) == 1) {                           // :301
                 return ownerName(idxBattler) + "派出了\n" + name + "！";
             }
-            Battler opposing = battle.battlerAt(1);                // :291 pbDirectOpposing
+            Battler switcher = battle.battlerAt(idxBattler);
+            Battler opposing = switcher == null ? battle.battlerAt(1) : switcher.pbDirectOpposing(false);   // :291 pbDirectOpposing
             if (opposing == null || opposing.fainted() || opposing.hp == opposing.maxHp()) {
                 return "加油啊！\n" + name;                                  // :293
             }
@@ -1055,11 +1114,28 @@ public final class InteractiveBattlePort implements BattlePort {
             return false;
         }
         public boolean item(String id, int target) {
+            Battler user = battle.player();
+            return useItem(id, target, user == null ? 0 : user.index, battle.foe(), true);
+        }
+
+        /**
+         * An item used by one battler of a double battle's command phase ({@code pbItemMenu}, Battle_Phase_Command:106-149).
+         * It is applied now (this runtime uses items at command time) and spends the battler's action; the round
+         * does not run yet - except for a Poke Ball, which takes all the actions (Battle_Action_UseItem:19-25) and
+         * ends the round like in a single battle.
+         *
+         * @param idxTarget the opposing battler a Poke Ball is thrown at
+         */
+        public boolean commandItem(String id, int target, int idxBattler, int idxTarget) {
+            return useItem(id, target, idxBattler, battle.battlerAt(idxTarget), false);
+        }
+
+        private boolean useItem(String id, int target, int idxBattler, Battler ballTarget, boolean endsRound) {
             if (result != null || !inventory.has(id)) return false;
             // Every Poke Ball (items of pocket type 3/4), not only the first four.
             PbsData ballData = data.get();
             PbsData.Item ballItem = ballData == null ? null : ballData.item(id);
-            if (ballItem != null && ballItem.isPokeBall()) return ball(id);
+            if (ballItem != null && ballItem.isPokeBall()) return ball(id, ballTarget);
             if (target < 0 || target >= battle.playerParty().size) return false;
             Battler battler = battle.playerParty().get(target);
             PbsData.Item item = data.get().item(id);
@@ -1079,7 +1155,14 @@ public final class InteractiveBattlePort implements BattlePort {
             // the owner's name (the trainer), not the Pokemon's. The rest of the
             // round (the opponent's move) follows it.
             message = trainer.name + "使用了" + item.name + "。";
-            foeTurn();
+            if (endsRound) {
+                foeTurn();
+            } else {
+                battle.markItemUsed(idxBattler);                    // Battle_Action_UseItem:29: the battler's action is spent
+                log.clear();
+                engineEvents.clear();
+                endMessage();
+            }
             return true;
         }
         /**
@@ -1087,13 +1170,12 @@ public final class InteractiveBattlePort implements BattlePort {
          * (CanUseInBattle) and {@code PokeBattle_BattleCommon:68-164}
          * (pbThrowPokeBall). Every line below is one of those two.
          */
-        private boolean ball(String id) {
+        private boolean ball(String id, Battler target) {
             PbsData pbs = data.get();
             PbsData.Item item = pbs == null ? null : pbs.item(id);
             if (item == null || !item.isPokeBall()) {
                 return false;
             }
-            Battler target = battle.foe();
             // :26-29
             if (trainer.party.isFull()
                     && trainer.currentStorage().count() >= Storage.BOXES * Storage.SLOTS) {

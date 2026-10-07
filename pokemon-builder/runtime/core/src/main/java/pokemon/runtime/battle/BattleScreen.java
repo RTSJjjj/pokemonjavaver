@@ -36,6 +36,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private static final int MESSAGE_BOX = 1;
     private static final int COMMAND_BOX = 2;
     private static final int FIGHT_BOX = 3;
+    private static final int TARGET_BOX = 4;
+    /** {@link #page} while the target menu is up (Scene_Commands:419-474 pbChooseTarget). */
+    private static final int PAGE_TARGET = 5;
 
     /** PokeBattle_Scene::MESSAGE_PAUSE_TIME (frames at 40 fps). */
     private static final int MESSAGE_PAUSE_TIME = 40;
@@ -146,6 +149,31 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private String bagItem;
     private int bagTarget = -1;
 
+    // ---------------------------------------------------------------------
+    // pbCommandPhaseLoop(true) (Battle_Phase_Command:197-263) for a battle with more than one position per side:
+    // the player's battlers choose one after the other.
+    // ---------------------------------------------------------------------
+    /** The battlers the player chooses for this round, in battler order (:204-208). */
+    private int[] cmdOrder = new int[0];
+    /** Index into {@link #cmdOrder} of the battler being asked. */
+    private int cmdPos;
+    /** {@code idxBattler} being asked, or -1 outside a double battle's command phase. */
+    private int cmdBattler = -1;
+    /** {@code actioned} (:200): the battlers that have been asked so far. */
+    private final List<Integer> actioned = new ArrayList<>();
+    /** {@code @lastCmd} / {@code @lastMove} (Scene_Commands:30/94). */
+    private final int[] lastCmd = new int[4];
+    private final int[] lastMove = new int[4];
+    /** The target menu (Scene_Commands:419-474): {@code texts}, {@code mode} (0 one target, 1 all with text) and {@code cw.index}. */
+    private String[] targetTexts;
+    private int targetMode;
+    private int targetIndex;
+    /** The fight-menu slot the target is for (-1: a Poke Ball from the Bag). */
+    private int targetSlot = -1;
+    private String targetBall;
+    /** The player's switches of the round, played in {@code pbPriority} order (Battle_Phase_Attack:50-71). */
+    private final java.util.ArrayDeque<int[]> switchersToPlay = new java.util.ArrayDeque<>();
+
     // pbDisplayMessage / pbDisplayPausedMessage: one message at a time, shown in
     // the MESSAGE_BOX and hidden when it is done (auto after 1s, or on input).
     private final java.util.ArrayDeque<Message> queue = new java.util.ArrayDeque<>();
@@ -170,7 +198,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * battler's live HP). The engine has already run the whole round, so the
      * bars follow the events ({@code animateHP(oldHP,newHP)}) instead.
      */
-    private final int[] heldHp = { -1, -1 };
+    private final int[] heldHp = { -1, -1, -1, -1 };
     /**
      * The player's exp bar fill while the round plays: the engine applies the
      * exp when the foe faints / is captured, but the bar only moves in the exp
@@ -178,6 +206,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * Pokemon.
      */
     private float heldExp = -1f;
+    /** The battler index whose exp bar the exp stage fills (the receiving Pokemon's position; 0 in a single battle). */
+    private int expSlot;
 
     private static final class Message {
         final String text;
@@ -195,14 +225,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     // PokemonDataBox#animateHP / #animateExp.
     private static final float HP_BAR_CHANGE_TIME = 1.0f;
     private static final float EXP_BAR_FILL_TIME = 1.75f;
-    private final float[] hpShown = { 1f, 1f };
-    private final float[] hpFrom = { 1f, 1f };
-    private final float[] hpTo = { 1f, 1f };
-    private final float[] hpT = { 1f, 1f };
-    private final float[] expShown = { 1f, 1f };
-    private final float[] expFrom = { 1f, 1f };
-    private final float[] expTo = { 1f, 1f };
-    private final float[] expT = { 1f, 1f };
+    // One entry per battler index (the plugin's data boxes: {@code dataBox_i}).
+    private final float[] hpShown = { 1f, 1f, 1f, 1f };
+    private final float[] hpFrom = { 1f, 1f, 1f, 1f };
+    private final float[] hpTo = { 1f, 1f, 1f, 1f };
+    private final float[] hpT = { 1f, 1f, 1f, 1f };
+    private final float[] expShown = { 1f, 1f, 1f, 1f };
+    private final float[] expFrom = { 1f, 1f, 1f, 1f };
+    private final float[] expTo = { 1f, 1f, 1f, 1f };
+    private final float[] expT = { 1f, 1f, 1f, 1f };
     private boolean barsReady;
 
     // ---------------------------------------------------------------------
@@ -320,6 +351,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private static final float END_APPEAR_SECONDS = 8f * TICK;
     private float endAppearTimer;
     private boolean endAppearStarted;
+    /** {@code @opponent.each_with_index}'s i (Battle_StartAndEnd:464-468). */
+    private int endOpponent;
     private final boolean trainerBattle;
     private final int foeBallType;
     private final int playerBallType;
@@ -419,8 +452,16 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // (Battle_StartAndEnd:194).
         pbInitSprites();
         animations.add(new BattleAnimations.BattleIntroAnimation(this));
-        plan = BattleSendOut.plan(session.battle, trainerBattle, session.trainerFullname,
-                opponentCount(), id -> context.gameState().switches().get(id));
+        String[] opponentNames = new String[opponentCount()];
+        for (int i = 0; i < opponentNames.length; i++) {
+            opponentNames[i] = i == 0 ? session.trainerFullname : session.trainerFullname2;   // @opponent[i].fullname
+        }
+        String[] playerNames = new String[playerCount()];
+        for (int i = 1; i < playerNames.length; i++) {
+            playerNames[i] = session.partnerFullname;                                         // @player[i].fullname
+        }
+        plan = BattleSendOut.plan(session.battle, trainerBattle, opponentNames, playerNames,
+                id -> context.gameState().switches().get(id));
         go(0);
     }
 
@@ -452,6 +493,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** The command menu's selected row (0..3). */
     public int debugCursor() { return cursor.index(); }
+
+    /** The battler whose command is being chosen in a double battle (-1 outside the command phase). */
+    public int debugCommandBattler() { return cmdBattler; }
+
+    /** The target menu's selected battler index, or -1 when it is not up. */
+    public int debugTarget() { return page == PAGE_TARGET ? targetIndex : -1; }
 
     /** The fielded battlers, for the probe ("name/hp@slot vs name/hp@slot"). */
     public String debugBattlers() {
@@ -531,13 +578,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         // Player's and partner trainer's back sprite (:148-151)
         for (int i = 0; i < playerCount(); i++) {
-            pbCreateTrainerBackSprite(i, playerTrainerType(), playerCount());   // :150
+            pbCreateTrainerBackSprite(i, i == 0 ? playerTrainerType() : session.partnerTrainerType,
+                    playerCount());                                             // :150
         }
         // Opposing trainer(s) sprites (:152-157)
         if (trainerBattle) {                                                    // :153
-            String type = session.trainerData == null ? null : session.trainerData.type;
             for (int i = 0; i < opponentCount(); i++) {
-                pbCreateTrainerFrontSprite(i, type, opponentCount());           // :155
+                PbsData.TrainerData opponent = i == 0 ? session.trainerData : session.trainerData2;
+                pbCreateTrainerFrontSprite(i, opponent == null ? null : opponent.type, opponentCount());   // :155
             }
         }
         // Data boxes and Pokemon sprites (:158-163)
@@ -757,12 +805,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     @Override public boolean trainerBattle() { return trainerBattle; }
 
-    /** {@code @battle.player.length}: the runtime has a single player trainer. */
-    @Override public int playerCount() { return 1; }
+    /** {@code @battle.player.length}: the player, and the partner trainer in a battle with one. */
+    @Override public int playerCount() { return Math.max(1, session.battle.pbTrainerCount(0)); }
 
-    /** {@code @battle.opponent.length}: a trainer battle has one opponent here. */
+    /** {@code @battle.opponent.length}: one or two opposing trainers in a trainer battle. */
     @Override public int opponentCount() {
-        return trainerBattle && session.trainerData != null ? 1 : 0;
+        return trainerBattle && session.trainerData != null ? Math.max(1, session.battle.pbTrainerCount(1)) : 0;
     }
 
     /** {@code @battle.pbParty(side)} (PokeBattle_Battle:307). */
@@ -770,13 +818,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         return side == 0 ? session.battle.playerParty() : session.battle.foeParty();
     }
 
-    /** {@code @battle.pbPartyStarts(side)} (PokeBattle_Battle:319): one team. */
+    /** {@code @battle.pbPartyStarts(side)} (PokeBattle_Battle:319): where each trainer's team starts. */
     @Override public int[] partyStarts(int side) {
-        return new int[] { 0 };
+        return session.battle.partyStarts(side);
     }
 
-    /** {@code @battle.battlers.length}: one field slot per side in a single battle. */
-    @Override public int battlerCount() { return 2; }
+    /** {@code @battle.battlers.length}: 2 in a single battle, 4 in a double one. */
+    @Override public int battlerCount() { return session.battle.maxBattlerIndex() + 1; }
 
     /** {@code @battle.battlers[i]}. */
     @Override public Battler battler(int index) { return BattleSendOut.battler(session.battle, index); }
@@ -786,12 +834,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** {@code @battle.pbGetOwnerIndexFromBattlerIndex} (PokeBattle_Battle:232-243). */
     @Override public int ownerIndex(int idxBattler) {
-        // trainer.length == 1 for both sides here, so the method returns 0.
-        return 0;
+        return session.battle.pbGetOwnerIndexFromBattlerIndex(idxBattler);
     }
 
     /** {@code @battle.pbSideSize(idxBattler)} (PokeBattle_Battle:215-217). */
-    @Override public int sideSize(int idxBattler) { return 1; }
+    @Override public int sideSize(int idxBattler) { return session.battle.pbSideSize(idxBattler); }
 
     /** {@code $Trainer.trainertype}, for pbTrainerSpriteFile. */
     @Override public String playerTrainerType() {
@@ -986,23 +1033,36 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * (pbCommandMenuEx selects the side that is choosing).
      */
     private void updateSelectedBob() {
-        boolean selected = stage == Stage.BATTLE && (page == 0 || page == 1);
-        int phase = selected ? (int) (frameCounter / QUARTER_ANIM_PERIOD) : 0;
-        float boxBob = selected && phase == 1 ? -2f : (selected && phase == 3 ? 2f : 0f);
-        float spriteBob = selected && phase == 1 ? 2f : (selected && phase == 3 ? -2f : 0f);
-        for (int i = 0; i < battlerCount(); i++) {
-            Battler battler = battler(i);
-            boolean playerSide = battler != null && (battler.index & 1) == 0;
+        // pbSelectBattler (PokeBattle_Scene:308-316): the battler whose command is chosen (1: bobbing) or the targets
+        // being chosen (2: blinking). Scene_Commands:31/:105/:428/:459.
+        int[] selected = new int[4];
+        if (stage == Stage.BATTLE && (page == 0 || page == 1)) {
+            selected[actingIndex()] = 1;
+        } else if (stage == Stage.BATTLE && page == PAGE_TARGET && targetTexts != null) {
+            for (int i = 0; i < selected.length && i < targetTexts.length; i++) {
+                boolean sel = targetMode == 0 ? i == targetIndex : targetTexts[i] != null;
+                if (sel) selected[i] = 2;
+            }
+        }
+        int phase = (int) (frameCounter / QUARTER_ANIM_PERIOD);
+        float boxBob = phase == 1 ? -2f : (phase == 3 ? 2f : 0f);
+        float spriteBob = phase == 1 ? 2f : (phase == 3 ? -2f : 0f);
+        int sixth = (int) (frameCounter / SIXTH_ANIM_PERIOD);
+        for (int i = 0; i < 4; i++) {
             BattleSprite box = sprites.get("dataBox_" + i);
             if (box != null) {
-                box.bobOffsetY = playerSide ? boxBob : 0f;
+                box.bobOffsetY = selected[i] != 0 ? boxBob : 0f;               // :380-385
             }
             BattleSprite pokemon = sprites.get("pokemon_" + i);
             if (pokemon != null) {
-                pokemon.bobOffsetY = playerSide ? spriteBob : 0f;
+                pokemon.bobOffsetY = selected[i] == 1 ? spriteBob : 0f;         // :613-618
+                pokemon.blinkHidden = selected[i] == 2 && (sixth == 2 || sixth == 5);   // :623-628
             }
         }
     }
+
+    /** PokeBattle_SceneElements:603 {@code SIXTH_ANIM_PERIOD}. */
+    private static final int SIXTH_ANIM_PERIOD = 40 * 2 / 20;
 
     // =====================================================================
     // pbSendOutBattlers (Scene_Animations:85-143) / pbSendOut
@@ -1584,6 +1644,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         if (register) {
+            if (doubles()) {
+                // pbPartyMenu true (Battle_Phase_Command:233 break): the switch is played in the attack phase
+                partyHandedOver = true;
+                page = 0;
+                afterBattlerCommand();
+                return;
+            }
             // pbAttackPhaseSwitch:57 pbMessageOnRecall, :59 pbPursuit, :68 pbRecallAndReplace
             go(0);
             beginPlayerSwitch(idxBattler, chosen);
@@ -1762,7 +1829,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void holdHp(int idxBattler, int hp) {
         Battler b = battler(idxBattler);
         if (b == null) return;
-        int side = b.foe ? 1 : 0;
+        int side = idxBattler;
         if (heldHp[side] < 0) {
             heldHp[side] = hp;
             int maxHp = Math.max(1, b.maxHp());
@@ -1871,6 +1938,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * cannot be shown (:208) keeps its forced choice and the round goes on without a menu.
      */
     private void enterCommandMenu() {
+        if (doubles()) {
+            beginDoublesCommandPhase();
+            return;
+        }
         if (!session.canShowCommands()) {
             session.forcedRound();
             queueSessionEvents();
@@ -1883,20 +1954,280 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     // =====================================================================
+    // pbCommandPhaseLoop(true) for a battle with several positions per side (Battle_Phase_Command:197-263)
+    // =====================================================================
+
+    /** {@code !singleBattle?}. */
+    private boolean doubles() {
+        return !session.battle.singleBattle();
+    }
+
+    /** The battler whose command is being chosen; a single battle's player is battler 0. */
+    private int actingIndex() {
+        return cmdBattler >= 0 ? cmdBattler : 0;
+    }
+
+    /** {@code @battlers[idxBattler]} of {@link #actingIndex()}. */
+    private Battler fighter() {
+        return session.battle.battlerAt(actingIndex());
+    }
+
+    /** The start of the player's loop (:204-208): the battlers it asks, in order. */
+    private void beginDoublesCommandPhase() {
+        cmdOrder = session.commandBattlers();
+        cmdPos = 0;
+        actioned.clear();
+        nextBattlerCommand();
+    }
+
+    /** One pass of the loop's top (:204-215), then the main command menu of that battler (:218). */
+    private void nextBattlerCommand() {
+        if (cmdPos >= cmdOrder.length) {
+            finishDoublesCommands();
+            return;
+        }
+        cmdBattler = cmdOrder[cmdPos];
+        actioned.add(cmdBattler);                                  // :215
+        stage = Stage.BATTLE;
+        go(0);
+    }
+
+    /** The inner {@code loop} was left with a made choice (:226 / :233 ... {@code break}): the next battler is asked. */
+    private void afterBattlerCommand() {
+        cmdPos++;
+        nextBattlerCommand();
+    }
+
+    /** {@code when -1} (:248-254): back to the previous battler's choice. */
+    private void backToPreviousBattler() {
+        if (actioned.size() <= 1) {                                // :249
+            return;
+        }
+        int previous = actioned.get(actioned.size() - 2);
+        Object[] choice = session.battle.choices(previous);
+        if (":UseItem".equals(choice[0])) {
+            return;                                                // an item is used at command time here: it cannot be taken back
+        }
+        playCancelSe();
+        actioned.remove(actioned.size() - 1);                      // :250
+        session.cancelChoice(previous);                            // :252
+        actioned.remove(actioned.size() - 1);                      // :253
+        for (int i = 0; i < cmdOrder.length; i++) {
+            if (cmdOrder[i] == previous) cmdPos = i;
+        }
+        nextBattlerCommand();
+    }
+
+    /** The loop is over (:261-262): the switches registered this round are played first, then the moves. */
+    private void finishDoublesCommands() {
+        cmdBattler = -1;
+        page = 0;
+        window = MESSAGE_BOX;
+        boolean anySwitch = false;
+        for (int idx = 0; idx <= session.battle.maxBattlerIndex(); idx++) {
+            if (session.battle.battlerAt(idx) != null && session.battle.pbOwnedByPlayer(idx) && session.switching(idx)) {
+                anySwitch = true;
+            }
+        }
+        if (!anySwitch) {
+            session.startRound();                                  // pbAttackPhase (moves) and pbEndOfRoundPhase
+            queueRoundMessages();
+            return;
+        }
+        if (session.beginSwitchPhase()) {                          // Battle_Phase_Attack:171-184
+            pursuitContinuation = this::startSwitches;
+            queueRoundMessages();
+            return;
+        }
+        startSwitches();
+    }
+
+    /** {@code pbAttackPhaseSwitch} (Battle_Phase_Attack:50-71) over the player's switchers in priority order. */
+    private void startSwitches() {
+        switchersToPlay.clear();
+        for (int idx : session.switchOrder()) {                    // :51-52
+            switchersToPlay.add(new int[] { idx, session.switchParty(idx) });
+        }
+        playNextSwitcher();
+    }
+
+    private void playNextSwitcher() {
+        int[] next = switchersToPlay.poll();
+        if (next == null) {
+            session.foeTurn();                                     // pbAttackPhaseMoves
+            queueRoundMessages();
+            return;
+        }
+        final int idxBattler = next[0];
+        final int idxParty = next[1];
+        String recall = session.recallMessage(idxBattler);         // :57 (before the Pursuit hits)
+        Runnable after = () -> afterSwitcher(idxBattler);
+        if (!session.pursuitOnSwitch(idxBattler)) {                // :59
+            queueRecallAndReplace(idxBattler, idxParty, true, after);
+            return;
+        }
+        pursuitContinuation = () -> queueRecallAndReplace(idxBattler, idxParty, false, after);   // :68
+        pushMessages(recall, false);
+        queueRoundMessages();
+    }
+
+    /** {@code b.pbEffectsOnSwitchIn(true)} (:69), then the next switcher. */
+    private void afterSwitcher(int idxBattler) {
+        session.message = null;
+        if (session.switchInEffects(new int[] { idxBattler })) {
+            pursuitContinuation = this::playNextSwitcher;
+            queueRoundMessages();
+            return;
+        }
+        playNextSwitcher();
+    }
+
+    /** {@code pbChooseTarget} (Scene_Commands:419-474): opens the target menu for a move or a Poke Ball. */
+    private void openTargetMenu(int slot, int targetType, String ball) {
+        int idxBattler = actingIndex();
+        targetSlot = slot;
+        targetBall = ball;
+        pbShowWindow(TARGET_BOX);                                  // :420
+        targetTexts = session.targetTexts(idxBattler, targetType); // :423
+        targetMode = PBTargets.oneTarget(targetType) ? 0 : 1;      // :425
+        targetIndex = session.firstTarget(idxBattler, targetType); // :427
+        page = PAGE_TARGET;
+        fightMenuRefusal = false;
+    }
+
+    /** The loop of {@code pbChooseTarget} (:431-471). */
+    private void updateTargetMenu() {
+        InputManager input = context.inputManager();
+        int oldIndex = targetIndex;                                // :432
+        if (targetMode == 0) {                                     // :435 choosing just one target, can change index
+            boolean left = input.wasPressed(GameAction.LEFT);
+            boolean right = input.wasPressed(GameAction.RIGHT);
+            if (left || right) {                                   // :436
+                int inc = ((targetIndex % 2) == 0) ? -2 : 2;       // :437
+                if (right) inc *= -1;                              // :438
+                int indexLength = session.battle.pbSideSize(targetIndex % 2) * 2;   // :439
+                int newIndex = targetIndex;
+                while (true) {                                     // :441
+                    newIndex += inc;
+                    if (newIndex < 0 || newIndex >= indexLength) break;                         // :443
+                    if (newIndex >= targetTexts.length || targetTexts[newIndex] == null) continue;   // :444
+                    targetIndex = newIndex;                        // :445
+                    break;
+                }
+            } else if ((input.wasPressed(GameAction.UP) && (targetIndex % 2) == 0)
+                    || (input.wasPressed(GameAction.DOWN) && (targetIndex % 2) == 1)) {         // :448-449
+                for (int idxTry : session.battle.pbGetOpposingIndicesInOrder(targetIndex)) {    // :450-451
+                    if (idxTry >= targetTexts.length || targetTexts[idxTry] == null) continue;  // :452
+                    targetIndex = idxTry;                          // :453
+                    break;
+                }
+            }
+            if (targetIndex != oldIndex) {                         // :457
+                playCursorSe();                                    // :458
+            }
+        }
+        if (input.wasPressed(GameAction.CONFIRM)) {                // :462
+            playDecisionSe();                                      // :464
+            finishTargetMenu(targetIndex);
+        } else if (input.wasPressed(GameAction.CANCEL)) {          // :466
+            playCancelSe();                                        // :468
+            finishTargetMenu(-1);
+        }
+    }
+
+    /** {@code pbSelectBattler(-1)} (:472) and the answer of {@code pbChooseTarget}. */
+    private void finishTargetMenu(int idxTarget) {
+        int slot = targetSlot;
+        String ball = targetBall;
+        targetTexts = null;
+        targetSlot = -1;
+        targetBall = null;
+        if (ball != null) {
+            if (idxTarget < 0) {                                   // Scene_Commands:345-347 back to the Bag
+                go(2);
+                return;
+            }
+            useCommandItem(ball, 0, idxTarget);
+            return;
+        }
+        if (idxTarget < 0) {                                       // pbChooseTarget false: the fight menu is shown again
+            page = 1;
+            window = FIGHT_BOX;
+            return;
+        }
+        session.registerTarget(actingIndex(), idxTarget);          // Battle_Phase_Command:102
+        lastMove[actingIndex()] = slot;                            // Scene_Commands:174
+        page = 0;
+        afterBattlerCommand();                                     // :89 ret = true: the fight menu is left
+    }
+
+    /** A move chosen in a double battle's fight menu (Battle_Phase_Command:83-89). */
+    private void chooseMoveInDoubles(int slot) {
+        int idxBattler = actingIndex();
+        String refusal = session.registerMove(idxBattler, slot);   // :86
+        if (refusal != null) {
+            session.message = refusal.isEmpty() ? null : refusal;
+            refuseMove();
+            return;
+        }
+        openTargetMenu(slot, session.targetType(idxBattler, slot), null);   // :87-88
+    }
+
+    /** An item from the Bag in a double battle (Battle_Phase_Command:106-149). */
+    private void useBagItemInDoubles(String id, int target) {
+        PbsData.Item data = context.pbsData().item(id);
+        if (data != null && data.isPokeBall()) {                   // useType 4/9 (Scene_Commands:328-349)
+            int[] foes = new int[4];
+            int count = 0;
+            for (Battler foe : session.battle.eachOtherSideBattler(actingIndex())) {
+                foes[count++] = foe.index;
+            }
+            if (count == 1) {                                      // :330-332 the only opposing battler
+                useCommandItem(id, 0, foes[0]);
+                return;
+            }
+            openTargetMenu(-1, PBTargets.Foe, id);                 // :341
+            return;
+        }
+        useCommandItem(id, target, -1);
+    }
+
+    private void useCommandItem(String id, int target, int idxTarget) {
+        int idxBattler = actingIndex();
+        PbsData.Item data = context.pbsData().item(id);
+        boolean ball = data != null && data.isPokeBall();
+        if (!session.commandItem(id, target, idxBattler, idxTarget)) {
+            session.message = "现在无法使用这个道具。";
+            queueSessionEvents();
+            go(0);
+            return;
+        }
+        page = 0;
+        if (ball) {                                                // Battle_Action_UseItem:19-25: it takes all the actions
+            queueSessionEvents();
+            window = MESSAGE_BOX;
+            if (message == null && queue.isEmpty()) afterRound();
+            return;
+        }
+        pursuitContinuation = this::afterBattlerCommand;           // the battler's action is spent: the next one is asked
+        queueRoundMessages();
+    }
+
+    // =====================================================================
     // Command / menu plumbing (unchanged)
     // =====================================================================
 
     private void refresh() {
         rows = new ArrayList<>();
         if (page == 0) rows.addAll(Arrays.asList(commandLabels()));
-        if (page == 1 && session.battle.player() != null) {
+        if (page == 1 && fighter() != null) {
             // FightMenuDisplay#refreshButtonNames (PokeBattle_SceneMenus:337-365)
             // walks "@battler.moves", which is a FIXED four-slot array
             // (Battler_Initialize:98-101 pads it through PokeBattle_Pokemon:498-521;
             // MAX_MOVES = 4 at :222). A blank slot (m.id==0) still owns its cell -
             // the plugin never filters by PP - so the row list is always four long
             // and the cursor index is the SLOT index (:350-352, Scene_Commands:136).
-            Battler fighter = session.battle.player();
+            Battler fighter = fighter();
             for (int i = 0; i < Battler.MOVES_MAX; i++) {
                 BattleMove move = fighter.moveSlot(i);
                 rows.add(move == null ? "" : move.name());           // :361
@@ -1916,9 +2247,16 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     private void go(int next) {
-        if (page == 1 && next != 1) session.unregisterMega();                     // Battle_Phase_Command:80 (the fight menu was left)
+        if (page == 1 && next != 1) session.unregisterMega(actingIndex());        // Battle_Phase_Command:80 (the fight menu was left)
         page = next; cursor.select(0); refresh();
-        megaButton = next == 1 && session.canMega();                              // :73 pbCanMegaEvolve?
+        if (doubles() && cmdBattler >= 0) {
+            if (next == 0) {
+                cursor.select(lastCmd[cmdBattler]);                               // Scene_Commands:30 setIndexAndMode(@lastCmd[idxBattler],mode)
+            } else if (next == 1 && moveSlotFilled(lastMove[cmdBattler])) {
+                cursor.select(lastMove[cmdBattler]);                              // Scene_Commands:94-96 @lastMove[idxBattler]
+            }
+        }
+        megaButton = next == 1 && session.canMega(actingIndex());                 // :73 pbCanMegaEvolve?
         window = next == 1 ? FIGHT_BOX : COMMAND_BOX;
         fightMenuRefusal = false;
         partyScreenOpen = false;
@@ -1927,7 +2265,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (next == 3) {
             // pbPartyMenu (Battle_Phase_Command:151-159): pbPartyScreen(idxBattler,
             // false,true,true) - cancel is allowed and a switch is registered.
-            openPartyScreen(0, false, true, true);
+            openPartyScreen(actingIndex(), false, true, true);
         }
         // pbItemMenu -> the real BW Bag (PokemonBag_Scene, battle=true).
         if (next == 2) {
@@ -1984,9 +2322,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // A Shadow battle needs the SHADOW type and a trainer opponent
         // (Scene_Commands:7); this runtime has no Shadow type, so it is false.
         boolean shadowTrainer = false;
-        // Singles: the player chooses one action per round, so it is always the
-        // first (pbCommandPhase's firstAction).
-        boolean firstAction = true;
+        // A single battle's player chooses one action per round, so it is always the first
+        // (pbCommandPhase's firstAction); in a double battle it is the first one asked (:218 actioned.length==1).
+        boolean firstAction = actioned.size() <= 1;
         return commandLabels(shadowTrainer, firstAction);
     }
 
@@ -2139,6 +2477,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         stage = Stage.TRAINER_END;
         endPhase = EndPhase.WIN_MESSAGE;
         endAppearTimer = 0f;
+        endOpponent = 0;
         stepTrainerEnd();
         return true;
     }
@@ -2151,17 +2490,26 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 endPhase = EndPhase.APPEAR;
                 endAppearTimer = 0f;
                 endAppearStarted = false;
-                showBattleMessage("你打败了\n" + session.trainerFullname + "！", true);
+                // :454-463 one, two or three opponents
+                showBattleMessage("你打败了\n" + (session.trainerData2 == null ? session.trainerFullname
+                        : session.trainerFullname + "和" + session.trainerFullname2) + "！", true);
                 return;
             }
             case LOSE_MESSAGE: {
                 // Lines 466-467: the opponent's LoseText ("..." when empty).
+                if (endOpponent + 1 < opponentCount()) {                         // :464 the next opponent slides in
+                    endOpponent++;
+                    endPhase = EndPhase.APPEAR;
+                    endAppearStarted = false;
+                    showBattleMessage(endOpponent == 1 ? session.endSpeech : session.endSpeech2, true);
+                    return;
+                }
                 if (session.prizeMoney > 0) {
                     endPhase = EndPhase.MONEY_MESSAGE;
                 } else {
                     endPhase = EndPhase.DONE;
                 }
-                showBattleMessage(session.endSpeech, true);
+                showBattleMessage(endOpponent == 0 ? session.endSpeech : session.endSpeech2, true);
                 return;
             }
             case MONEY_MESSAGE: {
@@ -2192,7 +2540,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             // (Scene_Animations:71-77) and the loop waits for it (:76).
             if (!endAppearStarted) {
                 endAppearStarted = true;
-                animations.add(new BattleAnimations.TrainerAppearAnimation(this, 0));
+                animations.add(new BattleAnimations.TrainerAppearAnimation(this, endOpponent));   // :465 pbShowOpponent(i)
                 return;
             }
             if (animations.isEmpty()) {
@@ -2448,7 +2796,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** {@code @sprites["dataBox_#{...}"].animatingHP} (:254): a bar still moving. */
     private boolean hpBarsAnimating() {
-        return hpT[0] < 1f || hpT[1] < 1f;
+        for (float t : hpT) {
+            if (t < 1f) return true;
+        }
+        return false;
     }
 
     /**
@@ -2463,7 +2814,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (b == null) {
             return;
         }
-        int side = b.foe ? 1 : 0;
+        int side = idxBattler;
         int maxHp = Math.max(1, b.maxHp());
         heldHp[side] = newHp;                                      // the bar's target until the round ends
         hpFrom[side] = Math.max(0f, Math.min(1f, oldHp / (float) maxHp));
@@ -2755,8 +3106,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private void endRoundPlayback() {
         roundPlayback = false;
-        heldHp[0] = -1;
-        heldHp[1] = -1;
+        java.util.Arrays.fill(heldHp, -1);
         if (messageReleased && !session.suspended()) {
             message = null;
             messageReleased = false;
@@ -2836,7 +3186,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             float span = Math.max(1e-4f, Math.abs(expAnimTo - expAnimFrom));
             float duration = Math.max(MIN_EXP_SEGMENT_SECONDS, EXP_BAR_FILL_TIME * span);
             expAnimT = Math.min(1f, expAnimT + delta / duration);
-            expShown[0] = expAnimFrom + (expAnimTo - expAnimFrom) * expAnimT;
+            expShown[expSlot] = expAnimFrom + (expAnimTo - expAnimFrom) * expAnimT;
             if (expAnimT >= 1f) {
                 // updateExpAnimation:352-371: the bar is done, stop the fill SE;
                 // a full bar flashes and plays the full sound instead.
@@ -2870,6 +3220,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     return;
                 }
                 Battle.ExpAward award = awards.get(expAwardIndex);
+                expSlot = fieldSlotOf(award.pokemon);                        // :220 pbFindBattler(idxParty)
                 if (award.expGained <= 0) {
                     // A level-locked gain only fed the exp pot (lines 167-186);
                     // the plugin returns before the exp line.
@@ -2892,6 +3243,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
             case SEGMENTS: {
                 Battle.ExpAward award = awards.get(expAwardIndex);
+                if (expSlot < 0) {
+                    expSegmentIndex = award.segments.size;                   // Scene_Animations:274 pbEXPBar returns without a battler
+                }
                 if (expSegmentIndex < award.segments.size) {
                     if (expAnimT >= 1f) {
                         int[] segment = award.segments.get(expSegmentIndex++);
@@ -2995,6 +3349,18 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
     }
 
+    /**
+     * The player-side position of the Pokemon that gains exp ({@code pbFindBattler(idxParty)}, :220). A single battle's
+     * bar is always the first one; a double battle's Pokemon that is not on the field has no bar.
+     */
+    private int fieldSlotOf(Pokemon pokemon) {
+        for (int idx = 0; idx < battlerCount(); idx += 2) {
+            Battler b = battler(idx);
+            if (b != null && b.pokemon == pokemon) return idx;
+        }
+        return doubles() ? -1 : 0;
+    }
+
     /** Clears the played awards and leaves the settlement. */
     private void finishExpGain() {
         session.battle.lastExpAwards.clear();
@@ -3047,6 +3413,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
     }
 
+    /** {@code pbPlayCancelSE} (Audio_Play:262-272): no {@code cancel_se} in System.rxdata, so {@code GUI sel cancel}. */
+    private void playCancelSe() {
+        if (context.audioManager() != null) {
+            context.audioManager().playSe("GUI sel cancel", 80, 100);     // :270
+        }
+    }
+
     /** pbSEStop (Audio_Play:223): the fill sound stops when the bar is done. */
     private void stopSe() {
         if (context.audioManager() != null) {
@@ -3064,6 +3437,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         float alpha = (expFlash / EXP_FLASH_TIME) * (192f / 255f);
+        BattleSprite box = expSlot > 0 || doubles() ? sprites.get("dataBox_" + Math.max(0, expSlot)) : null;
+        if (box != null && box.bitmapWidth > 0 && box.bitmapHeight > 0) {
+            MenuPanel.fill(batch, assets, box.x, h - box.y - box.bitmapHeight, box.bitmapWidth, box.bitmapHeight,
+                    64 / 255f, 200 / 255f, 248 / 255f, alpha);                // the flash is the receiving data box's own
+            return;
+        }
         MenuPanel.fill(batch, assets, 0f, h - 5f - 84f, 260f, 84f,
                 64 / 255f, 200 / 255f, 248 / 255f, alpha);
     }
@@ -3342,6 +3721,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // ---- the battle bag is the real BW Bag (pbItemMenu) ----
         if (page == 2 && bagView != null) {
             if (bagView.update(input)) {
+                if (bagItem != null && doubles()) {
+                    String id = bagItem;
+                    int target = Math.max(0, bagTarget);
+                    bagItem = null; bagTarget = -1;
+                    useBagItemInDoubles(id, target);
+                    return;
+                }
                 if (bagItem != null) {
                     if (!session.item(bagItem, Math.max(0, bagTarget))) session.message = "现在无法使用这个道具。";
                     queueSessionEvents();
@@ -3352,8 +3738,22 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
 
+        // ---- the target menu (Scene_Commands:419-474) ----
+        if (page == PAGE_TARGET) {
+            updateTargetMenu();
+            return;
+        }
+
         // ---- command / fight menus ----
-        if (input.wasPressed(GameAction.CANCEL) && page != 0) { go(0); return; }
+        if (input.wasPressed(GameAction.CANCEL) && page != 0) {
+            if (page == 1 && doubles()) lastMove[actingIndex()] = cursor.index();     // Scene_Commands:174
+            go(0);
+            return;
+        }
+        if (input.wasPressed(GameAction.CANCEL) && page == 0 && doubles() && actioned.size() > 1) {
+            backToPreviousBattler();                                               // Scene_Commands:53 mode==1 Cancel
+            return;
+        }
         if (page == 1) {
             // FightMenuDisplay: a 2x2 grid over the four slots (LEFT/RIGHT +/-1,
             // UP/DOWN +/-2). Scene_Commands:119-131: LEFT and UP always move,
@@ -3372,7 +3772,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
             if (cursor.index() != oldIndex) playCursorSe();                  // :132
             // Input::A toggles the registered Mega Evolution (Battle_Phase_Command:77); it is performed in the attack phase.
-            if (input.wasPressed(GameAction.SPECIAL) && megaButton) session.toggleMega();
+            if (input.wasPressed(GameAction.SPECIAL) && megaButton) session.toggleMega(actingIndex());
         } else {
             // pbCommandMenuEx (Scene_Commands:33-46): the four commands are a 2x2
             // grid - LEFT/RIGHT move within a row, UP/DOWN between the rows.
@@ -3394,6 +3794,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             playDecisionSe();                       // Scene_Commands:49 / :135 pbPlayDecisionSE
         }
         if (page == 0) {
+            if (doubles() && cmdBattler >= 0) lastCmd[cmdBattler] = pick;           // Scene_Commands:51
+            if (pick == 3 && doubles() && actioned.size() > 1) {
+                backToPreviousBattler();                                           // Scene_Commands:17 "Run" converted to "Cancel"
+                return;
+            }
             if (pick == 3) {
                 // pbRunMenu (Battle_Phase_Command:161-164): pbRun's 0 leaves the
                 // command phase running, -1/1 spend the round (:234-242).
@@ -3411,6 +3816,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             // !pbCanShowFightMenu?(idxBattler)" - with no slot left to choose the
             // plugin never shows the fight menu, it announces
             // "{1}没有招式可使用了！" and struggles (Battle_Action_AttacksPriority:36-67).
+            if (pick == 0 && doubles() && !session.canShowFightMenu(actingIndex())) {
+                session.autoChooseMoveOnly(actingIndex());          // :68 pbAutoChooseMove: registers it, the round does not start
+                queueSessionEvents();
+                pursuitContinuation = this::afterBattlerCommand;    // :70 / :226 break
+                if (message == null && queue.isEmpty()) {
+                    afterRound();
+                }
+                return;
+            }
             if (pick == 0 && !session.canShowFightMenu()) {
                 session.autoChooseMove();
                 queueSessionEvents();
@@ -3425,6 +3839,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             // menu stays open ("next false"), while a slot pbRegisterMove refuses
             // (no PP left) shows its pbDisplayPaused line over the menu.
             if (!moveSlotFilled(pick)) return;
+            if (doubles()) {
+                chooseMoveInDoubles(pick);
+                return;
+            }
             if (session.chooseMove(pick)) {
                 queueSessionEvents();
             } else {
@@ -3441,7 +3859,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * reads.
      */
     private boolean moveSlotFilled(int slot) {
-        Battler fighter = session.battle == null ? null : session.battle.player();
+        Battler fighter = session.battle == null ? null : fighter();
         return fighter != null && fighter.moveSlot(slot) != null;
     }
 
@@ -3496,6 +3914,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 // PokeBattle_Scene:89: the message box stays up while the round's
                 // events play, even between two lines (:138 only hides the text).
                 if (message != null || roundPlayback) drawMessageWindow(batch, w, h);
+            } else if (stage == Stage.BATTLE && window == TARGET_BOX) {
+                drawTargetMenu(batch, w, h);
             } else if (stage == Stage.BATTLE && window == FIGHT_BOX) {
                 drawFightMenu(batch, w, h);
             } else if (stage == Stage.BATTLE && window == COMMAND_BOX) {
@@ -3524,7 +3944,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         boolean colorSet = false;
         int blend = 0;
         for (BattleSprite sprite : sprites.drawOrder()) {
-            if (!sprite.visible || sprite.opacity <= 0f) {
+            if (!sprite.visible || sprite.opacity <= 0f || sprite.blinkHidden) {
                 continue;
             }
             // RGSS blend_type: 0 normal, 1 additive, 2 subtractive.
@@ -3725,17 +4145,17 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** PokemonDataBox#animateHP / #animateExp stepping. */
     private void updateBars(float delta) {
-        for (int side = 0; side < 2; side++) {
+        for (int side = 0; side < heldHp.length; side++) {
             // The exp settlement drives the player's exp bar itself
             // (pbEXPBar's per-level segments).
-            if (side == 0 && stage == Stage.EXP_GAIN) {
+            if (side == expSlot && stage == Stage.EXP_GAIN) {
                 continue;
             }
-            Battler b = side == 0 ? session.battle.player() : session.battle.foe();
+            Battler b = session.battle.battlerAt(side);
             int shownHp = b == null ? 0 : (heldHp[side] >= 0 ? heldHp[side] : b.hp);
             float hpTarget = b == null || b.maxHp() <= 0 ? 1f : Math.max(0f, shownHp / (float) b.maxHp());
             float expTarget = b == null || b.pokemon == null ? 0f : expFraction(b.pokemon);
-            if (side == 0 && heldExp >= 0f) {
+            if (side == expSlot && heldExp >= 0f) {
                 expTarget = heldExp;
             }
             if (!barsReady) { hpShown[side] = hpTarget; expShown[side] = expTarget; hpTo[side] = hpTarget; expTo[side] = expTarget; continue; }
@@ -3753,13 +4173,26 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         barsReady = true;
     }
 
+    /** The battler index of a {@code dataBox_i} sprite. */
+    private static int slotOf(BattleSprite box) {
+        try {
+            return Integer.parseInt(box.key.substring(box.key.lastIndexOf('_') + 1));
+        } catch (RuntimeException e) {
+            return box.battler == null ? 0 : Math.max(0, box.battler.index);
+        }
+    }
+
     /** PokemonDataBox: databox_normal[_foe] + overlay_hp/exp/lv. */
     private void drawDataBox(SpriteBatch batch, BattleSprite box, float h) {
         Battler b = box.battler;
         // During a round's events the box stays until pbFaintBattler's
         // DataBoxDisappearAnimation hides it (PokeBattle_SceneAnimations:221).
-        if (b == null || b.pokemon == null || (b.fainted() && heldHp[b.foe ? 1 : 0] < 0)) return;
-        boolean foe = b.foe;
+        int slot = slotOf(box);
+        if (b == null || b.pokemon == null || (b.fainted() && heldHp[slot] < 0)) return;
+        boolean foe = (slot & 1) != 0;
+        // initializeDataBoxGraphic (PokeBattle_SceneElements:43-56): the HP numbers and the Exp bar only exist in the
+        // regular data box, which a side of one Pokemon uses on the player's side.
+        boolean showHpAndExp = sideSize(slot) == 1 && !foe;
         Texture texture = texture(box.name);
         float x = box.x;
         float topY = box.y + box.bobOffsetY;
@@ -3802,15 +4235,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         // PokemonDataBox#refreshHP:281-289: HP numbers only on the player's side,
         // drawn with icon_numbers at (baseX+84, topY+44), y+2 inside.
-        if (!foe) {
+        if (showHpAndExp) {
             int maxHp = Math.max(1, b.maxHp());
-            int hpValue = Math.round(hpShown[0] * maxHp);
+            int hpValue = Math.round(hpShown[slot] * maxHp);
             hpValue = Math.max(0, Math.min(maxHp, hpValue));
             drawBattleNumber(batch, hpValue, baseX + 138f, topY + 46f, h, true);
             drawBattleNumber(batch, -1, baseX + 138f, topY + 46f, h, false);
             drawBattleNumber(batch, maxHp, baseX + 150f, topY + 46f, h, false);
         }
-        int side = foe ? 1 : 0;
+        int side = slot;
         Texture hpBar = assets.graphic("Pictures/Battle", "overlay_hp");
         // At 0 HP the gauge is empty: the 1px minimum below only applies while
         // HP remains.
@@ -3829,7 +4262,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
         }
         Texture expBar = assets.graphic("Pictures/Battle", "overlay_exp");
-        if (expBar != null && !foe) {
+        if (expBar != null && showHpAndExp) {
             float frac = expShown[side];
             float ew = Math.round(frac * 160f / 2f) * 2f;
             // Crop the 160x4 strip like the HP bar does, so the cells keep their width.
@@ -4019,7 +4452,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (page != 0) {
             return;
         }
-        Battler player = session.battle.player();
+        Battler player = fighter();
         String prompt = (player == null ? "" : player.name()) + "要做什么？";
         font.draw(batch, prompt, 16f, h - (BAR_Y + 2f + (96f - font.lineHeight()) / 2f),
                 TEXT_BASE, TEXT_SHADOW);
@@ -4030,10 +4463,60 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             float cx = w - 260f + ((i % 2 == 0) ? 0f : buttonW - 4f);
             float cy = BAR_Y + 6f + ((i / 2 == 0) ? 0f : 46f - 4f);
             int srcX = i == cursor.index() ? buttonW : 0;
-            int srcY = COMMAND_MODES[i] * 46;
+            // CommandMenuDisplay::MODES: [0,2,1,3] with "Run", [0,2,1,9] with "Cancel" (a later battler's menu)
+            int srcY = (i == 3 && actioned.size() > 1 ? 9 : COMMAND_MODES[i]) * 46;
             batch.draw(cursorTex, cx, h - cy - 46f, buttonW, 46f, srcX, srcY, buttonW, 46, false, false);
         }
     }
+
+    /**
+     * pbShowWindow(TARGET_BOX): {@code TargetMenuDisplay} (PokeBattle_SceneMenus:445-552). The window has no background
+     * of its own - the battle's message bar shows through - and its buttons are laid out per side size.
+     */
+    private void drawTargetMenu(SpriteBatch batch, float w, float h) {
+        Texture cursorTex = assets.graphic("Pictures/Battle", "cursor_target");
+        if (cursorTex == null || targetTexts == null) return;
+        int buttonW = cursorTex.getWidth() / 2;                                 // @buttonBitmap.width/2
+        int sideA = session.battle.pbSideSize(0);
+        int sideB = session.battle.pbSideSize(1);
+        int maxIndex = sideA > sideB ? (sideA - 1) * 2 : sideB * 2 - 1;        // :463
+        boolean small = Math.max(sideA, sideB) > 2;                             // :464
+        int srcW = small ? 170 : buttonW;                                       // :482 CMD_BUTTON_WIDTH_SMALL
+        for (int pass = 0; pass < 2; pass++) {                                  // selected buttons are drawn above the others (:535)
+            for (int i = 0; i <= maxIndex; i++) {
+                int numButtons = i % 2 == 0 ? sideA : sideB;                    // :474
+                if (numButtons <= i / 2) continue;                              // :475
+                boolean named = i < targetTexts.length && targetTexts[i] != null;
+                boolean sel = named && ((targetMode == 0 && i == targetIndex) || targetMode == 1);   // :527-529
+                if ((pass == 1) != sel) continue;
+                int inc = (i % 2) == 0 ? i / 2 : numButtons - 1 - i / 2;         // :479
+                float bx = small ? 170 - new int[] { 0, 82, 166 }[numButtons - 1]
+                                 : 138 - new int[] { 0, 116 }[numButtons - 1];  // :485/:487
+                bx += (srcW - 4) * inc;                                         // :489
+                float by = BAR_Y + 6f + (46 - 4) * ((i + 1) % 2);               // :490-491
+                int buttonType = named ? ((i % 2) == 0 ? 1 : 2) : 0;            // :530
+                buttonType = 2 * buttonType + (small ? 1 : 0);                  // :532
+                batch.draw(cursorTex, bx, h - by - 46f, srcW, 46f, sel ? buttonW : 0, buttonType * 46,
+                        srcW, 46, false, false);                                 // :533-534
+            }
+        }
+        for (int i = 0; i <= maxIndex; i++) {                                   // :540-545 the target names
+            int numButtons = i % 2 == 0 ? sideA : sideB;
+            if (numButtons <= i / 2 || i >= targetTexts.length) continue;
+            String name = targetTexts[i];
+            if (name == null || name.isEmpty()) continue;                       // :541
+            int inc = (i % 2) == 0 ? i / 2 : numButtons - 1 - i / 2;
+            float bx = small ? 170 - new int[] { 0, 82, 166 }[numButtons - 1]
+                             : 138 - new int[] { 0, 116 }[numButtons - 1];
+            bx += (srcW - 4) * inc;
+            float by = BAR_Y + 6f + (46 - 4) * ((i + 1) % 2);
+            narrowFont.drawCentered(batch, name, bx + srcW / 2f, h - (by + 8f), TARGET_TEXT_BASE, TARGET_TEXT_SHADOW);   // :542-544
+        }
+    }
+
+    /** {@code TargetMenuDisplay::TEXT_BASE_COLOR / TEXT_SHADOW_COLOR} (PokeBattle_SceneMenus:457-458). */
+    private static final Color TARGET_TEXT_BASE = new Color(240 / 255f, 248 / 255f, 224 / 255f, 1f);
+    private static final Color TARGET_TEXT_SHADOW = new Color(64 / 255f, 64 / 255f, 64 / 255f, 1f);
 
     /** pbShowWindow(FIGHT_BOX): FightMenuDisplay. */
     private void drawFightMenu(SpriteBatch batch, float w, float h) {
@@ -4042,7 +4525,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         Texture cursorTex = assets.graphic("Pictures/Battle", "cursor_fight");
         if (cursorTex == null) return;
         int buttonW = cursorTex.getWidth() / 2;
-        Battler player = session.battle.player();
+        Battler player = fighter();
         // ---- refreshSelection (:367-383): the four fixed slots, in order ----
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
             BattleMove move = player == null ? null : player.moveSlot(i);
@@ -4089,7 +4572,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 int half = mega.getHeight() / 2;
                 float megaX = (w - mega.getWidth()) / 2f;
                 batch.draw(mega, megaX, h - (BAR_Y - half) - half, mega.getWidth(), half,
-                        0, (session.megaRegistered() ? half : 0), mega.getWidth(), half, false, false);
+                        0, (session.megaRegistered(actingIndex()) ? half : 0), mega.getWidth(), half, false, false);
             }
         }
     }

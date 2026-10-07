@@ -247,6 +247,96 @@ class InteractiveBattlePortTest {
         assertEquals(1, battle.turns());
     }
 
+    @Test void startRoundRunsADoubleRoundOnceEveryBattlerHasItsCommand() {
+        trainer.party.add(pokemon(20));
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(15), pokemon(15)));
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        assertNull(session.registerMove(0, 0));
+        session.registerTarget(0, 1);
+        assertNull(session.registerMove(2, 0));
+        session.registerTarget(2, 3);
+        int hp1 = battle.battlerAt(1).hp, hp3 = battle.battlerAt(3).hp;
+
+        assertTrue(session.startRound());
+
+        assertTrue(battle.battlerAt(1).hp < hp1);
+        assertTrue(battle.battlerAt(3).hp < hp3);
+        assertEquals(1, battle.turns());
+        assertTrue(session.takeEvents().size > 0, "the round's lines are handed to the screen");
+    }
+
+    @Test void twoSwitchersOfOneRoundShareTheTurnAndComeInPriorityOrder() {
+        // Battle_Phase_Attack:50-71 pbAttackPhaseSwitch walks pbPriority; the round's turn count and pbChooseAll run once.
+        trainer.party.add(pokemon(20));
+        trainer.party.add(pokemon(20));
+        trainer.party.add(pokemon(20));
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(15), pokemon(15)));
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        assertNull(session.registerSwitch(0, 2));
+        assertNull(session.registerSwitch(2, 3));
+        assertTrue(session.switching(0) && session.switching(2));
+
+        session.beginSwitchPhase();
+        int[] order = session.switchOrder();
+        assertEquals(2, order.length);
+        assertEquals(2, session.switchParty(0));
+        assertEquals(3, session.switchParty(2));
+        session.pursuitOnSwitch(order[0]);
+        session.pursuitOnSwitch(order[1]);
+        assertEquals(1, battle.turns(), "the turn is counted once however many battlers switch");
+        for (int idx : order) {
+            assertTrue(battle.replace(idx, session.switchParty(idx)));
+        }
+        session.foeTurn();
+        assertEquals(1, battle.turns());
+    }
+
+    @Test void anItemUsedInADoubleSpendsOnlyThatBattlersActionAndKeepsTheRoundOpen() {
+        PbsData.Item potion = new PbsData.Item();
+        potion.id = 5; potion.internalName = "SUPERPOTION"; potion.name = "好伤药"; potion.pocket = 2; potion.battleUse = 1;
+        data.items.put("SUPERPOTION", potion);
+        bag.add("SUPERPOTION", 1);
+        trainer.party.add(pokemon(20));
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(15), pokemon(15)));
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        battle.battlerAt(0).hp = 5;
+        battle.battlerAt(0).syncHp();
+
+        assertTrue(session.commandItem("SUPERPOTION", 0, 0, -1));
+
+        assertEquals(":UseItem", battle.choices(0)[0]);
+        assertEquals(0, battle.turns(), "the round has not run");
+        assertEquals(0, bag.count("SUPERPOTION"));
+        assertArrayEquals(new int[] {2}, session.commandBattlers(), "the other battler still chooses");
+    }
+
+    @Test void everyPositionOfADoubleHasItsOwnActivePosition() {
+        // Battle_StartAndEnd:110 @positions[idxBattler]: a hurt battler at position 2 enters (pbActivateHealingWish reads it).
+        trainer.party.add(pokemon(20));
+        trainer.party.get(1).hp = 1;
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(15), pokemon(15)));
+        InteractiveBattlePort.Session session = port.session();
+        assertEquals(4, session.battle.field.positions.length);
+        session.onActiveAll();
+        assertNull(session.result);
+    }
+
+    @Test void partyStartsMarkWhereEachTrainersTeamBegins() {
+        port.setPartner("", "Friend", java.util.Arrays.asList(pokemon(20)));
+        port.setBattleSize("double");
+        port.trainerBattle(java.util.Arrays.asList(trainerOf("One"), trainerOf("Two")));
+        Battle battle = port.session().battle;
+        assertArrayEquals(new int[] {0, 1}, battle.partyStarts(0));
+        assertArrayEquals(new int[] {0, 1}, battle.partyStarts(1));
+    }
+
     @Test void goingBackClearsThePreviousBattlersChoice() {
         trainer.party.add(pokemon(20));
         port.setBattleSize("double");

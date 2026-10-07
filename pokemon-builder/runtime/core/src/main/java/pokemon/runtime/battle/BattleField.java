@@ -61,7 +61,8 @@ public final class BattleField {
      * {@code @battle.positions[i]} in the plugin ({@code PokeBattle_Battle});
      * parked on the field here so {@code Battle.java} stays untouched this round.
      */
-    public final BattlePosition[] positions = {new BattlePosition(), new BattlePosition()};
+    // One entry per battler index (Battle_StartAndEnd:110 @positions[idxBattler]); a double battle has four.
+    public final BattlePosition[] positions = {new BattlePosition(), new BattlePosition(), new BattlePosition(), new BattlePosition()};
 
     public BattleField() {
         // PokeBattle_ActiveField.rb:13-25, one Ruby line per statement below.

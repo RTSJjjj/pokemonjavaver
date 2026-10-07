@@ -130,6 +130,25 @@ class BattleSendOutTest {
         assertArrayEquals(new int[] { 0 }, plan.get(4).battlers, "then the player's");
     }
     @Test
+    @DisplayName("two opposing trainers and a partner: one line and one send-out each, the partner's before the player's (:222-223, :236-266)")
+    void doubleTrainerBattle() {
+        Battle battle = new Battle(pbs, new Random(1), (user, foe, moves) -> 0);
+        battle.addPlayer(pokemon("BULBASAUR"));
+        battle.addPartner(pokemon("VENUSAUR"));
+        battle.addFoe(pokemon("IVYSAUR"));
+        battle.addFoeSecondTrainer(pokemon("VENUSAUR"));
+        battle.setBattleMode("double");
+        List<BattleSendOut.Step> plan = BattleSendOut.plan(battle, true, new String[] { "南晓", "北辰" },
+                new String[] { null, "小伙伴" }, noSwitches());
+
+        assertEquals("南晓、北辰\n向你发起挑战！", plan.get(0).message);                      // :222-223
+        assertEquals("南晓派出了\n妙蛙草！\r\n北辰派出了\n妙蛙花！", plan.get(1).message);        // :242 per trainer, :238 joined
+        assertArrayEquals(new int[] { 1, 3 }, plan.get(2).battlers, "the opposing side first");
+        assertEquals("小伙伴派出了\n妙蛙花！\r\n去吧！\n妙蛙种子！", plan.get(3).message);       // :237 the player's line is last
+        assertArrayEquals(new int[] { 2, 0 }, plan.get(4).battlers, "the partner's Pokemon before the player's");
+    }
+
+    @Test
     @DisplayName("a wild battle never fills the opposing side (Battle_StartAndEnd:120-129/231)")
     void wildSkipsSideOne() {
         List<BattleSendOut.Step> plan = BattleSendOut.plan(battle(pokemon("IVYSAUR")), false, "", 0,

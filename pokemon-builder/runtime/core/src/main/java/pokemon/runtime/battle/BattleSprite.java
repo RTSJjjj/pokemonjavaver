@@ -58,6 +58,8 @@ final class BattleSprite {
     float[] color = { 0f, 0f, 0f, 0f };
     float opacity = 255f;
     boolean visible = true;
+    /** PokemonBattlerSprite#update (PokeBattle_SceneElements:623-628): hidden for a blink frame while it is the chosen target. */
+    boolean blinkHidden;
     int blendType;
     /** The plugin's full logical path, e.g. {@code Graphics/Battle animations/ball_00}. */
     String name = "";

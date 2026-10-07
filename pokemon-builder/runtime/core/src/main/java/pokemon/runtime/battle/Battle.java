@@ -884,7 +884,7 @@ public final class Battle {
         if (canSwitch(idxBattler, idxParty) != null) {
             return false;                                         // :123
         }
-        if (idxBattler < 0 || idxBattler >= 2) {
+        if (idxBattler < 0 || idxBattler >= choicesStore.length) {
             return false;
         }
         Object[] c = choicesStore[idxBattler];
@@ -1316,6 +1316,27 @@ public final class Battle {
      * 登记: :186 {@code pbAttackPhasePriorityChangeMessages} then plays after the switch, not before it.
      */
     public void pbPursuitOnSwitch(int idxSwitcher) {
+        if (roundStarted) {
+            roundMessages.clear();                                 // a second switcher of the same round: the round is already under way
+            roundEvents.clear();
+        } else {
+            pbBeginSwitchPhase();
+        }
+        if (foe() == null || player() == null) {
+            return;
+        }
+        pbPursuit(idxSwitcher);                                    // :59
+    }
+
+    /**
+     * The start of the round's attack phase (Battle_Phase_Attack:171-184) up to the first {@code pbAttackPhaseSwitch}
+     * entry, run once per round: the turn counts, every non-player battler stores its choice and the priority order
+     * is calculated. Later switchers of the same round (a double battle) reuse it.
+     */
+    public void pbBeginSwitchPhase() {
+        if (roundStarted) {
+            return;
+        }
         turns++;
         roundMessages.clear();
         roundEvents.clear();
@@ -1326,7 +1347,49 @@ public final class Battle {
         pbChooseAll(false);                                        // Battle_Phase_Command
         BattleAttackPhase.pbAttackPhasePrologue(this);             // :171-184
         attackPhasePrepared = true;
-        pbPursuit(idxSwitcher);                                    // :59
+    }
+
+    /**
+     * {@code pbAttackPhaseSwitch}'s order (Battle_Phase_Attack:51-52): the player's battlers that registered a
+     * switch, in {@code pbPriority} order.
+     */
+    public int[] playerSwitchersInOrder() {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        for (Battler b : pbPriority(false)) {                      // :51
+            if (b.fainted() || !pbOwnedByPlayer(b.index)) continue;
+            if (":SwitchOut".equals(choices(b.index)[0])) out.add(b.index);   // :52
+        }
+        int[] ret = new int[out.size()];
+        for (int i = 0; i < ret.length; i++) ret[i] = out.get(i);
+        return ret;
+    }
+
+    /**
+     * {@code pbRegisterItem(idxBattler,item,...)} (Battle_Action_UseItem:27-31) for an item the port has already
+     * applied (this runtime uses items at command time): the battler's action is spent, so
+     * {@link #pbChooseAll(boolean)} leaves it alone and the attack phase does nothing for it.
+     */
+    public void markItemUsed(int idxBattler) {
+        if (idxBattler < 0 || idxBattler >= choicesStore.length) return;
+        choicesStore[idxBattler][0] = ":UseItem";                  // :29
+        choicesStore[idxBattler][1] = 0;                           // the item is already gone (:91 ch[1]=0)
+    }
+
+    /** {@code pbPartyStarts(idxBattler)} (PokeBattle_Battle:319-321): where each trainer's team starts in a side's party. */
+    public int[] partyStarts(int side) {
+        Array<Battler> party = partyBySide(side & 1);
+        int owners = Math.max(1, pbTrainerCount(side & 1));
+        int[] starts = new int[owners];
+        for (int owner = 1; owner < owners; owner++) {
+            starts[owner] = party.size;
+            for (int i = 0; i < party.size; i++) {
+                if (party.get(i) != null && party.get(i).ownerIndex == owner) {
+                    starts[owner] = i;
+                    break;
+                }
+            }
+        }
+        return starts;
     }
 
     /**
