@@ -162,4 +162,55 @@ class InteractiveBattlePortTest {
         assertNotSame(lead, session.battle.player());
         assertEquals(1, session.battle.turns(), "the round went on after the switch");
     }
+    private PbsData.TrainerData trainerOf(String name) {
+        PbsData.TrainerData opponent = new PbsData.TrainerData();
+        opponent.name = name;
+        PbsData.TrainerPokemon member = new PbsData.TrainerPokemon(); member.species = "A"; member.level = 10; opponent.party.add(member);
+        return opponent;
+    }
+
+    @Test void doubleWildBattleFieldsTwoOfEachSide() {
+        trainer.party.add(pokemon(20));
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(20), pokemon(20)));
+        Battle battle = port.session().battle;
+        assertEquals(2, battle.pbSideSize(0));
+        assertEquals(2, battle.pbSideSize(1));
+        assertEquals(4, battle.eachBattler().size);
+        assertTrue(battle.battlerAt(2).pbOwnedByPlayer());
+    }
+
+    @Test void aDoubleWithOnePlayerPokemonShrinksTheSideLikePbEnsureParticipants() {
+        // Battle_StartAndEnd:44-99: the player side cannot be filled, so it loses a position; the wild side keeps its size.
+        port.setBattleSize("double");
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(20), pokemon(20)));
+        Battle battle = port.session().battle;
+        assertEquals(1, battle.pbSideSize(0));
+        assertEquals(2, battle.pbSideSize(1));
+        assertEquals(3, battle.eachBattler().size);
+    }
+
+    @Test void twoOpposingTrainersAndAPartnerMakeTwoVsTwo() {
+        // pbTrainerBattleCore:428-487: the partner's party follows the player's, the second trainer's follows the first's.
+        port.setPartner("", "Friend", java.util.Arrays.asList(pokemon(20)));
+        port.setBattleSize("double");
+        port.trainerBattle(java.util.Arrays.asList(trainerOf("One"), trainerOf("Two")));
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        assertEquals(2, battle.pbSideSize(0));
+        assertEquals(2, battle.pbSideSize(1));
+        assertFalse(battle.battlerAt(2).pbOwnedByPlayer(), "the partner's Pokemon stands at position 2");
+        assertEquals(1, battle.battlerAt(3).ownerIndex, "the second opponent stands at position 3");
+        assertEquals("One", session.trainerFullname);
+        assertEquals("Two", session.trainerFullname2);
+        assertEquals("Friend", session.partnerFullname);
+    }
+
+    @Test void noPartnerRuleKeepsThePartnerOut() {
+        port.setPartner("", "Friend", java.util.Arrays.asList(pokemon(20)));
+        port.setNoPartner(true);
+        port.freeWildBattle(java.util.Arrays.asList(pokemon(20), pokemon(20)));
+        assertNull(port.session().partnerFullname);
+        assertEquals(1, port.session().battle.pbSideSize(0));
+    }
 }

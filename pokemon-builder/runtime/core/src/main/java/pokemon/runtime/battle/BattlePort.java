@@ -21,6 +21,35 @@ public interface BattlePort {
     /** A trainer battle from a trainers.txt entry. */
     BattleResult trainerBattle(PbsData.TrainerData trainer);
 
+    /** Several wild Pokemon at once (pbWildBattleCore with a foe party of 2, PField_Battles:262-345). */
+    default BattleResult freeWildBattle(java.util.List<Pokemon> foes) {
+        return foes.isEmpty() ? null : freeWildBattle(foes.get(0));
+    }
+
+    /** Several opposing trainers (pbTrainerBattleCore with 2 arguments, PField_Battles:399-518). */
+    default BattleResult trainerBattle(java.util.List<PbsData.TrainerData> trainers) {
+        return trainers.isEmpty() ? null : trainerBattle(trainers.get(0));
+    }
+
+    /**
+     * {@code setBattleRule("single"/"double"/...)} (PField_Battles:30-32, applied by
+     * {@code pbPrepareBattle:96} {@code battle.setBattleMode}): the size of the next battle; null = the default.
+     */
+    default void setBattleSize(String size) {
+    }
+
+    /**
+     * {@code $PokemonGlobal.partner} (PField_Field:1399-1416) for the next battle: the partner's trainer type, name
+     * and party, or null when none is registered. Whether the partner joins is decided by
+     * {@code pbWildBattleCore:303-318} / {@code pbTrainerBattleCore:459-487}.
+     */
+    default void setPartner(String trainerType, String name, Iterable<Pokemon> party) {
+    }
+
+    /** {@code setBattleRule("noPartner")} (PField_Battles:51). */
+    default void setNoPartner(boolean value) {
+    }
+
     /**
      * The result of the battle that just finished, or null. The interpreter
      * reads it when it resumes to write the outcome variable

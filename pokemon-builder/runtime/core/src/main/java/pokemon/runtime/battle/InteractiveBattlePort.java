@@ -72,17 +72,49 @@ public final class InteractiveBattlePort implements BattlePort {
         return null;
     }
     public BattleResult freeWildBattle(Pokemon foe) {
-        if (foe != null) start(Array.with(foe), false, null);
+        if (foe != null) start(java.util.Collections.singletonList(Array.with(foe)), false, null);
+        return null;
+    }
+    public BattleResult freeWildBattle(java.util.List<Pokemon> foes) {
+        if (foes.isEmpty()) return null;
+        // pbWildBattleCore:280-297: every wild Pokemon is one foe party entry of the one (absent) opposing trainer
+        Array<Pokemon> team = new Array<>();
+        for (Pokemon foe : foes) if (foe != null) team.add(foe);
+        start(java.util.Collections.singletonList(team), false, null);
         return null;
     }
     public BattleResult trainerBattle(PbsData.TrainerData opponent) {
-        if (opponent == null || data.get() == null) return null;
-        Array<Pokemon> foes = new Array<>();
-        for (PbsData.TrainerPokemon member : opponent.party) {
-            Pokemon p = factory().trainerPokemon(member, data.get()); if (p != null) foes.add(p);
-        }
-        start(foes, true, opponent); return null;
+        return trainerBattle(java.util.Collections.singletonList(opponent));
     }
+    public BattleResult trainerBattle(java.util.List<PbsData.TrainerData> opponents) {
+        if (opponents.isEmpty() || data.get() == null) return null;
+        java.util.List<Array<Pokemon>> teams = new java.util.ArrayList<>();
+        for (PbsData.TrainerData opponent : opponents) {
+            if (opponent == null) return null;
+            Array<Pokemon> foes = new Array<>();
+            for (PbsData.TrainerPokemon member : opponent.party) {
+                Pokemon p = factory().trainerPokemon(member, data.get()); if (p != null) foes.add(p);
+            }
+            teams.add(foes);
+        }
+        start(teams, true, opponents); return null;
+    }
+    /** {@code setBattleRule("single"/"double"/...)} for the next battle. */
+    private String battleSize;
+    public void setBattleSize(String size) { this.battleSize = size; }
+    /** {@code $PokemonGlobal.partner} for the next battle. */
+    private String partnerType;
+    private String partnerName;
+    private Array<Pokemon> partnerParty;
+    public void setPartner(String trainerType, String name, Iterable<Pokemon> party) {
+        if (name == null) { partnerParty = null; return; }
+        partnerType = trainerType;
+        partnerName = name;
+        partnerParty = new Array<>();
+        for (Pokemon pokemon : party) partnerParty.add(pokemon);
+    }
+    private boolean noPartner;
+    public void setNoPartner(boolean value) { this.noPartner = value; }
     private HeadlessBattlePort factory() {
         HeadlessBattlePort factory = new HeadlessBattlePort(trainer, data, null, random);
         // pbGenerateWildPokemon reads the bag (Shiny Charm, :436-442), the map
@@ -110,10 +142,13 @@ public final class InteractiveBattlePort implements BattlePort {
     private Battle.CryPlayer cryPlayer;
     public void setCryPlayer(Battle.CryPlayer player) { this.cryPlayer = player; }
 
-    private void start(Array<Pokemon> foes, boolean trainerBattle, PbsData.TrainerData opponent) {
-        if (pending() || foes.isEmpty() || trainer.party.firstAble() == null) return;
+    private void start(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents) {
+        if (pending() || teams.isEmpty() || teams.get(0).isEmpty() || trainer.party.firstAble() == null) return;
         lastResult = null;
-        session = new Session(foes, trainerBattle, opponent);
+        session = new Session(teams, trainerBattle, opponents);
+        battleSize = null;                       // the recorded rules belong to this battle only (PField_Battles:498)
+        partnerParty = null;
+        noPartner = false;
     }
     public BattleResult lastResult() { return lastResult; }
     public void setCanLose(boolean value) { this.canLose = value; }
@@ -175,6 +210,14 @@ public final class InteractiveBattlePort implements BattlePort {
         public final boolean trainerBattle;
         /** The trainers.txt row for a trainer battle (null for a wild battle). */
         public final PbsData.TrainerData trainerData;
+        /** The second opposing trainer's row, or null. */
+        public final PbsData.TrainerData trainerData2;
+        /** The second opposing trainer's {@code fullname}, or null. */
+        public String trainerFullname2;
+        /** The second opponent's LoseText. */
+        public String endSpeech2;
+        /** The partner trainer's {@code fullname}, or null when none fights with the player. */
+        public String partnerFullname;
         public BattleResult result;
         public String message;
         /** pbGainExp:58-61: the "经验储罐" line played after the awards. */
@@ -214,9 +257,10 @@ public final class InteractiveBattlePort implements BattlePort {
          * {@code endMessage}; {@link #takeEvents()} hands it to the screen once.
          */
         private final Array<Battle.RoundEvent> events = new Array<>();
-        Session(Array<Pokemon> foes, boolean trainerBattle, PbsData.TrainerData trainerData) {
+        Session(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents) {
             this.trainerBattle = trainerBattle;
-            this.trainerData = trainerData;
+            this.trainerData = opponents == null || opponents.isEmpty() ? null : opponents.get(0);
+            this.trainerData2 = opponents == null || opponents.size() < 2 ? null : opponents.get(1);
             battle = new Battle(data.get(), random, (user, foe, moves) -> move);
             battle.zaMode = zaMode;
             battle.fullMegaAnimation = megaAnimation == 0;       // Mega evolution:366-369 za_full_mega_animation?
@@ -234,8 +278,35 @@ public final class InteractiveBattlePort implements BattlePort {
             battle.badges = trainer.badges;
             battle.setCryPlayer(cryPlayer);       // Battler_UseMove_SuccessChecks:318-319
             battle.scene = new CoroutineScene();   // @scene
+            int foeCount = 0;
+            for (Array<Pokemon> team : teams) foeCount += team.size;
+            // PField_Battles:303-318 / :459-487: the partner trainer joins when there is room for one.
+            String size = battleSize;
+            boolean roomForPartner = foeCount > 1;
+            if (!roomForPartner && size != null && !isSingleSize(size)) roomForPartner = true;
+            boolean withPartner = partnerParty != null && !noPartner && roomForPartner;
             for (Pokemon p : trainer.party.members()) battle.addPlayer(p);
-            for (Pokemon p : foes) { battle.addFoe(p); trainer.registerSeen(p); }
+            if (withPartner) {
+                for (Pokemon p : partnerParty) battle.addPartner(p);
+                PbsData pbs = data.get();
+                PbsData.TrainerType type = pbs == null || partnerType == null ? null : pbs.trainerTypes.get(partnerType);
+                partnerFullname = (type == null || type.name == null ? "" : type.name + " ") + partnerName;   // Trainer#fullname
+                battle.partnerName = partnerFullname;
+                if (size == null) size = "double";                                   // :317 / :486 setBattleRule("double") if !size
+            }
+            for (int owner = 0; owner < teams.size(); owner++) {
+                for (Pokemon p : teams.get(owner)) {
+                    if (owner == 0) battle.addFoe(p); else battle.addFoeSecondTrainer(p);
+                    trainer.registerSeen(p);
+                }
+            }
+            // pbPrepareBattle:88-97: the forced-double switch, else the recorded size
+            if (gameSwitches != null && gameSwitches.test(41)
+                    && (ableCount(trainer.party.members()) >= 2 || withPartner)) {
+                size = "double";                                                     // :88-90 (the "not enough Pokemon" message of :92 is an event-side line)
+            }
+            if (size != null) battle.setBattleMode(size);                            // :96
+            battle.pbEnsureParticipants();                                           // Battle_StartAndEnd:301
             // Battle_StartAndEnd:194-228: the "wants to battle" line. It is
             // produced by the transcribed pbStartBattleSendOut
             // (BattleSendOut.plan), which branches on the wild party size, the
@@ -251,6 +322,27 @@ public final class InteractiveBattlePort implements BattlePort {
                 endSpeech = trainerData.loseText == null || trainerData.loseText.isEmpty()
                         ? "..." : trainerData.loseText;
             }
+            if (trainerBattle && trainerData2 != null) {
+                PbsData pbs = data.get();
+                PbsData.TrainerType type = pbs == null || trainerData2.type == null ? null
+                        : pbs.trainerTypes.get(trainerData2.type);
+                trainerFullname2 = (type == null || type.name == null ? "" : type.name + " ") + trainerData2.name;
+                battle.opponentName2 = trainerFullname2;
+                endSpeech2 = trainerData2.loseText == null || trainerData2.loseText.isEmpty()
+                        ? "..." : trainerData2.loseText;
+            }
+        }
+
+        /** {@code ["single","1v1","1v2","1v3"].include?(size)} (PField_Battles:305, :461). */
+        private boolean isSingleSize(String size) {
+            return "single".equals(size) || "1v1".equals(size) || "1v2".equals(size) || "1v3".equals(size);
+        }
+
+        /** {@code $Trainer.ablePokemonCount}. */
+        private int ableCount(Iterable<Pokemon> party) {
+            int count = 0;
+            for (Pokemon p : party) if (p != null && !p.egg && p.hp > 0) count++;
+            return count;
         }
         /**
          * {@code pbCanShowFightMenu?} (Battle_Phase_Command:43-55): {@code false}
@@ -603,16 +695,21 @@ public final class InteractiveBattlePort implements BattlePort {
          */
         private void awardPrizeMoney() {
             PbsData pbs = data.get();
-            PbsData.TrainerType type = pbs == null || trainerData == null || trainerData.type == null
-                    ? null : pbs.trainerTypes.get(trainerData.type);
-            int moneyEarned = type == null || type.baseMoney <= 0 ? 30 : type.baseMoney;
-            int maxLevel = 1;
-            for (Battler battler : battle.foeParty()) {
-                if (battler != null && battler.pokemon != null && battler.level() > maxLevel) {
-                    maxLevel = battler.level();
+            int total = 0;
+            for (int owner = 0; owner < 2; owner++) {                          // :399 @opponent.each_with_index
+                PbsData.TrainerData td = owner == 0 ? trainerData : trainerData2;
+                if (td == null) continue;
+                PbsData.TrainerType type = pbs == null || td.type == null ? null : pbs.trainerTypes.get(td.type);
+                int moneyEarned = type == null || type.baseMoney <= 0 ? 30 : type.baseMoney;
+                int maxLevel = 1;                                              // :400 pbMaxLevelInTeam(1,i)
+                for (Battler battler : battle.foeParty()) {
+                    if (battler != null && battler.pokemon != null && battler.ownerIndex == owner && battler.level() > maxLevel) {
+                        maxLevel = battler.level();
+                    }
                 }
+                total += maxLevel * moneyEarned;
             }
-            prizeMoney = maxLevel * moneyEarned;
+            prizeMoney = total;
             trainer.money += prizeMoney;
         }
 

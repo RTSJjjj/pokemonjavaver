@@ -377,14 +377,27 @@ export const HANDLERS = {
       partner: false,
     };
   },
+  /**
+   * pbDoubleTrainerBattle(type1, name1, party1, speech1, type2, name2, party2=0, speech2=nil, canLose=false,
+   * outcomeVar=1) (PField_Battles:582-596): two opposing trainers; setBattleRule("double") is part of the call.
+   */
   pbDoubleTrainerBattle(args) {
-    return {
+    const command = {
       command: "TRAINER_BATTLE",
       trainerType: args[0],
       trainerName: args.length > 1 ? args[1] : "",
       version: args.length > 2 ? args[2] : 0,
-      partner: true,
+      partner: false,
+      second: {
+        trainerType: args[4],
+        trainerName: args.length > 5 ? args[5] : "",
+        version: args.length > 6 ? args[6] : 0,
+      },
+      double: true,
     };
+    if (args.length > 8 && args[8] === true) command.canLose = true;
+    if (args.length > 9) command.outcomeVar = args[9];
+    return command;
   },
 
   /**

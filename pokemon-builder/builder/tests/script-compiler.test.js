@@ -589,6 +589,13 @@ test("P2: wild / trainer battle scripts become battle IR", () => {
     compileBlock(essentials("pbTrainerBattle", 'pbTrainerBattle(:POKEMONTRAINER_Red,"Blue",1)')).ir,
     { command: "TRAINER_BATTLE", trainerType: "POKEMONTRAINER_Red", trainerName: "Blue", version: 1, partner: false },
   );
+  // PField_Battles:582-596: pbDoubleTrainerBattle keeps both trainers and the double rule.
+  assert.deepEqual(
+    compileBlock(essentials("pbDoubleTrainerBattle",
+        'pbDoubleTrainerBattle(:HIKER,"Al",0,"a",:LASS,"Bo",2,"b",true)')).ir,
+    { command: "TRAINER_BATTLE", trainerType: "HIKER", trainerName: "Al", version: 0, partner: false,
+      second: { trainerType: "LASS", trainerName: "Bo", version: 2 }, double: true, canLose: true },
+  );
   const free = compileBlock(essentials("pbGenPkmn",
       "p=pbGenPkmn(:PIKACHU,5)\np.makeShiny\npbFreeWildBattle(p)"));
   assert.equal(free.status, "TRANSLATED");

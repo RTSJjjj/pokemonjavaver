@@ -242,6 +242,91 @@ public final class Battle {
         }
     }
 
+    /** {@code setBattleMode(mode)} (PokeBattle_Battle:196-209); only sizes up to 2 exist here, a triple mode is refused. */
+    public Battle setBattleMode(String mode) {
+        switch (mode == null ? "" : mode) {
+            case "triple": case "3v3": case "3v2": case "3v1": case "2v3": case "1v3":
+                throw new IllegalStateException("battle mode \"" + mode + "\": this runtime has single and double battles only");
+            case "double": case "2v2": return setSideSizes(2, 2);        // :203
+            case "2v1": return setSideSizes(2, 1);                       // :204
+            case "1v2": return setSideSizes(1, 2);                       // :206
+            default: return setSideSizes(1, 1);                          // :207 Single, 1v1 (default)
+        }
+    }
+
+    /** {@code pbAbleTeamCounts(side)} (PokeBattle_Battle:359-375): the number of able Pokemon of each trainer's team. */
+    public int[] pbAbleTeamCounts(int side) {
+        int trainers = Math.max(1, pbTrainerCount(side));
+        int[] ret = new int[trainers];
+        for (Battler pkmn : partyBySide(side)) {
+            if (pkmn == null || pkmn.fainted() || pkmn.pokemon.egg) continue;     // :370 next if !pkmn || !pkmn.able?
+            ret[Math.min(pkmn.ownerIndex, trainers - 1)] += 1;                    // :371-372
+        }
+        return ret;
+    }
+
+    /**
+     * {@code pbEnsureParticipants} (Battle_StartAndEnd:16-99): makes sure every position can be filled and shrinks
+     * the battle when it cannot (wild sides take the size of the wild party).
+     */
+    public void pbEnsureParticipants() {
+        // :25-28 battles above 2v2 with several trainers on both sides cannot exist (no larger sizes here)
+        int[] side1counts = pbAbleTeamCounts(0);                                  // :30
+        int[] side2counts = pbAbleTeamCounts(1);                                  // :31
+        // Change the size of the battle depending on how many wild Pokemon there are
+        if (wildBattle() && side2counts[0] != sideSizes[1]) {                     // :33
+            if (sideSizes[0] == sideSizes[1]) {                                   // :34 even number of battlers per side
+                sideSizes[0] = side2counts[0];                                    // :36
+                sideSizes[1] = side2counts[0];
+            } else {
+                sideSizes[1] = side2counts[0];                                    // :39
+            }
+        }
+        // Check if battle is possible, including changing the number of battlers per side if necessary
+        while (true) {                                                            // :44
+            boolean needsChanging = false;                                        // :45
+            for (int side = 0; side < 2; side++) {                                // :46
+                if (side == 1 && wildBattle()) continue;                          // :47
+                int[] sideCounts = side == 0 ? side1counts : side2counts;         // :48
+                int[] requireds = new int[sideCounts.length];                     // :49
+                for (int i = 0; i < sideSizes[side]; i++) {                       // :51
+                    int idxTrainer = pbGetOwnerIndexFromBattlerIndex(i * 2 + side);   // :52
+                    if (idxTrainer >= requireds.length) {
+                        throw new IllegalStateException("错误：def pbGetOwnerIndexFromBattlerIndex 为战斗类型" + sideSizes[0] + "v" + sideSizes[1]
+                                + "，训练家" + side1counts.length + "v" + side2counts.length + "提供了无效的所有者索引！");   // :57-60
+                    }
+                    requireds[idxTrainer] += 1;                                   // :54
+                }
+                for (int i = 0; i < sideCounts.length; i++) {                     // :61
+                    if (requireds[i] == 0) {                                      // :62
+                        throw new IllegalStateException((side == 0 ? "玩家一方" : "对手") + (i + 1) + "没有战斗位置宝可梦无法去尝试"
+                                + sideSizes[0] + "V" + sideSizes[1] + "战斗！");  // :63-66
+                    }
+                    if (requireds[i] <= sideCounts[i]) continue;                  // :68
+                    if (requireds[i] == 1) {                                      // :69
+                        throw new IllegalStateException((side == 0 ? "玩家一方" : "对方") + (i + 1) + "没有可用的宝可梦！");   // :70-71
+                    }
+                    needsChanging = true;                                         // :74
+                    break;                                                        // :75
+                }
+                if (needsChanging) break;                                         // :77
+            }
+            if (!needsChanging) break;                                            // :79
+            // Reduce one or both side's sizes by 1 and try again
+            int newSize = wildBattle() ? sideSizes[0] - 1 : Math.max(sideSizes[0], sideSizes[1]) - 1;   // :81-89
+            if (newSize == 0) {                                                   // :90
+                throw new IllegalStateException("不要再降低任何一方的规模不然战斗是无法发生的！");   // :91
+            }
+            for (int side = 0; side < 2; side++) {                                // :93
+                if (side == 1 && wildBattle()) continue;                          // :94
+                if (sideSizes[side] == 1 || newSize > sideSizes[side]) continue;  // :95
+                sideSizes[side] = newSize;                                        // :96
+            }
+        }
+        pbSetUpSides();
+        refreshFieldIndices();
+    }
+
     /** {@code @sideSizes = [a,b]} (PokeBattle_Battle:197-206 setBattleMode). */
     public Battle setSideSizes(int player, int opposing) {
         sideSizes[0] = player;

@@ -1653,12 +1653,34 @@ public final class EventInterpreter {
                     log.warn("TRAINER_BATTLE unknown trainer; skipped");
                     break;
                 }
+                // PField_Battles:582-596 pbDoubleTrainerBattle: a second opposing trainer and the double rule.
+                java.util.List<PbsData.TrainerData> opponents = new java.util.ArrayList<>();
+                opponents.add(trainer);
+                com.badlogic.gdx.utils.JsonValue second = ir.get("second");
+                if (second != null) {
+                    PbsData.TrainerData trainer2 = pbs.trainer(second.getString("trainerType", ""),
+                            second.getString("trainerName", ""), second.getInt("version", 0));
+                    if (trainer2 == null) {
+                        log.warn("TRAINER_BATTLE unknown second trainer; skipped");
+                        break;
+                    }
+                    opponents.add(trainer2);
+                }
+                if (ir.getBoolean("double", false)) {
+                    state.battleRules().record("double", null);                    // :588 setBattleRule("double")
+                }
+                if (ir.getBoolean("canLose", false)) {
+                    state.battleRules().record("canLose", null);                   // :587 setBattleRule("canLose") if canLose
+                }
+                if (ir.has("outcomeVar")) {
+                    state.battleRules().record("outcomeVar", ir.getInt("outcomeVar", 1));   // :586
+                }
                 // PField_Battles:497-498 + 510-516: the recorded rules apply to
                 // this battle and are consumed when it starts; the decision
                 // lands in the outcome variable (1 by default).
                 pendingOutcomeVar = prepareTrainerBattle();
                 applyBattleSwitches();
-                BattleResult result = battlePort.trainerBattle(trainer);
+                BattleResult result = battlePort.trainerBattle(opponents);
                 log.warn("trainer battle vs " + trainer.name + " -> "
                         + (result == null ? "not started" : result.outcome));
                 break;
@@ -2042,15 +2064,28 @@ public final class EventInterpreter {
     }
 
     /**
+     * PField_Battles:96 {@code battle.setBattleMode(battleRules["size"])} and the partner of
+     * pbWildBattleCore:303-318 / pbTrainerBattleCore:459-487: the battle size, the registered partner
+     * ({@code $PokemonGlobal.partner}) and the {@code noPartner} rule go to the port, which knows the foe party.
+     */
+    private void applyBattleSizeAndPartner(pokemon.runtime.state.BattleRules rules) {
+        battlePort.setBattleSize(rules.size);
+        GameState.Partner partner = state.partner();
+        if (partner == null) {
+            battlePort.setPartner(null, null, java.util.Collections.<Pokemon>emptyList());
+        } else {
+            battlePort.setPartner(partner.trainerType, partner.name, partner.party);
+        }
+        battlePort.setNoPartner(rules.noPartner != null && rules.noPartner);
+    }
+
+    /**
      * PField_Battles:497-498 + 510-516: consumes the recorded battle rules for
      * the battle that starts now and returns its outcome variable (default 1).
      */
     private int prepareTrainerBattle() {
         pokemon.runtime.state.BattleRules rules = state.battleRules();
-        if (rules.size != null && !"single".equals(rules.size) && !"1v1".equals(rules.size)) {
-            log.warn("trainer battle size \"" + rules.size
-                    + "\": the battle engine is singles-only, running 1v1");
-        }
+        applyBattleSizeAndPartner(rules);
         if (rules.canLose != null) {
             battlePort.setCanLose(rules.canLose);
         }
@@ -2076,6 +2111,7 @@ public final class EventInterpreter {
      */
     private int prepareWildBattle(com.badlogic.gdx.utils.JsonValue ir) {
         pokemon.runtime.state.BattleRules rules = state.battleRules();
+        applyBattleSizeAndPartner(rules);
         if (rules.canLose != null) {
             battlePort.setCanLose(rules.canLose);
         }
