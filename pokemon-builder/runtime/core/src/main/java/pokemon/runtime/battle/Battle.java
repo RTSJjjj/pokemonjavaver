@@ -2322,6 +2322,15 @@ public final class Battle {
                 return chosen;                                     // AI_Move:129
             }
         }
+        // CFRU ai_master.c ChooseMoveOrAction_Singles: trainers (and wild Bosses) in a single battle use the move scorer;
+        // the simple AI below stays as its fallback (doubles are phase 4).
+        if (user.foe && singleBattle() && (trainerBattle || (user.pokemon != null && user.pokemon.battleRank >= 2))) {
+            int slot = AiMaster.chooseMove(this, user, random);
+            BattleMove chosen = user.moveSlot(slot);
+            if (chosen != null) {
+                return chosen;
+            }
+        }
         return user.moveSlot(defaultAi(user, foe));
     }
 
