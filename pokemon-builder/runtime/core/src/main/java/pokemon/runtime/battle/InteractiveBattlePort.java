@@ -225,6 +225,7 @@ public final class InteractiveBattlePort implements BattlePort {
             battle.playerName = trainer.name;
             battle.levelLockOn = levelLockOn;
             battle.leaguePass = leaguePass;
+            if (gameSwitches != null) battle.gameSwitches = gameSwitches;   // $game_switches (Battler_UseMove_SuccessChecks:157,165)
             battle.badges = trainer.badges;
             battle.setCryPlayer(cryPlayer);       // Battler_UseMove_SuccessChecks:318-319
             for (Pokemon p : trainer.party.members()) battle.addPlayer(p);

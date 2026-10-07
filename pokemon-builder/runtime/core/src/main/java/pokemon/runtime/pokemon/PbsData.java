@@ -362,6 +362,19 @@ public final class PbsData {
         return internalName == null ? null : moves.get(internalName);
     }
 
+    /** {@code pbGetMoveData(id,...)} / {@code PBMoves.getName(id)}: the move of a numeric id, or {@code null}. */
+    public Move moveById(int id) {
+        if (id <= 0) {
+            return null;
+        }
+        for (Move data : moves.values()) {
+            if (data != null && data.id == id) {
+                return data;
+            }
+        }
+        return null;
+    }
+
     public Item item(String internalName) {
         return internalName == null ? null : items.get(internalName);
     }

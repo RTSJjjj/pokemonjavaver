@@ -1966,6 +1966,85 @@ public final class Battle {
         return null;
     }
 
+    // ------------------------------------------------------------------
+    // Stage 5 / 2c: the faithful move-choice checks. The older
+    // canChooseMove(...) above still serves the menu/AI until 2d replaces
+    // it; these are the plugin bodies including Battler#pbCanChooseMove?.
+    // ------------------------------------------------------------------
+
+    /** {@code @internalBattle} (PokeBattle_Battle:61, initialised true at :138). */
+    public boolean internalBattle = true;
+
+    /** {@code $game_switches[id]}: bound by the port (see {@code setSwitchSource}); all off when unbound. */
+    public java.util.function.IntPredicate gameSwitches = id -> false;
+
+    /** {@code pbCryFile(pokemon)} + {@code pbSEPlay}: the screen owns the audio, headless battles have none. */
+    void playCry(Pokemon pokemon) {
+        if (cryPlayer != null) {
+            cryPlayer.playCry(pokemon);
+        }
+    }
+
+    /** {@code MAX_LEVEL[index]} (Settings:29) with Ruby's negative index ({@code -1} = the last entry). */
+    static int maxLevel(int index) {
+        return MAX_LEVEL[index < 0 ? MAX_LEVEL.length + index : index];
+    }
+
+    /** {@code pbCanChooseMove?(idxBattler,idxMove,showMessages,sleepTalk=false)} (Battle_Action_AttacksPriority:5-18). */
+    public boolean pbCanChooseMove(int idxBattler, int idxMove, boolean showMessages, boolean sleepTalk) {
+        Battler battler = battlerAt(idxBattler);                                     // :6
+        BattleMove move = battler.moveSlot(idxMove);                                 // :7
+        if (move == null || move.id() <= 0) return false;                            // :8
+        if (battler.moveSlotPp(idxMove) == 0 && battler.moveSlotMaxPp(idxMove) > 0 && !sleepTalk) {   // :9
+            if (showMessages) displayPaused("技能已经没有PP了！");                     // :10
+            return false;                                                            // :11
+        }
+        if (battler.effects.intVal(PBEffects.Battler.Encore) > 0) {                  // :13
+            int idxEncoredMove = battler.pbEncoredMoveIndex();                       // :14
+            if (idxEncoredMove >= 0 && idxMove != idxEncoredMove) return false;      // :15
+        }
+        return battler.pbCanChooseMove(move, true, showMessages, sleepTalk);         // :17
+    }
+
+    /** {@code pbCanChooseAnyMove?(idxBattler,sleepTalk=false)} (Battle_Action_AttacksPriority:20-32). */
+    public boolean pbCanChooseAnyMove(int idxBattler, boolean sleepTalk) {
+        Battler battler = battlerAt(idxBattler);                                     // :21
+        for (int i = 0; i < battler.pokemon.moves.size; i++) {                       // :22 eachMoveWithIndex
+            BattleMove m = battler.moveSlot(i);
+            if (m == null) continue;
+            if (battler.moveSlotPp(i) == 0 && battler.moveSlotMaxPp(i) > 0 && !sleepTalk) continue;   // :23
+            if (battler.effects.intVal(PBEffects.Battler.Encore) > 0) {              // :24
+                int idxEncoredMove = battler.pbEncoredMoveIndex();                   // :25
+                if (idxEncoredMove >= 0 && i != idxEncoredMove) continue;            // :26
+            }
+            if (!battler.pbCanChooseMove(m, true, false, sleepTalk)) continue;       // :28
+            return true;                                                             // :29
+        }
+        return false;                                                                // :31
+    }
+
+    /** {@code pbCanShowCommands?(idxBattler)} (Battle_Phase_Command:35-41). */
+    public boolean pbCanShowCommands(int idxBattler) {
+        Battler battler = battlerAt(idxBattler);                                     // :36
+        if (battler == null || battler.fainted()) return false;                      // :37
+        if (battler.isCommander()) return false;                                     // :38
+        if (battler.usingMultiTurnAttack()) return false;                            // :39
+        return true;                                                                 // :40
+    }
+
+    /** {@code pbCanShowFightMenu?(idxBattler)} (Battle_Phase_Command:43-55). */
+    public boolean pbCanShowFightMenu(int idxBattler) {
+        Battler battler = battlerAt(idxBattler);                                     // :44
+        if (battler.effects.intVal(PBEffects.Battler.Encore) > 0) return false;      // :46
+        boolean usable = false;                                                      // :48
+        for (int i = 0; i < battler.pokemon.moves.size; i++) {                       // :49 eachMoveWithIndex
+            if (!pbCanChooseMove(idxBattler, i, false, false)) continue;             // :50
+            usable = true;                                                           // :51
+            break;                                                                   // :52
+        }
+        return usable;                                                               // :54
+    }
+
     /** {@code pbRegisterMove} (Battle_Action_AttacksPriority:70-79). */
     public boolean registerMove(int idxBattler, int slot) {
         if (canChooseMove(idxBattler, slot) != null) {

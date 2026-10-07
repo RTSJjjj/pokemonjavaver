@@ -3,6 +3,7 @@ package pokemon.runtime.battle;
 import com.badlogic.gdx.utils.Array;
 import pokemon.runtime.battle.movefx.MoveEffect;
 import pokemon.runtime.battle.movefx.MoveEffectRegistry;
+import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
 
@@ -3304,15 +3305,12 @@ public final class Battler {
      * {@code semiInvulnerable?} (PokeBattle_Battler:725-727) =
      * {@code inTwoTurnAttack?("0C9","0CA","0CB","0CC","0CD","0CE","14D")}。
      *
-     * <p>登记: {@code inTwoTurnAttack?} (:718-723) 需要
-     * {@code pbGetMoveData(@effects[TwoTurnAttack],MOVE_FUNCTION_CODE)}（PBMove:32）把
-     * {@code @effects[TwoTurnAttack]} 的招式 ID 映射到 function 码；本运行时招式身份是内部名
-     * 且 {@code PBMove} 无 Java 端口 → 本批不转，返回 false（本运行时还没有任何两回合招式状态写入）。
-     * </p>
+     * <p>Stage 5 / 2c: {@link #inTwoTurnAttack(String...)} now maps the stored move id to its
+     * function code through {@code PbsData.moveById}; nothing writes {@code TwoTurnAttack}
+     * yet (that is {@code pbUseMove}, :240), so this is still false in practice.</p>
      */
     public boolean semiInvulnerable() {
-        // 登记: PokeBattle_Battler:718-727 inTwoTurnAttack? 依赖 pbGetMoveData（PBMove:32）
-        return false;
+        return inTwoTurnAttack("0C9", "0CA", "0CB", "0CC", "0CD", "0CE", "14D");   // :726
     }
 
     /** {@code effectiveWeather} (PokeBattle_Battler:856-861)。 */
@@ -3830,6 +3828,144 @@ public final class Battler {
         MoveUsage.pbEndureKOMessage(this);                                       // :143
         if (fainted()) pbFaint();                                                // :144
         pbItemHPHealCheck(0, false);                                             // :145
+    }
+
+    // ==================================================================
+    // Stage 5 / 2c: success checks before a move is used
+    // (bodies in BattlerUseMoveChecks)
+    // ==================================================================
+
+    /** {@code pbCanChooseMove?(move,commandPhase,showMessages=true,specialUsage=false)} (Battler_UseMove_SuccessChecks:10-129). */
+    public boolean pbCanChooseMove(BattleMove move, boolean commandPhase, boolean showMessages, boolean specialUsage) {
+        return BattlerUseMoveChecks.pbCanChooseMove(this, move, commandPhase, showMessages, specialUsage);
+    }
+
+    /** {@code pbObedienceCheck?(choice)} (Battler_UseMove_SuccessChecks:136-189). */
+    public boolean pbObedienceCheck(Object[] choice) {
+        return BattlerUseMoveChecks.pbObedienceCheck(this, choice);
+    }
+
+    /** {@code pbDisobey(choice,badgeLevel)} (Battler_UseMove_SuccessChecks:192-239). */
+    public boolean pbDisobey(Object[] choice, int badgeLevel) {
+        return BattlerUseMoveChecks.pbDisobey(this, choice, badgeLevel);
+    }
+
+    /** {@code pbTryUseMove(choice,move,specialUsage,skipAccuracyCheck)} (Battler_UseMove_SuccessChecks:246-377). */
+    public boolean pbTryUseMove(Object[] choice, BattleMove move, boolean specialUsage, boolean skipAccuracyCheck) {
+        return BattlerUseMoveChecks.pbTryUseMove(this, choice, move, specialUsage, skipAccuracyCheck);
+    }
+
+    /** {@code pbSuccessCheckPerHit(move,user,target,skipAccuracyCheck)} (Battler_UseMove_SuccessChecks:604-647). */
+    public boolean pbSuccessCheckPerHit(BattleMove move, Battler user, Battler target, boolean skipAccuracyCheck) {
+        return BattlerUseMoveChecks.pbSuccessCheckPerHit(battle, move, user, target, skipAccuracyCheck);
+    }
+
+    /** {@code pbMissMessage(move,user,target)} (Battler_UseMove_SuccessChecks:652-661). */
+    public void pbMissMessage(BattleMove move, Battler user, Battler target) {
+        BattlerUseMoveChecks.pbMissMessage(battle, move, user, target);
+    }
+
+    /** {@code isCommander?} (PokeBattle_Battler:866-869): the effect holds a 1-element list. */
+    public boolean isCommander() {
+        Object commander = effects.raw(PBEffects.Battler.Commander);
+        return commander instanceof java.util.List && ((java.util.List<?>) commander).size() == 1;
+    }
+
+    /**
+     * {@code inHyperMode?} (Pokemon_ShadowPokemon:394-398): {@code p.hypermode},
+     * which only Shadow Pokemon ever set (Pokemon_ShadowPokemon:259). 登记: Shadow
+     * Pokemon are not modelled in this runtime, so no Pokemon is ever in
+     * Hyper Mode.
+     */
+    public boolean inHyperMode() {
+        return false;
+    }
+
+    /** {@code pbHyperModeObedience(move)} (Pokemon_ShadowPokemon:409-413). */
+    public boolean pbHyperModeObedience(BattleMove move) {
+        if (!inHyperMode()) return true;                                         // :410
+        if (move == null || "SHADOW".equals(move.type())) return true;           // :411
+        return battle.pbRandom(100) < 20;                                        // :412
+    }
+
+    /**
+     * {@code @pokemon.foreign?(@battle.pbPlayer)} (PokeBattle_Pokemon:72-74).
+     * Only the original trainer's name is modelled (see {@link BattlerUseMoveChecks}).
+     */
+    public boolean isForeign() {
+        return pokemon.originalTrainer != null && !pokemon.originalTrainer.isEmpty()
+                && !pokemon.originalTrainer.equals(battle.playerName);
+    }
+
+    /** {@code pbSleepSelf(msg=nil,duration=-1)} (Battler_Statuses:358-360; PLA_STATUS_MODE_DROWSY is 0, Arceus:15, so the original runs). */
+    public void pbSleepSelf(String msg) {
+        pbSleepSelf(msg, -1);
+    }
+
+    public void pbSleepSelf(String msg, int duration) {
+        pbInflictStatus(PBStatuses.SLEEP, pbSleepDuration(duration), msg, null);   // :359
+    }
+
+    /** {@code pbContinueStatus} (Battler_Statuses:443-466). */
+    public void pbContinueStatus() {
+        pbContinueStatus(null);
+    }
+
+    /** {@code pbContinueStatus { block }} - {@code yield if block_given?} (:463) runs between the animation and the message. */
+    public void pbContinueStatus(Runnable block) {
+        String anim = "";                                                        // :444
+        String msg = "";
+        String st = status == null ? "" : status;
+        switch (st) {                                                            // :445
+            case "SLEEP":                                                        // :446
+                anim = "Sleep";
+                msg = pbThis() + "依旧在沉睡。";                                   // :447
+                break;
+            case "POISON":                                                       // :448
+                anim = (statusCount > 0) ? "Toxic" : "Poison";                   // :449
+                msg = pbThis() + "因为中毒受到了伤害！";                            // :450
+                break;
+            case "BURN":                                                         // :451
+                anim = "Burn";
+                msg = pbThis() + "因为灼伤受到了伤害！";                            // :452
+                break;
+            case "PARALYSIS":                                                    // :453
+                anim = "Paralysis";
+                msg = pbThis() + "麻痹了！\n无法行动！";                            // :454
+                break;
+            case "FROZEN":                                                       // :455
+                anim = "Frozen";
+                msg = pbThis() + "被结实的冰冻着！";                                // :456
+                break;
+            case "FROSTBITE":                                                    // :457
+                anim = "Frostbitten";
+                msg = pbThis() + "陷入了冻伤！";                                   // :458
+                break;
+            case "DROWSY":                                                       // :459
+                anim = "Drowsy";
+                msg = pbThis() + " is drowsy.";                                  // :460
+                break;
+            default:
+                break;
+        }
+        if (!anim.isEmpty()) battle.commonAnimation(anim, this);                 // :462
+        if (block != null) block.run();                                          // :463
+        if (!msg.isEmpty()) battle.display(msg);                                 // :464
+    }
+
+    /**
+     * {@code inTwoTurnAttack?(*functionCodes)} (PokeBattle_Battler:718-723):
+     * the move stored in {@code @effects[TwoTurnAttack]} has one of the function codes.
+     */
+    public boolean inTwoTurnAttack(String... functionCodes) {
+        int moveId = effects.intVal(PBEffects.Battler.TwoTurnAttack);
+        if (moveId <= 0) return false;                                           // :719 return false if @effects[TwoTurnAttack]==0
+        PbsData.Move data = battle.pbs().moveById(moveId);                       // :720 pbGetMoveData(@effects[TwoTurnAttack],MOVE_FUNCTION_CODE)
+        if (data == null) return false;
+        for (String code : functionCodes) {                                      // :721
+            if (code.equals(data.function)) return true;
+        }
+        return false;                                                            // :722
     }
 
     /** {@code pbBeginTurn(_choice)} (Battler_UseMove:71-85). */
