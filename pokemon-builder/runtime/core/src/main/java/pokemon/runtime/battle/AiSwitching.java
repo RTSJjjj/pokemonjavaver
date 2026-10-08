@@ -538,26 +538,31 @@ final class AiSwitching {
         return bench.best;
     }
 
+    /** Diagnostics: the name of the ShouldSwitch rule that produced the last switch decision. */
+    static String lastRule = "";
+
     private static final int BEST = -2;
 
     /** Runs the {@code ShouldSwitch} checks in source order; returns a party index, {@link #BEST} or {@link #NONE}. */
     private static int shouldSwitch(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         int r;
-        if ((r = absorbsOpponentsMove(ctx, user, foe, bench)) != NONE) return r;                  // :92
-        if ((r = statusImmuneSwitch(ctx, user, foe, bench)) != NONE) return r;                   // project extension (no CFRU counterpart)
-        if ((r = passOnWish(ctx, user, foe, bench)) != NONE) return r;                            // :94
-        if ((r = lockedMove(ctx, user, foe, bench, true)) != NONE) return r;                      // :96 CanStopLockedMove
-        if (user.effects.intVal(PBEffects.Battler.PerishSong) == 1) return BEST;                  // :98 ShouldSwitchIfPerishSong (vanilla pokefirered: perishSongTimer == 0, i.e. faints this turn)
-        if ((r = wonderGuard(ctx, user, foe, bench)) != NONE) return r;                           // :100
-        if ((r = onlyBadMovesLeft(ctx, user, foe, bench)) != NONE) return r;                      // :102
-        if ((r = naturalCureOrRegenerator(ctx, user, foe, bench)) != NONE) return r;              // :104
-        if ((r = lockedMove(ctx, user, foe, bench, false)) != NONE) return r;                     // :106 SemiInvulnerableTroll
-        if ((r = whenYawned(ctx, user, foe, bench)) != NONE) return r;                            // :108
-        if ((r = whileAsleep(ctx, user, foe, bench)) != NONE) return r;                           // :110
-        if ((r = annoyingSecondaryDamage(ctx, user, foe, bench)) != NONE) return r;               // :112
-        if ((r = toAvoidDeath(ctx, user, foe, bench)) != NONE) return r;                          // :114
-        if ((r = whenOffensiveStatsLow(ctx, user, foe, bench)) != NONE) return r;                 // :116
-        return saveSweeperForLater(ctx, user, foe, bench);                                        // :118
+        if ((r = absorbsOpponentsMove(ctx, user, foe, bench)) != NONE) { lastRule = "absorbsOpponentsMove"; return r; }                  // :92
+        if ((r = statusImmuneSwitch(ctx, user, foe, bench)) != NONE) { lastRule = "statusImmuneSwitch"; return r; }                   // project extension (no CFRU counterpart)
+        if ((r = passOnWish(ctx, user, foe, bench)) != NONE) { lastRule = "passOnWish"; return r; }                            // :94
+        if ((r = lockedMove(ctx, user, foe, bench, true)) != NONE) { lastRule = "lockedMove"; return r; }                      // :96 CanStopLockedMove
+        if (user.effects.intVal(PBEffects.Battler.PerishSong) == 1) { lastRule = "perishSong"; return BEST; }                  // :98 ShouldSwitchIfPerishSong (vanilla pokefirered: perishSongTimer == 0, i.e. faints this turn)
+        if ((r = wonderGuard(ctx, user, foe, bench)) != NONE) { lastRule = "wonderGuard"; return r; }                           // :100
+        if ((r = onlyBadMovesLeft(ctx, user, foe, bench)) != NONE) { lastRule = "onlyBadMovesLeft"; return r; }                      // :102
+        if ((r = naturalCureOrRegenerator(ctx, user, foe, bench)) != NONE) { lastRule = "naturalCureOrRegenerator"; return r; }              // :104
+        if ((r = lockedMove(ctx, user, foe, bench, false)) != NONE) { lastRule = "lockedMove"; return r; }                     // :106 SemiInvulnerableTroll
+        if ((r = whenYawned(ctx, user, foe, bench)) != NONE) { lastRule = "whenYawned"; return r; }                            // :108
+        if ((r = whileAsleep(ctx, user, foe, bench)) != NONE) { lastRule = "whileAsleep"; return r; }                           // :110
+        if ((r = annoyingSecondaryDamage(ctx, user, foe, bench)) != NONE) { lastRule = "annoyingSecondaryDamage"; return r; }               // :112
+        if ((r = toAvoidDeath(ctx, user, foe, bench)) != NONE) { lastRule = "toAvoidDeath"; return r; }                          // :114
+        if ((r = whenOffensiveStatsLow(ctx, user, foe, bench)) != NONE) { lastRule = "whenOffensiveStatsLow"; return r; }                 // :116
+        r = saveSweeperForLater(ctx, user, foe, bench);
+        if (r != NONE) lastRule = "saveSweeperForLater";
+        return r;                                        // :118
     }
 
     private static boolean justSwitchedIn(Battler user) {
@@ -1090,7 +1095,7 @@ final class AiSwitching {
 
     private static int whenYawned(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         Battle battle = ctx.battle;
-        if (!user.effects.truthy(PBEffects.Battler.Yawn) || user.hasActiveAbility("NATURALCURE")
+        if (user.effects.intVal(PBEffects.Battler.Yawn) <= 0 || user.hasActiveAbility("NATURALCURE")
                 || user.hasActiveItem("CHESTOBERRY") || user.hasActiveItem("LUMBERRY")
                 || user.hp <= user.maxHp() / 4 || !AiCalc.canBePutToSleep(battle, user, user)) {   // :979-985
             return NONE;

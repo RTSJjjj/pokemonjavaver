@@ -50,3 +50,9 @@ Fight classes, `Negatives -> Positives`, partner AI, bench scoring over two foes
 > `original-moves-abilities-ai.md` for details. Rules: transcribe the source with `file:line` citations, never invent behaviour, mark gaps with `登记`, small commits, push to origin,
 > no PR unless asked, no Z-moves/Dynamax. Run the tests with `cd pokemon-builder/runtime && bash ./gradlew --offline :core:test -q` (2 known `SoundLengthTest` failures). Remaining work is
 > only the open items listed in that document; ask me before picking any of them up.
+
+## Post-handoff fix: the AI switched out every turn
+Root cause: `AiSwitching.whenYawned` tested `effects.truthy(Yawn)`, but Yawn is an int that starts at 0 and `EffectMap.truthy` follows Ruby (0 is truthy), so
+ShouldSwitchWhenYawned fired on every turn of every battle and the AI ping-ponged between two Pokemon. It now tests `intVal(Yawn) <= 0`. (Every other effect read through `truthy`
+in the AI files is a boolean that starts as `false`; Yawn was the only int.) Regression test: `AiSwitchLoopTest` (30 team/level combinations, no more than 4 switches in 15 idle turns).
+`AiSwitching.lastRule` records which ShouldSwitch rule produced the last decision, for debugging this kind of problem.
