@@ -253,4 +253,34 @@ class AiPartnerTest {
         assertEquals(AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT, AiCalc.fightingStyle(ctx, user));
         assertTrue(AiPositives.score(ctx, user, b.battlerAt(0), user.moveSlot(0), 100) >= 118);
     }
+
+    @Test
+    @DisplayName("a sleeping Pokemon in a double battle can switch out, and its partner never picks the same replacement (ShouldSwitchWhileAsleep, ai_switching.c:1086)")
+    void doublesSwitchingWhileAsleep() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        b.addFoe(mon("FAT", 50, "TACKLE", "QUICKHIT"));                    // the bench Pokemon
+        Battler user = b.battlerAt(1);
+        Battler partner = b.battlerAt(3);
+        user.setStatus("SLEEP");
+        user.setStatusCount(4);
+        user.turnCount = 3;
+        partner.turnCount = 3;
+        int picked = -1;
+        for (int seed = 0; seed < 60 && picked < 0; seed++) picked = AiSwitching.decide(b, user, new Random(seed));
+        assertTrue(picked >= 0, "a sleeping Pokemon switches some of the time");
+        assertTrue(b.registerSwitch(user.index, picked));
+        for (int seed = 0; seed < 60; seed++) {
+            assertNotEquals(picked, AiSwitching.decide(b, partner, new Random(seed)), "the partner must not take the same Pokemon");
+        }
+    }
+
+    @Test
+    @DisplayName("the replacement after a faint is chosen by the bench scorer in doubles too (GetMostSuitableMonToSwitchInto, ai_switching.c:1860)")
+    void doublesReplacement() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        b.addFoe(mon("FAT", 50, "TACKLE", "QUICKHIT"));
+        Battler fainted = b.battlerAt(1);
+        fainted.hp = 0;
+        assertEquals(2, AiSwitching.replacement(b, fainted, new Random(3)));
+    }
 }

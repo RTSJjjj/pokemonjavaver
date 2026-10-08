@@ -78,6 +78,11 @@ final class AiCtx {
         return predictions.get(atk) == SWITCH;
     }
 
+    /** Whether a prediction (or a predicted switch) was stored for {@code atk}. */
+    boolean hasPrediction(Battler atk) {
+        return predictions.containsKey(atk);
+    }
+
     void storePrediction(Battler atk, BattleMove move) {
         if (move == null) predictions.remove(atk);
         else predictions.put(atk, move);

@@ -111,6 +111,11 @@ final class AiDoublesScore {
         return k;
     }
 
+    /** {@code gNewBS->ai.bestDoublesKillingMoves[bankAtk][bankDef]}. */
+    static BattleMove bestKillingMove(AiCtx ctx, Battler atk, Battler def) {
+        return killing(ctx, atk, def).best;
+    }
+
     /** {@code GetDoubleKillingScore(move,bankAtk,bankDef)} (ai_util.c:1113). */
     static int doubleKillingScore(AiCtx ctx, BattleMove move, Battler atk, Battler def) {
         Battle battle = ctx.battle;

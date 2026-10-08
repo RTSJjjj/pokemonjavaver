@@ -226,11 +226,23 @@ final class AiSwitching {
 
     /** Whether the party member can be considered at all (not on the field, able to fight). */
     private static boolean candidate(Battle battle, Battler user, int i) {
-        return battle.canSwitchLax(user.index, i) == null && i != partyIndexOf(battle, user);
+        if (battle.canSwitchLax(user.index, i) != null || i == partyIndexOf(battle, user)) return false;
+        for (Battler b : battle.eachSameSideBattler(user.index)) {                                  // gBattleStruct->monToSwitchIntoId[battlerIn1/2]
+            if (b == user) continue;
+            Object[] c = battle.choices(b.index);
+            if (":SwitchOut".equals(c[0]) && c[1] instanceof Integer && (Integer) c[1] == i) return false;
+        }
+        return true;
     }
 
-    static Bench calcMostSuitable(AiCtx ctx, Battler user, Battler foe) {
+    static Bench calcMostSuitable(AiCtx ctx, Battler user, Battler foe1) {
         Battle battle = ctx.battle;
+        boolean isDouble = AiDoublesScore.isDouble(battle, user);
+        java.util.List<Battler> foes = new java.util.ArrayList<>();                              // LoadBattlersAndFoes: foe1, foe2
+        foes.add(foe1);
+        if (isDouble) for (Battler f : AiDoublesScore.foes(battle, user)) if (f != foe1) foes.add(f);
+        boolean isOneFoeOnField = !isDouble || foes.size() == 1;                                  // IS_SINGLE_BATTLE || ViableMonCountFromBank(foe1) == 1
+        int viableLimit = isDouble ? 3 : 2;                                                       // canRemoveHazards threshold
         Array<Battler> party = battle.partyOf(user.index);
         Bench out = new Bench(party.size);
         int count = 0;
@@ -262,7 +274,9 @@ final class AiSwitching {
             int wishRecovery = 0;                                                                 // :2069 登记: Wish
             int hpOnSwitchIn = Math.max(0, mon.hp - hazardDamage(battle, user, mon));             // :2252
             boolean skipMon = false;
-            {   // the foe loop (:2071) - one foe in singles
+            for (Battler foe : foes) {   // the foe loop (:2071)
+                if (skipMon) break;
+                if (foe.fainted()) continue;
                 boolean weak = false;
                 boolean faints = false;
                 int normalEffectiveness = 0;
@@ -294,7 +308,7 @@ final class AiSwitching {
                         for (int k = 0; k < moves.size(); k++) {
                             BattleMove m = moves.get(k);
                             if (m.function().equals("110") || m.function().equals("049")) {        // :2157 Rapid Spin / Defog
-                                if (spikesOnSide) canRemoveHazards[i] = viableMons(battle, user) >= 2;
+                                if (spikesOnSide) canRemoveHazards[i] = viableMons(battle, user) >= viableLimit;
                             }
                             if (!m.statusMove() && isPriority.get(k) && moveKnocksOut(ctx, m, mon, foe)) {   // :2166
                                 scores[i] += INCREASE_REVENGE_KILL;
@@ -321,7 +335,7 @@ final class AiSwitching {
                         BattleMove m = mon.moveSlot(k);
                         hasUsableMove = true;
                         if ((m.function().equals("110") || m.function().equals("049")) && spikesOnSide) {   // :2211
-                            canRemoveHazards[i] = viableMons(battle, user) >= 2;
+                            canRemoveHazards[i] = viableMons(battle, user) >= viableLimit;
                         }
                         if (!flagged2hko && !m.statusMove() && maxDamage(ctx, mon, foe) >= foe.hp / 2) {   // :2220-2223
                             scores[i] += INCREASE_CAN_2HKO;
@@ -358,6 +372,16 @@ final class AiSwitching {
                     }
                     for (int k = 0; k < moves.size(); k++) {                                       // :2302
                         BattleMove m = moves.get(k);
+                        if (!(isOneFoeOnField && ctx.goodAi())) {                                  // :2358 doubles / regular trainers: type matchups only
+                            int tm = AiCalc.calcDmg(battle, foe, mon, m).typeMod;
+                            if (tm > 8) {                                                          // MOVE_RESULT_SUPER_EFFECTIVE
+                                weak = true;
+                                break;
+                            } else if (tm == 8) {
+                                normalEffectiveness++;                                             // neither resisted nor super effective
+                            }
+                            continue;
+                        }
                         int firstHit = AiCalc.calcDmg(battle, foe, mon, m).dmg;                    // :2309 (goodAi, one foe)
                         int otherHits = firstHit;
                         if (firstHit >= hpOnSwitchIn) {                                            // :2319
@@ -376,7 +400,9 @@ final class AiSwitching {
                         }
                     }
                     boolean weakDecrement = false;
-                    if (faints) {                                                                  // :2365
+                    if (faints && isDouble) {                                                      // :2366 IS_DOUBLE_BATTLE: goto WEAK_TO_MOVE_DECREMENT
+                        weakDecrement = true;
+                    } else if (faints) {                                                           // :2365
                         if ((flags[i] & FLAG_OUTSPEEDS) == 0) {
                             flags[i] |= FLAG_FAINTS_FROM_FOE;
                             scores[i] = scores[i] >= DECREASE_FAINTS_FROM_FOE ? scores[i] - DECREASE_FAINTS_FROM_FOE : 0;
@@ -407,7 +433,7 @@ final class AiSwitching {
                 }
             }
             if (skipMon) continue;                                                                // :2234 goto CHECK_NEXT_MON
-            if (scores[i] >= SCORE_MAX && canRemoveHazards[i]) {                                  // :2423
+            if (scores[i] >= SCORE_MAX * (isOneFoeOnField ? 1 : 2) && canRemoveHazards[i]) {                // adjust when multiple foes are on the field                                  // :2423
                 second = best;
                 best = i;
             } else if (best == NONE || scores[i] > scores[best]
@@ -430,7 +456,7 @@ final class AiSwitching {
                 boolean tSpikes = side.effects.intVal(PBEffects.Side.ToxicSpikes) > 0;
                 for (int i = 0; i < party.size; i++) {                                            // :2466
                     if ((canRemoveHazards[i] && (flags[i] & FLAG_FAINTS_FROM_FOE) == 0) || (tSpikes && canNegateToxicSpikes[i])) {
-                        out.bestScore = INCREASE_CAN_REMOVE_HAZARDS;                              // :2484
+                        out.bestScore = isDouble ? INCREASE_CAN_REMOVE_HAZARDS * 2 : INCREASE_CAN_REMOVE_HAZARDS;   // :2484
                         out.bestFlags = FLAG_CAN_REMOVE_HAZARDS;
                         second = best;
                         best = i;
@@ -465,8 +491,16 @@ final class AiSwitching {
      * {@code AI_TrySwitchOrUseItem}'s switch half (ai_master.c:948): the party index the trainer switches to this turn,
      * or {@link #NONE}.
      */
-    static int decide(Battle battle, Battler user, Random rng) {
+    /** {@code foe1} of {@code LoadBattlersAndFoes} (:124): {@code FOE(bank)}, or its partner when that one is gone. */
+    private static Battler firstFoe(Battle battle, Battler user) {
         Battler foe = battle.battlerAt(user.index ^ 1);
+        if (foe != null && foe.pokemon != null && !foe.fainted()) return foe;
+        for (Battler b : AiDoublesScore.foes(battle, user)) return b;
+        return foe;
+    }
+
+    static int decide(Battle battle, Battler user, Random rng) {
+        Battler foe = firstFoe(battle, user);
         if (foe == null || foe.pokemon == null || foe.fainted() || user.fainted()) return NONE;
         if (battle.canSwitch(user.index, -1) != null) return NONE;   // :56 IsTrapped
         int available = 0;
@@ -484,7 +518,7 @@ final class AiSwitching {
 
     /** The replacement after a faint: {@code GetMostSuitableMonToSwitchInto}, or {@link #NONE}. */
     static int replacement(Battle battle, Battler fainted, Random rng) {
-        Battler foe = battle.battlerAt(fainted.index ^ 1);
+        Battler foe = firstFoe(battle, fainted);
         if (foe == null || foe.pokemon == null) return NONE;
         AiCtx ctx = AiMaster.prepare(battle, fainted, foe, rng);
         Bench bench = calcMostSuitable(ctx, fainted, foe);
@@ -526,24 +560,55 @@ final class AiSwitching {
 
     // --- FindMonThatAbsorbsOpponentsMove (:403) ---
 
+    /** The second foe on the field ({@code foe2}, {@code LoadBattlersAndFoes} :124); the same battler as {@code foe} in a single battle. */
+    private static Battler foe2Of(AiCtx ctx, Battler user, Battler foe) {
+        if (!AiDoublesScore.isDouble(ctx.battle, user)) return foe;
+        Battler other = AiDoublesScore.partner(ctx.battle, foe);
+        return other == null ? foe : other;
+    }
+
     private static int absorbsOpponentsMove(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         Battle battle = ctx.battle;
+        boolean isDouble = AiDoublesScore.isDouble(battle, user);
+        Battler foe2 = foe2Of(ctx, user, foe);
         BattleMove predicted = ctx.prediction(foe);
+        BattleMove predicted2 = foe2 == foe ? predicted : AiMaster.cachedPredictionOf(ctx, foe2, user);
         if (typeAbsorbCooldown(battle, user)) return NONE;                                          // :415
         if (user.stage(PBStats.EVASION) >= 3) return NONE;                                         // :418 (6+3)
-        if (predicted == null || predicted.statusMove()) return NONE;                               // :421-423
-        int foeClass = AiCalc.fightingStyle(ctx, foe);                                              // :427
-        if (!AiCalc.classDamager(foeClass)) {
-            if (justSwitchedIn(user)) return NONE;                                                  // :431
-            if ((ctx.random() & 1) != 0) return NONE;                                               // :434
+        if ((predicted == null && predicted2 == null) || ((predicted == null || predicted.statusMove()) && (predicted2 == null || predicted2.statusMove()))) {
+            return NONE;                                                                            // :421-423 (a missing move has split 0 = physical in C)
         }
-        if (!AiCalc.moveWouldHitFirst(ctx, predicted, foe, user)) {                                 // :438 AI goes first
-            if (AiCalc.canKnockOut(ctx, user, foe)) return NONE;
+        if (!isDouble) {
+            if (predicted == null || predicted.statusMove()) return NONE;
+            int foeClass = AiCalc.fightingStyle(ctx, foe);                                          // :427
+            if (!AiCalc.classDamager(foeClass)) {
+                if (justSwitchedIn(user)) return NONE;                                              // :431
+                if ((ctx.random() & 1) != 0) return NONE;                                           // :434
+            }
+            if (!AiCalc.moveWouldHitFirst(ctx, predicted, foe, user)) {                             // :438 AI goes first
+                if (AiCalc.canKnockOut(ctx, user, foe)) return NONE;
+            } else {
+                if (!AiCalc.canKnockOut(ctx, foe, user) && AiCalc.canKnockOut(ctx, user, foe) && anyStatGreaterThan(user, 0)) return NONE;   // :445
+            }
+            if (!AiCalc.canKnockOut(ctx, foe, user) && anyStatGreaterThan(user, 1)) return NONE;   // :451
+            if (behindSubstitute(user) && !damagingMoveBreaksSubstitute(ctx, foe, user)) return NONE;   // :455
+        } else {                                                                                    // Double Battle (:481)
+            if (justSwitchedIn(user)) return NONE;
+            int score1 = AiDoublesScore.doubleKillingScore(ctx, AiDoublesScore.bestKillingMove(ctx, user, foe), user, foe);
+            int score2 = AiDoublesScore.doubleKillingScore(ctx, AiDoublesScore.bestKillingMove(ctx, user, foe2), user, foe2);
+            if (score1 >= AiDoublesScore.BEST_KO_SCORE - 2 || score2 >= AiDoublesScore.BEST_KO_SCORE - 2) return NONE;   // can do major damage to the enemy side
+            if (anyStatGreaterThan(user, 1) && (score1 >= AiDoublesScore.BEST_KO_SCORE / 2 || score2 >= AiDoublesScore.BEST_KO_SCORE / 2)) return NONE;
+        }
+        if (predicted != null && !predicted.statusMove()) {                                         // foe 1 is going to use a damaging move
+            if (isDouble && predicted2 != null && !predicted2.statusMove() && (ctx.random() & 1) != 0) {
+                foe = foe2;                                                                         // both foes attack: pick one at random
+                predicted = predicted2;
+            }
         } else {
-            if (!AiCalc.canKnockOut(ctx, foe, user) && AiCalc.canKnockOut(ctx, user, foe) && anyStatGreaterThan(user, 0)) return NONE;   // :445
+            foe = foe2;
+            predicted = predicted2;
         }
-        if (!AiCalc.canKnockOut(ctx, foe, user) && anyStatGreaterThan(user, 1)) return NONE;       // :451
-        if (behindSubstitute(user) && !damagingMoveBreaksSubstitute(ctx, foe, user)) return NONE;   // :455
+        if (predicted == null) return NONE;
         String type = AiCalc.fx(predicted).pbCalcType(predicted, foe);                                       // :502
         if (foe.hasMoldBreaker()) return NONE;                                                      // :503
         String[] abil;
@@ -586,7 +651,7 @@ final class AiSwitching {
         if (!matches) return false;
         if (willFaintFromHazards(battle, user, mon)) return false;                                  // :369
         boolean hpAbsorb = mon.hasActiveAbility("VOLTABSORB") || mon.hasActiveAbility("WATERABSORB") || mon.hasActiveAbility("DRYSKIN");
-        if (hpAbsorb && mon.hp == mon.maxHp() && hazardDamage(battle, user, mon) == 0) {             // :374-377
+        if (!AiDoublesScore.isDouble(battle, user) && hpAbsorb && mon.hp == mon.maxHp() && hazardDamage(battle, user, mon) == 0) {   // :374-377 IS_SINGLE_BATTLE only
             if (justSwitchedIn(user)) return false;                                                 // :379
             int dmg = AiCalc.finalDamage(ctx, predicted, foe, user, 2);                             // :382
             if (dmg < user.hp) return false;                                                        // :384
@@ -603,6 +668,13 @@ final class AiSwitching {
 
     private static int onlyBadMovesLeft(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         if (justSwitchedIn(user)) return NONE;                                                      // :262
+        if (AiDoublesScore.isDouble(ctx.battle, user)) {                                            // Double Battle (:264)
+            if (user.effects.truthy(PBEffects.Battler.DestinyBond)) return NONE;                    // both foes could combine attacks to KO
+            Battler foe2 = foe2Of(ctx, user, foe);
+            if ((foe.fainted() || onlyBadMovesLeftInMoveset(ctx, user, foe, bench))
+                    && (foe2.fainted() || onlyBadMovesLeftInMoveset(ctx, user, foe2, bench))) return BEST;   // switchoutIndex = PARTY_SIZE
+            return NONE;
+        }
         BattleMove foePredicted = ctx.prediction(foe);
         if (user.effects.truthy(PBEffects.Battler.DestinyBond) && foePredicted != null
                 && AiCalc.knocksOutXHits(ctx, foePredicted, foe, user, 1) && AiCalc.moveWouldHitFirst(ctx, foePredicted, foe, user)) {
@@ -654,11 +726,22 @@ final class AiSwitching {
         } else if (user.hasActiveAbility("REGENERATOR")) {
             if (user.hp > user.maxHp() / 2) return NONE;                                             // :678
             if (significantHazardDamage(battle, user, 3)) return NONE;                               // :682
+            Battler foe2 = foe2Of(ctx, user, foe);
+            boolean isDouble = AiDoublesScore.isDouble(battle, user);
             BattleMove foeMove = ctx.prediction(foe);
-            if (foeMove != null && AiCalc.knocksOutXHits(ctx, foeMove, foe, user, 1)) {              // :688
-                BattleMove aiMove = ctx.prediction(user);
-                if (aiMove != null && AiCalc.moveWouldHitFirst(ctx, aiMove, user, foe) && AiCalc.knocksOutXHits(ctx, aiMove, user, foe, 1)) {
-                    return NONE;                                                                     // :694
+            BattleMove foe2Move = foe2 == foe ? foeMove : AiMaster.cachedPredictionOf(ctx, foe2, user);
+            if ((!foe.fainted() && foeMove != null && AiCalc.knocksOutXHits(ctx, foeMove, foe, user, 1))              // :688
+                    || (isDouble && !foe2.fainted() && foe2Move != null && AiCalc.knocksOutXHits(ctx, foe2Move, foe2, user, 1))) {
+                if (!foe.fainted()) {
+                    BattleMove aiMove = ctx.prediction(user);
+                    if (aiMove != null && AiCalc.moveWouldHitFirst(ctx, aiMove, user, foe) && AiCalc.knocksOutXHits(ctx, aiMove, user, foe, 1)) {
+                        return NONE;                                                                 // :694
+                    }
+                } else if (isDouble && !foe2.fainted()) {
+                    BattleMove aiMove = ctx.prediction(user);
+                    if (aiMove != null && AiCalc.moveWouldHitFirst(ctx, aiMove, user, foe2) && AiCalc.knocksOutXHits(ctx, aiMove, user, foe2, 1)) {
+                        return NONE;
+                    }
                 }
             } else {
                 return NONE;                                                                         // :710
@@ -671,7 +754,7 @@ final class AiSwitching {
         int most = bench.best;
         if (most == NONE) return BEST;
         Battler mostMon = battle.partyOf(user.index).get(most);
-        if (!predictedMoveWontDoTooMuch(ctx, user, mostMon, foe, bench.bestFlags)) {                 // :720
+        if (!AiDoublesScore.isDouble(battle, user) && !predictedMoveWontDoTooMuch(ctx, user, mostMon, foe, bench.bestFlags)) {   // :720 IS_SINGLE_BATTLE
             if (predictedMoveWontKO(ctx, user, mostMon, foe)) {
                 if ((ctx.random() & 1) != 0) return NONE;                                            // :724
             } else {
@@ -717,19 +800,41 @@ final class AiSwitching {
                 || user.hp <= user.maxHp() / 4 || !AiCalc.canBePutToSleep(battle, user, user)) {   // :979-985
             return NONE;
         }
-        if (viableMons(battle, foe) <= 1 && AiCalc.canKnockOut(ctx, user, foe)) return NONE;       // :993-1005
-        if (user.stage(PBStats.EVASION) >= 3 && !foe.hasActiveAbility("UNAWARE") && !foe.hasActiveAbility("KEENEYE")) return NONE;   // :1020
+        boolean isDouble = AiDoublesScore.isDouble(battle, user);
+        Battler foe2 = foe2Of(ctx, user, foe);
+        if (viableMons(battle, foe) <= 1) {                                                          // :993-1005 one foe left and you can KO it
+            if (!foe.fainted() && AiCalc.canKnockOut(ctx, user, foe)) return NONE;
+            if (!foe2.fainted() && AiCalc.canKnockOut(ctx, user, foe2)) return NONE;
+        }
+        for (Battler b : AiDoublesScore.foes(battle, user)) {                                        // :1010 an enemy trapped while taking secondary damage
+            if (isTrapped(b) && AiCalc.takingSecondaryDamage(battle, b)) return NONE;
+        }
+        boolean unaware = false;
+        boolean keenEye = false;
+        for (Battler b : AiDoublesScore.foes(battle, user)) {
+            unaware |= b.hasActiveAbility("UNAWARE");
+            keenEye |= b.hasActiveAbility("KEENEYE");
+        }
+        if (user.stage(PBStats.EVASION) >= 3 && !unaware && !keenEye) return NONE;                  // :1020
         if (user.hasActiveAbility("EARLYBIRD") || user.hasActiveAbility("SHEDSKIN")
-                || AiCalc.moveFunctionInMoveset(user, "011", "0B4")) return NONE;                   // :1029-1032 Snore / Sleep Talk
-        BattleMove foePred = ctx.prediction(foe);
-        if (!ctx.predictedToSwitch(foe) && foePred != null && !AiCalc.oneOf(foePred, AiCalc.PROTECT)
-                && !(foePred.function().equals("0CA") || foePred.function().equals("0C9") || foePred.function().equals("0CC")
-                     || foePred.function().equals("0CB") || foePred.function().equals("0CD")) ) {   // :1042-1044 not protecting / semi-invulnerable first
-            if (!AiCalc.moveWouldHitFirst(ctx, foePred, foe, user)) {                                // :1046
-                if (AiCalc.canKnockOut(ctx, user, foe)) return NONE;
-            } else if (!AiCalc.canKnockOut(ctx, foe, user) && AiCalc.canKnockOut(ctx, user, foe)) {
-                return NONE;                                                                         // :1053
+                || AiCalc.moveFunctionInMoveset(user, "011", "0B4")                                  // :1029-1032 Snore / Sleep Talk
+                || (AiCalc.moveFunctionInMoveset(user, "154") && battle.terrain() != PBBattleTerrains.Electric && !user.airborne())
+                || (AiCalc.moveFunctionInMoveset(user, "156") && !user.airborne())) return NONE;     // own Electric / Misty Terrain stops the sleep
+        if (!isDouble) {
+            BattleMove foePred = ctx.prediction(foe);
+            if (!ctx.predictedToSwitch(foe) && foePred != null && !AiCalc.oneOf(foePred, AiCalc.PROTECT)
+                    && !(foePred.function().equals("0CA") || foePred.function().equals("0C9") || foePred.function().equals("0CC")
+                         || foePred.function().equals("0CB") || foePred.function().equals("0CD")) ) {   // :1042-1044 not protecting / semi-invulnerable first
+                if (!AiCalc.moveWouldHitFirst(ctx, foePred, foe, user)) {                            // :1046
+                    if (AiCalc.canKnockOut(ctx, user, foe)) return NONE;
+                } else if (!AiCalc.canKnockOut(ctx, foe, user) && AiCalc.canKnockOut(ctx, user, foe)) {
+                    return NONE;                                                                     // :1053
+                }
             }
+        } else {                                                                                     // Double Battle (:1062)
+            int s1 = AiDoublesScore.doubleKillingScore(ctx, AiDoublesScore.bestKillingMove(ctx, user, foe), user, foe);
+            int s2 = AiDoublesScore.doubleKillingScore(ctx, AiDoublesScore.bestKillingMove(ctx, user, foe2), user, foe2);
+            if (s1 >= AiDoublesScore.BEST_KO_SCORE || s2 >= AiDoublesScore.BEST_KO_SCORE) return NONE;   // can do major damage to the enemy side
         }
         return BEST;                                                                                 // :1078
     }
@@ -746,10 +851,12 @@ final class AiSwitching {
         }
         if (user.hasActiveAbility("SHEDSKIN") || user.hasActiveAbility("EARLYBIRD")
                 || (user.hasActiveAbility("HYDRATION") && (battle.pbWeather() == PBWeather.Rain || battle.pbWeather() == PBWeather.HeavyRain))
+                || (AiDoublesScore.isDouble(battle, user) && AiDoublesScore.partner(battle, user) != null && AiDoublesScore.partner(battle, user).hasActiveAbility("HEALER"))
                 || AiCalc.moveFunctionInMoveset(user, "0B4", "011", "0D9")                             // Sleep Talk / Snore / Rest
                 || (AiCalc.classStall(AiCalc.fightingStyle(ctx, user)) && foe.effects.intVal(PBEffects.Battler.MeanLook) >= 0)) {   // :1107-1114
             return NONE;
         }
+        if (AiDoublesScore.isDouble(battle, user)) return BEST;                                     // the bench checks are IS_SINGLE_BATTLE only
         int bestId = bench.best;
         if (bestId == NONE) return BEST;
         Battler best = battle.partyOf(user.index).get(bestId);
@@ -762,11 +869,13 @@ final class AiSwitching {
 
     private static int annoyingSecondaryDamage(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         Battle battle = ctx.battle;
-        if (user.hasActiveAbility("MAGICGUARD") || AiCalc.canKnockOut(ctx, user, foe) || !ctx.goodAi()) return NONE;   // :1183-1186
+        Battler foe2 = foe2Of(ctx, user, foe);
+        boolean canKillAFoe = AiCalc.canKnockOut(ctx, user, foe) || (foe2 != foe && !foe2.fainted() && AiCalc.canKnockOut(ctx, user, foe2));   // CanKillAFoe
+        if (user.hasActiveAbility("MAGICGUARD") || canKillAFoe || !ctx.goodAi()) return NONE;   // :1183-1186
         boolean trySwitch = false;
         boolean urgent = false;
         if (user.effects.intVal(PBEffects.Battler.LeechSeed) >= 0 && (ctx.random() & 3) == 0
-                && !anyUsefulOffensiveStatRaised(ctx, user) && !AiCalc.canKnockOut(ctx, user, foe)) {   // :1191-1193
+                && !anyUsefulOffensiveStatRaised(ctx, user) && !(!AiDoublesScore.isDouble(battle, user) && AiCalc.canKnockOut(ctx, user, foe))) {   // :1191-1193
             trySwitch = true;
         } else if ((user.hasStatus("SLEEP") && user.statusCount > 1 && user.effects.truthy(PBEffects.Battler.Nightmare))
                 || user.effects.truthy(PBEffects.Battler.Curse)
@@ -789,12 +898,16 @@ final class AiSwitching {
         if (urgent) {
             good = true;                                                                              // :1146
         } else if ((sw & FLAG_OUTSPEEDS) != 0 && ((sw & FLAG_KO_FOE) != 0 || ((sw & FLAG_CAN_2HKO) != 0 && (sw & FLAG_FAINTS_FROM_FOE) == 0))
-                && predictedMoveWontDoTooMuch(ctx, user, mon, foe, sw)) {                              // :1147-1151
+                && (AiDoublesScore.isDouble(ctx.battle, user) || predictedMoveWontDoTooMuch(ctx, user, mon, foe, sw))) {   // :1147-1151
             good = true;
         } else if ((sw & (FLAG_RESIST_ALL_MOVES | FLAG_WALLS_FOE)) != 0) {
             good = true;                                                                              // :1153
-        } else if (!foe.fainted() && AiCalc.can2HKO(ctx, user, foe)) {
-            good = true;                                                                              // :1158
+        } else {
+            if (!foe.fainted() && AiCalc.can2HKO(ctx, user, foe)) good = true;                        // :1158
+            if (AiDoublesScore.isDouble(ctx.battle, user)) {
+                Battler other = foe2Of(ctx, user, foe);
+                if (other != foe && !other.fainted() && AiCalc.can2HKO(ctx, user, other)) good = true;
+            }
         }
         return good ? monId : NONE;
     }
@@ -815,7 +928,7 @@ final class AiSwitching {
         Battle battle = ctx.battle;
         if (justSwitchedIn(user)) return NONE;                                                        // :1250
         if (user.effects.truthy(PBEffects.Battler.DestinyBond)) return NONE;                          // :1253
-        if (!ctx.goodAi()) return NONE;                                                               // :1257
+        if (!ctx.goodAi() || AiDoublesScore.isDouble(battle, user)) return NONE;                     // :1257 IS_SINGLE_BATTLE only
         BattleMove atkMove = ctx.prediction(user);
         BattleMove defMove = ctx.prediction(foe);
         if (user.hasStatus("PARALYSIS") && user.hp < user.maxHp() / 3
@@ -852,8 +965,12 @@ final class AiSwitching {
                 && (user.stage(PBStats.ATTACK) <= min || user.stage(PBStats.SPATK) <= min || user.stage(PBStats.ACCURACY) <= min))) {
             return NONE;                                                                              // :1564-1568
         }
+        boolean isDouble = AiDoublesScore.isDouble(ctx.battle, user);
+        Battler foe2 = foe2Of(ctx, user, foe);
         BattleMove pred = ctx.prediction(user);
         if (pred != null && pred.function().equals("054")) return NONE;                              // :1577 Heart Swap
+        BattleMove pred2 = isDouble ? AiMaster.cachedPredictionOf(ctx, user, foe2) : null;
+        if (pred2 != null && pred2.function().equals("054")) return NONE;
         boolean hasPhysical = false;
         boolean hasSpecial = false;
         for (int i = 0; i < Battler.MOVES_MAX; i++) {                                                 // :1583
@@ -875,19 +992,19 @@ final class AiSwitching {
             // :1612
         } else if (atkLow && spaLow && hasPhysical && hasSpecial) {
             // :1617
-        } else if (accLow && allMovesAccuracyBelow(ctx, user, foe, 70) && !AiCalc.classStall(cls)) {
+        } else if (accLow && allMovesAccuracyBelow(ctx, user, foe, 70) && (!isDouble || allMovesAccuracyBelow(ctx, user, foe2, 70)) && !AiCalc.classStall(cls)) {
             // :1623
         } else {
             return NONE;                                                                              // :1630
         }
-        if (hasFastPivot(user)) return NONE;                                                          // 登记: willPivot hand-off
-        if (!AiCalc.canKnockOut(ctx, foe, user) || accLow) {                                          // :1635
+        if (!isDouble && hasFastPivot(user)) return NONE;                                             // 登记: willPivot hand-off (singles only)
+        if ((!AiCalc.canKnockOut(ctx, foe, user) && !(isDouble && AiCalc.canKnockOut(ctx, foe2, user))) || accLow) {   // :1635
             int bestId = bench.best;
             int sw = bench.bestFlags;
             if (bestId == NONE) return NONE;
             Battler best = ctx.battle.partyOf(user.index).get(bestId);
             if ((sw & (FLAG_WALLS_FOE | FLAG_RESIST_ALL_MOVES)) != 0
-                    || ((sw & FLAG_OUTSPEEDS) != 0 && predictedMoveWontDoTooMuch(ctx, user, best, foe, sw))) {   // :1641
+                    || (!isDouble && (sw & FLAG_OUTSPEEDS) != 0 && predictedMoveWontDoTooMuch(ctx, user, best, foe, sw))) {   // :1641
                 return bestId;
             }
         }
@@ -929,6 +1046,7 @@ final class AiSwitching {
     }
 
     private static int saveSweeperForLater(AiCtx ctx, Battler user, Battler foe, Bench bench) {
+        if (AiDoublesScore.isDouble(ctx.battle, user)) return NONE;                                 // :1713 IS_SINGLE_BATTLE only (not good for Doubles)
         Battle battle = ctx.battle;
         if (justSwitchedIn(user)) return NONE;                                                         // :1705
         BattleMove foePred = ctx.prediction(foe);

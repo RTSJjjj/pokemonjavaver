@@ -822,8 +822,10 @@ public final class Battle {
         if (candidate.fainted()) {
             return candidate.name() + "已经无法战斗了！";            // :24-28
         }
-        if (battlerAt(idxBattler) == candidate) {
-            return candidate.name() + "已经参与战斗了！";            // :29-33 pbFindBattler
+        for (Battler onField : eachSameSideBattler(idxBattler)) {   // :29 pbFindBattler(idxParty,idxBattler): any battler of the side
+            if (onField == candidate) {
+                return candidate.name() + "已经参与战斗了！";        // :29-33
+            }
         }
         return null;
     }
@@ -967,7 +969,7 @@ public final class Battle {
      * @return the party index the AI sends out, or -1 when nothing can come in.
      */
     public int defaultChooseNewEnemy(int idxBattler) {
-        if (trainerBattle && singleBattle() && (idxBattler & 1) == 1) {
+        if (trainerBattle && (idxBattler & 1) == 1) {
             Battler fainted = battlerAt(idxBattler);
             if (fainted != null) {
                 int pick = AiSwitching.replacement(this, fainted, random);   // CFRU GetMostSuitableMonToSwitchInto (ai_switching.c:1860)
@@ -2349,8 +2351,7 @@ public final class Battle {
         // CFRU AI_TrySwitchOrUseItem (ai_master.c:948): a trainer's Pokemon may switch instead of attacking;
         // then the plugin's pbEnemyShouldUseItem? (142_PokeBattle_AI.rb:168-170)
         if (controller == null && user.foe && trainerBattle && !user.fainted()) {
-            // 登记: the switching scorer (ai_switching.c) is transcribed for single battles only; doubles switching is still to do
-            int idxSwitch = singleBattle() ? AiSwitching.decide(this, user, random) : -1;
+            int idxSwitch = AiSwitching.decide(this, user, random);
             if (idxSwitch >= 0 && registerSwitch(user.index, idxSwitch)) {
                 return;
             }
