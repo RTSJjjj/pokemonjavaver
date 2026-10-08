@@ -22,6 +22,9 @@ final class AiMaster {
     private AiMaster() {
     }
 
+    /** Bonus for a signature move that was not judged useless (decision with the user: +6). */
+    static final int SIGNATURE_BONUS = 6;
+
     /** What {@link #chooseMove} answers when no move could be scored (the caller falls back). */
     static final int NONE = -1;
 
@@ -55,6 +58,16 @@ final class AiMaster {
                     // script 1 = AIScript_SemiSmart: not part of the smartest tier
                 } else {
                     score[i] = 0;                                                                      // :913
+                }
+            }
+        }
+        // The project's own rule (not CFRU): an original move that only the user's evolution line can learn gets a large bonus,
+        // unless the scripts judged it useless (a score below 100 is a penalised move).
+        if (battle.pbs() != null && user.pokemon.species != null) {
+            for (int i = 0; i < Battler.MOVES_MAX; i++) {
+                BattleMove m = user.moveSlot(i);
+                if (m != null && score[i] >= 100 && AiSignature.isSignature(battle.pbs(), user.pokemon.species.internalName, m.internalName())) {
+                    score[i] = Math.min(score[i] + SIGNATURE_BONUS, 255);
                 }
             }
         }

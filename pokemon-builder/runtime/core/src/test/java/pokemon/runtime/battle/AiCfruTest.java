@@ -174,4 +174,18 @@ class AiCfruTest {
         AiCtx ctx2 = new AiCtx(healthy.battle, new Random(1), AiMaster.SMARTEST);
         assertEquals(100, AiPositives.score(ctx2, healthy, healthy.battle.player(), healthy.moveSlot(0), 100));
     }
+
+    @Test
+    @DisplayName("an original move only the user's line can learn is a signature move; a move another family also learns is not")
+    void signatureMoves() throws Exception {
+        write(tempDir, "pokemon.json", "{\"total\":3,\"byId\":{},\"species\":{"
+                + "\"AAA\":{\"id\":1,\"internalName\":\"AAA\",\"name\":\"AAA\",\"types\":[\"NORMAL\"],\"baseStats\":[50,50,50,50,50,50],"
+                + "\"moves\":[{\"level\":1,\"move\":\"TACKLE\"},{\"level\":5,\"move\":\"STRONGHIT\"}],\"evolutions\":[]},"
+                + "\"BBB\":{\"id\":2,\"internalName\":\"BBB\",\"name\":\"BBB\",\"types\":[\"NORMAL\"],\"baseStats\":[50,50,50,50,50,50],"
+                + "\"moves\":[{\"level\":1,\"move\":\"TACKLE\"}],\"evolutions\":[]}}}");
+        PbsData two = PbsData.parse(tempDir.toFile());
+        assertTrue(AiSignature.isSignature(two, "AAA", "STRONGHIT"));
+        assertFalse(AiSignature.isSignature(two, "AAA", "TACKLE"));
+        assertFalse(AiSignature.isSignature(two, "BBB", "STRONGHIT"));
+    }
 }
