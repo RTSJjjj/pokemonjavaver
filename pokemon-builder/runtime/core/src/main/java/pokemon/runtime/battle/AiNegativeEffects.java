@@ -199,7 +199,7 @@ final class AiNegativeEffects {
             if (!AiCalc.statCanBeLowered(def, atk, PBStats.EVASION)) r.viability -= 10; else substituteCheck(move, atk, def, r);
         } else if (f.equals("051")) {                                                             // EFFECT_HAZE (:1325): GOOD_AI branch needs CountUsefulBoosts/Debuffs - 登记
             // :1325-1339 only runs for AI flags <= SEMI_SMART; :1342 `if (GOOD_AI)` boost counting is 登记 (CountUsefulBoosts).
-        } else if (!part2(ctx, atk, def, move, r)) {
+        } else if (!part2(ctx, atk, def, move, r) && !AiNegativeHistory.apply(ctx, atk, def, move, r)) {
             r.standardDamage = true;                                                              // default: AI_STANDARD_DAMAGE (:3246)
         }
         return r;
@@ -236,7 +236,9 @@ final class AiNegativeEffects {
             }
             case "0A3": {                                                                         // EFFECT_LIGHT_SCREEN (:1530)
                 if (atk.pbOwnSide().effects.intVal(PBEffects.Side.LightScreen) > 0) r.viability -= 10;
-                return true;                                                                      // 登记: HasUsedMoveWithEffect(Brick Break/Defog) history
+                else if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FREEZE"))
+                        && (AiCalc.hasUsedFunction(battle, def, "10A") || AiCalc.hasUsedMove(def, "DEFOG"))) r.viability -= 9;   // :1535 the player will probably cheese it
+                return true;
             }
             case "070": {                                                                         // EFFECT_0HKO (:1538)
                 if (AiCalc.noEffect(battle, atk, def, move) || (!atk.hasMoldBreaker() && "STURDY".equals(defAbility))
@@ -292,7 +294,9 @@ final class AiNegativeEffects {
             }
             case "0A2": {                                                                         // EFFECT_REFLECT default (:1634)
                 if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Reflect) > 0) r.viability -= 10;
-                return true;                                                                      // 登记: HasUsedMoveWithEffect(Brick Break/Defog) history
+                else if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FREEZE"))
+                        && (AiCalc.hasUsedFunction(battle, def, "10A") || AiCalc.hasUsedMove(def, "DEFOG"))) r.viability -= 9;   // :1633
+                return true;
             }
             case "167": {                                                                         // MOVE_AURORAVEIL (:1625)
                 if (atk.pbOwnSide().effects.intVal(PBEffects.Side.AuroraVeil) > 0
@@ -465,6 +469,11 @@ final class AiNegativeEffects {
                 return true;
             }
             case "103": case "104": case "105": case "153": {                                     // EFFECT_SPIKES (:1991)
+                if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FREEZE"))
+                        && AiCalc.hasUsedFunction(battle, def, "110")) {                          // :1976 Rapid Spin was used before
+                    r.viability -= 9;
+                    return true;
+                }
                 if (AiUtil.benchAlive(battle, def) + 1 <= 1) { r.viability -= 10; return true; }
                 BattleSide side = def.pbOwnSide();
                 if (f.equals("105")) {
@@ -870,7 +879,7 @@ final class AiNegativeEffects {
     }
 
     /** {@code AI_SUBSTITUTE_CHECK:} (:1246). */
-    private static void substituteCheck(BattleMove move, Battler atk, Battler def, Result r) {
+    static void substituteCheck(BattleMove move, Battler atk, Battler def, Result r) {
         if (AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
     }
 

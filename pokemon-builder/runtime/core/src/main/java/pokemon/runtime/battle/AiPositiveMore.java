@@ -62,6 +62,63 @@ final class AiPositiveMore {
             }
             case "0EE": case "151":                                                                // EFFECT_BATON_PASS: U-Turn, Volt Switch, Parting Shot (:1496)
                 return pivot(ctx, atk, def, move, viability, cls);
+            case "0AF": {                                                                          // MOVE_COPYCAT (:150)
+                BattleMove copy;
+                if (AiCalc.moveWouldHitFirst(ctx, move, atk, def) || predicted == null) copy = AiCalc.globalLastUsedMove(battle);
+                else copy = predicted;
+                if (copy != null && !copy.function().equals("0AF") && !copy.function().equals("0B0") && !ownUsable(ctx, atk, copy)) {
+                    return AiPositives.score(ctx, atk, def, copy, viability);                       // run the logic on the copied move instead
+                }
+                return viability;
+            }
+            case "05C": {                                                                          // EFFECT_MIMIC (:890)
+                BattleMove lastDef = AiCalc.lastUsedMove(battle, def);
+                if (AiCalc.moveWouldHitFirst(ctx, move, atk, def)) {
+                    if (lastDef != null && !AiCalc.canKnockOut(ctx, def, atk) && AiCalc.knocksOutXHits(ctx, lastDef, atk, def, 1)) {
+                        return incStatus(ctx, viability, cls, 2, atk, def);
+                    }
+                } else if (predicted != null && !AiCalc.can2HKO(ctx, def, atk) && AiCalc.knocksOutXHits(ctx, predicted, atk, def, 1)) {
+                    return incStatus(ctx, viability, cls, 1, atk, def);
+                }
+                return viability;                                                                  // 登记: the Imprison clauses
+            }
+            case "0B9": {                                                                          // EFFECT_DISABLE (:935)
+                if (def.effects.intVal(PBEffects.Battler.Disable) != 0 || def.hasActiveItem("MENTALHERB")) return viability;
+                BattleMove lastDef = AiCalc.lastUsedMove(battle, def);
+                if (AiCalc.moveWouldHitFirst(ctx, move, atk, def)) {
+                    if (lastDef != null) {
+                        if (predicted != null && lastDef.internalName().equals(predicted.internalName())) return incStatus(ctx, viability, cls, 3, atk, def);
+                        if (AiCalc.knocksOutXHits(ctx, lastDef, def, atk, 1)) return incStatus(ctx, viability, cls, 2, atk, def);
+                    }
+                } else if (predicted != null && predicted.statusMove()) {
+                    return incStatus(ctx, viability, cls, 1, atk, def);
+                }
+                return viability;
+            }
+            case "0BC": {                                                                          // EFFECT_ENCORE (:955)
+                if (def.effects.intVal(PBEffects.Battler.Encore) != 0 || def.hasActiveItem("MENTALHERB")) return viability;
+                BattleMove lastDef = AiCalc.lastUsedMove(battle, def);
+                if (AiCalc.moveWouldHitFirst(ctx, move, atk, def)) {
+                    if (lastDef != null && (lastDef.statusMove() || AiCalc.noEffect(battle, def, atk, lastDef))) {
+                        return incStatus(ctx, viability, cls, 3, atk, def);                          // lock into status moves
+                    }
+                } else if (predicted != null && predicted.statusMove()) {
+                    return incStatus(ctx, viability, cls, 3, atk, def);
+                }
+                return viability;
+            }
+            case "10E": {                                                                          // EFFECT_SPITE (:1030)
+                if (predicted != null && AiCalc.moveWouldHitFirst(ctx, move, atk, def)) {
+                    for (int i = 0; i < Battler.MOVES_MAX; i++) {
+                        BattleMove m = def.moveSlot(i);
+                        if (m != null && m.internalName().equals(predicted.internalName())) {
+                            if (def.moveSlotPp(i) <= 4) return incStatus(ctx, viability, cls, 3, atk, def);
+                            break;
+                        }
+                    }
+                }
+                return viability;
+            }
             case "0F0": {                                                                          // EFFECT_KNOCK_OFF (:2086)
                 String item = def.item == null ? "" : def.item;
                 if (item.equals("IRONBALL") || item.equals("LAGGINGTAIL") || item.equals("STICKYBARB")) return viability;
@@ -74,6 +131,15 @@ final class AiPositiveMore {
             default:
                 return viability;
         }
+    }
+
+    /** {@code MoveInMovesetAndUsable(move,bank)}. */
+    private static boolean ownUsable(AiCtx ctx, Battler atk, BattleMove m) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove own = atk.moveSlot(i);
+            if (own != null && own.internalName().equals(m.internalName()) && AiCalc.usable(ctx, atk, i)) return true;
+        }
+        return false;
     }
 
     // ---- screens ----

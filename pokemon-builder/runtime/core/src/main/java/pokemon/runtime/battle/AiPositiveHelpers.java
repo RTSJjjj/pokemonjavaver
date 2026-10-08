@@ -195,16 +195,59 @@ final class AiPositiveHelpers {
         if (foe != null && AiCalc.oneOf(foe, "051", "0EB")) return true;                              // IsMovePredictionPhazingMove (Haze / Roar)
         if (foe != null && AiCalc.oneOf(foe, "003", "004") && AiCalc.hitChance(ctx.battle, def, atk, foe) >= 80
                 && def.speed() < atk.speed()) return true;                                           // high-accuracy sleeping move
+        for (String name : def.movesUsed) {                                                          // HasUsedPhazingMoveThatAffects
+            BattleMove used = AiCalc.moveByName(ctx.battle, name);
+            if (used != null && AiCalc.oneOf(used, "0EB", "0EC", "051") && AiCalc.moveFunctionInMoveset(def, used.function())) return true;
+        }
         return checkDefAbility && def.hasActiveAbility("UNAWARE") && !AiCalc.willFaintFromSecondaryDamage(ctx.battle, def);
     }
 
+    /**
+     * {@code BadIdeaToRaise<Stat>Against(bankAtk,bankDef,amount,checkPartner)} (ai_util.c:3076-3250): the common check plus the foe having
+     * revealed a move that lowers that stat. Function codes: Growl 042 / Charm 04B, Tail Whip 043 / 04C, String Shot 044 / Cotton Spore 04D,
+     * Confide 045 / Captivate 04E, Metal Sound 046 / 04F, Sand Attack 047, Sweet Scent 048, Tickle 04A (Atk+Def), Play Nice 139, Venom Drench 140.
+     */
+    static boolean badIdeaToRaise(AiCtx ctx, Battler atk, Battler def, int stat, int amount) {
+        if (stat == PBStats.SPEED && AiCalc.trickRoomNotEnding(ctx.battle)) return true;
+        if (badIdeaToRaiseStat(ctx, atk, def, true)) return true;
+        Battle b = ctx.battle;
+        boolean poisoned = atk.hasStatus("POISON");
+        switch (stat) {
+            case PBStats.ATTACK:
+                if (AiCalc.hasUsedStatusFunction(b, def, "04B")) return true;
+                if (amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "042", "04A", "139") || (poisoned && AiCalc.hasUsedStatusFunction(b, def, "140"))
+                        || AiCalc.hasUsedHitFunction(b, def, 75, "042"))) return true;
+                return false;
+            case PBStats.DEFENSE:
+                if (AiCalc.hasUsedStatusFunction(b, def, "04C")) return true;
+                return amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "043", "04A") || AiCalc.hasUsedHitFunction(b, def, 75, "043"));
+            case PBStats.SPATK:
+                if (AiCalc.hasUsedStatusFunction(b, def, "04E")) return true;
+                return amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "045", "139") || (poisoned && AiCalc.hasUsedStatusFunction(b, def, "140"))
+                        || AiCalc.hasUsedHitFunction(b, def, 75, "045"));
+            case PBStats.SPDEF:
+                if (AiCalc.hasUsedStatusFunction(b, def, "04F") || AiCalc.hasUsedHitFunction(b, def, 75, "04F")) return true;
+                return amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "046") || AiCalc.hasUsedHitFunction(b, def, 75, "046"));
+            case PBStats.SPEED:
+                if (AiCalc.hasUsedStatusFunction(b, def, "04D")) return true;
+                return amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "044") || (poisoned && AiCalc.hasUsedStatusFunction(b, def, "140"))
+                        || AiCalc.hasUsedHitFunction(b, def, 75, "044"));
+            case PBStats.ACCURACY:
+                return amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "047") || AiCalc.hasUsedHitFunction(b, def, 75, "047"));
+            case PBStats.EVASION:
+                return amount <= 1 && (AiCalc.hasUsedStatusFunction(b, def, "048") || AiCalc.hasUsedHitFunction(b, def, 75, "048"));
+            default:
+                return false;
+        }
+    }
+
     static boolean goodIdeaToRaiseAttack(AiCtx ctx, Battler atk, Battler def, int amount) {
-        return !badIdeaToRaiseStat(ctx, atk, def, true) && AiCalc.physicalMoveInMoveset(ctx, atk);
+        return !badIdeaToRaise(ctx, atk, def, PBStats.ATTACK, amount) && AiCalc.physicalMoveInMoveset(ctx, atk);
     }
 
     /** {@code GoodIdeaToRaiseDefenseAgainst}: 1 = the foe likely uses a physical move, 2 = Body Press, 0 = no. */
     static int goodIdeaToRaiseDefense(AiCtx ctx, Battler atk, Battler def, int amount) {
-        if (!badIdeaToRaiseStat(ctx, atk, def, true)) {
+        if (!badIdeaToRaise(ctx, atk, def, PBStats.DEFENSE, amount)) {
             if (likelyToUseMoveSplit(ctx, def) == 1) return 1;
             if (AiCalc.moveFunctionInMoveset(atk, "177")) return 2;                                   // Body Press
         }
@@ -212,23 +255,22 @@ final class AiPositiveHelpers {
     }
 
     static boolean goodIdeaToRaiseSpAttack(AiCtx ctx, Battler atk, Battler def, int amount) {
-        return !badIdeaToRaiseStat(ctx, atk, def, true) && AiCalc.specialMoveInMoveset(ctx, atk);
+        return !badIdeaToRaise(ctx, atk, def, PBStats.SPATK, amount) && AiCalc.specialMoveInMoveset(ctx, atk);
     }
 
     static boolean goodIdeaToRaiseSpDefense(AiCtx ctx, Battler atk, Battler def, int amount) {
-        return !badIdeaToRaiseStat(ctx, atk, def, true) && likelyToUseMoveSplit(ctx, def) == 2;
+        return !badIdeaToRaise(ctx, atk, def, PBStats.SPDEF, amount) && likelyToUseMoveSplit(ctx, def) == 2;
     }
 
     /** {@code GoodIdeaToRaiseSpeedAgainst(...)} (ai_util.c:3281): not in Trick Room, and not already faster than the foe's whole team. */
     static boolean goodIdeaToRaiseSpeed(AiCtx ctx, Battler atk, Battler def, int amount) {
         if (def.fainted()) return false;
-        if (AiCalc.trickRoomNotEnding(ctx.battle)) return false;                                    // BadIdeaToRaiseSpeedAgainst
-        if (badIdeaToRaiseStat(ctx, atk, def, true)) return false;
+        if (badIdeaToRaise(ctx, atk, def, PBStats.SPEED, amount)) return false;                     // BadIdeaToRaiseSpeedAgainst
         return atk.speed() <= teamMaxSpeed(ctx.battle, def);                                         // !FasterThanEntireTeam
     }
 
     static boolean goodIdeaToRaiseAccuracy(AiCtx ctx, Battler atk, Battler def, int amount) {
-        if (badIdeaToRaiseStat(ctx, atk, def, true)) return false;
+        if (badIdeaToRaise(ctx, atk, def, PBStats.ACCURACY, amount)) return false;
         for (int i = 0; i < Battler.MOVES_MAX; i++) {                                                // MoveInMovesetWithAccuracyLessThan(...,90,TRUE)
             BattleMove m = atk.moveSlot(i);
             if (m != null && !m.statusMove() && AiCalc.usable(ctx, atk, i) && AiCalc.hitChance(ctx.battle, atk, def, m) < 90) return true;
@@ -237,7 +279,7 @@ final class AiPositiveHelpers {
     }
 
     static boolean goodIdeaToRaiseEvasion(AiCtx ctx, Battler atk, Battler def, int amount) {
-        return !badIdeaToRaiseStat(ctx, atk, def, true)
+        return !badIdeaToRaise(ctx, atk, def, PBStats.EVASION, amount)
                 && !(def.hasActiveAbility("KEENEYE") || atk.effects.truthy(PBEffects.Battler.Foresight) || atk.effects.truthy(PBEffects.Battler.MiracleEye));
     }
 

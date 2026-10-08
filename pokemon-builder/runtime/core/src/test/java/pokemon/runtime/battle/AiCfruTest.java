@@ -54,8 +54,8 @@ class AiCfruTest {
                 + species("GHOSTY", 2, "GHOST", 80, 80, 80, 40, "NONE") + ","
                 + species("DUCK", 3, "WATER", 80, 80, 80, 40, "WATERABSORB") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
-        write(tempDir, "moves.json", "{\"total\":11,\"moves\":{"
-                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + "," + status("SPIKES", "103") + "," + status("PROTECT", "0AA") + "," + status("REFLECT", "0A2") + ","
+        write(tempDir, "moves.json", "{\"total\":13,\"moves\":{"
+                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + "," + status("SPIKES", "103") + "," + status("PROTECT", "0AA") + "," + status("MIMIC", "05C") + "," + status("CHARM", "04B") + "," + status("REFLECT", "0A2") + ","
                 + move("TACKLE", 40, "NORMAL", "Physical", 35) + "," + move("STRONGHIT", 90, "NORMAL", "Physical", 15) + ","
                 + move("WATERGUN", 40, "WATER", "Special", 25) + "," + move("SURF", 90, "WATER", "Special", 15) + ","
                 + move("BODYSLAM", 85, "NORMAL", "Physical", 15).replace("\"function\":\"000\"", "\"function\":\"007\"").replace("\"effectChance\":0", "\"effectChance\":30") + "}}");
@@ -346,5 +346,26 @@ class AiCfruTest {
         Battler foe2 = special.foe();
         AiCtx ctx2 = AiMaster.prepare(special, foe2, special.player(), new Random(1));
         assertFalse(AiPositiveMore.shouldSetUpScreens(ctx2, foe2, special.player(), foe2.moveSlot(0)));
+    }
+
+    @Test
+    @DisplayName("Mimic needs a move to copy: -10 until the foe has used one (ai_negatives.c:1684, gLastUsedMoves)")
+    void mimicNeedsAMoveToCopy() {
+        Battler foe = foe("FAT", 5, "HERO", 100, "MIMIC", "TACKLE");
+        AiCtx ctx = new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST);
+        assertTrue(AiNegatives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100) < 100);
+        foe.battle.player().lastMoveUsed = "TACKLE";
+        assertEquals(100, AiNegatives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100));
+    }
+
+    @Test
+    @DisplayName("a foe that has shown a stat-lowering move makes raising that stat a bad idea (BadIdeaToRaiseAttackAgainst, ai_util.c:3076)")
+    void revealedStatDropStopsSetUp() {
+        Battler foe = foe("FAT", 100, "HERO", 50, "SWORDSDANCE", "TACKLE");
+        AiCtx ctx = new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST);
+        int before = AiPositives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100);
+        foe.battle.player().movesUsed.add("CHARM");
+        int after = AiPositives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100);
+        assertTrue(before > 100 && after < before, before + " -> " + after);
     }
 }

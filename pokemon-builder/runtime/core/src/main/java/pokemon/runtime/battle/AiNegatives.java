@@ -107,8 +107,15 @@ final class AiNegatives {
             }
 
             // Powder & Ion Deluge Check (:540) - GOOD_AI
-            if (ctx.goodAi() && "FIRE".equals(moveType)) {
-                if (usedMove(def, "POWDER") && ctx.simulatedRng[0] < 75) return clamp(dec(viability, 19));
+            if (ctx.goodAi()) {
+                if ("FIRE".equals(moveType)) {
+                    if (usedMove(def, "POWDER") && ctx.simulatedRng[0] < 75) return clamp(dec(viability, 19));
+                } else if ("NORMAL".equals(moveType)) {
+                    if (usedMove(def, "IONDELUGE") && ctx.simulatedRng[0] < 75
+                            && (defAbility.equals("VOLTABSORB") || defAbility.equals("MOTORDRIVE") || defAbility.equals("LIGHTNINGROD"))) {
+                        return clamp(dec(viability, 19));                                             // IsElectricAbsorptionAblity
+                    }
+                }
             }
         }
 
@@ -137,8 +144,8 @@ final class AiNegatives {
         return Math.max(0, viability);                                                                // :3263 `if (viability < 0) return 0`
     }
 
-    /** {@code HasUsedMove(bank,move)}: 登记 - this runtime keeps no per-battler used-move history for the AI, so only the last move is known. */
+    /** {@code HasUsedMove(bank,move)}: the battler's used-move list ({@code @movesUsed}, reset on switch-in like BATTLE_HISTORY). */
     private static boolean usedMove(Battler b, String internalName) {
-        return false;
+        return AiCalc.hasUsedMove(b, internalName);
     }
 }

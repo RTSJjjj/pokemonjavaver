@@ -133,6 +133,63 @@ final class AiCalc {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Used-move history (BATTLE_HISTORY->usedMoves, gLastUsedMoves, gNewBS->LastUsedMove)
+    // ------------------------------------------------------------------
+
+    /** A {@link BattleMove} for a move's internal name, or null. */
+    static BattleMove moveByName(Battle battle, String name) {
+        if (name == null || battle.pbs() == null) return null;
+        pokemon.runtime.pokemon.PbsData.Move data = battle.pbs().move(name);
+        return data == null ? null : new BattleMove(data);
+    }
+
+    /** {@code gLastUsedMoves[bank]}: the last move the battler used, or null (MOVE_NONE). */
+    static BattleMove lastUsedMove(Battle battle, Battler b) {
+        return moveByName(battle, b.lastMoveUsed);
+    }
+
+    /** {@code gNewBS->LastUsedMove}: the last move anyone used (Copycat). */
+    static BattleMove globalLastUsedMove(Battle battle) {
+        if (battle.lastMoveUsed < 0 || battle.pbs() == null) return null;
+        for (pokemon.runtime.pokemon.PbsData.Move m : battle.pbs().moves.values()) {
+            if (m.id == battle.lastMoveUsed) return new BattleMove(m);
+        }
+        return null;
+    }
+
+    /** {@code HasUsedMove(bank,move)}. */
+    static boolean hasUsedMove(Battler b, String internalName) {
+        return b.movesUsed.contains(internalName, false);
+    }
+
+    /** {@code HasUsedMoveWithEffect(bank,effect)}: a used status move with one of these function codes. */
+    static boolean hasUsedStatusFunction(Battle battle, Battler b, String... codes) {
+        for (String name : b.movesUsed) {
+            BattleMove m = moveByName(battle, name);
+            if (m != null && m.statusMove() && oneOf(m, codes)) return true;
+        }
+        return false;
+    }
+
+    /** {@code HasUsedMoveWithEffectHigherThanChance(bank,effect,chance)}: a used damaging move of that side-effect family. */
+    static boolean hasUsedHitFunction(Battle battle, Battler b, int chance, String... codes) {
+        for (String name : b.movesUsed) {
+            BattleMove m = moveByName(battle, name);
+            if (m != null && !m.statusMove() && oneOf(m, codes) && secondaryEffectChance(m, b) >= chance) return true;
+        }
+        return false;
+    }
+
+    /** {@code HasUsedMoveWithEffect(bank,effect)} for a function code shared by status and damaging moves (any used move). */
+    static boolean hasUsedFunction(Battle battle, Battler b, String... codes) {
+        for (String name : b.movesUsed) {
+            BattleMove m = moveByName(battle, name);
+            if (m != null && oneOf(m, codes)) return true;
+        }
+        return false;
+    }
+
     /** Function codes Essentials shares between a status move and its damaging "hit with a side effect" variants (CFRU's separate *_HIT effects). */
     static final String[] SIDE_EFFECT_CODES = {"005", "006", "007", "00A", "00C", "013", "042", "043", "044", "045", "046", "047",
             "04B", "04C", "04D", "04E", "04F"};

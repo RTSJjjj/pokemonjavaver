@@ -33,7 +33,7 @@ moves, recovery, screens, recoil, protect, hazards, weather, two-turn attacks, b
 `AiPositiveHelpers` (IncreaseStatusViability / IncreaseStatViability, ShouldTryToSetUpStat, GoodIdea/BadIdea to raise or lower a stat, ShouldRecover,
 ShouldPhaze, IncreaseSleepViability, GetAmountToRecoverBy, CountUsefulStatChanges) and `AiPositiveEffects` part 1 (ai_positives.c:57-1010): sleep/yawn,
 drain, all stat raising/lowering moves, Haze, Roar, recovery, Rest, poison, Mist, Focus Energy, Confuse, Paralyze, Leech Seed, Snore/Sleep Talk, Laser Focus.
-Every `HasUsedMove*` history test is treated as false (no used-move history).
+`HasUsedMove*` history tests: see Batch 8 (before that they were treated as false).
 
 ## Batch 5 (done)
 `AiPositiveEffects` part 2 (ai_positives.c:1010-1760): Destiny Bond, Nightmare, Curse, Foresight/Miracle Eye, Perish Song, Swagger/Flatter, Attract, Safeguard,
@@ -76,6 +76,14 @@ doubles branches inside AiNegatives/AiPositives, doubles switching and item use 
 - `AiPositiveMore`: Explosion, Reflect/Light Screen/Aurora Veil (`ShouldSetUpScreens`), Substitute (`ShouldUseSubstitute`), Protect family + Endure (`ShouldProtect`),
   U-Turn/Volt Switch/Parting Shot (`ShouldPivot` on top of the bench scorer, `IncreasePivotViability`), Knock Off.
   登记: team protections, Aegislash, Wish after a pivot, `RecalcStrongestMoveIgnoringMove`, Mimic/Disable/Encore/Spite/Thief/Trick/Psych Up/Wish/Heal Bell/Skill Swap family.
+
+## Batch 8 (done): used-move history
+The engine already keeps `Battler.movesUsed` / `lastMoveUsed` / `lastMoveUsedType` and `Battle.lastMoveUsed`, which are CFRU's `BATTLE_HISTORY->usedMoves`, `gLastUsedMoves[]`,
+`gLastUsedTypes` and `gNewBS->LastUsedMove` (reset on switch-in like the battle history). `AiCalc.hasUsedMove / hasUsedStatusFunction / hasUsedHitFunction / lastUsedMove / globalLastUsedMove`
+read them. Now using them: `BadIdeaToRaise<Stat>Against` (stat-lowering moves the foe has shown, `HasUsedPhazingMoveThatAffects`), Powder/Ion Deluge (Negatives preamble),
+the screen and hazard "player will cheese it" -9 checks (Brick Break/Defog/Rapid Spin used), and `AiNegativeHistory` + `AiPositiveMore` for Copycat, Mimic, Disable, Encore, Spite,
+Conversion 2, Sketch. 登记: banned-move flags (approximated by function code), `CanLastMoveNotBeEncored`, Mirror Move (`lastTakenMoveFrom`), Counter's `previousMovePredictions` branch,
+Imprison clauses, `NoUsableHazardsInMoveset`.
 
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
