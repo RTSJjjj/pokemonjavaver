@@ -308,4 +308,15 @@ class AiPartnerTest {
         user.effects.set(PBEffects.Battler.PerishSong, 1);
         assertEquals(2, AiSwitching.decide(b, user, new Random(1)));
     }
+
+    @Test
+    @DisplayName("pivot hand-off: a pivoting move's replacement is the Pokemon recorded by ConfirmAISwitch(.., willPivot) (battle_controller_opponent.c:324)")
+    void pivotHandsOffToRecordedMon() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        b.addFoe(mon("FAT", 50, "TACKLE", "QUICKHIT"));
+        Battler user = b.battlerAt(1);
+        b.aiPivotTo[1] = 2;
+        assertEquals(2, AiSwitching.replacement(b, user, new Random(1)));
+        assertEquals(-1, b.aiPivotTo[1], "consumed");
+    }
 }

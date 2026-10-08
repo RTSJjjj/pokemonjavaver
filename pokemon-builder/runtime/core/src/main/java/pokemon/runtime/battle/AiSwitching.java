@@ -17,7 +17,7 @@ import pokemon.runtime.battle.AiCalc.AiDmg;
  * {@code IS_DOUBLE_BATTLE} branch, and a Pokemon already chosen by the partner (a registered switch) is not offered again.
  * 登记 (not transcribed): {@code CanStopLockedMove} (:939) and {@code SemiInvulnerableTroll} (:803) (both emit a switch but
  * return FALSE, which the caller overrides with "use a move"), {@code ShouldSwitchIfPerishSong} (its body is not in the
- * cached source), the pivot hand-off ({@code ConfirmAISwitch(.., willPivot)} :153: a fast pivoting move simply declines the
+ * cached source), the pivot hand-off ({@code ConfirmAISwitch(.., willPivot)} :153, implemented via {@link #PIVOTING}; formerly: a fast pivoting move simply declined the
  * switch here), Disguise on the incoming Pokemon, Dynamax, Imposter/Trace on the incoming Pokemon, Steelsurge, Wish recovery
  * on the incoming Pokemon, the Trick-with-an-orb and weather clauses of Wonder Guard, and two trainers on one side
  * ({@code BankSideHasTwoTrainers}: the best-mon data is not shared with a partner trainer). {@code switchingCooldown}
@@ -512,6 +512,7 @@ final class AiSwitching {
         Bench bench = calcMostSuitable(ctx, user, foe);
         int pick = shouldSwitch(ctx, user, foe, bench);
         if (pick == NONE) return NONE;
+        if (pick == PIVOTING) return NONE;                                                         // ai_master.c:949 !goodToPivot
         if (pick == -2) {                                                                          // PARTY_SIZE: "best mon" (ai_master.c:956)
             pick = bench.best;
         }
@@ -522,6 +523,11 @@ final class AiSwitching {
     static int replacement(Battle battle, Battler fainted, Random rng) {
         Battler foe = firstFoe(battle, fainted);
         if (foe == null || foe.pokemon == null) return NONE;
+        int pivotTo = battle.aiPivotTo[fainted.index % 6];                                          // battle_controller_opponent.c:324 (pivoting move)
+        if (!fainted.fainted() && pivotTo >= 0 && candidate(battle, fainted, pivotTo)) {
+            battle.aiPivotTo[fainted.index % 6] = -1;
+            return pivotTo;
+        }
         AiCtx ctx = AiMaster.prepare(battle, fainted, foe, rng);
         Bench bench = calcMostSuitable(ctx, fainted, foe);
         return bench.best;
@@ -568,9 +574,32 @@ final class AiSwitching {
         return Math.max(1, pos.effects.intVal(PBEffects.Position.WishAmount));
     }
 
-    private static boolean hasFastPivot(Battler b) {
-        return AiCalc.moveFunctionInMoveset(b, "0EE");                                             // U-Turn / Volt Switch / Flip Turn
+    /** {@code FastPivotingMoveInMovesetThatAffects(bankAtk,bankDef)} (ai_util.c:4364): U-Turn / Volt Switch / Flip Turn / Parting Shot that hit first. */
+    private static boolean fastPivotThatAffects(AiCtx ctx, Battler atk, Battler def) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = atk.moveSlot(i);
+            if (m == null) break;
+            if (!AiCalc.oneOf(m, "0EE", "151") || !AiCalc.usable(ctx, atk, i)) continue;
+            if (!m.statusMove() && AiCalc.noEffect(ctx.battle, atk, def, m)) continue;             // :4380 a move like Volt Switch that doesn't affect
+            if (AiCalc.moveWouldHitFirst(ctx, m, atk, def)) return true;                           // :4385
+        }
+        return false;
     }
+
+    /**
+     * {@code ConfirmAISwitch(monId,willPivot)} (ai_switching.c:153). A pivot does not switch: it records
+     * {@code pivotTo}/{@code goodToPivot} so the pivoting move scores {@code PIVOT_IMMEDIATELY} and the hand-off picks {@code monId}.
+     * Returns {@link #PIVOTING} (the source's TRUE with {@code goodToPivot} set, so ai_master.c:948 skips the switch) or {@code monId}.
+     */
+    private static int confirm(AiCtx ctx, Battler user, int monId, boolean willPivot) {
+        if (!willPivot) return monId;
+        ctx.battle.aiPivotTo[user.index % 6] = monId;
+        ctx.battle.aiGoodToPivot |= 1 << (user.index % 6);
+        return PIVOTING;
+    }
+
+    /** Result marker: "switch decided, but via the pivoting move" (no actual switch is emitted). */
+    static final int PIVOTING = -3;
 
     // --- FindMonThatAbsorbsOpponentsMove (:403) ---
 
@@ -1160,7 +1189,7 @@ final class AiSwitching {
         } else {
             return NONE;                                                                              // :1630
         }
-        if (!isDouble && hasFastPivot(user)) return NONE;                                             // 登记: willPivot hand-off (singles only)
+        boolean willPivot = !isDouble && fastPivotThatAffects(ctx, user, foe);                        // :1633
         if ((!AiCalc.canKnockOut(ctx, foe, user) && !(isDouble && AiCalc.canKnockOut(ctx, foe2, user))) || accLow) {   // :1635
             int bestId = bench.best;
             int sw = bench.bestFlags;
@@ -1168,7 +1197,7 @@ final class AiSwitching {
             Battler best = ctx.battle.partyOf(user.index).get(bestId);
             if ((sw & (FLAG_WALLS_FOE | FLAG_RESIST_ALL_MOVES)) != 0
                     || (!isDouble && (sw & FLAG_OUTSPEEDS) != 0 && predictedMoveWontDoTooMuch(ctx, user, best, foe, sw))) {   // :1641
-                return bestId;
+                return confirm(ctx, user, bestId, willPivot);                                         // :1644
             }
         }
         return NONE;
@@ -1236,7 +1265,7 @@ final class AiSwitching {
         if (!(optionA || optionB)) return NONE;
         BattleMove movePred = ctx.prediction(user);
         if (movePred != null && (AiCalc.named(movePred, "FAKEOUT") || AiCalc.oneOf(movePred, AiCalc.PROTECT))) return NONE;   // :1765
-        if (hasFastPivot(user)) return NONE;                                                           // 登记: willPivot hand-off (:1769)
+        boolean willPivot = fastPivotThatAffects(ctx, user, foe);                                      // :1769 U-Turn/Volt Switch switch on their own
         if (foeKOs) {                                                                                  // :1771
             if (movePred != null && AiCalc.moveWouldHitFirst(ctx, movePred, user, foe)) {
                 if (movePred.function().equals("0E7")) return NONE;                                    // :1776 Destiny Bond
@@ -1244,9 +1273,9 @@ final class AiSwitching {
                 return NONE;                                                                           // :1781
             }
             int r = saveSweeperHelper(ctx, user, foe, bench.best, bench.bestFlags);                     // :1789
-            if (r != NONE) return r;
+            if (r != NONE) return confirm(ctx, user, r, willPivot);
             r = saveSweeperHelper(ctx, user, foe, bench.second, bench.secondFlags);                     // :1795
-            if (r != NONE) return r;
+            if (r != NONE) return confirm(ctx, user, r, willPivot);
             if (AiCalc.choiceLocked(user)) {                                                            // :1801
                 // 登记: strongest-move-as-if-unlocked (:1804-1807); approximated by the unlocked strongest move
                 BattleMove strongest = AiCalc.calcStrongestMove(ctx, user, foe);
@@ -1259,7 +1288,8 @@ final class AiSwitching {
                 }
             }
         }
-        return switchToBestResistMon(ctx, user, foe, bench, foe);                                      // :1823
+        int resist = switchToBestResistMon(ctx, user, foe, bench, foe);                                // :1823
+        return resist == NONE ? NONE : confirm(ctx, user, resist, willPivot);
     }
 
     /** :1757-1760 option B2 (50% to throw off the player, 75% only when it cannot 2HKO). */

@@ -489,6 +489,9 @@ public final class Battle {
 
     /** {@code gNewBS->ai.didTypeAbsorbSwitchToMonBefore[side]}: party-index bitmask per side (AiSwitching). */
     /** {@code gNewBS->ai.sideSwitchedThisRound}: bit per side, valid for the turn in {@link #aiSideSwitchedTurn}. */
+    /** {@code gNewBS->ai.pivotTo[battler]} (-1 = PARTY_SIZE) and {@code goodToPivot} (bit per battler): the willPivot hand-off. */
+    final int[] aiPivotTo = {-1, -1, -1, -1, -1, -1};
+    int aiGoodToPivot;
     int aiSideSwitchedMask;
     int aiSideSwitchedTurn = -1;
     final int[] aiAbsorbSwitched = new int[2];

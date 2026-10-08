@@ -285,6 +285,8 @@ public final class BattleEndOfRoundPhase {
         for (Battler b : battle.eachBattler()) {                                      // CFRU end_turn.c:193 --switchingCooldown
             if (b != null && b.aiSwitchCooldown > 0) b.aiSwitchCooldown--;
         }
+        battle.aiGoodToPivot = 0;                                                     // end_turn.c:1759 goodToPivot = 0
+        java.util.Arrays.fill(battle.aiPivotTo, -1);                                  // end_turn.c:1783 pivotTo = PARTY_SIZE
         // ---- 场地:560-583 capture net ----
         if (battle.decision != 0) return;                                             // 场地:560
         for (Battler b : battle.pbPriority(true)) {                                   // 场地:562

@@ -198,4 +198,5 @@ Engine fix found on the way: `pbCanSwitchLax?` only rejected the battler's own P
 - Fling (0F7), Perish Song switching, real switchingCooldown counter.
 - CFRU defect fixed: `RunAllSemiInvulnerableLockedMoveCalcs`/`CanStopLockedMove` returned FALSE after emitting the switch; port returns the chosen party index.
 - Wish recovery on the incoming mon (`GetWishHPRecovery`, battle_util.c:1241) now factored into bench scoring.
-- Still 登记: pivot hand-off (`ConfirmAISwitch(.., willPivot)`), Trace/Imposter/Disguise on the incoming mon, Wonder Guard weather/Trick-orb clauses, Counter/Mirror Coat `previousMovePredictions`. N/A: Z-moves, Dynamax, Steelsurge.
+- Pivot hand-off done: `FastPivotingMoveInMovesetThatAffects` (0EE/151), `ConfirmAISwitch(.., willPivot)` records `Battle.aiPivotTo`/`aiGoodToPivot` (cleared at end of round / when the foe switches), `ShouldPivot` returns PIVOT_IMMEDIATELY (+9), `AiSwitching.replacement` honours the recorded target.
+- Still 登记: Trace/Imposter/Disguise on the incoming mon, Wonder Guard weather/Trick-orb clauses, Counter/Mirror Coat `previousMovePredictions`. N/A: Z-moves, Dynamax, Steelsurge.

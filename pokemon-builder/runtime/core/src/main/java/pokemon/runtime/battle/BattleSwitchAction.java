@@ -267,6 +267,8 @@ public final class BattleSwitchAction {
                 if ((battle.aiSideSwitchedMask & (1 << ((idxBattler & 1) ^ 1))) == 0) incoming.aiSwitchCooldown = 2;   // no change on the other side
             }
         }
+        battle.aiPivotTo[(idxBattler ^ 1) % 6] = -1;                                   // switching.c:595 old pivot target is stale
+        battle.aiPivotTo[((idxBattler ^ 1) ^ 2) % 6] = -1;                             // :597
         pbSendOut(battle, new int[] {idxBattler}, false);                              // :318
     }
 

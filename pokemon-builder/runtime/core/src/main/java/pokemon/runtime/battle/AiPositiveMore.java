@@ -19,7 +19,7 @@ final class AiPositiveMore {
     }
 
     private static final int DONT_PROTECT = 0, USE_PROTECT = 1, USE_STATUS_THEN_PROTECT = 2, PROTECT_FROM_FOES = 3, PROTECT_FROM_ALLIES = 4;
-    private static final int PIVOT = 1, CAN_TRY_PIVOT = 2, DONT_PIVOT = 3;
+    private static final int PIVOT = 1, CAN_TRY_PIVOT = 2, DONT_PIVOT = 3, PIVOT_IMMEDIATELY = 4;
 
     static int apply(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls, String atkAbility, String defAbility) {
         Battle battle = ctx.battle;
@@ -434,6 +434,7 @@ final class AiPositiveMore {
     /** {@code ShouldPivot(bankAtk,bankDef,move,class)} (ai_advanced.c:1468), singles. */
     private static int shouldPivot(AiCtx ctx, Battler atk, Battler def, BattleMove move, int cls) {
         Battle battle = ctx.battle;
+        if ((battle.aiGoodToPivot & (1 << (atk.index % 6))) != 0) return PIVOT_IMMEDIATELY;        // ai_advanced.c:1470 set in switching checks
         boolean damager = AiCalc.classDamager(cls);
         boolean boost = (anyUsefulOffensiveStatRaised(ctx, atk) && damager) || def.stage(PBStats.EVASION) >= 4;
         if (AiSwitching.significantHazardDamage(battle, atk, 4)) return DONT_PIVOT;
@@ -533,6 +534,7 @@ final class AiPositiveMore {
             return viability;
         }
         int should = shouldPivot(ctx, atk, def, move, cls);
+        if (should == PIVOT_IMMEDIATELY) return inc(viability, 9);                                 // ai_advanced.c:2673 (IsClassDoublesSpecific(pivotType) is never true)
         if (should == PIVOT) {                                                                     // IncreasePivotViability (ai_advanced.c:2658)
             switch (cls) {
                 case AiCalc.CLASS_SWEEPER_KILL: return inc(viability, 3);
