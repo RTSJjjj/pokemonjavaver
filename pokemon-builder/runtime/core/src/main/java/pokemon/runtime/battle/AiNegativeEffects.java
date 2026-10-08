@@ -486,7 +486,7 @@ final class AiNegativeEffects {
                 }
                 return true;
             }
-            case "0AA": case "14B": case "14C": case "168": case "1CC": case "0E8": case "0AB": case "0AC": case "14A": case "149": {   // EFFECT_PROTECT (:1904)
+            case "0AA": case "14B": case "14C": case "168": case "1CC": case "221": case "0E8": case "0AB": case "0AC": case "14A": case "149": {   // EFFECT_PROTECT (:1904)
                 boolean teamProtect = f.equals("0AB") || f.equals("0AC") || f.equals("14A");
                 boolean dbl = AiDoublesScore.isDouble(battle, atk);
                 if (teamProtect && !dbl) { r.viability -= 10; return true; }                      // !IS_DOUBLE_BATTLE

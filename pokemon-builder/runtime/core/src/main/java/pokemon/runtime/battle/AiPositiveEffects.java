@@ -209,7 +209,7 @@ final class AiPositiveEffects {
                     if (!AiDoublesScore.isDouble(ctx.battle, atk)) {
                         return AiPositiveHelpers.goodIdeaToLowerSpeed(ctx, def, atk, move, 1) ? inc(viability, 3) : viability;
                     }
-                    if (!def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY"}) && !defAbility.equals("CONTRARY")
+                    if (!def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST"}) && !defAbility.equals("CONTRARY")
                             && def.stage(PBStats.SPEED) > -6) {
                         return AiDoublesScore.increaseSpeedControl(ctx, viability, cls, atk, def)[0];
                     }
@@ -362,7 +362,7 @@ final class AiPositiveEffects {
                 return viability;
             }
             case "0A7": {                                                                          // EFFECT_FORESIGHT (:1378)
-                if (atkAbility.equals("SCRAPPY")) return viability;
+                if (atkAbility.equals("SCRAPPY") || atkAbility.equals("MINDSEYE")) return viability;   // Mind's Eye: Normal/Fighting hit Ghost
                 if (def.stage(EVA) > 0 || (def.hasType("GHOST")
                         && (AiCalc.damagingTypeInMoveset(ctx, atk, "NORMAL") || AiCalc.damagingTypeInMoveset(ctx, atk, "FIGHTING")))) {
                     viability = incStatus(ctx, viability, cls, 2, atk, def);

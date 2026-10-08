@@ -251,6 +251,9 @@ public final class PBEffects {
 
         /** {@code 场地:477 CaptureNetUser = 305}. */
         public static final int CaptureNetUser = 305;
+
+        /** Project addition: 纱幕 (VEIL, function 221) protect effect; no Ruby source (306 is free in the plugin). */
+        public static final int VeilGuard = 306;
     }
 
     /**

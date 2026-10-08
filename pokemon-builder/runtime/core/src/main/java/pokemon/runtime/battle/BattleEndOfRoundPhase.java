@@ -820,6 +820,7 @@ public final class BattleEndOfRoundPhase {
             e.set(PBEffects.Battler.BurningJealousy, false);                          // :786
             e.set(PBEffects.Battler.LashOut, false);                                  // :787
             e.set(PBEffects.Battler.Obstruct, false);                                 // :788
+            e.set(PBEffects.Battler.VeilGuard, false);                                // project addition: Veil
             b.lastHPLost = 0;                                                         // :789
             b.lastHPLostFromFoe = 0;                                                  // :790
             b.tookDamage = false;                                                     // :791

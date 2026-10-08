@@ -52,7 +52,7 @@ final class AiPositiveMore {
                 return viability;
             }
             case "10C": return substitute(ctx, atk, def, viability, cls);                          // EFFECT_SUBSTITUTE (:886)
-            case "0AA": case "14B": case "14C": case "168": case "1CC": case "0E8": case "0AB": case "0AC": case "14A": case "149":
+            case "0AA": case "14B": case "14C": case "168": case "1CC": case "221": case "0E8": case "0AB": case "0AC": case "14A": case "149":
                 return protect(ctx, atk, def, move, viability, cls, atkAbility);                       // EFFECT_PROTECT (:1132)
             case "0EE": case "151":                                                                // EFFECT_BATON_PASS: U-Turn, Volt Switch, Parting Shot (:1496)
                 return pivot(ctx, atk, def, move, viability, cls);

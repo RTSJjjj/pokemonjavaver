@@ -1007,7 +1007,7 @@ final class AiSwitching {
         boolean keenEye = false;
         for (Battler b : AiDoublesScore.foes(battle, user)) {
             unaware |= b.hasActiveAbility("UNAWARE");
-            keenEye |= b.hasActiveAbility("KEENEYE");
+            keenEye |= b.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE"});
         }
         if (user.stage(PBStats.EVASION) >= 3 && !unaware && !keenEye) return NONE;                  // :1020
         if (user.hasActiveAbility("EARLYBIRD") || user.hasActiveAbility("SHEDSKIN")

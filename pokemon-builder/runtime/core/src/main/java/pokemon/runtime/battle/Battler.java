@@ -934,6 +934,7 @@ public final class Battler {
         effects.set(PBEffects.Battler.LashOut, false);                 // :318
         effects.set(PBEffects.Battler.BurningJealousy, false);         // :319
         effects.set(PBEffects.Battler.Obstruct, false);                // :320
+        effects.set(PBEffects.Battler.VeilGuard, false);               // project addition: Veil
         effects.set(PBEffects.Battler.TarShot, false);                 // :321
         effects.set(PBEffects.Battler.BlunderPolicy, false);           // :322
         effects.set(PBEffects.Battler.SwitchedAlly, -1);               // :323
@@ -3301,7 +3302,7 @@ public final class Battler {
     /** {@code pbLowerStatStageByAbility} (Battler_StatStages:289-306)。 */
     public boolean pbLowerStatStageByAbility(int stat, int increment, Battler user,
                                              boolean splashAnim, boolean checkContact) {
-        if (hasActiveAbility(new String[] {"WATCHDOGEYE", "GUARDDOG"})
+        if (hasActiveAbility(new String[] {"WATCHDOGEYE", "GUARDDOG", "FEARLESS"})
                 && user != null && "INTIMIDATE".equals(user.ability)) {         // :290-291
             return pbRaiseStatStageByAbility(stat, increment, this, true);      // :292
         }

@@ -304,16 +304,23 @@ final class AiPartner {
         return false;
     }
 
+    /** The engine's {@code unseenfist} (BattleSuccessChecks): contact moves of these abilities ignore the protect family. */
+    static boolean ignoresProtect(Battler atk, BattleMove move) {
+        String a = atk.ability == null ? "" : atk.ability;
+        return (a.equals("UNSEENFIST") || a.equals("PIERCINGDRILL") || a.equals("TRANSLUCENTGHOST")) && AiCalc.fx(move).contactMove(move);
+    }
+
     /** {@code DoesProtectionMoveBlockMove(bankAtk,bankDef,atkMove,protectMove)} (accuracy_calc.c:286). */
     static boolean doesProtectionMoveBlockMove(Battle battle, Battler atk, Battler def, BattleMove atkMove, BattleMove protectMove) {
         if (protectMove == null || atkMove == null) return false;
         boolean protectFlag = AiCalc.has(atkMove, 'b');
         boolean status = atkMove.statusMove();
         if (AiCalc.named(atkMove, "FEINT", "HYPERSPACEFURY", "HYPERSPACEHOLE", "PHANTOMFORCE", "SHADOWFORCE")) return false;   // gMovesThatLiftProtectTable
+        if (ignoresProtect(atk, atkMove)) return false;                                         // Unseen Fist / Piercing Drill / Translucent Ghost
         int target = AiCalc.fx(atkMove).pbTarget(atkMove, atk);
         switch (protectMove.function()) {
-            case "0AA": case "14C": case "168": case "1CC": return protectFlag;                                 // Protect, Spiky Shield, Baneful Bunker
-            case "14B": return protectFlag && !status;                                              // King's Shield (and Obstruct)
+            case "0AA": case "14C": case "168": case "221": return protectFlag;                                 // Protect, Spiky Shield, Baneful Bunker
+            case "14B": case "1CC": return protectFlag && !status;                                              // King's Shield (and Obstruct)
             case "149": return AiCalc.firstTurn(def) && protectFlag && !status;                    // Mat Block
             case "14A": return target != PBTargets.User && status;                                  // Crafty Shield
             case "0AB": return protectFlag && AiCalc.priorityCalc(battle, atk, atkMove) > 0;        // Quick Guard

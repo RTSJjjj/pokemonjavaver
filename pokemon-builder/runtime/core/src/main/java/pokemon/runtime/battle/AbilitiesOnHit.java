@@ -221,6 +221,13 @@ final class AbilitiesOnHit {
                     user, target, move, type, "GRASS", PBStats.ATTACK, 1, battle);    // :674
         });
 
+        // 狂暴身躯 (ANGRYBODY): project addition, pbs-only ability with no plugin script - immune to Fairy moves, Attack +1 when hit by one
+        // (the Sap Sipper pattern).
+        BattleHandlers.MoveImmunityTargetAbility.add("ANGRYBODY",
+                (ability, user, target, move, type, battle) ->
+                        BattleHandlerHelpers.pbBattleMoveImmunityStatAbility(
+                                user, target, move, type, "FAIRY", PBStats.ATTACK, 1, battle));
+
         BattleHandlers.MoveImmunityTargetAbility.add("SOUNDPROOF",
                 (ability, user, target, move, type, battle) -> {
             // BattleHandlers_Abilities.rb:678-692

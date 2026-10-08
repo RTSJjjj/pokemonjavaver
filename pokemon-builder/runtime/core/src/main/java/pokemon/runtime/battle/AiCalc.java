@@ -562,7 +562,7 @@ final class AiCalc {
     }
 
     /** {@code EFFECT_PROTECT} function codes, from the movefx classes (Endure 0E8 is a different effect). */
-    static final String[] PROTECT = {"0AA", "14B", "14C", "168", "1CC"};   // Protect/Detect, King's Shield, Spiky Shield, Baneful Bunker (movefx table); 1CC Burning Bulwark / original Veil: same class (PokeBattle_ProtectMove)
+    static final String[] PROTECT = {"0AA", "14B", "14C", "168", "1CC", "221"};   // Protect/Detect, King's Shield, Spiky Shield, Baneful Bunker (movefx table); 1CC Burning Bulwark / original Veil: same class (PokeBattle_ProtectMove)
 
     /** {@code MoveThatCanHelpAttacksHitInMoveset(bank)} (ai_util.c:4207): accuracy-up / evasion-down moves and Lock-On. */
     static boolean moveThatCanHelpAttacksHitInMoveset(AiCtx ctx, Battler b) {
@@ -585,7 +585,8 @@ final class AiCalc {
     /** {@code IsMoxieAbility(ability)}. */
     static boolean isMoxie(String ability) {
         return "MOXIE".equals(ability) || "BEASTBOOST".equals(ability) || "CHILLINGNEIGH".equals(ability)
-                || "GRIMNEIGH".equals(ability) || "ASONEGHOST".equals(ability);
+                || "GRIMNEIGH".equals(ability) || "ASONEGHOST".equals(ability)
+                || "FEARLESS".equals(ability) || "DRAGONSOULCRY".equals(ability);   // engine: copy(MOXIE, CHILLINGNEIGH, FEARLESS, DRAGONSOULCRY)
     }
 
     /** {@code CanHealFirstToPreventKnockOut(bankAtk,foe)} (ai_util.c:2478): a healing move that goes first and keeps the foe from a KO. */
@@ -875,10 +876,10 @@ final class AiCalc {
         if (def.stage(stat) <= -6) return false;
         if (def.pbOwnSide().effects.intVal(PBEffects.Side.Mist) > 0) return false;
         if (!atk.hasMoldBreaker()) {
-            if (def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "MIRRORARMOR"})) return false;
+            if (def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "MIRRORARMOR", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST"})) return false;
             if (stat == PBStats.ATTACK && def.hasActiveAbility("HYPERCUTTER")) return false;
             if (stat == PBStats.DEFENSE && def.hasActiveAbility("BIGPECKS")) return false;
-            if (stat == PBStats.ACCURACY && def.hasActiveAbility("KEENEYE")) return false;
+            if (stat == PBStats.ACCURACY && def.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE"})) return false;
         }
         return true;
     }

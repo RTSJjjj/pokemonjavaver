@@ -120,7 +120,7 @@ class MoveFxTest {
     @Test
     @DisplayName("L2: every PokeBattle_Move_XXX code is registered (PokeBattle_Move.rb:51-59)")
     void functionCodesAreRegistered() {
-        assertEquals(526, MoveEffectRegistry.size(), "526 classes across the 7 movefx files");
+        assertEquals(528, MoveEffectRegistry.size(), "526 plugin classes + project additions 220 (Bone Wind) and 221 (Veil)");
 
         assertTrue(MoveEffectRegistry.of("000") instanceof MoveEffects_000_07F.PokeBattle_Move_000);
         assertTrue(MoveEffectRegistry.of("0DD") instanceof MoveEffects_0D5_0FF.PokeBattle_Move_0DD);

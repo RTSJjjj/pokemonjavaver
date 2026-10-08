@@ -58,7 +58,8 @@ public final class BattleSuccessChecks {
 
     /** {@code unseenfist} (Battler_UseMove_SuccessChecks:387-388). */
     private static boolean unseenFist(BattleMove move, Battler user) {
-        return ("UNSEENFIST".equals(user.ability) || "PIERCINGDRILL".equals(user.ability))
+        return ("UNSEENFIST".equals(user.ability) || "PIERCINGDRILL".equals(user.ability)
+                || "TRANSLUCENTGHOST".equals(user.ability))     // TRANSLUCENTGHOST = Unseen Fist + Clear Body (project description; the Clear Body half is in AbilitiesStatus)
                 && MoveEffectRegistry.of(move.function()).contactMove(move);       // :387-388 && move.contactMove?
     }
 
@@ -158,6 +159,15 @@ public final class BattleSuccessChecks {
                     }
                 }
                 return false;                                                                    // :450
+            }
+            // project addition (moves.json VEIL, function 221): protects like Protect; a blocked special move lowers the attacker's accuracy
+            if (target.effects.truthy(PBEffects.Battler.VeilGuard) && !unseenfist) {
+                battle.display(target.pbThis() + "保护了自己！");
+                target.damageState.protectedFlag = true;
+                if (effect.specialMove(move, null) && user.pbCanLowerStatStage(PBStats.ACCURACY)) {
+                    user.pbLowerStatStage(PBStats.ACCURACY, 1, null);
+                }
+                return false;
             }
             // :452-464 King's Shield (lowers the attacker's Attack on contact)
             if (target.effects.truthy(PBEffects.Battler.KingsShield)                            // :453

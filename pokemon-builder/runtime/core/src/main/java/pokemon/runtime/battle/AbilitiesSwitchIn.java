@@ -439,7 +439,7 @@ final class AbilitiesSwitchIn {
                     continue;
                 }
                 boolean checkItem = true;                                    // :2624
-                if (b.hasActiveAbility(new String[] {"CONTRARY", "GUARDDOG"})) { // :2625
+                if (b.hasActiveAbility(new String[] {"CONTRARY", "GUARDDOG", "FEARLESS"})) { // :2625
                     if (b.statStageAtMax(PBStats.ATTACK)) {                  // :2626
                         checkItem = false;
                     }

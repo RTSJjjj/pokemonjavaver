@@ -15,29 +15,32 @@ the project originals are 236/259-312 are Gen 9, 400-480 mostly originals). Engi
 - Moves using vanilla codes (013 confuse, 00F flinch, 043/046/047/04E stat drops, 0A9, 070 OHKO, 0EF, 0C0, 0CF, 074, 121, 147, 1B6 flinch...) already go through
   the existing code tables; their damage comes from the engine calc.
 
-## Needs your decision / source (reported, not guessed)
-Move data vs. effect class mismatches (the effect class that actually runs is the one in the function column):
-| move | function | what the class does | description says |
+## Move function codes fixed in moves.json (user confirmed: descriptions are right)
+| move | was | now | note |
 |---|---|---|---|
-| LIGHTABSORPTION 光能吸收 | 1C9 | doubles power if an ally fainted (power 0 status -> nothing happens) | heal half HP |
-| MURKYMIST 晦暗之雾 | 1D6 | Grave-digger power +50/fainted ally (status, power 0 -> nothing) | smoke on our side |
-| VEIL 纱幕 | 1CC | Burning Bulwark (protect + burn on contact) | protect, lower accuracy vs special |
-| BONEWIND 蚀骨风 | 04E | Captivate (Sp. Atk -2 vs opposite gender) | lower Def and Sp. Def |
-| ECSTASYPALM 销魂掌 | 043 | Defense -1 chance | flinch chance |
-| SOULCRUSH 命断魂破 | 150 | Fell Stinger (+Atk on KO) | recoil |
-| NIGHTUNENDING 永夜未央 | 210 | frostbite + bonus damage | lowers Attack |
-| SOULREND 通幽绝杀 | 211 | burn + bonus damage | double damage if statused |
-| ABYSSSHADOW 深渊暗影 | 1B2 | SUJINRAKU only | generic |
-Please confirm whether the moves.json function codes or the descriptions are right; the AI follows the function code.
+| LIGHTABSORPTION | 1C9 | 0D5 (recover half) | |
+| ECSTASYPALM | 043 | 00F (flinch) | effectChance 30 already |
+| SOULCRUSH | 150 | 0FB (recoil 1/3) | ASSUMPTION: fraction not in the description; 0FB = Brave Bird (also 120 power) |
+| NIGHTUNENDING | 210 | 042 (Attack -1) | effectChance 0 -> 100 (a 0 chance never fires) |
+| SOULREND | 211 | 07F (Hex, x2 on status) | |
+| BONEWIND | 04E | 220 (new: Def and Sp. Def -1) | new class `PokeBattle_Move_220`, a thin `TargetMultiStatDownMove` |
+| VEIL | 1CC | 221 (new protect) | new class `PokeBattle_Move_221` + `PBEffects.Battler.VeilGuard`; blocks like Protect, a blocked special move lowers the attacker's accuracy by 1 (ASSUMPTION: 1 stage) |
+Still open: **MURKYMIST** (1D6 is a damaging move; "our side wrapped in smoke, power rises with fainted allies" has no matching code - tell me the intended effect) and **ABYSSSHADOW** (1B2 is SUJINRAKU-only by design; kept).
 
-Abilities that are in `abilities.json` but have **no script at all** in `103_BattleHandlers_Abilities.rb` / the Java engine (they do nothing in battle, so the AI
-cannot classify them): **COMBATMACHINE 战斗机器, ANGRYBODY 狂暴身躯** (no hook, no inline check). If their code lives in a file I do not have, please upload it.
-Also with only inline (non-hook) logic: UNSEENFIST, ARMORTAIL, GUARDDOG, LINGERINGAROMA, MINDSEYE, *OFRUIN, SAVAGECEREMONY, NOBLESTRIKE, FLAMEVEIL, SHATTERFIST,
-FEARLESS, CALAMITYAERIAL, SPOVERLORD, DRAGONSOULCRY, CLEARHEART, TRANSLUCENTGHOST, LIBERO.
+## Abilities with no script: added
+- COMBATMACHINE = Neuroforce (user x1.25 on super effective) + Filter (target x0.75), handler copies.
+- ANGRYBODY = Fairy immunity + Attack +1 (Sap Sipper pattern).
+(Java only; the Ruby plugin source was not edited.)
 
-## Not classified yet (no CFRU category to attach them to; AI treats them as 0-rated, like an unlisted ability in `gAbilityRatings`)
-Weather/terrain setters (BESTOWEDRAIN, STORMEYE, RAINBOWARCH, ORICHALCUMPULSE, ETERNALFLAME, CALAMITY*, BUGLURESURGE, COLDSURGE, ROSE*, HADRONENGINE...),
-priority changers (TRAPTRICK, FAIRYDANCE, SOUNDSTRIDE, ARMORTAIL, QUICKDRAW), reborn abilities (SACREDREBORN, ABYSSREBORN), trapping (DSOVERLORD, CONFESSIONLIST),
-status immunity (PLAYFULHEART, RAINCURTAIN, PURIFYINGSALT), damage-multiplier abilities. CFRU's AI has per-ability code only for the ~130 abilities listed in
-`AiPositiveHelpers`/`AiNegatives`/`AiSwitching`; the rest relies on the engine's real damage calc, which already includes these abilities' multipliers.
-Say which of these groups you want mapped (each needs a decision on what the AI should *do* with it, e.g. "treat BESTOWEDRAIN like DRIZZLE for partner weather checks").
+## Official Gen 8/9 abilities now classified into the AI
+- Unseen Fist, Piercing Drill, Translucent Ghost (contact moves ignore the protect family): `AiPartner.ignoresProtect`; engine `unseenFist` now also covers Translucent Ghost.
+- Translucent Ghost / Noble Strike / Eternal Star: Clear Body family in all stat-lowering checks (they share the engine's StatLossImmunity copy).
+- Armor Tail: Dazzling family (priority moves). Clear Heart: Magic Bounce family. Mind's Eye: Keen Eye family (+ Scrappy for Ghost).
+- Fearless and Dragon Soul Cry: Moxie family (`AiCalc.isMoxie`). Fearless is also a Guard Dog (Intimidate raises Attack): engine `pbLowerStatStageByAbility` and the Intimidate switch-in check.
+- Guard Dog: unchanged in the AI (Intimidate/phaze immunity are engine side; the CFRU AI has no Intimidate or Suction Cups scoring to attach to).
+- Swords/Tablets/Vessel/Beads of Ruin: permanent field stat drops, already in the engine damage calc; the AI uses that calc, so nothing to map.
+
+## Not classified yet (for you)
+LIBERO, SAVAGECEREMONY, RAPIDASH, SHATTERFIST, FLAMEVEIL, CALAMITYAERIAL, SPOVERLORD, LINGERINGAROMA, GHASTLYWAIL, NETHERDRIVE (script exists, no category decided);
+weather/terrain setters (BESTOWEDRAIN, STORMEYE, RAINBOWARCH, ORICHALCUMPULSE, ETERNALFLAME, CALAMITY*, BUGLURESURGE, COLDSURGE, ROSE*, HADRONENGINE...), priority changers
+(TRAPTRICK, FAIRYDANCE, SOUNDSTRIDE, QUICKDRAW), reborn (SACREDREBORN, ABYSSREBORN), trapping (DSOVERLORD, CONFESSIONLIST), status immunity (PLAYFULHEART, RAINCURTAIN, PURIFYINGSALT).

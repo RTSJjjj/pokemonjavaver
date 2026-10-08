@@ -81,6 +81,9 @@ final class AbilitiesDamageTarget {
             }
         });
         BattleHandlers.DamageCalcTargetAbility.copy("FILTER", "SOLIDROCK");      // :1277
+        // 战斗机器 (COMBATMACHINE): project addition, pbs-only ability with no plugin script. Description: stronger super-effective
+        // moves (the target half is Filter's x0.75; the user half is Neuroforce's x1.25 in AbilitiesDamageUser).
+        BattleHandlers.DamageCalcTargetAbility.copy("FILTER", "COMBATMACHINE");
 
         BattleHandlers.DamageCalcTargetAbility.add("FLOWERGIFT", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:1279-1288

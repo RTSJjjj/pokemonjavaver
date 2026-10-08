@@ -260,6 +260,26 @@ public final class MoveEffects_Extra {
         }
     }
 
+    /**
+     * Project addition (no Ruby source): 蚀骨风 (BONEWIND) - the damaging "lower the target's Defense and Sp. Def" hit.
+     * moves.json had 04E (Captivate), which does not match the description.
+     */
+    public static class PokeBattle_Move_220 extends MoveEffectsGeneric.PokeBattle_TargetMultiStatDownMove {
+        public PokeBattle_Move_220() {
+            statDown = new int[] {PBStats.DEFENSE, 1, PBStats.SPDEF, 1};
+        }
+    }
+
+    /**
+     * Project addition (no Ruby source): 纱幕 (VEIL) - a protect move ({@code PokeBattle_ProtectMove}) that lowers the accuracy of a
+     * Pokemon whose special move it blocks (BattleSuccessChecks, {@code PBEffects::VeilGuard}). moves.json had 1CC (Burning Bulwark).
+     */
+    public static class PokeBattle_Move_221 extends MoveEffectsGeneric.PokeBattle_ProtectMove {
+        public PokeBattle_Move_221() {
+            this.effect = PBEffects.Battler.VeilGuard;
+        }
+    }
+
     /** {@code class PokeBattle_Move_204 < PokeBattle_Move} (Arceus:486-516). */
     public static class PokeBattle_Move_204 extends MoveEffectBase {
 
@@ -835,6 +855,8 @@ public final class MoveEffects_Extra {
      * after the class set changes.</p>
      */
     static void register() {
+        MoveEffectRegistry.register("220", PokeBattle_Move_220::new);
+        MoveEffectRegistry.register("221", PokeBattle_Move_221::new);
         MoveEffectRegistry.register("200", PokeBattle_Move_200::new);
         MoveEffectRegistry.register("201", PokeBattle_Move_201::new);
         MoveEffectRegistry.register("202", PokeBattle_Move_202::new);

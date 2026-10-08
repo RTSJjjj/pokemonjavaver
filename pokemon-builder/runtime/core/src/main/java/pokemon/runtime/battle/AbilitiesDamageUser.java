@@ -193,6 +193,8 @@ final class AbilitiesDamageUser {
             }
         });
 
+        BattleHandlers.DamageCalcUserAbility.copy("NEUROFORCE", "COMBATMACHINE");   // project addition (see AbilitiesDamageTarget)
+
         BattleHandlers.DamageCalcUserAbility.add("OVERGROW", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:1041-1048
             if (user.hp <= user.maxHp() / 3 && "GRASS".equals(type)) {        // :1043

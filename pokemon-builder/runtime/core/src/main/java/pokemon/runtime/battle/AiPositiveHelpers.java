@@ -316,7 +316,7 @@ final class AiPositiveHelpers {
 
     static boolean goodIdeaToRaiseEvasion(AiCtx ctx, Battler atk, Battler def, int amount) {
         return !badIdeaToRaise(ctx, atk, def, PBStats.EVASION, amount)
-                && !(def.hasActiveAbility("KEENEYE") || atk.effects.truthy(PBEffects.Battler.Foresight) || atk.effects.truthy(PBEffects.Battler.MiracleEye));
+                && !(def.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE"}) || atk.effects.truthy(PBEffects.Battler.Foresight) || atk.effects.truthy(PBEffects.Battler.MiracleEye));
     }
 
     /** {@code GetTeamMaxSpeed(bank)}: the fastest able Pokemon on the battler's side (the party's own speed). */
@@ -351,10 +351,10 @@ final class AiPositiveHelpers {
     }
 
     private static boolean abilityBlocksLowering(Battler def, int stat) {
-        return def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "CONTRARY", "DEFIANT", "COMPETITIVE", "MIRRORARMOR"})
+        return def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST", "CONTRARY", "DEFIANT", "COMPETITIVE", "MIRRORARMOR"})
                 || (stat == PBStats.ATTACK && def.hasActiveAbility("HYPERCUTTER"))
                 || (stat == PBStats.DEFENSE && def.hasActiveAbility("BIGPECKS"))
-                || (stat == PBStats.ACCURACY && def.hasActiveAbility("KEENEYE"));
+                || (stat == PBStats.ACCURACY && def.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE"}));
     }
 
     private static boolean lowerNotWorthIt(AiCtx ctx, Battler def, Battler atk, BattleMove move) {

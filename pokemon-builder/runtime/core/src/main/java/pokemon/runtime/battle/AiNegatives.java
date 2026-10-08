@@ -104,7 +104,7 @@ final class AiNegatives {
                     case "BULLETPROOF":
                         if (AiCalc.has(move, 'n')) return clamp(dec(viability, 10));
                         break;
-                    case "DAZZLING": case "QUEENLYMAJESTY":
+                    case "DAZZLING": case "QUEENLYMAJESTY": case "ARMORTAIL":
                         if (AiCalc.priorityCalc(battle, atk, move) > 0) return clamp(dec(viability, 10));
                         break;
                     case "AROMAVEIL":                                                                // gAromaVeilProtectedMoves: Taunt, Torment, Encore, Disable, Heal Block, Attract
@@ -118,7 +118,7 @@ final class AiNegatives {
                             return clamp(dec(viability, 10));
                         }
                         break;
-                    case "MAGICBOUNCE":
+                    case "MAGICBOUNCE": case "CLEARHEART":
                         if (AiCalc.has(move, 'c')) return clamp(dec(viability, 20));
                         break;
                     case "CONTRARY":
@@ -127,13 +127,13 @@ final class AiNegatives {
                     case "MIRRORARMOR":
                         if (status && AiPartner.statLowering(move)) return clamp(dec(viability, 20));   // bad even when attacking a partner
                         break;
-                    case "CLEARBODY": case "WHITESMOKE": case "FULLMETALBODY":
+                    case "CLEARBODY": case "WHITESMOKE": case "FULLMETALBODY": case "NOBLESTRIKE": case "ETERNALSTAR": case "TRANSLUCENTGHOST":   // project: same StatLossImmunity copy
                         if (status && (AiPartner.statLowering(move) || AiCalc.named(move, "PARTINGSHOT"))) return clamp(dec(viability, 10));
                         break;
                     case "HYPERCUTTER":
                         if (status && AiCalc.oneOf(move, "042", "04B")) return clamp(dec(viability, 10));         // EFFECT_ATTACK_DOWN(_2)
                         break;
-                    case "KEENEYE":
+                    case "KEENEYE": case "MINDSEYE":
                         if (status && AiCalc.oneOf(move, "047")) return clamp(dec(viability, 10));
                         break;
                     case "BIGPECKS":
@@ -184,7 +184,7 @@ final class AiNegatives {
                     case "STORMDRAIN":
                         if ("WATER".equals(moveType) && !redirectionPrevented) return clamp(dec(viability, 20));
                         break;
-                    case "MAGICBOUNCE":
+                    case "MAGICBOUNCE": case "CLEARHEART":
                         if (AiCalc.has(move, 'c') && (spreadMove || foeField)) return clamp(dec(viability, 20));
                         break;
                     case "SWEETVEIL":
@@ -198,7 +198,7 @@ final class AiNegatives {
                     case "AROMAVEIL":
                         if (status && AiCalc.named(move, "TAUNT", "TORMENT", "ENCORE", "DISABLE", "HEALBLOCK", "ATTRACT")) return clamp(dec(viability, 10));
                         break;
-                    case "DAZZLING": case "QUEENLYMAJESTY":
+                    case "DAZZLING": case "QUEENLYMAJESTY": case "ARMORTAIL":
                         if (AiCalc.priorityCalc(battle, atk, move) > 0) return clamp(dec(viability, 10));
                         break;
                     default:

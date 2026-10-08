@@ -319,4 +319,26 @@ class AiPartnerTest {
         assertEquals(2, AiSwitching.replacement(b, user, new Random(1)));
         assertEquals(-1, b.aiPivotTo[1], "consumed");
     }
+
+    @Test
+    @DisplayName("Unseen Fist / Translucent Ghost: contact moves ignore the protect family in the AI's block check")
+    void contactMovesIgnoreProtectWithUnseenFist() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler user = b.battlerAt(0);
+        BattleMove tackle = user.moveSlot(0);
+        user.ability = "TRANSLUCENTGHOST";
+        assertTrue(AiPartner.ignoresProtect(user, tackle));
+        user.ability = "UNSEENFIST";
+        assertTrue(AiPartner.ignoresProtect(user, tackle));
+        user.ability = "BLAZE";
+        assertFalse(AiPartner.ignoresProtect(user, tackle));
+    }
+
+    @Test
+    @DisplayName("Fearless / Dragon Soul Cry share Moxie's handler, so the AI treats them as Moxie abilities")
+    void moxieFamily() {
+        assertTrue(AiCalc.isMoxie("FEARLESS"));
+        assertTrue(AiCalc.isMoxie("DRAGONSOULCRY"));
+        assertFalse(AiCalc.isMoxie("BLAZE"));
+    }
 }
