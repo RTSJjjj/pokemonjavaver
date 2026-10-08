@@ -473,6 +473,9 @@ public final class Battle {
         Array<Battler> party = partyOf(idxBattler);
         return idxParty < 0 || idxParty >= party.size ? null : party.get(idxParty);
     }
+    /** {@code @items[1]}: the opposing trainer's items (TrainerData.items), consumed by {@link AiItems}. */
+    public final java.util.List<String> foeItems = new java.util.ArrayList<>();
+
     /** {@code gNewBS->ai.didTypeAbsorbSwitchToMonBefore[side]}: party-index bitmask per side (AiSwitching). */
     final int[] aiAbsorbSwitched = new int[2];
     /** {@code gNewBS->ai.typeAbsorbSwitchingCooldown}: the round of the last type-absorb switch per side, null = never. */
@@ -564,6 +567,12 @@ public final class Battle {
             Battler incoming = battlerAt(b.index);
             if (incoming != null) incoming.pbEffectsOnSwitchIn(true);   // :69
             if (result() != null) return false;
+        }
+        for (Battler b : pbPriority(false)) {                      // 139_Battle_Phase_Attack:73 pbAttackPhaseItems
+            if (b.fainted() || pbOwnedByPlayer(b.index)) continue;
+            Object[] c = choices(b.index);
+            if (!":UseItem".equals(c[0]) || !(c[1] instanceof String) || ((String) c[1]).isEmpty()) continue;   // :74, :77
+            AiItems.use(this, b, (String) c[1]);
         }
         return true;
     }
@@ -2325,10 +2334,15 @@ public final class Battle {
         if (":UseMove".equals(c[0]) && c[2] != null && user.hasUsableMove()) {
             return;                                                // registered by pbRegisterMove
         }
-        // CFRU AI_TrySwitchOrUseItem (ai_master.c:948): a trainer's Pokemon may switch instead of attacking
+        // CFRU AI_TrySwitchOrUseItem (ai_master.c:948): a trainer's Pokemon may switch instead of attacking;
+        // then the plugin's pbEnemyShouldUseItem? (142_PokeBattle_AI.rb:168-170)
         if (controller == null && user.foe && trainerBattle && singleBattle() && !user.fainted()) {
             int idxSwitch = AiSwitching.decide(this, user, random);
             if (idxSwitch >= 0 && registerSwitch(user.index, idxSwitch)) {
+                return;
+            }
+            String item = AiItems.choose(this, user, random);
+            if (item != null && AiItems.register(this, user, item)) {
                 return;
             }
         }

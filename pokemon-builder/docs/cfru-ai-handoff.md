@@ -53,13 +53,22 @@ plays it (Battle_Phase_Attack:50-71) before the moves, and `Battle.defaultChoose
 Disguise/Imposter/Trace/Dynamax/Steelsurge on the incoming Pokemon, Wish recovery, `switchingCooldown` (read as "no turn yet"; its setter is outside the cached files),
 the player's and the opponent's switches of one round run player first. Doubles are phase 4.
 
+## Phase 3: enemy item use (done, singles)
+Not CFRU's `ShouldAIUseItem` (it needs CFRU's item-effect table, which the project's items lack) but the plugin's own item AI, `143_AI_Item.rb`
+(`pbEnemyShouldUseItem?` / `pbEnemyItemToUse`), which `pbDefaultChooseEnemyCommand` calls right after the withdraw check (142_PokeBattle_AI.rb:168-170): `AiItems`.
+`Battle.foeItems` holds `TrainerData.items` (filled in `InteractiveBattlePort.Session`), `chooseFor` registers `:UseItem` after the switch decision,
+`pbAttackPhaseSwitchOpposing` runs the opposing `:UseItem`s (139_Battle_Phase_Attack:72-93).
+登记: the item handlers `triggerCanUseInBattle` / `BattleUseOnBattler` (PItem_BattleItemEffects) are not in the plugin source here - "can use" is read as
+missing HP / matching status / stat below +6, healing amounts are `ItemUse.healValue`, X items use the stat/stages of the plugin's own `xItems` table, and the per-item
+result messages are not shown (only `pbUseItemMessage`). Doubles trainers' item lists (`@items[owner]`) are phase 4.
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.
 3. Target-ability cases needing `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (ai_negatives.c:222-324).
 4. `BadIdeaToMakeContactWith`, `BetterToKOLastFoeMon`, `HasUsedMove` history, `usingDesperateMove`, `NoUsableHazardsInMoveset`,
    Focus Sash / Sturdy damage clamps, Parental Bond, `BracketCalc`, critical-hit chance in `AI_CalcDmg`.
-5. Item use (`ShouldAIUseItem`), doubles (`ChooseMoveOrAction_Doubles`, ai_partner.c) and the doubles half of switching.
+5. Doubles (`ChooseMoveOrAction_Doubles`, ai_partner.c) and the doubles half of switching.
 
 ## Function-code mappings used (Essentials numbering; not checked against this project's moves.json)
 Counter/Mirror Coat/Metal Burst 071-073, Future Sight 111, Explosion 0E0, Recharge 0C2, charge turn 0C3-0CE, OHKO 070, fixed damage 06A-06F,

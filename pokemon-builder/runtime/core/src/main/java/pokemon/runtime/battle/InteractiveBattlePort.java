@@ -293,6 +293,7 @@ public final class InteractiveBattlePort implements BattlePort {
             // then the "anims"/"noanims" rule.
             battle.showAnims = battleAnimsRule != null ? battleAnimsRule : battlescene == 0;
             battle.trainerBattle = trainerBattle;
+            if (trainerBattle && trainerData != null) for (String it : trainerData.items) battle.foeItems.add(it);   // @items (PField_Battles:pbTrainerBattleCore items)
             battle.playerName = trainer.name;
             battle.expGain = expGain;       // PField_Battles:105
             battle.levelLockOn = levelLockOn;

@@ -257,4 +257,43 @@ class AiCfruTest {
         battle.foe().setHp(0);
         assertEquals(2, battle.defaultChooseNewEnemy(1));
     }
+
+    // ------------------------------------------------------------------
+    // Item use (143_AI_Item.rb)
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a trainer heals a Pokemon under a quarter of its HP with the smallest potion that covers the loss, never above half HP")
+    void trainerHealsLowHp() {
+        Battle battle = trainerBattle(mon("FAT", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler foe = battle.foe();
+        battle.foeItems.add("POTION");
+        battle.foeItems.add("HYPERPOTION");
+        foe.setHp(foe.maxHp() / 2 + 1);
+        for (int seed = 0; seed < 30; seed++) assertNull(AiItems.choose(battle, foe, new Random(seed)), "above half HP: never");
+        foe.setHp(foe.maxHp() / 8);
+        int chosen = 0;
+        for (int seed = 0; seed < 60; seed++) {
+            String item = AiItems.choose(battle, foe, new Random(seed));
+            if (item != null) {
+                chosen++;
+                assertEquals("HYPERPOTION", item, "POTION (20) does not cover the loss, HYPERPOTION (120) does");
+            }
+        }
+        assertTrue(chosen > 20, "30% are skipped, the rest use the item: " + chosen);
+    }
+
+    @Test
+    @DisplayName("registering an item spends the action and takes it out of the trainer's list; using it heals")
+    void trainerItemIsConsumedAndHeals() {
+        Battle battle = trainerBattle(mon("FAT", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler foe = battle.foe();
+        battle.foeItems.add("HYPERPOTION");
+        foe.setHp(1);
+        assertTrue(AiItems.register(battle, foe, "HYPERPOTION"));
+        assertTrue(battle.foeItems.isEmpty());
+        assertEquals(":UseItem", battle.choices(foe.index)[0]);
+        AiItems.use(battle, foe, "HYPERPOTION");
+        assertTrue(foe.hp > 100 || foe.hp == foe.maxHp());
+    }
 }
