@@ -401,8 +401,99 @@ final class AiPositiveEffects {
             case "103": case "104": case "105": case "153":                                        // EFFECT_SPIKES (:1360)
                 return hazards(ctx, atk, def, move, viability, cls);
             default:
+                return part3(ctx, atk, def, move, viability, cls, atkAbility, defAbility);
+        }
+    }
+
+    /**
+     * Part 3 (ai_positives.c:1760-2125): Fake Out, Hail, Torment, Will-O-Wisp, Memento, Taunt, Ingrain/Aqua Ring, Magic Coat, Brick Break.
+     * 登记: Trick/Bestow and Knock Off (item tables), Skill Swap family (ability ratings), Wish, Follow Me (doubles), Superpower/Overheat (Contrary).
+     */
+    private static int part3(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls, String atkAbility, String defAbility) {
+        Battle battle = ctx.battle;
+        String f = move.function();
+        BattleMove predicted = ctx.prediction(def);
+        switch (f) {
+            case "012": {                                                                          // EFFECT_FAKE_OUT (:1765): every singles class falls to the default +8
+                if (AiCalc.named(move, "FAKEOUT") && AiCalc.shouldUseFakeOut(ctx, atk, def)) viability = inc(viability, 8);
+                return viability;
+            }
+            case "102": {                                                                          // EFFECT_HAIL (:1773)
+                if (AiCalc.moveFunctionInMoveset(atk, "167")) {                                   // Aurora Veil usable
+                    if (cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_SWEEPER_SETUP_SCREENS) return inc(viability, 8);
+                }
+                if (atkAbility.equals("SNOWCLOAK") || atkAbility.equals("ICEBODY") || atkAbility.equals("FORECAST") || atkAbility.equals("SLUSHRUSH")
+                        || atkAbility.equals("MAGICGUARD") || atkAbility.equals("OVERCOAT") || AiCalc.named(firstNamed(atk, "BLIZZARD"), "BLIZZARD")
+                        || AiCalc.moveFunctionInMoveset(atk, "167") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
+                        || AiCalc.moveFunctionInMoveset(def, "0D8") || atk.hasActiveItem("ICYROCK")) {
+                    viability = incStatus(ctx, viability, cls, 2, atk, def);
+                }
+                return viability;
+            }
+            case "0B7":                                                                            // EFFECT_TORMENT (:1810)
+                return incStatus(ctx, viability, cls, AiCalc.choiceLocked(def) ? 2 : 0, atk, def);
+            case "00A": {                                                                          // EFFECT_WILL_O_WISP (:1818)
+                if (!badIdeaToBurn(ctx, def, atk)) {
+                    if (predicted != null && predicted.physical() && !predicted.statusMove() && AiCalc.knocksOutXHits(ctx, predicted, def, atk, 1)) {
+                        viability = incStatus(ctx, viability, cls, 3, atk, def);
+                    } else if (AiCalc.physicalMoveInMoveset(ctx, def) || AiCalc.named(firstNamed(atk, "INFERNALPARADE"), "INFERNALPARADE")) {
+                        viability = incStatus(ctx, viability, cls, 2, atk, def);
+                    } else {
+                        viability = incStatus(ctx, viability, cls, 1, atk, def);
+                    }
+                }
+                return viability;
+            }
+            case "0E2":                                                                            // EFFECT_MEMENTO: Memento (:1845)
+                return Math.max(0, viability - 5);
+            case "0BA": {                                                                          // EFFECT_TAUNT (:1873)
+                if (def.hasStatus("SLEEP") && !AiCalc.moveFunctionInMoveset(def, "0B4") && !AiCalc.willFaintFromSecondaryDamage(battle, atk)) {
+                    if (AiCalc.speed(atk) <= AiCalc.speed(def)) { if (def.statusCount > 2) return viability; }
+                    else if (def.statusCount > 1) return viability;                                // wait until the last possible turn
+                }
+                if (predicted != null && predicted.statusMove() || goodToTaunt(AiCalc.fightingStyle(ctx, def))) {
+                    return incStatus(ctx, viability, cls, 3, atk, def);
+                }
+                for (int i = 0; i < Battler.MOVES_MAX; i++) {                                      // StatusMoveInMoveset(bankDef)
+                    BattleMove m = def.moveSlot(i);
+                    if (m != null && m.statusMove()) return incStatus(ctx, viability, cls, 2, atk, def);
+                }
+                return viability;
+            }
+            case "0DA": case "0DB":                                                                // EFFECT_INGRAIN / Aqua Ring (:2002)
+                return incStatus(ctx, viability, cls, atk.hasActiveItem("BIGROOT") ? 2 : 1, atk, def);
+            case "0B1": {                                                                          // EFFECT_MAGIC_COAT (:2042)
+                if (predicted != null && predicted.statusMove() && AiCalc.has(predicted, 'c')) viability = incStatus(ctx, viability, cls, 3, atk, def);
+                return viability;
+            }
+            case "10A": {                                                                          // EFFECT_BRICK_BREAK (:2055), no raid shields
+                BattleSide side = def.pbOwnSide();
+                if (side.effects.intVal(PBEffects.Side.Reflect) > 0 || side.effects.intVal(PBEffects.Side.LightScreen) > 0
+                        || side.effects.intVal(PBEffects.Side.AuroraVeil) > 0) {
+                    viability = AiCalc.classSweeper(cls) ? inc(viability, 3) : incStatus(ctx, viability, cls, 2, atk, def);
+                }
+                return viability;
+            }
+            default:
                 return viability;
         }
+    }
+
+    /** {@code IsClassGoodToTaunt(class)} (ai_advanced.c:326). */
+    private static boolean goodToTaunt(int c) {
+        return c == AiCalc.CLASS_STALL || c == AiCalc.CLASS_SWEEPER_SETUP_SCREENS || c == AiCalc.CLASS_BATON_PASS || c == AiCalc.CLASS_CLERIC
+                || c == AiCalc.CLASS_SCREENS || c == AiCalc.CLASS_ENTRY_HAZARDS;
+    }
+
+    /** {@code BadIdeaToBurn(bankDef,bankAtk)} (ai_util.c:2951), single battle. */
+    private static boolean badIdeaToBurn(AiCtx ctx, Battler def, Battler atk) {
+        String d = def.ability == null ? "" : def.ability;
+        return !AiCalc.canBeBurned(ctx.battle, def, atk)
+                || d.equals("SHEDSKIN") || d.equals("QUICKFEET") || d.equals("MAGICGUARD")
+                || (d.equals("MARVELSCALE") && AiCalc.physicalMoveInMoveset(ctx, atk))
+                || (d.equals("FLAREBOOST") && AiCalc.specialMoveInMoveset(ctx, def))
+                || (d.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, def))
+                || hasNamed(def, "FACADE") || AiCalc.moveFunctionInMoveset(def, "01B");
     }
 
     private static BattleMove firstNamed(Battler b, String name) {

@@ -39,6 +39,9 @@ Every `HasUsedMove*` history test is treated as false (no used-move history).
 `AiPositiveEffects` part 2 (ai_positives.c:1010-1760): Destiny Bond, Nightmare, Curse, Foresight/Miracle Eye, Perish Song, Swagger/Flatter, Attract, Safeguard,
 Rollout, Fury Cutter, Belly Drum, Sun/Rain/Sandstorm, Pursuit, Baton Pass class bonus, and entry hazards (`IncreaseEntryHazardsViability`).
 
+## Batch 6 (done)
+`AiPositiveEffects` part 3 (ai_positives.c:1760-2125): Fake Out, Hail, Torment, Will-O-Wisp, Memento, Taunt, Ingrain/Aqua Ring, Magic Coat, Brick Break.
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.
