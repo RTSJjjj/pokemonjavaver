@@ -49,3 +49,15 @@ Still open: **MURKYMIST** (1D6 is a damaging move; "our side wrapped in smoke, p
 - CALAMITYAERIAL: engine fixed - switch-in starts Delta Stream and lowers every other Pokemon's Speed by one stage. The plugin had lumped it in with the Ruin abilities
   (a message plus a Sp. Def x0.75 in `DamageCalc`); that is removed.
 - Left alone as agreed (they just run in the engine): weather/terrain setters, priority changers, reborn, trapping, status-immunity abilities, SPOVERLORD, GHASTLYWAIL, NETHERDRIVE, SHATTERFIST.
+
+## Third pass (owner's rules)
+- Weather setters: BESTOWEDRAIN / STORMEYE / CALAMITYABYSSAL join DRIZZLE (rain), RAINBOWARCH / ORICHALCUMPULSE / ETERNALFLAME / CALAMITYINFERNAL join DROUGHT (sun) in the
+  partner "weather already set by my partner" check (`AiNegativeDoubles`). The CFRU AI has no per-ability terrain logic, so the terrain setters have nothing to join.
+- Priority abilities (Gale Wings group): `AiUtil.priority` already calls the engine's PriorityChangeAbility handlers, so FAIRYDANCE, SOUNDSTRIDE, TRAPTRICK, Gale Wings, Prankster, Triage
+  all count in every `priorityCalc`. Nothing to add. (Quick Draw's bracket roll is still not modelled: CFRU's `BracketCalc` is a 登记.)
+- Trapping abilities: `AiCalc.abilityTraps` / `trappedByOpposingAbility` (Shadow Tag, Arena Trap, Magnet Pull + DSOVERLORD, CONFESSIONLIST) now feed every `IsTrapped(foe)` check
+  (Mean Look / Block scoring, "trapped and hurt" switch rules) and the bench scorer's `trappedByAbility`.
+- New switch rule `AiSwitching.statusImmuneSwitch` (project extension): a foe predicted to use, or that has used, a sleep / poison / paralysis / burn move is answered by a bench Pokemon whose
+  ability blocks that status through the engine's StatusImmunityAbility handlers (Insomnia, Vital Spirit, Sweet Veil, Limber, Immunity, Water Veil, Purifying Salt, Playful Heart, Rain Curtain...).
+  Same cooldown as the type-absorb switch; not right after switching in; not if the user is already statused or immune.
+- Reborn abilities (SACREDREBORN = SUGARDEVOIR only, ABYSSREBORN = SUJINRAKU only): the plugin's revive code is a 登记 in the Java port (the handler does nothing), so there is nothing for the AI to rank yet.

@@ -69,12 +69,18 @@ final class AiNegativeDoubles {
         return false;
     }
 
+    /** Weather-setting abilities: the CFRU ones plus the project's / Gen 9 ones, which share the engine's weather handler. */
+    private static final java.util.Set<String> SUN_SETTERS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "DROUGHT", "RAINBOWARCH", "ORICHALCUMPULSE", "ETERNALFLAME", "CALAMITYINFERNAL"));
+    private static final java.util.Set<String> RAIN_SETTERS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "DRIZZLE", "BESTOWEDRAIN", "STORMEYE", "CALAMITYABYSSAL"));
+
     /** {@code IsCurrentWeatherPartnersWeather(partner,partnerAbility)} (ai_util.c:2002). */
     private static boolean currentWeatherIsPartners(Battle battle, Battler partner) {
         String a = partner.ability == null ? "" : partner.ability;
         int w = battle.pbWeather();
-        if (w == PBWeather.Sun || w == PBWeather.HarshSun) return a.equals("DROUGHT") || AiCalc.moveFunctionInMoveset(partner, "0FF");
-        if (w == PBWeather.Rain || w == PBWeather.HeavyRain) return a.equals("DRIZZLE") || AiCalc.moveFunctionInMoveset(partner, "100");
+        if (w == PBWeather.Sun || w == PBWeather.HarshSun) return SUN_SETTERS.contains(a) || AiCalc.moveFunctionInMoveset(partner, "0FF");
+        if (w == PBWeather.Rain || w == PBWeather.HeavyRain) return RAIN_SETTERS.contains(a) || AiCalc.moveFunctionInMoveset(partner, "100");
         if (w == PBWeather.Sandstorm) return a.equals("SANDSTREAM") || AiCalc.moveFunctionInMoveset(partner, "101");
         if (w == PBWeather.Hail || w == PBWeather.Snow) return a.equals("SNOWWARNING") || AiCalc.moveFunctionInMoveset(partner, "102", "1C0");
         return false;

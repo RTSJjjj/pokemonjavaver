@@ -173,6 +173,7 @@ final class AiSwitching {
         if (mon.hasActiveAbility("SHADOWTAG")) return !foe.hasActiveAbility("SHADOWTAG");
         if (mon.hasActiveAbility("ARENATRAP")) return !foe.airborne();
         if (mon.hasActiveAbility("MAGNETPULL")) return foe.pbHasType("STEEL");
+        if (mon.hasActiveAbility("DSOVERLORD") || mon.hasActiveAbility("CONFESSIONLIST")) return AiCalc.abilityTraps(mon, foe);   // project trapping abilities
         return false;
     }
 
@@ -539,6 +540,7 @@ final class AiSwitching {
     private static int shouldSwitch(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         int r;
         if ((r = absorbsOpponentsMove(ctx, user, foe, bench)) != NONE) return r;                  // :92
+        if ((r = statusImmuneSwitch(ctx, user, foe, bench)) != NONE) return r;                   // project extension (no CFRU counterpart)
         if ((r = passOnWish(ctx, user, foe, bench)) != NONE) return r;                            // :94
         if ((r = lockedMove(ctx, user, foe, bench, true)) != NONE) return r;                      // :96 CanStopLockedMove
         if (user.effects.intVal(PBEffects.Battler.PerishSong) == 1) return BEST;                  // :98 ShouldSwitchIfPerishSong (vanilla pokefirered: perishSongTimer == 0, i.e. faints this turn)
@@ -675,6 +677,67 @@ final class AiSwitching {
             if (absorbSwitchCheck(ctx, user, foe, party.get(i), i, predicted, abil)) return i;
         }
         return NONE;
+    }
+
+    /**
+     * Project extension: a foe that keeps using (or is predicted to use) a sleep / poison / paralysis / burn move is answered by a bench
+     * Pokemon whose ability blocks that status (Insomnia, Water Veil, Limber, Purifying Salt, Playful Heart, Rain Curtain ... - the
+     * engine's StatusImmunityAbility handlers). Modelled on FindMonThatAbsorbsOpponentsMove: same cooldown, no switch right after switching in.
+     */
+    private static int statusImmuneSwitch(AiCtx ctx, Battler user, Battler foe, Bench bench) {
+        Battle battle = ctx.battle;
+        if (typeAbsorbCooldown(battle, user) || justSwitchedIn(user) || user.statused()) return NONE;
+        for (Battler f : new Battler[] {foe, foe2Of(ctx, user, foe)}) {
+            if (f == null || f.fainted() || f.hasMoldBreaker()) continue;
+            int status = inflictedStatus(ctx, f);
+            if (status < 0 || blocksStatus(user, status) || !vulnerableTo(battle, user, f, status)) continue;
+            int[] order = new int[battle.partyOf(user.index).size + 2];
+            order[0] = bench.best;
+            order[1] = bench.second;
+            for (int i = 0; i < order.length - 2; i++) order[i + 2] = i;
+            for (int id : order) {
+                if (id == NONE || !candidate(battle, user, id)) continue;
+                Battler mon = battle.partyOf(user.index).get(id);
+                if (!blocksStatus(mon, status) || willFaintFromHazards(battle, user, mon)) continue;
+                battle.aiTypeAbsorbSwitchTurn[user.index & 1] = battle.turns();
+                return id;
+            }
+        }
+        return NONE;
+    }
+
+    /** The PBStatuses id of the first sleep/poison/paralysis/burn move the foe is predicted to use, or has used, else -1. */
+    private static int inflictedStatus(AiCtx ctx, Battler foe) {
+        BattleMove predicted = ctx.prediction(foe);
+        int s = predicted == null ? -1 : statusOf(predicted);
+        if (s >= 0) return s;
+        for (String name : foe.movesUsed) {
+            BattleMove m = AiCalc.moveByName(ctx.battle, name);
+            if (m != null && (s = statusOf(m)) >= 0) return s;
+        }
+        return -1;
+    }
+
+    private static int statusOf(BattleMove m) {
+        if (!m.statusMove()) return -1;
+        if (AiCalc.oneOf(m, "003", "004")) return PBStatuses.SLEEP;
+        if (AiCalc.oneOf(m, "005", "006")) return PBStatuses.POISON;
+        if (AiCalc.oneOf(m, "007")) return PBStatuses.PARALYSIS;
+        if (AiCalc.oneOf(m, "00A")) return PBStatuses.BURN;
+        return -1;
+    }
+
+    private static boolean blocksStatus(Battler b, int status) {
+        return b.abilityActive() && BattleHandlers.triggerStatusImmunityAbility(b.ability, b, status);
+    }
+
+    private static boolean vulnerableTo(Battle battle, Battler user, Battler foe, int status) {
+        switch (status) {
+            case PBStatuses.SLEEP: return AiCalc.canBePutToSleep(battle, user, foe);
+            case PBStatuses.POISON: return AiCalc.canBePoisoned(battle, user, foe);
+            case PBStatuses.PARALYSIS: return AiCalc.canBeParalyzed(battle, user, foe);
+            default: return AiCalc.canBeBurned(battle, user, foe);
+        }
     }
 
     /** {@code gNewBS->ai.typeAbsorbSwitchingCooldown}: two turns after a type-absorb switch. */
@@ -1311,7 +1374,8 @@ final class AiSwitching {
     private static boolean isTrapped(Battler b) {
         if (b.pbHasType("GHOST")) return false;
         return b.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || b.effects.intVal(PBEffects.Battler.Trapping) > 0
-                || b.effects.truthy(PBEffects.Battler.Ingrain);
+                || b.effects.truthy(PBEffects.Battler.Ingrain)
+                || (b.battle != null && AiCalc.trappedByOpposingAbility(b.battle, b));
     }
 
     /** {@code DamagingMoveThaCanBreakThroughSubstituteInMoveset(bankAtk,bankDef)} (ai_util.c:4245). */

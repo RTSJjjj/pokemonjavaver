@@ -588,7 +588,8 @@ final class AiPositiveEffects {
     private static boolean isTrapped(Battler b) {
         if (b.hasType("GHOST")) return false;
         return b.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || b.effects.intVal(PBEffects.Battler.Trapping) > 0
-                || b.effects.truthy(PBEffects.Battler.Ingrain);                                    // 登记: Shadow Tag / Arena Trap / Magnet Pull
+                || b.effects.truthy(PBEffects.Battler.Ingrain)
+                || (b.battle != null && AiCalc.trappedByOpposingAbility(b.battle, b));          // Shadow Tag / Arena Trap / Magnet Pull and the project trapping abilities
     }
 
     /** {@code IsMonAffectedByHazards(mon)} + grounding for the bench Pokemon of {@code def}'s side. */

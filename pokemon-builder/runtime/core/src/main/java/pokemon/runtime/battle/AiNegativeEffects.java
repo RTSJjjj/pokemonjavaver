@@ -465,7 +465,7 @@ final class AiNegativeEffects {
                 if (!move.statusMove()) {
                     r.standardDamage = true;
                 } else if (def.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || def.effects.intVal(PBEffects.Battler.Trapping) > 0
-                        || def.hasType("GHOST")) {
+                        || def.hasType("GHOST") || AiCalc.trappedByOpposingAbility(ctx.battle, def)) {
                     r.viability -= 10;                                                            // IsTrapped(bankDef,TRUE)
                 }
                 return true;

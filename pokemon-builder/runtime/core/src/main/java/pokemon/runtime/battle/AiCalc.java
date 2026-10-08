@@ -583,6 +583,27 @@ final class AiCalc {
         return m != null && oneOf(m, "0D5", "0D6", "0D8", "0D7", "114");
     }
 
+    /**
+     * Whether an ability held by {@code holder} traps {@code b}: Shadow Tag, Arena Trap, Magnet Pull and the project's Destruction Lord
+     * (Shadow Tag-like) and Confession List (every non-Flying target). Same conditions as the engine's TrappingTargetAbility handlers.
+     */
+    static boolean abilityTraps(Battler holder, Battler b) {
+        if (!holder.abilityActive()) return false;
+        switch (holder.ability) {
+            case "SHADOWTAG": case "DSOVERLORD": return !b.hasActiveAbility(holder.ability);
+            case "ARENATRAP": return !b.airborne();
+            case "MAGNETPULL": return b.pbHasType("STEEL");
+            case "CONFESSIONLIST": return !b.pbHasType("FLYING");
+            default: return false;
+        }
+    }
+
+    /** A trapping ability on the opposing side holds {@code b} in (ghosts excepted by the callers). */
+    static boolean trappedByOpposingAbility(Battle battle, Battler b) {
+        for (Battler o : battle.eachOtherSideBattler(b.index)) if (o != null && !o.fainted() && abilityTraps(o, b)) return true;
+        return false;
+    }
+
     /** {@code IsMoxieAbility(ability)}. */
     static boolean isMoxie(String ability) {
         return "MOXIE".equals(ability) || "BEASTBOOST".equals(ability) || "CHILLINGNEIGH".equals(ability)

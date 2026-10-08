@@ -47,7 +47,8 @@ class AiPartnerTest {
                 + species("HERO", 1, "NORMAL", 80, 80, 80, 80, "NONE") + ","
                 + species("ABSORBER", 2, "ELECTRIC", 80, 80, 80, 40, "VOLTABSORB") + ","
                 + species("TRUANTER", 3, "NORMAL", 80, 80, 80, 40, "TRUANT") + ","
-                + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
+                + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + ","
+                + species("SLEEPLESS", 5, "NORMAL", 80, 80, 80, 40, "INSOMNIA") + "}}");
         write(tempDir, "moves.json", "{\"total\":12,\"moves\":{"
                 + move("TACKLE", 40, "NORMAL", "Physical", "000", "NearOther", 0) + ","
                 + move("QUICKHIT", 40, "NORMAL", "Physical", "000", "NearOther", 0) + ","
@@ -61,12 +62,14 @@ class AiPartnerTest {
                 + move("FAKEOUT", 40, "NORMAL", "Physical", "012", "NearOther", 3) + ","
                 + move("PROTECT", 0, "NORMAL", "Status", "0AA", "User", 4) + ","
                 + move("TAILWIND", 0, "NORMAL", "Status", "05B", "UserSide", 0) + ","
-                + move("WIDEGUARD", 0, "NORMAL", "Status", "0AC", "UserSide", 3) + "}}");
+                + move("WIDEGUARD", 0, "NORMAL", "Status", "0AC", "UserSide", 3) + ","
+                + move("SPORE", 0, "NORMAL", "Status", "003", "NearOther", 0) + "}}");
         write(tempDir, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"
                 + "\"ELECTRIC\":{\"id\":13,\"internalName\":\"ELECTRIC\",\"name\":\"Electric\"}}}");
         write(tempDir, "abilities.json", "{\"total\":3,\"abilities\":{"
                 + "\"VOLTABSORB\":{\"id\":1,\"internalName\":\"VOLTABSORB\",\"name\":\"VOLTABSORB\"},"
+                + "\"INSOMNIA\":{\"id\":4,\"internalName\":\"INSOMNIA\",\"name\":\"INSOMNIA\"},"
                 + "\"TRUANT\":{\"id\":2,\"internalName\":\"TRUANT\",\"name\":\"TRUANT\"},"
                 + "\"NONE\":{\"id\":3,\"internalName\":\"NONE\",\"name\":\"NONE\"}}}");
         write(tempDir, "items.json", "{\"total\":0,\"items\":{}}");
@@ -349,5 +352,32 @@ class AiPartnerTest {
         assertEquals(AiAbilityRatings.of("HUGEPOWER"), AiAbilityRatings.of("SAVAGECEREMONY"));
         assertEquals(AiAbilityRatings.of("DISGUISE"), AiAbilityRatings.of("FLAMEVEIL"));
         assertEquals(AiAbilityRatings.of("MUMMY"), AiAbilityRatings.of("LINGERINGAROMA"));
+    }
+
+    @Test
+    @DisplayName("project extension: a foe that keeps using a sleep move is answered by a bench Pokemon whose ability blocks sleep")
+    void switchesToTheStatusImmuneMon() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE", "SPORE"), mon("HERO", 50, "TACKLE"));
+        b.addFoe(mon("FAT", 50, "TACKLE"));
+        b.addFoe(mon("SLEEPLESS", 50, "TACKLE"));
+        b.battlerAt(0).movesUsed.add("SPORE");
+        Battler user = b.battlerAt(1);
+        user.turnCount = 3;
+        b.battlerAt(3).turnCount = 3;
+        assertEquals(3, AiSwitching.decide(b, user, new Random(1)), "the Insomnia Pokemon comes in");
+    }
+
+    @Test
+    @DisplayName("Destruction Lord / Confession List trap like Shadow Tag / Arena Trap in the AI's IsTrapped")
+    void trappingAbilities() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler holder = b.battlerAt(0);
+        Battler victim = b.battlerAt(1);
+        holder.ability = "CONFESSIONLIST";
+        assertTrue(AiCalc.abilityTraps(holder, victim));
+        holder.ability = "DSOVERLORD";
+        assertTrue(AiCalc.abilityTraps(holder, victim));
+        victim.ability = "DSOVERLORD";
+        assertFalse(AiCalc.abilityTraps(holder, victim));
     }
 }
