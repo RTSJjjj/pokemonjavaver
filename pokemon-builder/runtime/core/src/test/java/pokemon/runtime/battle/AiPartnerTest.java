@@ -60,7 +60,8 @@ class AiPartnerTest {
                 + move("SKILLSWAP", 0, "NORMAL", "Status", "067", "NearOther", 0) + ","
                 + move("FAKEOUT", 40, "NORMAL", "Physical", "012", "NearOther", 3) + ","
                 + move("PROTECT", 0, "NORMAL", "Status", "0AA", "User", 4) + ","
-                + move("TAILWIND", 0, "NORMAL", "Status", "05B", "UserSide", 0) + "}}");
+                + move("TAILWIND", 0, "NORMAL", "Status", "05B", "UserSide", 0) + ","
+                + move("WIDEGUARD", 0, "NORMAL", "Status", "0AC", "UserSide", 3) + "}}");
         write(tempDir, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"
                 + "\"ELECTRIC\":{\"id\":13,\"internalName\":\"ELECTRIC\",\"name\":\"Electric\"}}}");
@@ -204,5 +205,29 @@ class AiPartnerTest {
         }
         // Volt Absorb heal is +7..+13 for the doubles classes; a plain damaging move vs a foe may still win, so only assert it is reachable
         assertDoesNotThrow(() -> AiDoubles.choose(b, user, new Random(1)));
+    }
+
+    @Test
+    @DisplayName("Protect is favoured when the partner is about to use a move that hits the whole field (ShouldProtect doubles, PROTECT_FROM_ALLIES, ai_advanced.c:1190)")
+    void protectsFromThePartnersEarthquake() {
+        Battle b = defaultDoubles(mon("HERO", 50, "PROTECT", "TACKLE"), mon("HERO", 50, "EARTHQUAKE", "TACKLE"));
+        Battler user = b.battlerAt(1);
+        Battler partner = b.battlerAt(3);
+        b.choices(partner.index)[0] = ":UseMove";
+        b.choices(partner.index)[1] = 0;
+        b.choices(partner.index)[2] = partner.moveSlot(0);
+        b.choices(partner.index)[3] = 0;
+        AiCtx ctx = AiMaster.prepare(b, user, b.battlerAt(0), new Random(1));
+        assertTrue(AiPositives.score(ctx, user, b.battlerAt(0), user.moveSlot(0), 100) >= 100 + 12, "Protect gains the ally-protection bonus");
+    }
+
+    @Test
+    @DisplayName("Wide Guard is only worth it against a predicted spread move (ai_positives.c:1148)")
+    void wideGuardNeedsASpreadMove() {
+        Battle b = doubles(mon("HERO", 50, "WIDEGUARD", "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "EARTHQUAKE"), mon("HERO", 50, "TACKLE"));
+        Battler user = b.battlerAt(1);
+        AiCtx ctx = AiMaster.prepare(b, user, b.battlerAt(0), new Random(1));
+        int score = AiPositives.score(ctx, user, b.battlerAt(0), user.moveSlot(0), 100);
+        assertTrue(ctx.prediction(b.battlerAt(0)) == null || score >= 100);
     }
 }

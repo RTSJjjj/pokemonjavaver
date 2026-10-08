@@ -18,7 +18,7 @@ final class AiPositiveMore {
     private AiPositiveMore() {
     }
 
-    private static final int DONT_PROTECT = 0, USE_PROTECT = 1, USE_STATUS_THEN_PROTECT = 2;
+    private static final int DONT_PROTECT = 0, USE_PROTECT = 1, USE_STATUS_THEN_PROTECT = 2, PROTECT_FROM_FOES = 3, PROTECT_FROM_ALLIES = 4;
     private static final int PIVOT = 1, CAN_TRY_PIVOT = 2, DONT_PIVOT = 3;
 
     static int apply(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls, String atkAbility, String defAbility) {
@@ -51,15 +51,8 @@ final class AiPositiveMore {
                 return viability;
             }
             case "10C": return substitute(ctx, atk, def, viability, cls);                          // EFFECT_SUBSTITUTE (:886)
-            case "0AA": case "14B": case "14C": case "168": case "0E8": {                          // EFFECT_PROTECT (:1132)
-                if (f.equals("0E8")) return endure(ctx, atk, def, viability, cls);
-                if (f.equals("168") && predicted != null && AiCalc.has(predicted, 'a') && AiCalc.canBePoisoned(battle, def, atk)
-                        && cls == AiCalc.CLASS_STALL) {
-                    return viability + 8;                                                          // Baneful Bunker as a staller
-                }
-                if (shouldProtect(ctx, atk, def, move) == USE_PROTECT) return foeProtection(ctx, viability, cls, atk, def);
-                return viability;
-            }
+            case "0AA": case "14B": case "14C": case "168": case "0E8": case "0AB": case "0AC": case "14A": case "149":
+                return protect(ctx, atk, def, move, viability, cls, atkAbility);                       // EFFECT_PROTECT (:1132)
             case "0EE": case "151":                                                                // EFFECT_BATON_PASS: U-Turn, Volt Switch, Parting Shot (:1496)
                 return pivot(ctx, atk, def, move, viability, cls);
             case "0AF": {                                                                          // MOVE_COPYCAT (:150)
@@ -235,6 +228,91 @@ final class AiPositiveMore {
                 || b.effects.truthy(PBEffects.Battler.Ingrain);
     }
 
+    private static boolean singleBattle(AiCtx ctx, Battler atk) {
+        return !AiDoublesScore.isDouble(ctx.battle, atk);                                          // IS_SINGLE_BATTLE
+    }
+
+    /** The {@code EFFECT_PROTECT} case of {@code AIScript_Positives} (ai_positives.c:1132-1230). */
+    private static int protect(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls, String atkAbility) {
+        Battle battle = ctx.battle;
+        String f = move.function();
+        BattleMove predicted = ctx.prediction(def);
+        boolean single = singleBattle(ctx, atk);
+        int predictedTarget = predicted == null ? -1 : AiCalc.fx(predicted).pbTarget(predicted, def);
+        switch (f) {
+            case "0AB":                                                                            // Quick Guard
+                if (predicted != null && AiCalc.priorityCalc(battle, def, predicted) > 0) {
+                    return single ? protectChecks(ctx, atk, def, move, viability, cls) : AiDoublesScore.increaseTeamProtection(viability, cls);
+                }
+                return viability;
+            case "0AC":                                                                            // Wide Guard
+                if (predicted != null && (predictedTarget == PBTargets.AllNearOthers || predictedTarget == PBTargets.AllBattlers
+                        || predictedTarget == PBTargets.AllNearFoes || predictedTarget == PBTargets.AllFoes)) {
+                    return single ? protectChecks(ctx, atk, def, move, viability, cls) : AiDoublesScore.increaseTeamProtection(viability, cls);
+                }
+                if (!single) {
+                    Battler partner = AiDoublesScore.partner(battle, atk);
+                    BattleMove partnerMove = partner == null ? null : battle.chosenMove(partner.index);
+                    if (partnerMove != null && AiDoublesScore.hitsAll(battle, partner, partnerMove) && !atkAbility.equals("TELEPATHY")
+                            && !AiCalc.noEffect(battle, partner, atk, partnerMove)) {
+                        return AiDoublesScore.increaseAllyProtection(viability, cls);              // protect against the partner's move
+                    }
+                }
+                return viability;
+            case "14A":                                                                            // Crafty Shield
+                if (predicted != null && predicted.statusMove() && predictedTarget != PBTargets.User) {
+                    return single ? protectChecks(ctx, atk, def, move, viability, cls) : AiDoublesScore.increaseTeamProtection(viability, cls);
+                }
+                return viability;
+            case "149":                                                                            // Mat Block
+                if (AiCalc.firstTurn(atk) && predicted != null && !predicted.statusMove() && predictedTarget != PBTargets.User) {
+                    return single ? protectChecks(ctx, atk, def, move, viability, cls) : AiDoublesScore.increaseTeamProtection(viability, cls);
+                }
+                return viability;
+            case "0E8":
+                return endure(ctx, atk, def, viability, cls);
+            case "14B":                                                                            // King's Shield: special logic for Aegislash
+                if (atkAbility.equals("STANCECHANGE") && !AiPositiveHelpers.isIncapacitated(def)) {
+                    boolean contactKo = predicted != null && AiCalc.has(predicted, 'a') && AiCalc.physicalMoveInMoveset(ctx, def);
+                    if ((atk.isSpecies("AEGISLASH") && atk.form() == 1)                              // in blade form
+                            || (!single && ctx.simulatedRng[1] < 80)                                // 80% chance of spamming in doubles
+                            || AiCalc.classStall(cls) || contactKo) {
+                        if (AiCalc.classStall(cls)) {
+                            if (atk.hp != atk.maxHp() && atk.hasActiveItem("LEFTOVERS")) return inc(viability, 8);
+                            return inc(viability, contactKo ? 8 : 3);
+                        } else if (!single) {
+                            return inc(viability, 19);
+                        }
+                        viability = incStatus(ctx, viability, cls, 3, atk, def);
+                        if (setupSweeper(cls) && AiCalc.can2HKO(ctx, def, atk)) viability = inc(viability, 3);
+                    }
+                    return viability;
+                }
+                return protectChecks(ctx, atk, def, move, viability, cls);
+            case "168":                                                                            // Baneful Bunker
+                if (predicted != null && AiCalc.has(predicted, 'a') && AiCalc.canBePoisoned(battle, def, atk)) {
+                    if (AiCalc.classStall(cls)) return inc(viability, 8);
+                    if (!single) return inc(viability, 19);
+                }
+                return protectChecks(ctx, atk, def, move, viability, cls);
+            default:
+                return protectChecks(ctx, atk, def, move, viability, cls);
+        }
+    }
+
+    /** {@code IsClassSetupSweeper}. */
+    private static boolean setupSweeper(int cls) {
+        return cls == AiCalc.CLASS_SWEEPER_SETUP_STATS || cls == AiCalc.CLASS_SWEEPER_SETUP_STATUS || cls == AiCalc.CLASS_SWEEPER_SETUP_SCREENS;
+    }
+
+    /** {@code PROTECT_CHECKS:} (ai_positives.c:1217). */
+    private static int protectChecks(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls) {
+        int should = shouldProtect(ctx, atk, def, move);
+        if (should == USE_PROTECT || should == PROTECT_FROM_FOES) return foeProtection(ctx, viability, cls, atk, def);
+        if (should == PROTECT_FROM_ALLIES) return AiDoublesScore.increaseAllyProtection(viability, cls);
+        return viability;
+    }
+
     /** {@code ShouldProtect(bankAtk,bankDef,move)} (ai_advanced.c:1108), singles: USE_PROTECT / USE_STATUS_THEN_PROTECT count as "protect". */
     private static int shouldProtect(AiCtx ctx, Battler atk, Battler def, BattleMove move) {
         Battle battle = ctx.battle;
@@ -252,6 +330,21 @@ final class AiPositiveMore {
                 && AiCalc.canKnockOut(ctx, def, atk) && AiUtil.benchAlive(battle, atk) == 0) {
             return USE_PROTECT;
         }
+        if (!singleBattle(ctx, atk)) {                                                             // Double Battle (:1178)
+            Battler partner = AiDoublesScore.partner(battle, atk);
+            if (partner != null) {
+                BattleMove partnerMove = battle.chosenMove(partner.index);
+                if (partnerMove != null && !(atk.ability != null && atk.ability.equals("TELEPATHY"))
+                        && AiDoublesScore.hitsAll(battle, partner, partnerMove) && !AiCalc.noEffect(battle, partner, atk, partnerMove)
+                        && !absorbs(atk, partnerMove, partner)) {
+                    return PROTECT_FROM_ALLIES;                                                    // the partner damages the whole field
+                }
+                if (partnerMove != null && AiDoublesScore.doubleKillingScore(ctx, partnerMove, partner, def) >= AiDoublesScore.BEST_KO_SCORE - 1) {
+                    return PROTECT_FROM_FOES;                                                      // the partner has this covered
+                }
+            }
+            return DONT_PROTECT;
+        }
         int heal = AiPositiveHelpers.amountToRecover(ctx, atk, def, move);
         if (AiCalc.canKnockOut(ctx, def, atk)) {
             if (!AiCalc.canKnockOutAfterHealing(ctx, def, atk, heal) || AiCalc.takingSecondaryDamage(battle, def)) return USE_PROTECT;
@@ -262,6 +355,17 @@ final class AiPositiveMore {
             return USE_STATUS_THEN_PROTECT;
         }
         return DONT_PROTECT;
+    }
+
+    /** {@code IsDamagingMoveUnusable(move,bankAtk,bankDef)} for the absorbing Abilities (Volt Absorb, Storm Drain, ...). */
+    private static boolean absorbs(Battler target, BattleMove move, Battler user) {
+        String a = target.ability == null ? "" : target.ability;
+        String type = AiCalc.fx(move).pbCalcType(move, user);
+        if (user.hasMoldBreaker()) return false;
+        return (type.equals("ELECTRIC") && (a.equals("VOLTABSORB") || a.equals("MOTORDRIVE") || a.equals("LIGHTNINGROD")))
+                || (type.equals("WATER") && (a.equals("WATERABSORB") || a.equals("DRYSKIN") || a.equals("STORMDRAIN")))
+                || (type.equals("FIRE") && a.equals("FLASHFIRE")) || (type.equals("GRASS") && a.equals("SAPSIPPER"))
+                || (type.equals("GROUND") && a.equals("EARTHEATER"));
     }
 
     private static boolean usefulItemToProtectFor(AiCtx ctx, Battler b) {
