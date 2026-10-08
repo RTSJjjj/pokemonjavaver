@@ -12,6 +12,7 @@ import pokemon.runtime.battle.PBStats;
 import pokemon.runtime.battle.PBTargets;
 import pokemon.runtime.battle.PBTypeEffectiveness;
 import pokemon.runtime.battle.PBTypes;
+import pokemon.runtime.battle.BattleHandlers;
 import pokemon.runtime.battle.PBWeather;
 import pokemon.runtime.battle.PendingApi;
 import pokemon.runtime.battle.PokeBattle_SceneConstants;
@@ -3207,18 +3208,15 @@ public final class MoveEffects_180_1FF {
         /**
          * {@code pbCalcAccuracyMultipliers(user,target,multipliers)} (:1967-1970).
          *
-         * <p><b>插件自身缺陷，照抄不修</b>：形参叫 {@code multipliers}（:1967），
-         * 而体内写的是 {@code modifiers[EVA_STAGE] = 0}（:1969）——{@code modifiers}
-         * 在本方法里<b>从未定义</b>，Ruby 走到这一行会 {@code NameError}。
-         * 按裁决：<b>绝不把它"修正"成 {@code multipliers}</b>（那是替插件修 bug，属自造行为），
-         * 所以这一行不转、只登记。{@code MoveEffect} 的钩子与 {@code MoveEffectBase}
-         * 的空体（task-11 裁决 5）保留落点。</p>
+         * <p>插件缺陷已修：Ruby 里形参叫 {@code multipliers}、体内却写 {@code modifiers[EVA_STAGE] = 0}
+         * （NameError），且该方法无调用点。明显意图是「无视对方闪避等级」，故改落在实际被
+         * {@code pbAccuracyCheck} 调用的 {@code pbCalcAccuracyModifiers} 上。</p>
          */
         @Override
-        public void pbCalcAccuracyMultipliers(BattleMove move, Battler user, Battler target,
-                                              float[] multipliers) {
-            super.pbCalcAccuracyMultipliers(move, user, target, multipliers); // :1968 super
-            // 登记: :1969 `modifiers[EVA_STAGE] = 0` —— `modifiers` 未定义（插件缺陷 → Ruby NameError）
+        public void pbCalcAccuracyModifiers(BattleMove move, Battler user, Battler target,
+                                            float[] modifiers) {
+            super.pbCalcAccuracyModifiers(move, user, target, modifiers);
+            modifiers[BattleHandlers.EVA_STAGE] = 0;                          // :1969 (修复变量名)
         }
 
         /** {@code pbGetDefenseStats(user,target)} (:1972-1975). */
@@ -3312,18 +3310,12 @@ public final class MoveEffects_180_1FF {
      */
     public static class PokeBattle_Move_1EB extends MoveEffectBase {
 
-        /**
-         * {@code pbCalcAccuracyMultipliers(user,target,multipliers)} (:2033-2036).
-         *
-         * <p><b>插件自身缺陷，照抄不修</b>：形参叫 {@code multipliers}（:2033），体内却是
-         * {@code modifiers[EVA_STAGE] = 0}（:2035）——{@code modifiers} 未定义，
-         * Ruby 走到即 {@code NameError}。按裁决不修正变量名，该行不转、只登记。</p>
-         */
+        /** {@code pbCalcAccuracyMultipliers} (:2033-2036)；插件缺陷已修，同 1CC 前一处。 */
         @Override
-        public void pbCalcAccuracyMultipliers(BattleMove move, Battler user, Battler target,
-                                              float[] multipliers) {
-            super.pbCalcAccuracyMultipliers(move, user, target, multipliers); // :2034 super
-            // 登记: :2035 `modifiers[EVA_STAGE] = 0` —— `modifiers` 未定义（插件缺陷 → Ruby NameError）
+        public void pbCalcAccuracyModifiers(BattleMove move, Battler user, Battler target,
+                                            float[] modifiers) {
+            super.pbCalcAccuracyModifiers(move, user, target, modifiers);
+            modifiers[BattleHandlers.EVA_STAGE] = 0;                          // :2035 (修复变量名)
         }
 
         /** {@code pbGetDefenseStats(user,target)} (:2038-2041). */
@@ -3631,21 +3623,15 @@ public final class MoveEffects_180_1FF {
      */
     public static class PokeBattle_Move_1BD extends MoveEffectBase {
 
-        /**
-         * {@code pbCalcAccuracyMultipliers(user,target,multipliers)} (:2313-2319) ——
-         * <b>第 3 处</b>同型插件缺陷。
-         *
-         * <p><b>照抄不修</b>：形参叫 {@code multipliers}（:2313），体内写的是
-         * {@code modifiers[EVA_STAGE] = 0}（:2317，且在 {@code if} 里）——{@code modifiers}
-         * 从未定义，Ruby 走到即 {@code NameError}。按裁决不把变量名"修正"成
-         * {@code multipliers}，故该行不转、只登记。</p>
-         */
+        /** {@code pbCalcAccuracyMultipliers} (:2313-2319)；插件缺陷已修（变量名 + 改落在实际调用的钩子）。 */
         @Override
-        public void pbCalcAccuracyMultipliers(BattleMove move, Battler user, Battler target,
-                                              float[] multipliers) {
-            super.pbCalcAccuracyMultipliers(move, user, target, multipliers); // :2314 super
-            // 登记: :2315-2317 `if @battle.pbWeather==Rain || ==HeavyRain` 里的
-            //       `modifiers[EVA_STAGE] = 0` —— `modifiers` 未定义（插件缺陷 → Ruby NameError）
+        public void pbCalcAccuracyModifiers(BattleMove move, Battler user, Battler target,
+                                            float[] modifiers) {
+            super.pbCalcAccuracyModifiers(move, user, target, modifiers);
+            int w = user.battle.pbWeather();                                  // :2315
+            if (w == PBWeather.Rain || w == PBWeather.HeavyRain) {            // :2316
+                modifiers[BattleHandlers.EVA_STAGE] = 0;                      // :2317
+            }
         }
 
         /** {@code pbModifyDamage(damageMult,user,target)} (:2321-2323). */

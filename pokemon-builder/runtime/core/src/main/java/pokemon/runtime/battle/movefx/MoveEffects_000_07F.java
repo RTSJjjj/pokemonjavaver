@@ -148,9 +148,7 @@ public final class MoveEffects_000_07F {
     /**
      * {@code Battler#defense=} (Guard Split, Move_Effects_000-07F.rb:1694).
      *
-     * <p>登记: the plugin declares no {@code defense=} writer at all (only
-     * {@code attr_accessor :attack/:spatk/:speed}, PokeBattle_Battler:15-17), so
-     * the Ruby would raise {@code NoMethodError}; reproduced, not corrected.</p>
+     * <p>The plugin does declare {@code attr_writer :defense/:spdef} (109_PokeBattle_Battler.rb:74/88).</p>
      */
     private static void setDefense(Battler battler, int value) {
         battler.setBaseDefense(value);                      // 109_PokeBattle_Battler.rb:74 attr_writer :defense
@@ -159,8 +157,7 @@ public final class MoveEffects_000_07F {
     /**
      * {@code Battler#spdef=} (Guard Split, Move_Effects_000-07F.rb:1695).
      *
-     * <p>登记: same plugin defect as {@link #setDefense} - no {@code spdef=}
-     * writer exists in the plugin; reproduced, not corrected.</p>
+     * <p>See {@link #setDefense}: the writer exists (109_PokeBattle_Battler.rb:88).</p>
      */
     private static void setSpDef(Battler battler, int value) {
         battler.setBaseSpDef(value);                        // 109_PokeBattle_Battler.rb:88 attr_writer :spdef
@@ -215,9 +212,7 @@ public final class MoveEffects_000_07F {
     /**
      * {@code user.pbChangeTypes(target)} (Move_Effects_000-07F.rb:2072).
      *
-     * <p>登记: the plugin passes the target {@code Battler} where
-     * {@code pbChangeTypes} expects a type, so the Ruby would fail; reproduced,
-     * not corrected.</p>
+     * <p>The Battler overload copies the target's types (Battler_ChangeSelf:286-293).</p>
      */
     private static void pbChangeTypesWithBattler(Battler user, Battler target) {
         user.pbChangeTypes(target);
@@ -2136,10 +2131,6 @@ public final class MoveEffects_000_07F {
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
             int newdef = (user.defense() + target.defense()) / 2;             // :1692 ((user.defense+target.defense)/2).floor
             int newspdef = (user.spDef() + target.spDef()) / 2;               // :1693
-            // 登记: Move_Effects_000-07F.rb:1694-1695 user.defense=/user.spdef= ——
-            //       插件里没有 defense=/spdef= 访问器（只有 attr_accessor
-            //       :attack/:spatk/:speed，PokeBattle_Battler:15-17），Ruby 会
-            //       NoMethodError；照抄不修正（见私有助手 setDefense/setSpDef）。
             setDefense(user, newdef);                                         // :1694
             setDefense(target, newdef);
             setSpDef(user, newspdef);                                         // :1695

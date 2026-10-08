@@ -326,13 +326,9 @@ public interface MoveEffect {
     /**
      * {@code pbCalcAccuracyMultipliers(user,target,multipliers)} (Move_Effects_080-0FF:1135).
      *
-     * <p><b>Dead and broken in the plugin (decision 5).</b> (i) It has no call
-     * site: {@code pbAccuracyCheck} calls {@code pbCalcAccuracyModifiers}
-     * (Move_Usage_Calculations.rb:126 -> :145). (ii) Its four override bodies
-     * read a local {@code modifiers} while their parameter is called
-     * {@code multipliers} (Move_Effects_080-0FF:1136-1137, Move_Effects_180-1FF:1967/2033/2312),
-     * so they would raise {@code NameError}. Declared so those four overrides
-     * have a home; {@link MoveEffectBase} gives it an empty body.</p>
+     * <p>In the plugin this hook has no call site and its four overrides use an undefined
+     * {@code modifiers}; the overrides are now transcribed on {@link #pbCalcAccuracyModifiers}, which
+     * {@code pbAccuracyCheck} really calls. Kept only as the base-class home of the old name.</p>
      */
     void pbCalcAccuracyMultipliers(BattleMove move, Battler user, Battler target, float[] multipliers);
 

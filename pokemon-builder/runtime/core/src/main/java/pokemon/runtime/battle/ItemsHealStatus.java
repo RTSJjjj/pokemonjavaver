@@ -224,11 +224,8 @@ final class ItemsHealStatus {
                 battle.commonAnimation("EatBerry", battler);
             }
             if (battler.hasActiveAbility("RIPEN")) {                      // :185
-                // 登记: :186 battler.pbRecoverHP?(battler.totalhp/2) - roster §4 lists
-                //       this as a plugin defect: the method name is misspelled (no
-                //       pbRecoverHP? exists anywhere), so the Ruby raises
-                //       NoMethodError here. Transcribed as a no-op as instructed
-                //       ("照抄调用形状，不要补方法"); no pbRecoverHP? was added.
+                // 插件缺陷已修: :186 writes the misspelled `pbRecoverHP?`; `pbRecoverHP` is meant
+                battler.pbRecoverHP(battler.maxHp() / 2);                 // :186
             } else {
                 battler.pbRecoverHP(battler.maxHp() / 4);                 // :188
             }

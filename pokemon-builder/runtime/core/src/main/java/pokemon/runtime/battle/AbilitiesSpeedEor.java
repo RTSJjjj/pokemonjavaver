@@ -665,7 +665,7 @@ final class AbilitiesSpeedEor {
             }
             battle.showAbilitySplash(battler);                               // :3882
             battler.eachOpposing(b -> {                                      // :3883
-                // :3884 插件缺陷：第三参传 self（proc），照抄 3 参调用形状（见 PendingApi）
+                // :3884 插件缺陷已修：第三参误传 self（proc），按无招式处理（见 PendingApi）
                 if (!PendingApi.pbCanConfuse(b, battler, true)) {
                     return;
                 }
@@ -681,7 +681,7 @@ final class AbilitiesSpeedEor {
                 if (b.effects.intVal(PBEffects.Battler.Yawn) > 0) {          // :3895
                     return;
                 }
-                // :3896 插件缺陷：第三参传 self（proc），照抄 3 参调用形状（见 PendingApi）
+                // :3896 插件缺陷已修：同 :3884
                 if (!PendingApi.pbCanSleep(b, battler, true)) {
                     return;
                 }

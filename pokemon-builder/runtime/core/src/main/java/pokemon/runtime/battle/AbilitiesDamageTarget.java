@@ -20,12 +20,8 @@ import pokemon.runtime.pokemon.PbsData;
  *     the internal name (see {@link PBTypes}).</li>
  * <li>{@code PBTypes.superEffective?(target.damageState.typeMod)} uses the
  *     one-argument {@code typeMod} form ({@code PBTypes.superEffective(int)}).</li>
- * <li><b>登记 (plugin defect, roster §4 #380):</b> {@code RAINBOWARCH} calls
- *     {@code target.pbWeather} ({@code BattleHandlers_Abilities:4581}), a method
- *     that only exists on {@code Battle}, never on {@code Battler} - in Ruby that
- *     line is a guaranteed {@code NoMethodError}. The call shape is copied as
- *     {@code PendingApi.pbWeather(target)} and NOT corrected to
- *     {@code target.battle.pbWeather()}, and no default value is invented.</li>
+ * <li><b>插件缺陷已修 (roster §4 #380):</b> {@code RAINBOWARCH} called {@code target.pbWeather}
+ *     (a Battle-only method, NoMethodError); {@code target.battle.pbWeather()} is meant.</li>
  * <li><b>登记 (plugin defect, found while transcribing):</b> three
  *     {@code DamageCalcTargetAbility.copy} calls copy from symbols that this
  *     group never registers anywhere in the project ({@code MOLDBREAKER} :2653,
@@ -320,10 +316,7 @@ final class AbilitiesDamageTarget {
         BattleHandlers.DamageCalcTargetAbility.add("RAINBOWARCH", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:4578-4585
             if (user.isSpecies("HOOH") && "WATER".equals(type)) {            // :4580
-                // 登记: 插件缺陷 (roster §4 #380) —— :4581 调用 target.pbWeather，
-                // 而 pbWeather 只定义在 Battle 上（Battler 没有），Ruby 里该行必然
-                // NoMethodError。照抄调用形状（PendingApi 桩），不修正成
-                // target.battle.pbWeather、不补默认值。
+                // 插件缺陷已修 (roster §4 #380): :4581 target.pbWeather -> the battle's pbWeather
                 int weather = PendingApi.pbWeather(target);
                 float mult = (weather == PBWeather.Sun || weather == PBWeather.HarshSun)
                         ? 0.5f : 0.25f;                                      // :4581

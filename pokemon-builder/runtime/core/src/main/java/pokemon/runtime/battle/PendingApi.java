@@ -149,18 +149,11 @@ public final class PendingApi {
     }
 
     /**
-     * {@code target.pbWeather} (BattleHandlers_Abilities:4581) - a PLUGIN
-     * DEFECT rather than missing wiring: {@code pbWeather} is defined on
-     * {@code PokeBattle_Battle} (:674) but NOT on {@code PokeBattle_Battler}
-     * (the battler only has {@code effectiveWeather}), so this line raises
-     * {@code NoMethodError} in Ruby. The stub is deliberate - "throws when
-     * called" is the faithful mapping, and inventing a working implementation
-     * (e.g. {@code target.battle.pbWeather}) would add behaviour the plugin
-     * does not have. Registered as defect #380 in the L1' roster.
+     * {@code target.pbWeather} (BattleHandlers_Abilities:4581). 插件缺陷已修: pbWeather is only
+     * defined on {@code Battle}, so the plugin line would raise NoMethodError; the battle's weather is meant.
      */
     public static int pbWeather(Battler battler) {
-        throw new UnsupportedOperationException(
-                "插件缺陷: BattleHandlers_Abilities:4581 target.pbWeather - Battler 无此方法, Ruby 会 NoMethodError");
+        return battler.battle.pbWeather();                  // 插件缺陷已修: the plugin calls target.pbWeather, which only Battle defines (BattleHandlers_Abilities:4581)
     }
 
     /** {@code Battle#pbStartTerrain(user,newTerrain,fixedDuration=true)} (PokeBattle_Battle:741). */
@@ -227,7 +220,7 @@ public final class PendingApi {
      * invent a {@code move}.
      */
     public static boolean pbCanConfuse(Battler battler, Battler user, boolean showMessages) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:3884 pbCanConfuse?(user,showMessages,self)");
+        return battler.pbCanConfuse(user, showMessages, null, false);   // 插件缺陷已修: the plugin passes the handler proc (self) as the move (Arceus:3884)
     }
 
     /**
@@ -237,7 +230,7 @@ public final class PendingApi {
      * (Battler_Statuses:318) and the third argument is the handler proc.
      */
     public static boolean pbCanSleep(Battler battler, Battler user, boolean showMessages) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:3896 pbCanSleep?(user,showMessages,self)");
+        return battler.pbCanSleep(user, showMessages, null, false);     // 插件缺陷已修: same, Arceus:3896
     }
 
     /**

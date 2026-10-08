@@ -17,9 +17,6 @@ import java.util.List;
  * <p>登记 (what this runtime plays elsewhere / does not model):
  * <ul>
  * <li>{@code @scene.pbDamageAnimation(b)} / {@code pbBeginEndOfRoundPhase}: scene calls.</li>
- * <li>:273-274 {@code @battle.pbCommonAnimation("SeaOfFire")}: {@code @battle} is nil inside
- *     {@code PokeBattle_Battle}, so the plugin raises NoMethodError when a Sea of Fire is up. The
- *     call is skipped here instead of crashing the battle.</li>
  * <li>:748 {@code pbEORShiftDistantBattlers}: only moves distant battlers when the battle is not a single battle.</li>
  * <li>:345-353 Hyper Mode damage and :706-715 Hyper Mode waking: Shadow Pokemon are not modelled
  *     ({@link Battler#inHyperMode()} is false).</li>
@@ -388,7 +385,8 @@ public final class BattleEndOfRoundPhase {
         for (int side = 0; side < 2; side++) {                                        // :270
             if (battle.field.sides[side].effects.intVal(PBEffects.Side.SeaOfFire) == 0) continue;   // :271
             if (curWeather == PBWeather.Rain || curWeather == PBWeather.HeavyRain) continue;        // :272
-            // :273-274 @battle.pbCommonAnimation("SeaOfFire"/"SeaOfFireOpp"): see class javadoc
+            // :273-274 插件缺陷已修: `@battle` is nil inside Battle; the battle itself is meant
+            battle.commonAnimation(side == 0 ? "SeaOfFire" : "SeaOfFireOpp", null);
             for (Battler b : priority) {                                              // :275
                 if (b.opposes(side)) continue;                                        // :276
                 if (!b.takesIndirectDamage(false) || b.pbHasType("FIRE")) continue;   // :277

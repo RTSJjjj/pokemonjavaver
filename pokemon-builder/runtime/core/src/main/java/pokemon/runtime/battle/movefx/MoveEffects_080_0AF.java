@@ -10,6 +10,7 @@ import pokemon.runtime.battle.PBEffects;
 import pokemon.runtime.battle.PBEnvironment;
 import pokemon.runtime.battle.PBStats;
 import pokemon.runtime.battle.PBTypes;
+import pokemon.runtime.battle.BattleHandlers;
 import pokemon.runtime.battle.PBWeather;
 import pokemon.runtime.battle.PendingApi;
 import pokemon.runtime.pokemon.PbsData;
@@ -1544,19 +1545,14 @@ public final class MoveEffects_080_0AF {
 
         /**
          * {@code pbCalcAccuracyMultipliers(user,target,multipliers)} (:1135-1138).
-         *
-         * <p><b>登记: plugin defect.</b> The parameter is named {@code multipliers}
-         * while the body reads {@code modifiers[EVA_STAGE]}, which is a
-         * {@code NameError} in Ruby; and the method has no call site
-         * ({@code pbAccuracyCheck} calls {@code pbCalcAccuracyModifiers}). Copied
-         * verbatim - the reference is kept as a comment, not "fixed".</p>
+         * 插件缺陷已修：变量名 {@code modifiers} 未定义，且该方法无调用点；改落在实际被调用的
+         * {@code pbCalcAccuracyModifiers}，无视对方闪避等级。
          */
         @Override
-        public void pbCalcAccuracyMultipliers(BattleMove move, Battler user, Battler target,
-                                              float[] multipliers) {
-            super.pbCalcAccuracyMultipliers(move, user, target, multipliers);   // :1136 super
-            // :1137 照抄原文（未定义局部变量 modifiers；等价于 NameError，不修正）：
-            // modifiers[EVA_STAGE] = 0   # Accuracy stat stage
+        public void pbCalcAccuracyModifiers(BattleMove move, Battler user, Battler target,
+                                            float[] modifiers) {
+            super.pbCalcAccuracyModifiers(move, user, target, modifiers);     // :1136 super
+            modifiers[BattleHandlers.EVA_STAGE] = 0;                          // :1137
         }
 
         /** {@code pbGetDefenseStats(user,target)} (:1140-1143). */

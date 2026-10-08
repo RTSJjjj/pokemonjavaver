@@ -142,3 +142,22 @@ Reachability was checked by using every real move in 1v1/2v2 (`MoveSmokeRealPbsT
 Deliberately left as they are (the Ruby crashes there too, or nothing calls them): `target.pbWeather` (BattleHandlers_Abilities:4581), `pbCanConfuse?/pbCanSleep?(…,self)` (Arceus:3884/3896),
 Shadow Pokemon `i.hp` (:593), the "no base default" hooks of the generic move classes, `PBItems_getName`, `pbCalcDamageMultipliers` (not used by `DamageCalc`).
 One deviation: `pbItemOpposingStatGainCheck` no longer throws when Mirror Herb triggers (Ruby raises NoMethodError at Battler_AbilityAndItem:338); now that the stat-up tally is wired the line is reachable, so the item just does not trigger.
+
+## 插件缺陷修复（用户裁决：插件本身没写好的地方按明显意图修）
+
+已修（代码里以「插件缺陷已修」标注）：
+- Safeguard 的 `user` 未定义（Battler_Statuses:239-243）→ 同步场景下用参数 `target` 作施加方，Infiltrator/Translucent Ghost 无视。
+- `pbWeather`（Battler 上调用，RAINBOWARCH）→ `battle.pbWeather()`；Arceus 的 `pbCanConfuse/pbCanSleep` 第三参误传 proc → 按无招式处理。
+- `reduceHalfHp`（`i.hp/2` 的 `i` 未定义）→ 自身 HP；Cud Chew 的 `item_to_use` → `thisItem`；Mirror Herb 的 `forcedItem` 误传布尔 → 正常消耗道具。
+- Ripen 树果 `pbRecoverHP?` 拼写 → `pbRecoverHP(maxHp/2)`。
+- Crafty Shield（SuccessChecks:404）`!move.function == "18E"` → `move.function != "18E"`（块之前永不执行）。
+- Sea of Fire 回合末 `@battle.pbCommonAnimation`（`@battle` 为 nil）→ `battle.commonAnimation`。
+- 四处 `modifiers[EVA_STAGE] = 0`（Chip Away 类 0A9、1CC 附近两处、1BD 雨天）：变量名未定义且钩子无调用点 → 改落在实际被调用的 `pbCalcAccuracyModifiers`，无视对方闪避等级（1BD 仅雨天）。
+- Red Card：`Battle::Scene::USE_ABILITY_SPLASH`（NameError）→ `PokeBattle_SceneConstants`；`user.dynamax?` 本工程无 Dynamax，恒 false；补全 pbRecallAndReplace(随机替换)。
+- Fling 技能机 `movedata` 为 nil → 威力 10。
+- 修正误记的「无 defense=/spdef= 写入器」注释（实际有 attr_writer）。
+
+未改（意图不明确）：
+- CRAFTMIND 的形参错位（proc 本身只有 `next 值`，无从判断本意）。
+- `DamageCalcTargetAbility.copy(MOLDBREAKER/PRESSURE/SUPREMEOVERLORD…)`：源条目从未注册，无内容可复制。
+- BattleAnimations 的 nil 精灵守卫（不可达）。

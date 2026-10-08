@@ -1626,9 +1626,11 @@ public final class MoveEffects_0D5_0FF {
             if (isTechnicalRecord(battle, user.item)) {                       // :3755
                 // :3756 movedata = pbGetMoveData(pbGetMachine(user.item))
                 PbsData.Move movedata = moveData(battle, machineMove(battle, user.item));
-                // 登记: 插件缺陷 —— ITEM_MACHINE 查不到招式时 movedata 是 nil，:3757 的
-                //        movedata[MOVE_CATEGORY] 在 Ruby 会 NoMethodError；照抄不修正
-                //        （Java 在 :3757 抛 NPE，同样是“即时报错”）。
+                // 插件缺陷已修: when the machine's move is unknown, movedata is nil and :3757 would raise;
+                // an unknown move gets the minimum Fling power (10).
+                if (movedata == null) {
+                    return 10;
+                }
                 if ("Status".equals(movedata.category)) {                     // :3757 MOVE_CATEGORY == 2 (status move)
                     return 10;                                               // :3757
                 }

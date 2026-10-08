@@ -423,18 +423,23 @@ final class ItemsOnHit {
             if (user.effects.truthy(PBEffects.Battler.Commander)) {          // :1306
                 return;
             }
-            // :1307-1324 登记: 整块不转译 ——
-            //   :1307-1316 `if user.hasActiveAbility?([:SUCTIONCUPS,:FIGHTTODIE,:GUARDDOG]) && !battle.moldBreaker`
-            //     分支里的 :1309 `Battle::Scene::USE_ABILITY_SPLASH` 在全工程不存在（只有
-            //     PokeBattle_SceneConstants::USE_ABILITY_SPLASH，PokeBattle_SceneConstants:3），
-            //     Ruby 走到该行必然 NameError（花名册 §4 #4）；:1308/:1310-1315 的
-            //     splash 与文案照抄不出可编译形状，故连同分支整体登记，不按
-            //     PokeBattle_SceneConstants 改读、不补默认值。
-            //   :1317-1324 `if user.dynamax?` —— Battler 没有 dynamax?，且此处没有
-            //     defined? 保护（花名册 §4 #2），照抄必编译不过；其 else 分支的
-            //     :1320 `pbRecallAndReplace(user.index,newPkmn,true)` 第 3 实参
-            //     （randomReplacement）在本运行时 Battle 上没有对应重载（只有 2 参版本），
-            //     故 :1317-1324 一并登记，不近似、不拆分支。
+            // 插件缺陷已修: :1309 `Battle::Scene::USE_ABILITY_SPLASH` is a NameError (the constant lives in
+            // PokeBattle_SceneConstants); :1317 `user.dynamax?` is undefined (this project has no Dynamax).
+            if ((user.hasActiveAbility("SUCTIONCUPS") || user.hasActiveAbility("FIGHTTODIE")
+                    || user.hasActiveAbility("GUARDDOG")) && !battle.moldBreaker) {   // :1307
+                PendingApi.pbShowAbilitySplash(battle, user);                          // :1308
+                if (PokeBattle_SceneConstants.USE_ABILITY_SPLASH) {                    // :1309
+                    battle.display(user.pbThis() + "固定住了自己！");                   // :1310
+                } else {
+                    battle.display(user.pbThis() + "使用" + user.abilityName() + "固定住了自己！");   // :1312
+                }
+                PendingApi.pbHideAbilitySplash(battle, user);                          // :1314
+                return;                                                                // :1315
+            }
+            battle.pbRecallAndReplace(user.index, newPkmn, true, false);               // :1320 (:1317 dynamax? is always false)
+            battle.display(user.pbThis() + "被拖入了战斗！");                           // :1321
+            battle.pbClearChoice(user.index);                                          // :1322
+            switched.add(user.index);                                                  // :1323
         });
 
         // ==================================================================

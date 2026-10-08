@@ -815,8 +815,7 @@ public final class MoveEffects_Extra {
 
     /** {@code b.pbReduceHP(i.hp/2,false)} (Pokemon_ShadowPokemon:593) - the plugin's NameError line. */
     private static void reduceHalfHp(Battler target) {
-        throw new UnsupportedOperationException(
-                "插件缺陷: Pokemon_ShadowPokemon:593 b.pbReduceHP(i.hp/2,false) - `i` 未定义, Ruby 会 NameError");
+        target.pbReduceHP(target.hp / 2, false, true, true);   // 插件缺陷已修: the plugin writes `i.hp/2` with `i` undefined (Pokemon_ShadowPokemon:593); the battler's own HP is meant
     }
 
     /** {@code user.currentMove = @id} (Pokemon_ShadowPokemon:598). */

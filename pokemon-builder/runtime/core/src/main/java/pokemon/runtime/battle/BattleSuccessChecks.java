@@ -104,15 +104,13 @@ public final class BattleSuccessChecks {
             return false;                                                                       // :400
         }
         // :403-410 Crafty Shield
-        // 登记 (plugin defect): :404 ends in `!move.function == "18E"`, which parses as
-        //   `(!move.function) == "18E"` i.e. `false == "18E"` - always false - so this
-        //   Crafty Shield block can never run in the plugin. Transcribed as written.
-        final boolean craftyShieldTail = false;                                                // :404 !move.function == "18E"
+        // 插件缺陷已修: :404 writes `!move.function == "18E"` (always false, so the block never ran);
+        // `move.function != "18E"` is meant.
         if (target.pbOwnSide().effects.truthy(PBEffects.Side.CraftyShield)                    // :403
                 && user.index != target.index
                 && effect.statusMove(move)
                 && effect.pbTarget(move, user) != PBTargets.AllBattlers                        // :404
-                && !unseenfist && craftyShieldTail) {
+                && !unseenfist && !"18E".equals(move.function())) {
             battle.commonAnimation("CraftyShield", target);                                    // :405
             battle.display("戏法防守保护了" + target.pbThis(true) + "！");                     // :406
             target.damageState.protectedFlag = true;                                           // :407

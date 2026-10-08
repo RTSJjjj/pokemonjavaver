@@ -481,19 +481,8 @@ public final class Battler {
     //  * `@battle.moldBreaker` → 见 {@link #moldBreaker()}（当前可证为 false）；
     //  * `@battle.sideStatUps` → 登记空实现（只影响 Opportunist / 模仿香草）。
     //
-    // 故意**没有**追加的三个方法（插件自身缺陷，用户裁决：不新增方法，保持「照抄调用形状
-    // + 抛异常桩」）。理由：Ruby 里这三处被调用时会直接 NoMethodError，所以「调用即抛异常」
-    // 才是最忠实的映射；给它们一个「合理实现」才是自造行为。调用点在各 handler 体里：
-    //  * `dynamax?`         —— **插件未定义该方法**（全工程只有
-    //                          `BattleHandlers_Items:1317` 的无保护调用与
-    //                          `BattleHandlers_Abilities:2973/2980` 的 `defined?` 保护调用）。
-    //                          Ruby 会 NoMethodError。
-    //  * `pbRecoverHP?`     —— **插件未定义该方法**（`BattleHandlers_Items:186` 多写了一个 `?`，
-    //                          本意是 `pbRecoverHP`）。Ruby 会 NoMethodError。
-    //  * `Battler#pbWeather` —— **插件未定义该方法**（`BattleHandlers_Abilities:4581` 的
-    //                          `target.pbWeather`；Battle 才有 `pbWeather`，Battler 只有
-    //                          `effectiveWeather`）。Ruby 会 NoMethodError。
-    // 另外 5 处同类缺陷已按「照抄 + 注释登记」落在本区方法体内，用 `// 登记:` 搜索可见。
+    // 插件缺陷已修：`pbWeather`（Battler 上调用 → battle.pbWeather()）、`pbRecoverHP?`（→ pbRecoverHP）；
+    // `dynamax?` 本工程没有 Dynamax，恒为 false，不新增方法。
     // =========================================================================
 
     /**
@@ -552,7 +541,7 @@ public final class Battler {
      * <p>⚠️ <b>插件自身缺陷</b>：插件只在 {@code Battler_Initialize:356} 初始化它、
      * 在 {@code Battler_StatStages:68/102} 读它，却**没有 {@code attr_accessor}**，
      * 而 {@code BattleHandlers_Items:1783/1790} 直接写 {@code battler.mirrorHerbUsed = ...}
-     * → Ruby 里必然 {@code NoMethodError}。照抄为 public 字段（用户裁决：照抄 + 登记）。</p>
+     * → Ruby 里必然 {@code NoMethodError}；已修：提供 public 字段。</p>
      */
     public boolean mirrorHerbUsed;
 
@@ -1700,12 +1689,11 @@ public final class Battler {
             }
             PendingApi.pbHideAbilitySplash(battle, this);               // :217
         }
-        // :218-220 —— ⚠️ 插件自身缺陷：`item_to_use` 在本方法内从未定义（参数名是 `thisItem`），
-        // 拥有反刍(CUDCHEW)特性的宝可梦走到这行必然 NoMethodError。照抄形状 + 登记，不自造替代：
-        //   if hasActiveAbility?(:CUDCHEW) && pbIsBerry?(item_to_use) && fling
-        //     setRecycleItem(item_to_use)
-        //   end
-        // 登记: Battler_AbilityAndItem:218-220 item_to_use 未定义（插件缺陷，等用户拍板）
+        // :218-220 插件缺陷已修: the plugin writes `item_to_use`, which is not defined in this method (the parameter is `thisItem`), so a Cud Chew
+        // Pokemon would raise NoMethodError; the item being consumed is meant.
+        if (hasActiveAbility("CUDCHEW") && isBerry(thisItem) && fling) {
+            setRecycleItem(thisItem);
+        }
         if (forcedItem <= 0) {                                          // :222
             pbConsumeItem();
         }
@@ -2556,13 +2544,11 @@ public final class Battler {
             return false;                                                 // :236
         }
         // :239-243 神秘守护
-        // ⚠️ 插件自身缺陷：:240 用了**未定义的局部变量 `user`**（方法签名只有 newStatus,target），
-        // 所以这一行在 Ruby 里走到就 NameError。照抄形状 + 登记，不自造替代：
-        //   if pbOwnSide.effects[PBEffects::Safeguard] > 0 && !(user && (...))
-        // 登记: Battler_Statuses:239-243 未定义的 `user`（插件缺陷，等用户拍板）
-        if (pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0) {
-            // 分支体在 Ruby 里是 return false（:242），但前置条件必然抛错；
-            // 这里按「条件为真即 false」转译，并把缺陷写在上面的登记里。
+        // 修复插件缺陷：Ruby :240 引用了未定义的 `user`（NameError）；
+        // 明显意图是「施加状态的一方」，同步特性场景下即参数 target。
+        if (pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0
+                && !(target != null && (target.hasActiveAbility("INFILTRATOR")
+                                        || target.hasActiveAbility("TRANSLUCENTGHOST")))) { // :239-243
             return false;
         }
         if ((newStatus == PBStatuses.BURN || newStatus == PBStatuses.POISON)
@@ -4914,9 +4900,9 @@ public final class Battler {
         String itm = item;                                                           // :336
         Boolean ret = BattleHandlers.triggerItemOnOpposingStatGain(itm, this, battle, statUps, false);   // :337 !item_to_use == !0 == false
         if (ret != null && ret) {
-            // Ruby raises NoMethodError here (forcedItem<=0 on a boolean, :222). Now that addSideStatUps/pbMirrorStatUpsOpposing are wired
-            // this line is reachable in a real battle (Mirror Herb), so the port does not crash: the item simply does not trigger.
-            // 登记: deviation from the plugin, which crashes.
+            // 插件缺陷已修: the plugin passes `item_to_use==0` (a boolean) as forcedItem, so :222 `forcedItem<=0` raises NoMethodError.
+            // The held item being consumed is meant, i.e. forcedItem 0.
+            pbHeldItemTriggered(itm, 0, false);                                    // :338
         }
     }
 
