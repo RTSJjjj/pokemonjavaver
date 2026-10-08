@@ -69,6 +69,14 @@ uses it for trainer (and rank>=2 boss) foes in double battles and registers the 
 登记: `ai_partner.c` (an ally target is always -1), Z-moves, doubles fighting classes (read from the singles class), `CanKnockOutWithFasterMove` approximated,
 doubles branches inside AiNegatives/AiPositives, doubles switching and item use (still singles only).
 
+## Batch 7 (done): side-effect hits and the common utility moves
+- Damaging moves that share a status function code in Essentials (Body Slam = 007, Flamethrower = 00A, Thunderbolt, Psychic's stat drop, ...) are CFRU's `EFFECT_*_HIT`:
+  Negatives treat them as plain damage (ai_negatives.c:3289; before this they were wrongly penalised like the status move), Positives only run the status checks when the
+  side-effect chance is >= 75% (>= 50% for stat drops on a non-damager) and the target has no Substitute (`AiCalc.isSideEffectHit`, `secondaryEffectChance`).
+- `AiPositiveMore`: Explosion, Reflect/Light Screen/Aurora Veil (`ShouldSetUpScreens`), Substitute (`ShouldUseSubstitute`), Protect family + Endure (`ShouldProtect`),
+  U-Turn/Volt Switch/Parting Shot (`ShouldPivot` on top of the bench scorer, `IncreasePivotViability`), Knock Off.
+  登记: team protections, Aegislash, Wish after a pivot, `RecalcStrongestMoveIgnoringMove`, Mimic/Disable/Encore/Spite/Thief/Trick/Psych Up/Wish/Heal Bell/Skill Swap family.
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.

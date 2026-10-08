@@ -133,6 +133,23 @@ final class AiCalc {
         }
     }
 
+    /** Function codes Essentials shares between a status move and its damaging "hit with a side effect" variants (CFRU's separate *_HIT effects). */
+    static final String[] SIDE_EFFECT_CODES = {"005", "006", "007", "00A", "00C", "013", "042", "043", "044", "045", "046", "047",
+            "04B", "04C", "04D", "04E", "04F"};
+
+    /** A damaging move whose function code is a status family: CFRU's EFFECT_*_HIT. */
+    static boolean isSideEffectHit(BattleMove move) {
+        return !move.statusMove() && move.power() > 0 && oneOf(move, SIDE_EFFECT_CODES);
+    }
+
+    /** {@code CalcSecondaryEffectChance(bank,move,ability)} (ai_util.c:2728). 登记: Sheer Force boosted-move table (any move with a chance), Rainbow, flinch table. */
+    static int secondaryEffectChance(BattleMove move, Battler atk) {
+        int chance = move.additionalChance();
+        if (chance > 0 && atk.hasActiveAbility("SHEERFORCE")) return 0;
+        if (atk.hasActiveAbility("SERENEGRACE")) chance *= 2;
+        return chance;
+    }
+
     /** {@code AI_SpecialTypeCalc(...) & MOVE_RESULT_NO_EFFECT}. */
     static boolean noEffect(Battle battle, Battler atk, Battler def, BattleMove move) {
         return calcDmg(battle, atk, def, move).typeMod == 0;
@@ -522,7 +539,7 @@ final class AiCalc {
     }
 
     /** {@code CanKnockOutAfterHealing(bankAtk,bankDef,healAmount,numHits,checkAlwaysHits)}. */
-    private static boolean canKnockOutAfterHealing(AiCtx ctx, Battler atk, Battler def, int healAmount) {
+    static boolean canKnockOutAfterHealing(AiCtx ctx, Battler atk, Battler def, int healAmount) {
         int hp = Math.min(def.hp + healAmount, def.maxHp());
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
             BattleMove m = atk.moveSlot(i);

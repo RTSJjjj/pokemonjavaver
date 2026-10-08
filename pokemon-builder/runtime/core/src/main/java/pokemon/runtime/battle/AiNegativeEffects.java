@@ -47,7 +47,7 @@ final class AiNegativeEffects {
         boolean tr = AiCalc.trickRoomNotEnding(battle);
         String f = move.function();
 
-        if (f.equals("000")) {                                                                    // EFFECT_HIT
+        if (f.equals("000") || AiCalc.isSideEffectHit(move)) {                                  // EFFECT_HIT, EFFECT_*_HIT (:3289 AI_STANDARD_DAMAGE)
             r.standardDamage = true;
         } else if (f.equals("003")) {                                                             // EFFECT_SLEEP (:760)
             if (AiCalc.noEffect(battle, atk, def, move)) {

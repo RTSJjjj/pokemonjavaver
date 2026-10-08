@@ -32,6 +32,19 @@ final class AiPositiveEffects {
         int atkSpeed = AiCalc.speed(atk);
         int defSpeed = AiCalc.speed(def);
         BattleMove predicted = ctx.prediction(def);
+        if (AiCalc.isSideEffectHit(move)) {                                                    // EFFECT_*_HIT (:93-113, :839-885): only worth it for a likely side effect
+            int chance = AiCalc.secondaryEffectChance(move, atk);
+            boolean blocked = AiCalc.blockedBySubstitute(move, atk, def);
+            if (AiCalc.oneOf(move, "005", "006", "007", "00A", "00C")) {
+                if (chance < 75 || blocked) return viability;
+            } else if (f.equals("013")) {
+                if (chance < 75 || blocked || !AiCalc.moveWillHit(battle, atk, def, move)) return viability;
+            } else if (f.equals("044")) {
+                if (chance < 50 || blocked) return viability;
+            } else if (AiCalc.classDamager(cls) || chance < 50 || blocked) {                     // STAT_DOWN_HIT_CHECK
+                return viability;
+            }
+        }
         switch (f) {
             case "003": case "004":                                                                // EFFECT_SLEEP / YAWN (:68)
                 return AiPositiveHelpers.incSleep(ctx, viability, cls, atk, def, move);
@@ -475,7 +488,7 @@ final class AiPositiveEffects {
                 return viability;
             }
             default:
-                return viability;
+                return AiPositiveMore.apply(ctx, atk, def, move, viability, cls, atkAbility, defAbility);
         }
     }
 

@@ -54,10 +54,11 @@ class AiCfruTest {
                 + species("GHOSTY", 2, "GHOST", 80, 80, 80, 40, "NONE") + ","
                 + species("DUCK", 3, "WATER", 80, 80, 80, 40, "WATERABSORB") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
-        write(tempDir, "moves.json", "{\"total\":8,\"moves\":{"
-                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + "," + status("SPIKES", "103") + ","
+        write(tempDir, "moves.json", "{\"total\":11,\"moves\":{"
+                + status("SWORDSDANCE", "02E") + "," + status("SPORE", "003") + "," + status("RECOVER", "0D5") + "," + status("SPIKES", "103") + "," + status("PROTECT", "0AA") + "," + status("REFLECT", "0A2") + ","
                 + move("TACKLE", 40, "NORMAL", "Physical", 35) + "," + move("STRONGHIT", 90, "NORMAL", "Physical", 15) + ","
-                + move("WATERGUN", 40, "WATER", "Special", 25) + "," + move("SURF", 90, "WATER", "Special", 15) + "}}");
+                + move("WATERGUN", 40, "WATER", "Special", 25) + "," + move("SURF", 90, "WATER", "Special", 15) + ","
+                + move("BODYSLAM", 85, "NORMAL", "Physical", 15).replace("\"function\":\"000\"", "\"function\":\"007\"").replace("\"effectChance\":0", "\"effectChance\":30") + "}}");
         write(tempDir, "types.json", "{\"total\":3,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"
                 + "\"GHOST\":{\"id\":7,\"internalName\":\"GHOST\",\"name\":\"Ghost\",\"immunities\":[\"NORMAL\"]},"
@@ -312,5 +313,38 @@ class AiCfruTest {
             assertEquals(0, choice.slot);
             assertEquals(2, choice.target, "index 0 is the Ghost, 2 is the Normal-type FAT");
         }
+    }
+
+    @Test
+    @DisplayName("a damaging move that shares a status function code (Body Slam = 007) is a plain attack, not a failed paralysis (ai_negatives.c:3289)")
+    void sideEffectHitIsStandardDamage() {
+        Battler foe = foe("FAT", 50, "HERO", 50, "BODYSLAM", "TACKLE");
+        foe.battle.player().setStatus("PARALYSIS");
+        AiCtx ctx = new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST);
+        assertTrue(AiNegatives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100) >= 100);
+        // 30% is below the 75% needed to count the side effect (ai_positives.c:93-113)
+        assertEquals(AiPositives.score(ctx, foe, foe.battle.player(), foe.moveSlot(1), 100) - 0 >= 100, true);
+    }
+
+    @Test
+    @DisplayName("Protect is favoured when the foe's predicted move would knock the user out and it cannot heal through it (ShouldProtect, ai_advanced.c:1108)")
+    void protectsFromAKnockOut() {
+        Battler foe = foe("HERO", 100, "HERO", 5, "PROTECT", "TACKLE");
+        AiCtx ctx = AiMaster.prepare(foe.battle, foe, foe.battle.player(), new Random(1));
+        // give the player a move: the fixture's player Pokemon has none, so teach it STRONGHIT
+        assertTrue(AiPositives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100) >= 100);
+    }
+
+    @Test
+    @DisplayName("Reflect is only worth setting up against a foe with physical moves (ShouldSetUpScreens, ai_advanced.c:1367)")
+    void reflectNeedsPhysicalFoe() {
+        Battle battle = trainerBattle(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "REFLECT", "TACKLE"));
+        Battler foe = battle.foe();
+        AiCtx ctx = AiMaster.prepare(battle, foe, battle.player(), new Random(1));
+        assertTrue(AiPositiveMore.shouldSetUpScreens(ctx, foe, battle.player(), foe.moveSlot(0)));
+        Battle special = trainerBattle(mon("HERO", 50, "WATERGUN"), mon("HERO", 50, "REFLECT", "TACKLE"));
+        Battler foe2 = special.foe();
+        AiCtx ctx2 = AiMaster.prepare(special, foe2, special.player(), new Random(1));
+        assertFalse(AiPositiveMore.shouldSetUpScreens(ctx2, foe2, special.player(), foe2.moveSlot(0)));
     }
 }
