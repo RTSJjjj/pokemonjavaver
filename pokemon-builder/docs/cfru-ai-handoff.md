@@ -97,3 +97,12 @@ Imprison clauses, `NoUsableHazardsInMoveset`.
 Counter/Mirror Coat/Metal Burst 071-073, Future Sight 111, Explosion 0E0, Recharge 0C2, charge turn 0C3-0CE, OHKO 070, fixed damage 06A-06F,
 Protect 0AA/149/14A/168, Roar 0EB, Haze 051, Wish 0D7, Heal Bell 019, Sucker Punch 116, Rapid Spin 110, Defog 049, Pursuit 088, Heart Swap 054, U-Turn/Volt Switch 0EE, Reflect 0A2, Light Screen 0A3, Leech Seed 0DC, healing 0D5/0D6/0D8/114,
 Spikes 103-105/153, stat-boost status 01C-03B, Sleep Talk/Snore 0B4/011, Lock-On 0A6. Verify against the generated `moves.json` before relying on them.
+
+
+## Classification of the untranscribed items (rule: nothing below is silently dropped)
+- **Not applicable to this project (will never be ported, ignore):** Z-moves / Z-crystals, Dynamax / Max moves / raid battles, Camomons, Hoopa SOS, FROSTBITE, Steelsurge, Rainbow side effect.
+- **Deferred, source is in hand (doable):** `ai_partner.c`, the doubles branches inside the scripts, doubles switching / item lists, `PassOnWish`, `CanStopLockedMove`, `ShouldSwitchIfWonderGuard`,
+  Wish / Heal Bell (`ShouldUseWishAromatherapy`), Counter's `previousMovePredictions` branch (the AI must remember last turn's prediction), Mirror Move (`lastTakenMoveFrom`, needs an engine record), Imprison, `NoUsableHazardsInMoveset`.
+- **Deferred, needs a source file or table not fetched yet:** `ShouldSwitchIfPerishSong` body, the `switchingCooldown` setter, `gAbilityRatings` (Skill Swap family), `gCopycatBannedMoves` / `gMimicBannedMoves`, `CanLastMoveNotBeEncored`, Trick / Thief item rules (`CanTransferItem`).
+- **Cannot be transcribed from available source:** the item effect handlers (`PItem_BattleItemEffects`: can-use rules, per-item messages) - not in `plugin-src`; the code infers them and says so.
+- **Written but simplified (approximation, listed at each site):** doubles fighting classes, `CanKnockOutWithFasterMove`, the 2-hit `CanKnockOutAfterHealing`, Sheer Force / flinch tables in `CalcSecondaryEffectChance`.
