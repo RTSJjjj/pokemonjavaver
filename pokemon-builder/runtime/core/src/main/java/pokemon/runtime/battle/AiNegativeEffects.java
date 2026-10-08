@@ -46,6 +46,8 @@ final class AiNegativeEffects {
         boolean locked = AiCalc.goodAiMoveLocked(ctx, atk);
         boolean tr = AiCalc.trickRoomNotEnding(battle);
         String f = move.function();
+        boolean isDouble = AiDoublesScore.isDouble(battle, atk);
+        boolean targetingPartner = isDouble && def != atk && def.foe == atk.foe;                  // TARGETING_PARTNER
 
         if (f.equals("000") || AiCalc.isSideEffectHit(move)) {                                  // EFFECT_HIT, EFFECT_*_HIT (:3289 AI_STANDARD_DAMAGE)
             r.standardDamage = true;
@@ -73,13 +75,16 @@ final class AiNegativeEffects {
             if (ctx.battle.trainerBattle) {
                 if (AiUtil.benchAlive(battle, atk) == 0) r.viability -= 10;                       // !HasMonToSwitchTo
             } else if (atk.foe) {
-                if (false /* IsTrapped(bankAtk,FALSE) - 登记 */) r.viability -= 10;
+                if (isDouble /* || IsTrapped(bankAtk,FALSE): 登记 */) r.viability -= 10;
             } else if (AiUtil.benchAlive(battle, atk) == 0) {
                 r.viability -= 10;
             }
         } else if (in(move, ATTACK_UP)) {                                                         // EFFECT_ATTACK_UP(_2) (:931)
             if (locked) r.viability -= 10;
+            else if (AiCalc.named(move, "HOWL") && targetingPartner) { /* handled in ai_partner.c */ }
             else if (contrary || !AiCalc.statCanRise(atk, PBStats.ATTACK) || !AiCalc.physicalMoveInMoveset(ctx, atk)) r.viability -= 10;
+        } else if (f.equals("138")) {                                                             // Aromatic Mist (:990)
+            if (locked || !isDouble || !targetingPartner) r.viability -= 10;
         } else if (in(move, DEFENSE_UP)) {                                                        // EFFECT_DEFENSE_UP(_2)/CURL (:952)
             if (locked || contrary || !AiCalc.statCanRise(atk, PBStats.DEFENSE)) r.viability -= 10;
         } else if (in(move, SPEED_UP)) {                                                          // EFFECT_SPEED_UP(_2) (:999)
@@ -98,7 +103,7 @@ final class AiNegativeEffects {
         } else if (f.equals("027") || f.equals("028") || f.equals("15C")) {                       // EFFECT_ATK_SPATK_UP: Work Up, Growth, Gear Up (:1049)
             if (locked) {
                 r.viability -= 10;
-            } else if (f.equals("15C") && !isPlusMinus(atkAbility)) {                             // MOVE_GEARUP (no partner in singles)
+            } else if (f.equals("15C") && !isPlusMinus(atkAbility) && !targetingPartner) {        // MOVE_GEARUP: wouldn't affect the user
                 r.viability -= 10;
             } else if (contrary
                     || ((!AiCalc.statCanRise(atk, PBStats.ATTACK) || !AiCalc.physicalMoveInMoveset(ctx, atk))
@@ -106,7 +111,8 @@ final class AiNegativeEffects {
                 r.viability -= 10;
             }
         } else if (f.equals("13E")) {                                                             // MOVE_ROTOTILLER (:1057)
-            if (!atk.hasType("GRASS") || atk.airborne()) r.viability -= 10;
+            if (targetingPartner) { /* handled in ai_partner.c */ }
+            else if (!atk.hasType("GRASS") || atk.airborne()) r.viability -= 10;
             else if (locked || contrary || ((!AiCalc.statCanRise(atk, PBStats.ATTACK) || !AiCalc.physicalMoveInMoveset(ctx, atk))
                     && (!AiCalc.statCanRise(atk, PBStats.SPATK) || !AiCalc.specialMoveInMoveset(ctx, atk)))) r.viability -= 10;
         } else if (f.equals("029")) {                                                             // EFFECT_ATK_ACC_UP: Hone Claws (:1082)
@@ -117,7 +123,8 @@ final class AiNegativeEffects {
                 else if (ctx.goodAi() && allMovesAlwaysHit(ctx, atk, def)) r.viability -= 1;      // ACC_CHECK_2 (:1010)
             }
         } else if (f.equals("02A") || f.equals("137")) {                                          // EFFECT_COSMIC_POWER; Magnetic Flux (:1096)
-            if (contrary || locked) r.viability -= 10;
+            if (f.equals("137") && targetingPartner) { /* handled in ai_partner.c */ }
+            else if (contrary || locked) r.viability -= 10;
             else if (f.equals("137") && !isPlusMinus(atkAbility)) r.viability -= 10;
             else if (!AiCalc.statCanRise(atk, PBStats.DEFENSE) && !AiCalc.statCanRise(atk, PBStats.SPDEF)) r.viability -= 10;
         } else if (f.equals("024") || f.equals("025")) {                                          // EFFECT_BULK_UP; Coil (:1115)
@@ -197,8 +204,11 @@ final class AiNegativeEffects {
             if (!AiCalc.statCanBeLowered(def, atk, PBStats.ACCURACY)) r.viability -= 10; else substituteCheck(move, atk, def, r);
         } else if (f.equals("048")) {                                                             // EFFECT_EVASION_DOWN(_2) (:1318)
             if (!AiCalc.statCanBeLowered(def, atk, PBStats.EVASION)) r.viability -= 10; else substituteCheck(move, atk, def, r);
-        } else if (f.equals("051")) {                                                             // EFFECT_HAZE (:1325): GOOD_AI branch needs CountUsefulBoosts/Debuffs - 登记
-            // :1325-1339 only runs for AI flags <= SEMI_SMART; :1342 `if (GOOD_AI)` boost counting is 登记 (CountUsefulBoosts).
+        } else if (f.equals("051")) {                                                             // EFFECT_HAZE (:1322)
+            // :1325-1339 only runs for AI flags <= SEMI_SMART (not the smartest tier); then the GOOD_AI check:
+            int goodToGetRidOf = AiPositiveHelpers.countUsefulStatChanges(ctx, def, def, atk, false) + AiPositiveHelpers.countUsefulStatChanges(ctx, atk, atk, def, true);
+            int badToGetRidOf = AiPositiveHelpers.countUsefulStatChanges(ctx, def, def, atk, true) + AiPositiveHelpers.countUsefulStatChanges(ctx, atk, atk, def, false);
+            if (ctx.goodAi() && goodToGetRidOf < badToGetRidOf) r.viability -= 10;
         } else if (!part2(ctx, atk, def, move, r) && !AiNegativeHistory.apply(ctx, atk, def, move, r)) {
             r.standardDamage = true;                                                              // default: AI_STANDARD_DAMAGE (:3246)
         }
@@ -455,16 +465,17 @@ final class AiNegativeEffects {
             }
             case "0AA": case "14B": case "14C": case "168": case "0E8": case "0AB": case "0AC": case "14A": case "149": {   // EFFECT_PROTECT (:1904)
                 boolean teamProtect = f.equals("0AB") || f.equals("0AC") || f.equals("14A");
-                if (teamProtect) { r.viability -= 10; return true; }                              // !IS_DOUBLE_BATTLE
+                boolean dbl = AiDoublesScore.isDouble(battle, atk);
+                if (teamProtect && !dbl) { r.viability -= 10; return true; }                      // !IS_DOUBLE_BATTLE
                 if (f.equals("149") && !AiCalc.firstTurn(atk)) { r.viability -= 10; return true; }   // MOVE_MATBLOCK
                 if (f.equals("0E8") && (atk.hp == 1 || AiCalc.takingSecondaryDamage(battle, atk))) { r.viability -= 10; return true; }   // MOVE_ENDURE
                 if (def.effects.intVal(PBEffects.Battler.HyperBeam) > 0) { r.viability -= 10; return true; }   // STATUS2_RECHARGE
-                int uses = protectUses(atk);
+                int uses = teamProtect ? 0 : protectUses(atk);                                    // Quick Guard / Wide Guard / Crafty Shield have infinite usage
                 if (uses > 0) {                                                                   // the previous move was also a Protect
                     if (AiCalc.willFaintFromSecondaryDamage(battle, atk) && !AiCalc.isMoxie(defAbility)) r.viability -= 10;
                     else if (uses >= 2) r.viability -= 10;
                     else if (f.equals("14B") && uses > 0) r.viability -= 9;                       // King's Shield
-                    else if (uses == 1 && (ctx.simulatedRng[1] & 1) != 0) r.viability -= 6;       // IS_SINGLE_BATTLE
+                    else if (uses == 1 && (ctx.simulatedRng[1] & 1) != 0) r.viability -= dbl ? 10 : 6;   // don't try double protecting in doubles
                 }
                 return true;
             }
@@ -474,7 +485,7 @@ final class AiNegativeEffects {
                     r.viability -= 9;
                     return true;
                 }
-                if (AiUtil.benchAlive(battle, def) + 1 <= 1) { r.viability -= 10; return true; }
+                if (AiUtil.benchAlive(battle, def) + 1 <= (AiDoublesScore.isDouble(battle, atk) ? 2 : 1)) { r.viability -= 10; return true; }
                 BattleSide side = def.pbOwnSide();
                 if (f.equals("105")) {
                     if (side.effects.intVal(PBEffects.Side.StealthRock) > 0) r.viability -= 10;
@@ -498,7 +509,22 @@ final class AiNegativeEffects {
                 }
                 return true;
             }
-            case "0E5": {                                                                         // EFFECT_PERISH_SONG (:2074), single battle
+            case "0E5": {                                                                         // EFFECT_PERISH_SONG (:2074)
+                if (AiDoublesScore.isDouble(battle, atk)) {
+                    Battler partner = AiDoublesScore.partner(battle, atk);
+                    boolean partnerSoundproof = partner != null && partner.hasActiveAbility("SOUNDPROOF");
+                    if (AiUtil.benchAlive(battle, atk) + 2 <= 2 && !"SOUNDPROOF".equals(atkAbility) && !partnerSoundproof
+                            && AiUtil.benchAlive(battle, def) + AiDoublesScore.foes(battle, atk).size() >= 3) {
+                        r.viability -= 10;                                                        // don't wipe your team if you're going to lose
+                    } else {
+                        boolean allCovered = true;
+                        for (Battler foe : AiDoublesScore.foes(battle, atk)) {
+                            allCovered &= foe.hasActiveAbility("SOUNDPROOF") || foe.effects.intVal(PBEffects.Battler.PerishSong) > 0;
+                        }
+                        if (allCovered) r.viability -= 10;                                        // both enemies are perish songed
+                    }
+                    return true;
+                }
                 if (AiUtil.benchAlive(battle, atk) + 1 == 1 && !"SOUNDPROOF".equals(atkAbility) && AiUtil.benchAlive(battle, def) + 1 >= 2) r.viability -= 10;
                 if (def.effects.intVal(PBEffects.Battler.PerishSong) > 0 || def.hasActiveAbility("SOUNDPROOF")) r.viability -= 10;
                 return true;
@@ -541,6 +567,27 @@ final class AiNegativeEffects {
                     boolean passable = atk.effects.intVal(PBEffects.Battler.Substitute) > 0 || atk.effects.truthy(PBEffects.Battler.Ingrain)
                             || atk.effects.truthy(PBEffects.Battler.AquaRing) || anyStatRaised(atk);
                     if (!passable) r.viability -= 6;
+                }
+                return true;
+            }
+            case "049": {                                                                         // EFFECT_RAPID_SPIN: Defog (:2175)
+                BattleSide ds = def.pbOwnSide();
+                boolean screens = ds.effects.intVal(PBEffects.Side.Reflect) > 0 || ds.effects.intVal(PBEffects.Side.LightScreen) > 0
+                        || ds.effects.intVal(PBEffects.Side.Safeguard) > 0 || ds.effects.intVal(PBEffects.Side.Mist) > 0
+                        || ds.effects.intVal(PBEffects.Side.AuroraVeil) > 0;
+                Battler partner = AiDoublesScore.partner(battle, atk);
+                BattleMove pm = partner == null ? null : battle.chosenMove(partner.index);
+                if ((screens || atk.pbOwnSide().effects.intVal(PBEffects.Side.Spikes) > 0) && pm != null && pm.function().equals("049")) {
+                    r.viability -= 10;                                                            // only need one hazards removal
+                } else if (ds.effects.intVal(PBEffects.Side.Spikes) > 0) {
+                    r.viability -= 10;                                                            // don't blow away opposing spikes
+                } else if (AiDoublesScore.isDouble(battle, atk) && pm != null && AiCalc.oneOf(pm, "103", "104", "105", "153")
+                        && !AiCalc.wouldHitBefore(battle, move, atk, pm, partner)) {
+                    r.viability -= 10;                                                            // the partner sets up hazards first
+                } else if (!AiCalc.statCanBeLowered(def, atk, PBStats.EVASION)) {
+                    r.viability -= 10;                                                            // AI_LOWER_EVASION
+                } else {
+                    substituteCheck(move, atk, def, r);
                 }
                 return true;
             }
@@ -644,8 +691,15 @@ final class AiNegativeEffects {
                 if (def.effects.intVal(PBEffects.Battler.Taunt) > 0 || "OBLIVIOUS".equals(defAbility)) r.viability -= 10;
                 return true;
             }
-            case "117": case "09C": {                                                             // EFFECT_FOLLOW_ME / HELPING_HAND (:2460): needs an ally
-                r.viability -= 10;
+            case "117": case "09C": {                                                             // EFFECT_FOLLOW_ME / HELPING_HAND (:2443)
+                Battler partner = AiDoublesScore.partner(battle, atk);
+                BattleMove pm = partner == null ? null : battle.chosenMove(partner.index);
+                boolean redirectionPrevented = defAbility.equals("STALWART") || defAbility.equals("PROPELLERTAIL");
+                if (!AiDoublesScore.isDouble(battle, atk) || partner == null || (pm != null && f.equals(pm.function()))
+                        || (pm != null && pm.statusMove())
+                        || ":SwitchOut".equals(battle.choices(partner.index)[0]) || redirectionPrevented) {
+                    r.viability -= 10;
+                }
                 return true;
             }
             case "0F2": case "0F3": {                                                             // EFFECT_TRICK (:2472): Trick/Switcheroo, Bestow
@@ -760,9 +814,10 @@ final class AiNegativeEffects {
                 return true;
             }
             case "11F": {                                                                         // MOVE_TRICKROOM (:2856)
-                boolean slower = atk.speed() < def.speed();
-                if (battle.field.effects.intVal(PBEffects.Field.TrickRoom) > 0) { if (slower) r.viability -= 10; }   // keep the Trick Room up
-                else if (atk.speed() > def.speed()) r.viability -= 10;                           // keep the Trick Room down
+                int atkAvg = AiPositiveField.sideSpeedAverage(battle, atk);
+                int defAvg = AiPositiveField.sideSpeedAverage(battle, def);
+                if (battle.field.effects.intVal(PBEffects.Field.TrickRoom) > 0) { if (atkAvg < defAvg) r.viability -= 10; }   // keep the Trick Room up
+                else if (atkAvg > defAvg) r.viability -= 10;                                     // keep the Trick Room down
                 return true;
             }
             case "0F9": {                                                                         // MOVE_MAGICROOM (:2874)
@@ -893,6 +948,13 @@ final class AiNegativeEffects {
             r.viability -= 10;                                                                    // don't explode while the target is semi-invulnerable
         } else if (AiUtil.benchAlive(battle, def) + 1 == 1 && AiCalc.knocksOutXHits(ctx, move, atk, def, 1)) {
             // Good to use move
+        } else if (AiDoublesScore.isDouble(battle, atk)) {                                        // Double Battle (:813)
+            Battler defPartner = AiDoublesScore.partner(battle, def);
+            if (!AiCalc.knocksOutXHits(ctx, move, atk, def, 1)
+                    || (defPartner != null && !AiCalc.knocksOutXHits(ctx, move, atk, defPartner, 1))
+                    || AiUtil.benchAlive(battle, def) + 1 >= 3) {
+                r.viability -= 4;
+            }
         } else {                                                                                  // Single Battle (:825)
             if (AiCalc.knocksOutXHits(ctx, move, atk, def, 1)) {
                 if (AiUtil.benchAlive(battle, def) + 1 >= 2 && canKnockOutWithoutMove(ctx, move, atk, def)) r.viability -= 4;
@@ -915,7 +977,7 @@ final class AiNegativeEffects {
     }
 
     private static boolean anyHasAbility(Battle battle, String ability) {
-        for (Battler b : new Battler[] {battle.player(), battle.foe()}) {
+        for (Battler b : battle.eachBattler()) {                                                   // ABILITY_ON_FIELD
             if (b != null && !b.fainted() && b.hasActiveAbility(ability)) return true;
         }
         return false;

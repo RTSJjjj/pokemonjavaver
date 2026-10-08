@@ -156,6 +156,50 @@ final class AiNegatives {
                 }
             }
 
+            // Partner Ability Checks (:505-:600)
+            if (AiDoublesScore.isDouble(battle, atk) && !partnerTarget) {
+                Battler defPartner = AiDoublesScore.partner(battle, def);
+                Battler atkPartner = AiDoublesScore.partner(battle, atk);
+                boolean spreadMove = AiDoublesScore.spread(battle, atk, move);
+                boolean foeField = "FoeSide".equals(target) || "BothSides".equals(target);
+                boolean redirectionPrevented = atkAbility.equals("STALWART") || atkAbility.equals("PROPELLERTAIL");
+                String dpa = defPartner == null || atk.hasMoldBreaker() ? "" : (defPartner.ability == null ? "" : defPartner.ability);
+                switch (dpa) {                                                                       // Target Partner Ability Check
+                    case "LIGHTNINGROD":
+                        if ("ELECTRIC".equals(moveType) && !redirectionPrevented) return clamp(dec(viability, 20));
+                        break;
+                    case "STORMDRAIN":
+                        if ("WATER".equals(moveType) && !redirectionPrevented) return clamp(dec(viability, 20));
+                        break;
+                    case "MAGICBOUNCE":
+                        if (AiCalc.has(move, 'c') && (spreadMove || foeField)) return clamp(dec(viability, 20));
+                        break;
+                    case "SWEETVEIL":
+                        if (AiCalc.oneOf(move, "003", "004")) return clamp(dec(viability, 10));
+                        break;
+                    case "FLOWERVEIL":
+                        if (def.hasType("GRASS") && status && (AiPartner.statLowering(move) || setsStatus(move) || AiCalc.named(move, "PARTINGSHOT"))) {
+                            return clamp(dec(viability, 10));
+                        }
+                        break;
+                    case "AROMAVEIL":
+                        if (status && AiCalc.named(move, "TAUNT", "TORMENT", "ENCORE", "DISABLE", "HEALBLOCK", "ATTRACT")) return clamp(dec(viability, 10));
+                        break;
+                    case "DAZZLING": case "QUEENLYMAJESTY":
+                        if (AiCalc.priorityCalc(battle, atk, move) > 0) return clamp(dec(viability, 10));
+                        break;
+                    default:
+                        break;
+                }
+                if (!spreadMove) {                                                                   // Attacker Partner Ability Check: make sure the partner will not steal the move
+                    String apa = atkPartner == null ? "" : (atkPartner.ability == null ? "" : atkPartner.ability);
+                    if (!"User".equals(target) && !redirectionPrevented) {
+                        if (apa.equals("LIGHTNINGROD") && "ELECTRIC".equals(moveType)) return clamp(dec(viability, 10));   // wouldn't be so bad to hit the partner
+                        if (apa.equals("STORMDRAIN") && "WATER".equals(moveType)) return clamp(dec(viability, 10));
+                    }
+                }
+            }
+
             // Prankster (:487)
             if (atk.hasActiveAbility("PRANKSTER") && status && !"FoeSide".equals(target)
                     && def.hasType("DARK")) {
@@ -177,7 +221,7 @@ final class AiNegatives {
             }
 
             // Powder & Ion Deluge Check (:540) - GOOD_AI
-            if (ctx.goodAi()) {
+            if (ctx.goodAi() && !partnerTarget) {
                 if ("FIRE".equals(moveType)) {
                     if (usedMove(def, "POWDER") && ctx.simulatedRng[0] < 75) return clamp(dec(viability, 19));
                 } else if ("NORMAL".equals(moveType)) {
@@ -186,6 +230,17 @@ final class AiNegatives {
                         return clamp(dec(viability, 19));                                             // IsElectricAbsorptionAblity
                     }
                 }
+            }
+        }
+
+        // Status Wide Guard Check (:683)
+        if (!target.equals("User") && AiDoublesScore.isDouble(battle, atk) && AiDoublesScore.spread(battle, atk, move)) {
+            Battler defPartner2 = AiDoublesScore.partner(battle, def);
+            if (status && ctx.goodAi() && ctx.simulatedRng[0] < 75
+                    && (usedMove(def, "WIDEGUARD") || (defPartner2 != null && usedMove(defPartner2, "WIDEGUARD")))) {
+                return clamp(dec(viability, 10));
+            } else if (def.pbOwnSide().effects.intVal(PBEffects.Side.WideGuard) > 0) {
+                return clamp(dec(viability, 10));
             }
         }
 
@@ -200,6 +255,7 @@ final class AiNegatives {
         if (weather == PBWeather.HeavyRain && "FIRE".equals(moveType) && !status) return clamp(dec(viability, 20));
 
         // Check Move Effects (:667); the effects without a transcribed case fall into the default branch.
+        if (AiNegativeDoubles.blocks(ctx, atk, def, move)) return clamp(dec(viability, 10));         // the partner already covers this
         AiNegativeEffects.Result effect = AiNegativeEffects.apply(ctx, atk, def, move, viability);
         viability = effect.viability;
         // AI_STANDARD_DAMAGE (:3246)
