@@ -64,3 +64,4 @@ Readable export of the battle-related sections of the game's `Data/Scripts.rxdat
 ## pbs/
 
 Copy of `generated/pbs/*.json` (the data the runtime loads via `PbsData.parse`): index, moves, abilities, items, pokemon, pokemonforms, tm, types, trainers, trainertypes, natures. `generated/` itself is gitignored, so this is the only copy cloud sessions can read. `PbsData.parse(root)` expects these files under `<root>/pbs/`.
+- `188_PItem_Items.rb` — section 188 "PItem_Items" (1148 lines; holds pbBattleHPItem:586, pbBattleItemCanCureStatus?:705, pbBattleItemCanRaiseStat?:713)
