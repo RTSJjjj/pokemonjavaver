@@ -2348,8 +2348,9 @@ public final class Battle {
         }
         // CFRU AI_TrySwitchOrUseItem (ai_master.c:948): a trainer's Pokemon may switch instead of attacking;
         // then the plugin's pbEnemyShouldUseItem? (142_PokeBattle_AI.rb:168-170)
-        if (controller == null && user.foe && trainerBattle && singleBattle() && !user.fainted()) {
-            int idxSwitch = AiSwitching.decide(this, user, random);
+        if (controller == null && user.foe && trainerBattle && !user.fainted()) {
+            // 登记: the switching scorer (ai_switching.c) is transcribed for single battles only; doubles switching is still to do
+            int idxSwitch = singleBattle() ? AiSwitching.decide(this, user, random) : -1;
             if (idxSwitch >= 0 && registerSwitch(user.index, idxSwitch)) {
                 return;
             }
