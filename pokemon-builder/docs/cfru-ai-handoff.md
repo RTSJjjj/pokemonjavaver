@@ -104,5 +104,10 @@ Spikes 103-105/153, stat-boost status 01C-03B, Sleep Talk/Snore 0B4/011, Lock-On
 - **Deferred, source is in hand (doable):** `ai_partner.c`, the doubles branches inside the scripts, doubles switching / item lists, `PassOnWish`, `CanStopLockedMove`, `ShouldSwitchIfWonderGuard`,
   Wish / Heal Bell (`ShouldUseWishAromatherapy`), Counter's `previousMovePredictions` branch (the AI must remember last turn's prediction), Mirror Move (`lastTakenMoveFrom`, needs an engine record), Imprison, `NoUsableHazardsInMoveset`.
 - **Deferred, needs a source file or table not fetched yet:** `ShouldSwitchIfPerishSong` body, the `switchingCooldown` setter, `gAbilityRatings` (Skill Swap family), `gCopycatBannedMoves` / `gMimicBannedMoves`, `CanLastMoveNotBeEncored`, Trick / Thief item rules (`CanTransferItem`).
-- **Cannot be transcribed from available source:** the item effect handlers (`PItem_BattleItemEffects`: can-use rules, per-item messages) - not in `plugin-src`; the code infers them and says so.
+- **Item effect handlers:** now transcribed from `plugin-src/ruby/190_PItem_BattleItemEffects.rb` (can-use rules, HP amounts 50/200 etc., cure messages, X items). Only its three helpers `pbBattleHPItem`, `pbBattleItemCanCureStatus?`, `pbBattleItemCanRaiseStat?` are in a section that is not exported; they are read in their standard Essentials meaning (still to be uploaded if exact messages matter).
 - **Written but simplified (approximation, listed at each site):** doubles fighting classes, `CanKnockOutWithFasterMove`, the 2-hit `CanKnockOutAfterHealing`, Sheer Force / flinch tables in `CalcSecondaryEffectChance`.
+
+## Real-PBS conformance (`AiRealPbsTest`, reads `plugin-src/pbs`)
+Checked against the exported PBS: all 239 function codes the AI uses map to moves of the expected kind (no orphan code), the flag letters (a contact, b protect, c magic coat, g thaw, k sound, l powder, n bomb)
+match, and every ability / item / move name the scorer compares against exists - except `ASONE` (fixed to `ASONEGHOST`; `ASONEICE` is not a Moxie-type). The test keeps this from drifting.
+Real trainer item lists are only FULLRESTORE, MAXPOTION, BURNHEAL, POTION, SUPERPOTION, HYPERPOTION, MAXREVIVE and vitamins (PROTEIN/CARBOS/CALCIUM, ignored by the AI).
