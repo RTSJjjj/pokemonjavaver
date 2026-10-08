@@ -1,0 +1,35 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsIndex",
+  "counts": {
+    "species": 1216,
+    "forms": 635,
+    "moves": 1010,
+    "items": 1006,
+    "abilities": 392,
+    "types": 23,
+    "trainerTypes": 191,
+    "natures": 25,
+    "tmMoves": 318,
+    "encounters": 167,
+    "trainers": 489,
+    "townMapRegions": 5,
+    "metadataMaps": 493
+  },
+  "files": {
+    "pokemon": "pbs/pokemon.json",
+    "forms": "pbs/pokemonforms.json",
+    "moves": "pbs/moves.json",
+    "items": "pbs/items.json",
+    "abilities": "pbs/abilities.json",
+    "types": "pbs/types.json",
+    "trainerTypes": "pbs/trainertypes.json",
+    "natures": "pbs/natures.json",
+    "tm": "pbs/tm.json",
+    "encounters": "pbs/encounters.json",
+    "trainers": "pbs/trainers.json",
+    "berryPlants": "pbs/berryplants.json",
+    "townMap": "pbs/townmap.json",
+    "metadata": "pbs/metadata.json"
+  }
+}

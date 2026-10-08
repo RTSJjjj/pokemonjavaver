@@ -1,0 +1,182 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsNatures",
+  "total": 25,
+  "natures": [
+    {
+      "id": 0,
+      "internalName": "HARDY",
+      "name": "Hardy",
+      "statUp": null,
+      "statDown": null
+    },
+    {
+      "id": 1,
+      "internalName": "LONELY",
+      "name": "Lonely",
+      "statUp": "ATTACK",
+      "statDown": "DEFENSE"
+    },
+    {
+      "id": 2,
+      "internalName": "BRAVE",
+      "name": "Brave",
+      "statUp": "ATTACK",
+      "statDown": "SPEED"
+    },
+    {
+      "id": 3,
+      "internalName": "ADAMANT",
+      "name": "Adamant",
+      "statUp": "ATTACK",
+      "statDown": "SPATK"
+    },
+    {
+      "id": 4,
+      "internalName": "NAUGHTY",
+      "name": "Naughty",
+      "statUp": "ATTACK",
+      "statDown": "SPDEF"
+    },
+    {
+      "id": 5,
+      "internalName": "BOLD",
+      "name": "Bold",
+      "statUp": "DEFENSE",
+      "statDown": "ATTACK"
+    },
+    {
+      "id": 6,
+      "internalName": "DOCILE",
+      "name": "Docile",
+      "statUp": null,
+      "statDown": null
+    },
+    {
+      "id": 7,
+      "internalName": "RELAXED",
+      "name": "Relaxed",
+      "statUp": "DEFENSE",
+      "statDown": "SPEED"
+    },
+    {
+      "id": 8,
+      "internalName": "IMPISH",
+      "name": "Impish",
+      "statUp": "DEFENSE",
+      "statDown": "SPATK"
+    },
+    {
+      "id": 9,
+      "internalName": "LAX",
+      "name": "Lax",
+      "statUp": "DEFENSE",
+      "statDown": "SPDEF"
+    },
+    {
+      "id": 10,
+      "internalName": "TIMID",
+      "name": "Timid",
+      "statUp": "SPEED",
+      "statDown": "ATTACK"
+    },
+    {
+      "id": 11,
+      "internalName": "HASTY",
+      "name": "Hasty",
+      "statUp": "SPEED",
+      "statDown": "DEFENSE"
+    },
+    {
+      "id": 12,
+      "internalName": "SERIOUS",
+      "name": "Serious",
+      "statUp": null,
+      "statDown": null
+    },
+    {
+      "id": 13,
+      "internalName": "JOLLY",
+      "name": "Jolly",
+      "statUp": "SPEED",
+      "statDown": "SPATK"
+    },
+    {
+      "id": 14,
+      "internalName": "NAIVE",
+      "name": "Naive",
+      "statUp": "SPEED",
+      "statDown": "SPDEF"
+    },
+    {
+      "id": 15,
+      "internalName": "MODEST",
+      "name": "Modest",
+      "statUp": "SPATK",
+      "statDown": "ATTACK"
+    },
+    {
+      "id": 16,
+      "internalName": "MILD",
+      "name": "Mild",
+      "statUp": "SPATK",
+      "statDown": "DEFENSE"
+    },
+    {
+      "id": 17,
+      "internalName": "QUIET",
+      "name": "Quiet",
+      "statUp": "SPATK",
+      "statDown": "SPEED"
+    },
+    {
+      "id": 18,
+      "internalName": "BASHFUL",
+      "name": "Bashful",
+      "statUp": null,
+      "statDown": null
+    },
+    {
+      "id": 19,
+      "internalName": "RASH",
+      "name": "Rash",
+      "statUp": "SPATK",
+      "statDown": "SPDEF"
+    },
+    {
+      "id": 20,
+      "internalName": "CALM",
+      "name": "Calm",
+      "statUp": "SPDEF",
+      "statDown": "ATTACK"
+    },
+    {
+      "id": 21,
+      "internalName": "GENTLE",
+      "name": "Gentle",
+      "statUp": "SPDEF",
+      "statDown": "DEFENSE"
+    },
+    {
+      "id": 22,
+      "internalName": "SASSY",
+      "name": "Sassy",
+      "statUp": "SPDEF",
+      "statDown": "SPEED"
+    },
+    {
+      "id": 23,
+      "internalName": "CAREFUL",
+      "name": "Careful",
+      "statUp": "SPDEF",
+      "statDown": "SPATK"
+    },
+    {
+      "id": 24,
+      "internalName": "QUIRKY",
+      "name": "Quirky",
+      "statUp": null,
+      "statDown": null
+    }
+  ]
+}

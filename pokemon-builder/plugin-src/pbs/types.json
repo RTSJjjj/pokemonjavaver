@@ -1,0 +1,462 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsTypes",
+  "total": 23,
+  "types": {
+    "NORMAL": {
+      "id": 0,
+      "internalName": "NORMAL",
+      "name": "普通",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "FIGHTING",
+        "DIM",
+        "VOID"
+      ],
+      "resistances": [],
+      "immunities": [
+        "GHOST"
+      ]
+    },
+    "FIGHTING": {
+      "id": 1,
+      "internalName": "FIGHTING",
+      "name": "格斗",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "FLYING",
+        "PSYCHIC",
+        "FAIRY",
+        "VOID"
+      ],
+      "resistances": [
+        "ROCK",
+        "BUG",
+        "DARK"
+      ],
+      "immunities": []
+    },
+    "FLYING": {
+      "id": 2,
+      "internalName": "FLYING",
+      "name": "飞行",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "ROCK",
+        "ELECTRIC",
+        "ICE"
+      ],
+      "resistances": [
+        "FIGHTING",
+        "BUG",
+        "GRASS"
+      ],
+      "immunities": [
+        "GROUND"
+      ]
+    },
+    "POISON": {
+      "id": 3,
+      "internalName": "POISON",
+      "name": "毒",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "GROUND",
+        "PSYCHIC"
+      ],
+      "resistances": [
+        "FIGHTING",
+        "POISON",
+        "BUG",
+        "GRASS",
+        "FAIRY"
+      ],
+      "immunities": []
+    },
+    "GROUND": {
+      "id": 4,
+      "internalName": "GROUND",
+      "name": "地面",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "WATER",
+        "GRASS",
+        "ICE",
+        "VOID"
+      ],
+      "resistances": [
+        "POISON",
+        "ROCK",
+        "DIM",
+        "LIGHT"
+      ],
+      "immunities": [
+        "ELECTRIC"
+      ]
+    },
+    "ROCK": {
+      "id": 5,
+      "internalName": "ROCK",
+      "name": "岩石",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "FIGHTING",
+        "GROUND",
+        "STEEL",
+        "WATER",
+        "GRASS"
+      ],
+      "resistances": [
+        "NORMAL",
+        "FLYING",
+        "POISON",
+        "FIRE"
+      ],
+      "immunities": []
+    },
+    "BUG": {
+      "id": 6,
+      "internalName": "BUG",
+      "name": "虫",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "FLYING",
+        "ROCK",
+        "FIRE"
+      ],
+      "resistances": [
+        "FIGHTING",
+        "GROUND",
+        "GRASS"
+      ],
+      "immunities": []
+    },
+    "GHOST": {
+      "id": 7,
+      "internalName": "GHOST",
+      "name": "幽灵",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "GHOST",
+        "DARK",
+        "LIGHT",
+        "DIM",
+        "VOID"
+      ],
+      "resistances": [
+        "POISON",
+        "BUG"
+      ],
+      "immunities": [
+        "NORMAL",
+        "FIGHTING"
+      ]
+    },
+    "STEEL": {
+      "id": 8,
+      "internalName": "STEEL",
+      "name": "钢",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [
+        "FIGHTING",
+        "GROUND",
+        "FIRE",
+        "LIGHT",
+        "VOID"
+      ],
+      "resistances": [
+        "NORMAL",
+        "FLYING",
+        "ROCK",
+        "BUG",
+        "STEEL",
+        "GRASS",
+        "PSYCHIC",
+        "ICE",
+        "DRAGON",
+        "FAIRY"
+      ],
+      "immunities": [
+        "POISON"
+      ]
+    },
+    "QMARKS": {
+      "id": 9,
+      "internalName": "QMARKS",
+      "name": "无",
+      "pseudoType": true,
+      "specialType": false,
+      "weaknesses": [],
+      "resistances": [],
+      "immunities": [
+        "QMARKS"
+      ]
+    },
+    "FIRE": {
+      "id": 10,
+      "internalName": "FIRE",
+      "name": "火",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "GROUND",
+        "ROCK",
+        "WATER"
+      ],
+      "resistances": [
+        "BUG",
+        "STEEL",
+        "FIRE",
+        "GRASS",
+        "ICE",
+        "FAIRY",
+        "DIM"
+      ],
+      "immunities": [
+        "LIGHT"
+      ]
+    },
+    "WATER": {
+      "id": 11,
+      "internalName": "WATER",
+      "name": "水",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "GRASS",
+        "ELECTRIC"
+      ],
+      "resistances": [
+        "STEEL",
+        "FIRE",
+        "WATER",
+        "ICE"
+      ],
+      "immunities": []
+    },
+    "GRASS": {
+      "id": 12,
+      "internalName": "GRASS",
+      "name": "草",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "FLYING",
+        "POISON",
+        "BUG",
+        "FIRE",
+        "ICE",
+        "LIGHT",
+        "DIM"
+      ],
+      "resistances": [
+        "GROUND",
+        "WATER",
+        "GRASS",
+        "ELECTRIC",
+        "VOID"
+      ],
+      "immunities": []
+    },
+    "ELECTRIC": {
+      "id": 13,
+      "internalName": "ELECTRIC",
+      "name": "电",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "GROUND",
+        "LIGHT"
+      ],
+      "resistances": [
+        "FLYING",
+        "STEEL",
+        "ELECTRIC",
+        "DIM",
+        "VOID"
+      ],
+      "immunities": []
+    },
+    "PSYCHIC": {
+      "id": 14,
+      "internalName": "PSYCHIC",
+      "name": "超能",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "BUG",
+        "GHOST",
+        "DARK",
+        "VOID",
+        "DIM"
+      ],
+      "resistances": [
+        "FIGHTING",
+        "PSYCHIC",
+        "DIM"
+      ],
+      "immunities": []
+    },
+    "ICE": {
+      "id": 15,
+      "internalName": "ICE",
+      "name": "冰",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "FIGHTING",
+        "ROCK",
+        "STEEL",
+        "FIRE",
+        "LIGHT"
+      ],
+      "resistances": [
+        "ICE"
+      ],
+      "immunities": []
+    },
+    "DRAGON": {
+      "id": 16,
+      "internalName": "DRAGON",
+      "name": "龙",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "ICE",
+        "DRAGON",
+        "FAIRY"
+      ],
+      "resistances": [
+        "FIRE",
+        "WATER",
+        "GRASS",
+        "ELECTRIC",
+        "LIGHT",
+        "VOID",
+        "DIM"
+      ],
+      "immunities": []
+    },
+    "DARK": {
+      "id": 17,
+      "internalName": "DARK",
+      "name": "恶",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "FIGHTING",
+        "BUG",
+        "FAIRY",
+        "LIGHT"
+      ],
+      "resistances": [
+        "GHOST",
+        "DARK",
+        "DIM"
+      ],
+      "immunities": [
+        "PSYCHIC"
+      ]
+    },
+    "FAIRY": {
+      "id": 18,
+      "internalName": "FAIRY",
+      "name": "妖精",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "POISON",
+        "STEEL",
+        "DIM",
+        "VOID"
+      ],
+      "resistances": [
+        "FIGHTING",
+        "BUG",
+        "DARK",
+        "LIGHT"
+      ],
+      "immunities": [
+        "DRAGON"
+      ]
+    },
+    "STELLAR": {
+      "id": 19,
+      "internalName": "STELLAR",
+      "name": "星晶",
+      "pseudoType": false,
+      "specialType": false,
+      "weaknesses": [],
+      "resistances": [],
+      "immunities": []
+    },
+    "LIGHT": {
+      "id": 20,
+      "internalName": "LIGHT",
+      "name": "光",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "DIM",
+        "GHOST"
+      ],
+      "resistances": [
+        "ICE",
+        "GRASS",
+        "DARK"
+      ],
+      "immunities": [
+        "FIRE",
+        "LIGHT"
+      ]
+    },
+    "DIM": {
+      "id": 21,
+      "internalName": "DIM",
+      "name": "暗",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "DARK",
+        "LIGHT",
+        "FIRE",
+        "ELECTRIC"
+      ],
+      "resistances": [
+        "PSYCHIC",
+        "FAIRY"
+      ],
+      "immunities": [
+        "DIM"
+      ]
+    },
+    "VOID": {
+      "id": 22,
+      "internalName": "VOID",
+      "name": "虚空",
+      "pseudoType": false,
+      "specialType": true,
+      "weaknesses": [
+        "DRAGON",
+        "LIGHT",
+        "DIM"
+      ],
+      "resistances": [
+        "PSYCHIC",
+        "FAIRY"
+      ],
+      "immunities": [
+        "VOID"
+      ]
+    }
+  }
+}

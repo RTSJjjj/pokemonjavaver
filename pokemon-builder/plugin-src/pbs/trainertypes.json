@@ -1,0 +1,3063 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsTrainerTypes",
+  "total": 191,
+  "trainerTypes": {
+    "POKEMONTRAINER_Red": {
+      "id": 0,
+      "internalName": "POKEMONTRAINER_Red",
+      "name": "训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "POKEMONTRAINER_Leaf": {
+      "id": 1,
+      "internalName": "POKEMONTRAINER_Leaf",
+      "name": "训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SKYGUARDIAN": {
+      "id": 2,
+      "internalName": "SKYGUARDIAN",
+      "name": "守护者",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SEAGUARDIAN": {
+      "id": 3,
+      "internalName": "SEAGUARDIAN",
+      "name": "守护者",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "NNANXIAO": {
+      "id": 4,
+      "internalName": "NNANXIAO",
+      "name": "劲敌",
+      "baseMoney": 80,
+      "battleBgm": "【战斗】南晓",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SUOJIA": {
+      "id": 5,
+      "internalName": "SUOJIA",
+      "name": "训练家",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "AROMALADY": {
+      "id": 6,
+      "internalName": "AROMALADY",
+      "name": "香氛姐姐",
+      "baseMoney": 90,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "BEAUTY": {
+      "id": 7,
+      "internalName": "BEAUTY",
+      "name": "大姐姐",
+      "baseMoney": 90,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "BIKER": {
+      "id": 8,
+      "internalName": "BIKER",
+      "name": "暴走族",
+      "baseMoney": 50,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "BIRDKEEPER": {
+      "id": 9,
+      "internalName": "BIRDKEEPER",
+      "name": "养鸟人",
+      "baseMoney": 50,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "BUGCATCHER": {
+      "id": 10,
+      "internalName": "BUGCATCHER",
+      "name": "捕虫少年",
+      "baseMoney": 50,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "BACKPACKER_M": {
+      "id": 11,
+      "internalName": "BACKPACKER_M",
+      "name": "背包客",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "BACKPACKER_F": {
+      "id": 12,
+      "internalName": "BACKPACKER_F",
+      "name": "背包客",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CUEBALL": {
+      "id": 13,
+      "internalName": "CUEBALL",
+      "name": "光头男",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "RICHBOY": {
+      "id": 14,
+      "internalName": "RICHBOY",
+      "name": "富家少爷",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "FISHERMAN": {
+      "id": 15,
+      "internalName": "FISHERMAN",
+      "name": "垂钓者",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "GAMBLER": {
+      "id": 16,
+      "internalName": "GAMBLER",
+      "name": "赌徒",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "32",
+        ""
+      ]
+    },
+    "GENTLEMAN": {
+      "id": 17,
+      "internalName": "GENTLEMAN",
+      "name": "绅士",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "HIKER": {
+      "id": 18,
+      "internalName": "HIKER",
+      "name": "登山男",
+      "baseMoney": 100,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "JUGGLER": {
+      "id": 19,
+      "internalName": "JUGGLER",
+      "name": "杂耍艺人",
+      "baseMoney": 32,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LADY": {
+      "id": 20,
+      "internalName": "LADY",
+      "name": "千金小姐",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "72",
+        ""
+      ]
+    },
+    "PAINTERF": {
+      "id": 21,
+      "internalName": "PAINTERF",
+      "name": "小学生",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "POKEMANIAC": {
+      "id": 22,
+      "internalName": "POKEMANIAC",
+      "name": "怪兽狂",
+      "baseMoney": 64,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "POKEMONBREEDER_F": {
+      "id": 23,
+      "internalName": "POKEMONBREEDER_F",
+      "name": "宝可梦培育家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "POKEMONBREEDER_M": {
+      "id": 24,
+      "internalName": "POKEMONBREEDER_M",
+      "name": "宝可梦培育家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SCIENTIST_F": {
+      "id": 25,
+      "internalName": "SCIENTIST_F",
+      "name": "研究员",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "RUINMANIAC": {
+      "id": 26,
+      "internalName": "RUINMANIAC",
+      "name": "遗迹迷",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SAILOR": {
+      "id": 27,
+      "internalName": "SAILOR",
+      "name": "水手",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SCIENTIST_M": {
+      "id": 28,
+      "internalName": "SCIENTIST_M",
+      "name": "研究员",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SUPERNERD": {
+      "id": 29,
+      "internalName": "SUPERNERD",
+      "name": "理科男",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MUSICIAN": {
+      "id": 30,
+      "internalName": "MUSICIAN",
+      "name": "音乐家",
+      "baseMoney": 90,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "BLACKBELT": {
+      "id": 31,
+      "internalName": "BLACKBELT",
+      "name": "空手道王",
+      "baseMoney": 90,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "CRUSHGIRL": {
+      "id": 32,
+      "internalName": "CRUSHGIRL",
+      "name": "格斗女孩",
+      "baseMoney": 90,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CAMPER": {
+      "id": 33,
+      "internalName": "CAMPER",
+      "name": "露营少年",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "PICNICKER": {
+      "id": 34,
+      "internalName": "PICNICKER",
+      "name": "野餐女孩",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "COOLTRAINER_M": {
+      "id": 35,
+      "internalName": "COOLTRAINER_M",
+      "name": "精英训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "COOLTRAINER_F": {
+      "id": 36,
+      "internalName": "COOLTRAINER_F",
+      "name": "精英训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "YOUNGSTER": {
+      "id": 37,
+      "internalName": "YOUNGSTER",
+      "name": "短裤小子",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LASS": {
+      "id": 38,
+      "internalName": "LASS",
+      "name": "迷你裙",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "POKEMONRANGER_M": {
+      "id": 39,
+      "internalName": "POKEMONRANGER_M",
+      "name": "宝可梦巡护员",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "POKEMONRANGER_F": {
+      "id": 40,
+      "internalName": "POKEMONRANGER_F",
+      "name": "宝可梦巡护员",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "PSYCHIC_M": {
+      "id": 41,
+      "internalName": "PSYCHIC_M",
+      "name": "超能力者",
+      "baseMoney": 66,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "PSYCHIC_F": {
+      "id": 42,
+      "internalName": "PSYCHIC_F",
+      "name": "超能力者",
+      "baseMoney": 66,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SWIMMER_M": {
+      "id": 43,
+      "internalName": "SWIMMER_M",
+      "name": "泳裤小伙子",
+      "baseMoney": 55,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "32",
+        ""
+      ]
+    },
+    "SWIMMER_F": {
+      "id": 44,
+      "internalName": "SWIMMER_F",
+      "name": "比基尼姐姐",
+      "baseMoney": 55,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "32",
+        ""
+      ]
+    },
+    "SWIMMER2_M": {
+      "id": 45,
+      "internalName": "SWIMMER2_M",
+      "name": "泳裤小伙子",
+      "baseMoney": 55,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "32",
+        ""
+      ]
+    },
+    "SWIMMER2_F": {
+      "id": 46,
+      "internalName": "SWIMMER2_F",
+      "name": "比基尼姐姐",
+      "baseMoney": 55,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "32",
+        ""
+      ]
+    },
+    "TUBER_M": {
+      "id": 47,
+      "internalName": "TUBER_M",
+      "name": "泳圈男孩",
+      "baseMoney": 55,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "46",
+        ""
+      ]
+    },
+    "TUBER_F": {
+      "id": 48,
+      "internalName": "TUBER_F",
+      "name": "泳圈女孩",
+      "baseMoney": 55,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "46",
+        ""
+      ]
+    },
+    "VETERAN_M": {
+      "id": 49,
+      "internalName": "VETERAN_M",
+      "name": "精英训练家",
+      "baseMoney": 99,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "46",
+        ""
+      ]
+    },
+    "VETERAN_F": {
+      "id": 50,
+      "internalName": "VETERAN_F",
+      "name": "精英训练家",
+      "baseMoney": 99,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "46",
+        ""
+      ]
+    },
+    "CYCLISTF": {
+      "id": 51,
+      "internalName": "CYCLISTF",
+      "name": "自行车手",
+      "baseMoney": 72,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CYCLISTM": {
+      "id": 52,
+      "internalName": "CYCLISTM",
+      "name": "自行车手",
+      "baseMoney": 72,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        "s"
+      ]
+    },
+    "HEXMANIAC": {
+      "id": 53,
+      "internalName": "HEXMANIAC",
+      "name": "灵异迷",
+      "baseMoney": 72,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "48",
+        ""
+      ]
+    },
+    "CLERK_F": {
+      "id": 54,
+      "internalName": "CLERK_F",
+      "name": "白领",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CLERK_M": {
+      "id": 55,
+      "internalName": "CLERK_M",
+      "name": "商务人士",
+      "baseMoney": 32,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MONSIEUR": {
+      "id": 56,
+      "internalName": "MONSIEUR",
+      "name": "绅士",
+      "baseMoney": 32,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MADAME": {
+      "id": 57,
+      "internalName": "MADAME",
+      "name": "女士",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "32",
+        ""
+      ]
+    },
+    "WAITER": {
+      "id": 58,
+      "internalName": "WAITER",
+      "name": "男服务生",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "32",
+        ""
+      ]
+    },
+    "WAITERSS": {
+      "id": 59,
+      "internalName": "WAITERSS",
+      "name": "女服务生",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "32",
+        ""
+      ]
+    },
+    "NURSE": {
+      "id": 60,
+      "internalName": "NURSE",
+      "name": "护士",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "32",
+        ""
+      ]
+    },
+    "MAID": {
+      "id": 61,
+      "internalName": "MAID",
+      "name": "女仆",
+      "baseMoney": 46,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "HARLEQUIN": {
+      "id": 62,
+      "internalName": "HARLEQUIN",
+      "name": "滑稽演员",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "COCINERA": {
+      "id": 63,
+      "internalName": "COCINERA",
+      "name": "面包师傅",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "DANCER": {
+      "id": 64,
+      "internalName": "DANCER",
+      "name": "舞者",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "46",
+        ""
+      ]
+    },
+    "PARASOLLADY": {
+      "id": 65,
+      "internalName": "PARASOLLADY",
+      "name": "阳伞姐姐",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "HEXMANIACS": {
+      "id": 66,
+      "internalName": "HEXMANIACS",
+      "name": "灵能者",
+      "baseMoney": 72,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "48",
+        ""
+      ]
+    },
+    "BEAUTY_1": {
+      "id": 67,
+      "internalName": "BEAUTY_1",
+      "name": "大姐姐",
+      "baseMoney": 72,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "48",
+        ""
+      ]
+    },
+    "SHADOWSTAYM": {
+      "id": 80,
+      "internalName": "SHADOWSTAYM",
+      "name": "影宿团",
+      "baseMoney": 70,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SHADOWSTAYF": {
+      "id": 81,
+      "internalName": "SHADOWSTAYF",
+      "name": "影宿团",
+      "baseMoney": 70,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SHADOWSTAY_M": {
+      "id": 82,
+      "internalName": "SHADOWSTAY_M",
+      "name": "影宿团",
+      "baseMoney": 80,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SHADOWSTAY_F": {
+      "id": 83,
+      "internalName": "SHADOWSTAY_F",
+      "name": "影宿团",
+      "baseMoney": 80,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SHADOWBOSS": {
+      "id": 84,
+      "internalName": "SHADOWBOSS",
+      "name": "影宿团",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】镜魔",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        "32"
+      ]
+    },
+    "LEADER_BUG": {
+      "id": 85,
+      "internalName": "LEADER_BUG",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Fighting": {
+      "id": 86,
+      "internalName": "LEADER_Fighting",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Rock": {
+      "id": 87,
+      "internalName": "LEADER_Rock",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Poison": {
+      "id": 88,
+      "internalName": "LEADER_Poison",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Steel": {
+      "id": 89,
+      "internalName": "LEADER_Steel",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Electric": {
+      "id": 90,
+      "internalName": "LEADER_Electric",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Dragon": {
+      "id": 91,
+      "internalName": "LEADER_Dragon",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Ice": {
+      "id": 92,
+      "internalName": "LEADER_Ice",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Fairy": {
+      "id": 93,
+      "internalName": "LEADER_Fairy",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Ghost": {
+      "id": 94,
+      "internalName": "LEADER_Ghost",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Psychic": {
+      "id": 95,
+      "internalName": "LEADER_Psychic",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Fire": {
+      "id": 96,
+      "internalName": "LEADER_Fire",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Normal": {
+      "id": 97,
+      "internalName": "LEADER_Normal",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Water": {
+      "id": 98,
+      "internalName": "LEADER_Water",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Grass": {
+      "id": 99,
+      "internalName": "LEADER_Grass",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEADER_Dark": {
+      "id": 100,
+      "internalName": "LEADER_Dark",
+      "name": "道馆馆主",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader_hggs",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "STARWITCH": {
+      "id": 101,
+      "internalName": "STARWITCH",
+      "name": "巫女",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "ISLANDSGUARDIAN": {
+      "id": 102,
+      "internalName": "ISLANDSGUARDIAN",
+      "name": "守护者",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_Fairy": {
+      "id": 103,
+      "internalName": "ELITEFOUR_Fairy",
+      "name": "联盟天王",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】四天王",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_Grass": {
+      "id": 104,
+      "internalName": "ELITEFOUR_Grass",
+      "name": "联盟天王",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】四天王",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_Dark": {
+      "id": 105,
+      "internalName": "ELITEFOUR_Dark",
+      "name": "联盟天王",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】四天王",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_Fire": {
+      "id": 106,
+      "internalName": "ELITEFOUR_Fire",
+      "name": "联盟天王",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】四天王",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "CHAMPION": {
+      "id": 107,
+      "internalName": "CHAMPION",
+      "name": "柊埃冠军",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】清勉",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "WEIJIANG": {
+      "id": 108,
+      "internalName": "WEIJIANG",
+      "name": "精英训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Gym Leader",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SAND": {
+      "id": 124,
+      "internalName": "SAND",
+      "name": "街边杂耍",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "HYACINTH_M": {
+      "id": 125,
+      "internalName": "HYACINTH_M",
+      "name": "风信队",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "HYACINTH_F": {
+      "id": 126,
+      "internalName": "HYACINTH_F",
+      "name": "风信队",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "HYACINTH_SANDER": {
+      "id": 127,
+      "internalName": "HYACINTH_SANDER",
+      "name": "风信队干部",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "HYACINTH_HAYU": {
+      "id": 128,
+      "internalName": "HYACINTH_HAYU",
+      "name": "风信队干部",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "HYACINTH_AILEEN": {
+      "id": 129,
+      "internalName": "HYACINTH_AILEEN",
+      "name": "风信队干部",
+      "baseMoney": 80,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "DAWN": {
+      "id": 150,
+      "internalName": "DAWN",
+      "name": "精英训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "COLRESS": {
+      "id": 151,
+      "internalName": "COLRESS",
+      "name": "宝可梦博士",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】阿克罗马",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "HARMONY": {
+      "id": 152,
+      "internalName": "HARMONY",
+      "name": "卡洛斯训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "PAXTON": {
+      "id": 153,
+      "internalName": "PAXTON",
+      "name": "卡洛斯训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ROCKETMAN": {
+      "id": 154,
+      "internalName": "ROCKETMAN",
+      "name": "火箭队黑衣人",
+      "baseMoney": 200,
+      "battleBgm": "1-35. Battle! (Team Rocket).ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "0",
+        ""
+      ]
+    },
+    "ROCKETMAN_F": {
+      "id": 155,
+      "internalName": "ROCKETMAN_F",
+      "name": "火箭队黑衣人",
+      "baseMoney": 200,
+      "battleBgm": "1-35. Battle! (Team Rocket).ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "ROCKETMAN_S": {
+      "id": 156,
+      "internalName": "ROCKETMAN_S",
+      "name": "火箭队研究员",
+      "baseMoney": 70,
+      "battleBgm": "1-35. Battle! (Team Rocket).ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "WAHUKUGARU": {
+      "id": 157,
+      "internalName": "WAHUKUGARU",
+      "name": "和服女孩",
+      "baseMoney": 200,
+      "battleBgm": "18.-Battle_-_Trainer-Battle-Johto-Version_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "MAYOSORU": {
+      "id": 158,
+      "internalName": "MAYOSORU",
+      "name": "迷失的",
+      "baseMoney": 0,
+      "battleBgm": "Battle trainer.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MAGMAZAKO": {
+      "id": 159,
+      "internalName": "MAGMAZAKO",
+      "name": "熔岩队",
+      "baseMoney": 80,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MAGMAZAKO_F": {
+      "id": 160,
+      "internalName": "MAGMAZAKO_F",
+      "name": "熔岩队",
+      "baseMoney": 80,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "MAGMAKANBU": {
+      "id": 161,
+      "internalName": "MAGMAKANBU",
+      "name": "熔岩队干部",
+      "baseMoney": 150,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MAGMAKANBU_F": {
+      "id": 162,
+      "internalName": "MAGMAKANBU_F",
+      "name": "熔岩队干部",
+      "baseMoney": 150,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "MAGMABOSS": {
+      "id": 163,
+      "internalName": "MAGMABOSS",
+      "name": "熔岩队首领",
+      "baseMoney": 200,
+      "battleBgm": "3-08.-Battle_-_Team-Aqua-Team-Magma-Leaders_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "AQUAZAKO": {
+      "id": 164,
+      "internalName": "AQUAZAKO",
+      "name": "海洋队",
+      "baseMoney": 80,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "AQUAZAKO_F": {
+      "id": 165,
+      "internalName": "AQUAZAKO_F",
+      "name": "海洋队",
+      "baseMoney": 80,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "AQUAKANBU": {
+      "id": 166,
+      "internalName": "AQUAKANBU",
+      "name": "海洋队干部",
+      "baseMoney": 150,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "AQUAKANBU_F": {
+      "id": 167,
+      "internalName": "AQUAKANBU_F",
+      "name": "海洋队干部",
+      "baseMoney": 150,
+      "battleBgm": "1-29.-Battle_-_Team-Aqua-Team-Magma_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "AQUABOSS": {
+      "id": 168,
+      "internalName": "AQUABOSS",
+      "name": "海洋队首领",
+      "baseMoney": 200,
+      "battleBgm": "3-08.-Battle_-_Team-Aqua-Team-Magma-Leaders_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SIGANA": {
+      "id": 169,
+      "internalName": "SIGANA",
+      "name": "传承者",
+      "baseMoney": 200,
+      "battleBgm": "4-06. Battle! (Lorekeeper Zinnia).ogg",
+      "victoryMe": "Battle victory leader.ogg",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader.ogg",
+        "",
+        "Female",
+        "9999",
+        ""
+      ]
+    },
+    "GHETSIS": {
+      "id": 170,
+      "internalName": "GHETSIS",
+      "name": "等离子队首领",
+      "baseMoney": 200,
+      "battleBgm": "3-08.-Battle_-_Team-Aqua-Team-Magma-Leaders_.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ZINZOLIN": {
+      "id": 171,
+      "internalName": "ZINZOLIN",
+      "name": "等离子队",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】等离子团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SHADOWTRIAD": {
+      "id": 172,
+      "internalName": "SHADOWTRIAD",
+      "name": "黑暗铁三角",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】等离子团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "TEAMPLASMAM": {
+      "id": 173,
+      "internalName": "TEAMPLASMAM",
+      "name": "等离子团",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】等离子团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "TEAMPLASMAF": {
+      "id": 174,
+      "internalName": "TEAMPLASMAF",
+      "name": "等离子团",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】等离子团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "N": {
+      "id": 175,
+      "internalName": "N",
+      "name": "宝可梦训练家",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】等离子团",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ASH": {
+      "id": 176,
+      "internalName": "ASH",
+      "name": "宝可梦训练家",
+      "baseMoney": 200,
+      "battleBgm": null,
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "JESSIE": {
+      "id": 177,
+      "internalName": "JESSIE",
+      "name": "火箭队",
+      "baseMoney": 200,
+      "battleBgm": "1-35. Battle! (Team Rocket).ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "JAMES": {
+      "id": 178,
+      "internalName": "JAMES",
+      "name": "火箭队",
+      "baseMoney": 200,
+      "battleBgm": "1-35. Battle! (Team Rocket).ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "KRIS": {
+      "id": 179,
+      "internalName": "KRIS",
+      "name": "城都训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "YELLO": {
+      "id": 180,
+      "internalName": "YELLO",
+      "name": "精英训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LYRA": {
+      "id": 181,
+      "internalName": "LYRA",
+      "name": "城都训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "GOLD": {
+      "id": 182,
+      "internalName": "GOLD",
+      "name": "城都训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "VICTOR": {
+      "id": 183,
+      "internalName": "VICTOR",
+      "name": "伽勒尔训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "GLORIA": {
+      "id": 184,
+      "internalName": "GLORIA",
+      "name": "伽勒尔训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "LEON": {
+      "id": 185,
+      "internalName": "LEON",
+      "name": "伽勒尔冠军",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "CYRUS": {
+      "id": 186,
+      "internalName": "CYRUS",
+      "name": "银河团首领",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "VOLO": {
+      "id": 187,
+      "internalName": "VOLO",
+      "name": "驯化师",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "JUPITER": {
+      "id": 188,
+      "internalName": "JUPITER",
+      "name": "银河团干部",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "MARS": {
+      "id": 189,
+      "internalName": "MARS",
+      "name": "银河团干部",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SATURN": {
+      "id": 190,
+      "internalName": "SATURN",
+      "name": "银河团干部",
+      "baseMoney": 200,
+      "battleBgm": "【战斗】影宿团",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CYNTHIA": {
+      "id": 191,
+      "internalName": "CYNTHIA",
+      "name": "神奥冠军",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "ELIO": {
+      "id": 192,
+      "internalName": "ELIO",
+      "name": "阿罗拉训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SELENE": {
+      "id": 193,
+      "internalName": "SELENE",
+      "name": "阿罗拉训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "KUKUI": {
+      "id": 194,
+      "internalName": "KUKUI",
+      "name": "宝可梦博士",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "RIKA": {
+      "id": 195,
+      "internalName": "RIKA",
+      "name": "帕底亚四天王",
+      "baseMoney": 200,
+      "battleBgm": "【朱紫】对战 四天王",
+      "victoryMe": null,
+      "introMe": "Female",
+      "fields": [
+        "",
+        "Female",
+        "Mixed",
+        "",
+        ""
+      ]
+    },
+    "TURO": {
+      "id": 196,
+      "internalName": "TURO",
+      "name": "宝可梦博士",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SADA": {
+      "id": 197,
+      "internalName": "SADA",
+      "name": "宝可梦博士",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "KIERAN": {
+      "id": 198,
+      "internalName": "KIERAN",
+      "name": "宝可梦训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "CARMINE": {
+      "id": 199,
+      "internalName": "CARMINE",
+      "name": "宝可梦训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle Elite",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "SEALILY": {
+      "id": 300,
+      "internalName": "SEALILY",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "DARKNINIGHT": {
+      "id": 301,
+      "internalName": "DARKNINIGHT",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "KURAMA": {
+      "id": 302,
+      "internalName": "KURAMA",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ESZERO": {
+      "id": 303,
+      "internalName": "ESZERO",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "YUAN": {
+      "id": 304,
+      "internalName": "YUAN",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "【战斗】源",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "RICE": {
+      "id": 305,
+      "internalName": "RICE",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ROKUDO": {
+      "id": 306,
+      "internalName": "ROKUDO",
+      "name": "「图书馆」委员",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ALTESKY": {
+      "id": 307,
+      "internalName": "ALTESKY",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "JINMO": {
+      "id": 308,
+      "internalName": "JINMO",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MIRROR": {
+      "id": 309,
+      "internalName": "MIRROR",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "DAYLIGHT": {
+      "id": 310,
+      "internalName": "DAYLIGHT",
+      "name": "精英训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "YOUFULITE": {
+      "id": 311,
+      "internalName": "YOUFULITE",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "QIYUANXING": {
+      "id": 312,
+      "internalName": "QIYUANXING",
+      "name": "精英训练家",
+      "baseMoney": 300,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "YUANQUAN": {
+      "id": 313,
+      "internalName": "YUANQUAN",
+      "name": "精英训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "WUXIAN": {
+      "id": 314,
+      "internalName": "WUXIAN",
+      "name": "精英训练家",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_1": {
+      "id": 315,
+      "internalName": "ELITEFOUR_1",
+      "name": "四天王",
+      "baseMoney": 130,
+      "battleBgm": "【朱紫】对战 四天王",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_2": {
+      "id": 316,
+      "internalName": "ELITEFOUR_2",
+      "name": "四天王",
+      "baseMoney": 130,
+      "battleBgm": "【朱紫】对战 四天王",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_3": {
+      "id": 317,
+      "internalName": "ELITEFOUR_3",
+      "name": "四天王",
+      "baseMoney": 130,
+      "battleBgm": "【朱紫】对战 四天王",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "ELITEFOUR_4": {
+      "id": 318,
+      "internalName": "ELITEFOUR_4",
+      "name": "四天王",
+      "baseMoney": 130,
+      "battleBgm": "【朱紫】对战 四天王",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "KANGTECHAMPION": {
+      "id": 319,
+      "internalName": "KANGTECHAMPION",
+      "name": "康特联盟冠军",
+      "baseMoney": 150,
+      "battleBgm": "【朱紫】对战 首席冠军",
+      "victoryMe": "Battle victory leader",
+      "introMe": null,
+      "fields": [
+        "Battle victory leader",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SCUTUM": {
+      "id": 320,
+      "internalName": "SCUTUM",
+      "name": "训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "TUCANA": {
+      "id": 321,
+      "internalName": "TUCANA",
+      "name": "训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "URSA": {
+      "id": 322,
+      "internalName": "URSA",
+      "name": "训练家",
+      "baseMoney": 200,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "TRIAL": {
+      "id": 330,
+      "internalName": "TRIAL",
+      "name": "试炼",
+      "baseMoney": 0,
+      "battleBgm": "【战斗】镜魔",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Mixed",
+        "",
+        ""
+      ]
+    },
+    "HUNTER": {
+      "id": 331,
+      "internalName": "HUNTER",
+      "name": "宝可梦猎人",
+      "baseMoney": 0,
+      "battleBgm": "Battle trainer.ogg",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        "s"
+      ]
+    },
+    "DEMONDRAGON": {
+      "id": 987,
+      "internalName": "DEMONDRAGON",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "GHOSTPRINCE": {
+      "id": 988,
+      "internalName": "GHOSTPRINCE",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MEOWMEOW": {
+      "id": 989,
+      "internalName": "MEOWMEOW",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "FLORAGODDESS": {
+      "id": 990,
+      "internalName": "FLORAGODDESS",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "IRONVENGEANCE": {
+      "id": 991,
+      "internalName": "IRONVENGEANCE",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "SILVERFOX": {
+      "id": 992,
+      "internalName": "SILVERFOX",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "MERMAID": {
+      "id": 993,
+      "internalName": "MERMAID",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "FAIRYSPRITE": {
+      "id": 994,
+      "internalName": "FAIRYSPRITE",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CELESTIALMAIDEN": {
+      "id": 995,
+      "internalName": "CELESTIALMAIDEN",
+      "name": "异界训练师",
+      "baseMoney": 60,
+      "battleBgm": "【战斗】宠物王国彩虹",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "CYAN": {
+      "id": 996,
+      "internalName": "CYAN",
+      "name": "宠物训练师",
+      "baseMoney": 60,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    },
+    "TAPUKOKO": {
+      "id": 997,
+      "internalName": "TAPUKOKO",
+      "name": "守护神",
+      "baseMoney": 66,
+      "battleBgm": "Battle trainer",
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Mixed",
+        "",
+        ""
+      ]
+    },
+    "POKEMONTRAINER_MIRRORm": {
+      "id": 998,
+      "internalName": "POKEMONTRAINER_MIRRORm",
+      "name": "宝可梦训练家",
+      "baseMoney": 60,
+      "battleBgm": null,
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Male",
+        "",
+        ""
+      ]
+    },
+    "POKEMONTRAINER_MIRRORf": {
+      "id": 999,
+      "internalName": "POKEMONTRAINER_MIRRORf",
+      "name": "宝可梦训练家",
+      "baseMoney": 60,
+      "battleBgm": null,
+      "victoryMe": null,
+      "introMe": null,
+      "fields": [
+        "",
+        "",
+        "Female",
+        "",
+        ""
+      ]
+    }
+  }
+}

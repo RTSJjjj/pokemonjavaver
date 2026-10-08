@@ -1,0 +1,2359 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsAbilities",
+  "total": 392,
+  "abilities": {
+    "STENCH": {
+      "id": 1,
+      "internalName": "STENCH",
+      "name": "恶臭",
+      "description": "通过释放臭气味，在攻击时，有时会 使对手畏缩。"
+    },
+    "DRIZZLE": {
+      "id": 2,
+      "internalName": "DRIZZLE",
+      "name": "降雨",
+      "description": "出场时，会将天气变为下雨。"
+    },
+    "SPEEDBOOST": {
+      "id": 3,
+      "internalName": "SPEEDBOOST",
+      "name": "加速",
+      "description": "每一回合速度会变快。"
+    },
+    "BATTLEARMOR": {
+      "id": 4,
+      "internalName": "BATTLEARMOR",
+      "name": "战斗盔甲",
+      "description": "被坚硬的甲壳守护着，不会被对手击 中要害。"
+    },
+    "STURDY": {
+      "id": 5,
+      "internalName": "STURDY",
+      "name": "结实",
+      "description": "不会被对手一击打倒，一击必杀的招 式也没有效果。"
+    },
+    "DAMP": {
+      "id": 6,
+      "internalName": "DAMP",
+      "name": "湿气",
+      "description": "通过把周围都弄湿，使谁都无法使用 爆炸类的招式。"
+    },
+    "LIMBER": {
+      "id": 7,
+      "internalName": "LIMBER",
+      "name": "柔软",
+      "description": "因为身体柔软，不会变为麻痹状态。"
+    },
+    "SANDVEIL": {
+      "id": 8,
+      "internalName": "SANDVEIL",
+      "name": "沙隐",
+      "description": "在沙暴的时候，闪避率会提高。"
+    },
+    "STATIC": {
+      "id": 9,
+      "internalName": "STATIC",
+      "name": "静电",
+      "description": "身上带有静电，有时会让接触到的对 手麻痹。"
+    },
+    "VOLTABSORB": {
+      "id": 10,
+      "internalName": "VOLTABSORB",
+      "name": "蓄电",
+      "description": "受到电属性招式攻击时，不会受到伤 害，而是会回复。"
+    },
+    "WATERABSORB": {
+      "id": 11,
+      "internalName": "WATERABSORB",
+      "name": "储水",
+      "description": "受到水属性招式攻击时，不会受到伤 害，而是会回复。"
+    },
+    "OBLIVIOUS": {
+      "id": 12,
+      "internalName": "OBLIVIOUS",
+      "name": "迟钝",
+      "description": "因为感觉迟钝，不会变为着迷和被挑 衅状态。"
+    },
+    "CLOUDNINE": {
+      "id": 13,
+      "internalName": "CLOUDNINE",
+      "name": "无关天气",
+      "description": "任何天气的影响都会消失。"
+    },
+    "COMPOUNDEYES": {
+      "id": 14,
+      "internalName": "COMPOUNDEYES",
+      "name": "复眼",
+      "description": "因为拥有复眼，招式的命中率会提高。"
+    },
+    "INSOMNIA": {
+      "id": 15,
+      "internalName": "INSOMNIA",
+      "name": "不眠",
+      "description": "因为是不会睡觉的体质，所以不会变 为睡眠状态。"
+    },
+    "COLORCHANGE": {
+      "id": 16,
+      "internalName": "COLORCHANGE",
+      "name": "变色",
+      "description": "自己的属性会变为从对手处所受招式 的属性。"
+    },
+    "IMMUNITY": {
+      "id": 17,
+      "internalName": "IMMUNITY",
+      "name": "免疫",
+      "description": "因为体内拥有免疫能力，不会变为中毒 状态。"
+    },
+    "FLASHFIRE": {
+      "id": 18,
+      "internalName": "FLASHFIRE",
+      "name": "引火",
+      "description": "受火属性招式攻击时，自己使出的火 属性招式会变强。"
+    },
+    "SHIELDDUST": {
+      "id": 19,
+      "internalName": "SHIELDDUST",
+      "name": "鳞粉",
+      "description": "被鳞粉守护着，不会受到招式的追加 效果影响。"
+    },
+    "OWNTEMPO": {
+      "id": 20,
+      "internalName": "OWNTEMPO",
+      "name": "我行我素",
+      "description": "因为我行我素，不会变为混乱状态。"
+    },
+    "SUCTIONCUPS": {
+      "id": 21,
+      "internalName": "SUCTIONCUPS",
+      "name": "吸盘",
+      "description": "用吸盘牢牢贴在地面上，无法替换宝 可梦。"
+    },
+    "INTIMIDATE": {
+      "id": 22,
+      "internalName": "INTIMIDATE",
+      "name": "威吓",
+      "description": "出场时威吓对手，让其退缩，降低对 手的攻击。"
+    },
+    "SHADOWTAG": {
+      "id": 23,
+      "internalName": "SHADOWTAG",
+      "name": "踩影",
+      "description": "踩住对手的影子使其无法逃走或替换。"
+    },
+    "ROUGHSKIN": {
+      "id": 24,
+      "internalName": "ROUGHSKIN",
+      "name": "粗糙皮肤",
+      "description": "用粗糙的皮肤弄伤近身攻击自己的对 手。"
+    },
+    "WONDERGUARD": {
+      "id": 25,
+      "internalName": "WONDERGUARD",
+      "name": "神奇守护",
+      "description": "不可思议的力量，只有效果绝佳的招 式才能击中。"
+    },
+    "LEVITATE": {
+      "id": 26,
+      "internalName": "LEVITATE",
+      "name": "飘浮",
+      "description": "从地面浮起，从而不会受到地面属性 招式的攻击。"
+    },
+    "EFFECTSPORE": {
+      "id": 27,
+      "internalName": "EFFECTSPORE",
+      "name": "孢子",
+      "description": "受到近身攻击，有时会使对手陷入中 毒、麻痹或睡眠。"
+    },
+    "SYNCHRONIZE": {
+      "id": 28,
+      "internalName": "SYNCHRONIZE",
+      "name": "同步",
+      "description": "将自己的中毒、麻痹或灼伤状态传染 给对手。"
+    },
+    "CLEARBODY": {
+      "id": 29,
+      "internalName": "CLEARBODY",
+      "name": "恒净之躯",
+      "description": "不会因为对手的招式或特性而被降低 能力。"
+    },
+    "NATURALCURE": {
+      "id": 30,
+      "internalName": "NATURALCURE",
+      "name": "自然回复",
+      "description": "回到同行队伍后，异常状态就会被治 愈。"
+    },
+    "LIGHTNINGROD": {
+      "id": 31,
+      "internalName": "LIGHTNINGROD",
+      "name": "避雷针",
+      "description": "吸引电属性的招式，不会受到伤害， 而是提高特攻。"
+    },
+    "SERENEGRACE": {
+      "id": 32,
+      "internalName": "SERENEGRACE",
+      "name": "天恩",
+      "description": "托天恩的福，招式的追加效果容易出 现。"
+    },
+    "SWIFTSWIM": {
+      "id": 33,
+      "internalName": "SWIFTSWIM",
+      "name": "悠游自如",
+      "description": "下雨天气时，速度会提高。"
+    },
+    "CHLOROPHYLL": {
+      "id": 34,
+      "internalName": "CHLOROPHYLL",
+      "name": "叶绿素",
+      "description": "晴朗天气时，速度会提高。"
+    },
+    "ILLUMINATE": {
+      "id": 35,
+      "internalName": "ILLUMINATE",
+      "name": "发光",
+      "description": "通过让周围变亮来保持命中率不会被 降低。"
+    },
+    "TRACE": {
+      "id": 36,
+      "internalName": "TRACE",
+      "name": "复制",
+      "description": "出场时复制对手的特性，变为与之相 同的特性。"
+    },
+    "HUGEPOWER": {
+      "id": 37,
+      "internalName": "HUGEPOWER",
+      "name": "大力士",
+      "description": "物理攻击的威力会变为2倍。"
+    },
+    "POISONPOINT": {
+      "id": 38,
+      "internalName": "POISONPOINT",
+      "name": "毒刺",
+      "description": "有时会让接触到自己的对手变为中毒 状态。"
+    },
+    "INNERFOCUS": {
+      "id": 39,
+      "internalName": "INNERFOCUS",
+      "name": "精神力",
+      "description": "通过锻炼精神，不会因对手的攻击而 畏缩。"
+    },
+    "MAGMAARMOR": {
+      "id": 40,
+      "internalName": "MAGMAARMOR",
+      "name": "熔岩铠甲",
+      "description": "将炽热的熔岩覆盖在身上，不会变 为冰冻状态。"
+    },
+    "WATERVEIL": {
+      "id": 41,
+      "internalName": "WATERVEIL",
+      "name": "水幕",
+      "description": "将水幕裹在身上，不会变为灼伤状 态。"
+    },
+    "MAGNETPULL": {
+      "id": 42,
+      "internalName": "MAGNETPULL",
+      "name": "磁力",
+      "description": "用磁力吸住钢属性的宝可梦，使其 无法逃走。"
+    },
+    "SOUNDPROOF": {
+      "id": 43,
+      "internalName": "SOUNDPROOF",
+      "name": "隔音",
+      "description": "通过屏蔽声音，不受到声音的招式的 攻击。"
+    },
+    "RAINDISH": {
+      "id": 44,
+      "internalName": "RAINDISH",
+      "name": "雨盘",
+      "description": "下雨天气时，会缓缓回复HP。"
+    },
+    "SANDSTREAM": {
+      "id": 45,
+      "internalName": "SANDSTREAM",
+      "name": "扬沙",
+      "description": "出场时，会把天气变为沙暴。"
+    },
+    "PRESSURE": {
+      "id": 46,
+      "internalName": "PRESSURE",
+      "name": "压迫感",
+      "description": "给予对手压迫感，大量减少其使用招 式的PP。"
+    },
+    "THICKFAT": {
+      "id": 47,
+      "internalName": "THICKFAT",
+      "name": "厚脂肪",
+      "description": "火属性和冰属性的招式伤害减半。"
+    },
+    "EARLYBIRD": {
+      "id": 48,
+      "internalName": "EARLYBIRD",
+      "name": "早起",
+      "description": "即使变为睡眠状态，也能以2倍的速 度提早醒来。"
+    },
+    "FLAMEBODY": {
+      "id": 49,
+      "internalName": "FLAMEBODY",
+      "name": "火焰之躯",
+      "description": "有时会让接触到自己的对手变为灼伤 状态。"
+    },
+    "RUNAWAY": {
+      "id": 50,
+      "internalName": "RUNAWAY",
+      "name": "逃跑",
+      "description": "一定能从野生宝可梦那儿逃走。"
+    },
+    "KEENEYE": {
+      "id": 51,
+      "internalName": "KEENEYE",
+      "name": "锐利目光",
+      "description": "多亏了锐利的目光，命中率不会被 降低。"
+    },
+    "HYPERCUTTER": {
+      "id": 52,
+      "internalName": "HYPERCUTTER",
+      "name": "怪力钳",
+      "description": "拥有以力量自豪的钳子，不会被对 手降低攻击。"
+    },
+    "PICKUP": {
+      "id": 53,
+      "internalName": "PICKUP",
+      "name": "捡拾",
+      "description": "有时会捡来对手用过的道具，冒险过 程中也会捡到。"
+    },
+    "TRUANT": {
+      "id": 54,
+      "internalName": "TRUANT",
+      "name": "懒惰",
+      "description": "如果使出招式，下一回合就会休息。"
+    },
+    "HUSTLE": {
+      "id": 55,
+      "internalName": "HUSTLE",
+      "name": "活力",
+      "description": "自己的攻击变高，但命中率会降低。"
+    },
+    "CUTECHARM": {
+      "id": 56,
+      "internalName": "CUTECHARM",
+      "name": "迷人之躯",
+      "description": "有时会让接触到自己的对手着迷。"
+    },
+    "PLUS": {
+      "id": 57,
+      "internalName": "PLUS",
+      "name": "正电",
+      "description": "场上伙伴如果有正电/负电特性，自 己的特攻会提高。"
+    },
+    "MINUS": {
+      "id": 58,
+      "internalName": "MINUS",
+      "name": "负电",
+      "description": "场上伙伴如果有正电/负电特性，自 己的特攻会提高。"
+    },
+    "FORECAST": {
+      "id": 59,
+      "internalName": "FORECAST",
+      "name": "阴晴不定",
+      "description": "受天气的影响，会变为水、火或冰 属性中的某一个。"
+    },
+    "STICKYHOLD": {
+      "id": 60,
+      "internalName": "STICKYHOLD",
+      "name": "黏着",
+      "description": "因为道具是粘在身体上的，所以不会 被对手夺走。"
+    },
+    "SHEDSKIN": {
+      "id": 61,
+      "internalName": "SHEDSKIN",
+      "name": "蜕皮",
+      "description": "通过蜕去身上的皮，有时会治愈异 常状态。"
+    },
+    "GUTS": {
+      "id": 62,
+      "internalName": "GUTS",
+      "name": "毅力",
+      "description": "陷入异常状态时，攻击会提高。"
+    },
+    "MARVELSCALE": {
+      "id": 63,
+      "internalName": "MARVELSCALE",
+      "name": "神奇鳞片",
+      "description": "陷入异常状态时，防御会提高。"
+    },
+    "LIQUIDOOZE": {
+      "id": 64,
+      "internalName": "LIQUIDOOZE",
+      "name": "污泥浆",
+      "description": "吸收了污泥浆的对手会因强烈的恶 臭而减少HP。"
+    },
+    "OVERGROW": {
+      "id": 65,
+      "internalName": "OVERGROW",
+      "name": "茂盛",
+      "description": "HP减少的时候，草属性的招式威力 会提高。"
+    },
+    "BLAZE": {
+      "id": 66,
+      "internalName": "BLAZE",
+      "name": "猛火",
+      "description": "HP减少的时候，火属性的招式威力 会提高。"
+    },
+    "TORRENT": {
+      "id": 67,
+      "internalName": "TORRENT",
+      "name": "激流",
+      "description": "HP减少的时候，水属性的招式威力 会提高。"
+    },
+    "SWARM": {
+      "id": 68,
+      "internalName": "SWARM",
+      "name": "虫之预感",
+      "description": "HP减少的时候，虫属性的招式威力 会提高。"
+    },
+    "ROCKHEAD": {
+      "id": 69,
+      "internalName": "ROCKHEAD",
+      "name": "坚硬脑袋",
+      "description": "即使使出会受反作用力伤害的招式 ，HP也不会减少。"
+    },
+    "DROUGHT": {
+      "id": 70,
+      "internalName": "DROUGHT",
+      "name": "日照",
+      "description": "出场时，会将天气变为晴朗。"
+    },
+    "ARENATRAP": {
+      "id": 71,
+      "internalName": "ARENATRAP",
+      "name": "沙穴",
+      "description": "在战斗中让对手无法逃走。"
+    },
+    "VITALSPIRIT": {
+      "id": 72,
+      "internalName": "VITALSPIRIT",
+      "name": "干劲",
+      "description": "通过激发出干劲，不会变为睡眠状 态。"
+    },
+    "WHITESMOKE": {
+      "id": 73,
+      "internalName": "WHITESMOKE",
+      "name": "白色烟雾",
+      "description": "被白色烟雾保护着，不会被对手降 低能力。"
+    },
+    "PUREPOWER": {
+      "id": 74,
+      "internalName": "PUREPOWER",
+      "name": "瑜伽之力",
+      "description": "因瑜伽的力量，物理攻击的威力会 变为2倍。"
+    },
+    "SHELLARMOR": {
+      "id": 75,
+      "internalName": "SHELLARMOR",
+      "name": "硬壳盔甲",
+      "description": "被坚硬的壳保护着，对手的攻击不 会击中要害。"
+    },
+    "AIRLOCK": {
+      "id": 76,
+      "internalName": "AIRLOCK",
+      "name": "气闸",
+      "description": "所有天气的影响都会消失。"
+    },
+    "TANGLEDFEET": {
+      "id": 77,
+      "internalName": "TANGLEDFEET",
+      "name": "蹒跚",
+      "description": "在混乱状态时，闪避率会提高。"
+    },
+    "MOTORDRIVE": {
+      "id": 78,
+      "internalName": "MOTORDRIVE",
+      "name": "电气引擎",
+      "description": "受到电属性的招式攻击时速度会提 高。"
+    },
+    "RIVALRY": {
+      "id": 79,
+      "internalName": "RIVALRY",
+      "name": "斗争心",
+      "description": "对手同性会变得更强，对手异性时 则会变弱。"
+    },
+    "STEADFAST": {
+      "id": 80,
+      "internalName": "STEADFAST",
+      "name": "不屈之心",
+      "description": "每次畏缩时不屈之心就会燃起，速 度也会提高。"
+    },
+    "SNOWCLOAK": {
+      "id": 81,
+      "internalName": "SNOWCLOAK",
+      "name": "雪隐",
+      "description": "冰雹或雪天时，闪避率会提高。"
+    },
+    "GLUTTONY": {
+      "id": 82,
+      "internalName": "GLUTTONY",
+      "name": "贪吃鬼",
+      "description": "在HP还有一半时就会把树果吃掉。"
+    },
+    "ANGERPOINT": {
+      "id": 83,
+      "internalName": "ANGERPOINT",
+      "name": "愤怒穴位",
+      "description": "要害被击中时，会大发雷霆，攻击 力变为最大。"
+    },
+    "UNBURDEN": {
+      "id": 84,
+      "internalName": "UNBURDEN",
+      "name": "轻装",
+      "description": "失去所持有的道具时，速度会提高。"
+    },
+    "HEATPROOF": {
+      "id": 85,
+      "internalName": "HEATPROOF",
+      "name": "耐热",
+      "description": "耐热的体质会让火属性的招式威力 减半。"
+    },
+    "SIMPLE": {
+      "id": 86,
+      "internalName": "SIMPLE",
+      "name": "单纯",
+      "description": "能力变化会变为平时的2倍。"
+    },
+    "DRYSKIN": {
+      "id": 87,
+      "internalName": "DRYSKIN",
+      "name": "干燥皮肤",
+      "description": "雨天和受到水属性的招式时，HP 会回复。"
+    },
+    "DOWNLOAD": {
+      "id": 88,
+      "internalName": "DOWNLOAD",
+      "name": "下载",
+      "description": "根据对手的双防中较低的，提高自己 的攻击或特攻。"
+    },
+    "IRONFIST": {
+      "id": 89,
+      "internalName": "IRONFIST",
+      "name": "铁拳",
+      "description": "使用拳类招式的威力会提高。"
+    },
+    "POISONHEAL": {
+      "id": 90,
+      "internalName": "POISONHEAL",
+      "name": "毒疗",
+      "description": "变为中毒状态时，HP不会减少，反 而会增加。"
+    },
+    "ADAPTABILITY": {
+      "id": 91,
+      "internalName": "ADAPTABILITY",
+      "name": "适应力",
+      "description": "与自身同属性的招式威力会提高。"
+    },
+    "SKILLLINK": {
+      "id": 92,
+      "internalName": "SKILLLINK",
+      "name": "连续攻击",
+      "description": "如果使用连续招式，总是能使出最高 次数。"
+    },
+    "HYDRATION": {
+      "id": 93,
+      "internalName": "HYDRATION",
+      "name": "湿润之躯",
+      "description": "下雨天气时，异常状态会治愈。"
+    },
+    "SOLARPOWER": {
+      "id": 94,
+      "internalName": "SOLARPOWER",
+      "name": "太阳之力",
+      "description": "晴天时特攻会提高，而每回合HP 会减少。"
+    },
+    "QUICKFEET": {
+      "id": 95,
+      "internalName": "QUICKFEET",
+      "name": "飞毛腿",
+      "description": "变为异常状态时，速度会提高。"
+    },
+    "NORMALIZE": {
+      "id": 96,
+      "internalName": "NORMALIZE",
+      "name": "一般皮肤",
+      "description": "所有招式全部变为一般属性。威力会 少量提高。"
+    },
+    "SNIPER": {
+      "id": 97,
+      "internalName": "SNIPER",
+      "name": "狙击手",
+      "description": "击中要害时，威力会变得更强。"
+    },
+    "MAGICGUARD": {
+      "id": 98,
+      "internalName": "MAGICGUARD",
+      "name": "魔法防守",
+      "description": "不会受到攻击以外的伤害。"
+    },
+    "NOGUARD": {
+      "id": 99,
+      "internalName": "NOGUARD",
+      "name": "无防守",
+      "description": "由于无防守战术，双方使出的招式 都必定会击中。"
+    },
+    "STALL": {
+      "id": 100,
+      "internalName": "STALL",
+      "name": "慢出",
+      "description": "使出招式的顺序必定会变为最后。"
+    },
+    "TECHNICIAN": {
+      "id": 101,
+      "internalName": "TECHNICIAN",
+      "name": "技术高手",
+      "description": "攻击时可以将低威力招式的威力提高 。"
+    },
+    "LEAFGUARD": {
+      "id": 102,
+      "internalName": "LEAFGUARD",
+      "name": "叶子防守",
+      "description": "晴朗天气时，不会变为异常状态。"
+    },
+    "KLUTZ": {
+      "id": 103,
+      "internalName": "KLUTZ",
+      "name": "笨拙",
+      "description": "无法使用持有的道具。"
+    },
+    "MOLDBREAKER": {
+      "id": 104,
+      "internalName": "MOLDBREAKER",
+      "name": "破格",
+      "description": "可以不受对手特性的干扰，向对手使 出招式。"
+    },
+    "SUPERLUCK": {
+      "id": 105,
+      "internalName": "SUPERLUCK",
+      "name": "超幸运",
+      "description": "因为拥有超幸运，攻击容易击中对手 的要害。"
+    },
+    "AFTERMATH": {
+      "id": 106,
+      "internalName": "AFTERMATH",
+      "name": "引爆",
+      "description": "变为濒死时，会对接触到自己的对 手造成伤害。"
+    },
+    "ANTICIPATION": {
+      "id": 107,
+      "internalName": "ANTICIPATION",
+      "name": "危险预知",
+      "description": "可以察觉到对手拥有的危险招式。"
+    },
+    "FOREWARN": {
+      "id": 108,
+      "internalName": "FOREWARN",
+      "name": "预知梦",
+      "description": "出场时，只读取1个对手拥有的招 式。"
+    },
+    "UNAWARE": {
+      "id": 109,
+      "internalName": "UNAWARE",
+      "name": "纯朴",
+      "description": "可以无视对手能力的变化进行攻击。"
+    },
+    "TINTEDLENS": {
+      "id": 110,
+      "internalName": "TINTEDLENS",
+      "name": "有色眼镜",
+      "description": "可以将效果不好的招式以通常的威 力使出。"
+    },
+    "FILTER": {
+      "id": 111,
+      "internalName": "FILTER",
+      "name": "过滤",
+      "description": "受到效果绝佳的攻击时，可以减弱 其威力。"
+    },
+    "SLOWSTART": {
+      "id": 112,
+      "internalName": "SLOWSTART",
+      "name": "慢启动",
+      "description": "在5回合内，攻击和速度减半。"
+    },
+    "SCRAPPY": {
+      "id": 113,
+      "internalName": "SCRAPPY",
+      "name": "胆量",
+      "description": "一般和格斗属性的招式可以击中幽 灵属性的宝可梦。"
+    },
+    "STORMDRAIN": {
+      "id": 114,
+      "internalName": "STORMDRAIN",
+      "name": "引水",
+      "description": "吸引水属性的招式，不会受到伤害 ，而是提高特攻。"
+    },
+    "ICEBODY": {
+      "id": 115,
+      "internalName": "ICEBODY",
+      "name": "冰冻之躯",
+      "description": "冰雹或雪天时，会缓缓回复HP。"
+    },
+    "SOLIDROCK": {
+      "id": 116,
+      "internalName": "SOLIDROCK",
+      "name": "坚硬岩石",
+      "description": "受到效果绝佳的攻击时，可以减弱 其威力。"
+    },
+    "SNOWWARNING": {
+      "id": 117,
+      "internalName": "SNOWWARNING",
+      "name": "降雪",
+      "description": "出场时，会将天气变为下雪。"
+    },
+    "HONEYGATHER": {
+      "id": 118,
+      "internalName": "HONEYGATHER",
+      "name": "采蜜",
+      "description": "战斗结束时，有时候会捡来甜甜蜜 。"
+    },
+    "FRISK": {
+      "id": 119,
+      "internalName": "FRISK",
+      "name": "察觉",
+      "description": "出场时，可以察觉对手的持有物。"
+    },
+    "RECKLESS": {
+      "id": 120,
+      "internalName": "RECKLESS",
+      "name": "舍身",
+      "description": "自己会因反作用力受伤的招式，其 威力会提高。"
+    },
+    "MULTITYPE": {
+      "id": 121,
+      "internalName": "MULTITYPE",
+      "name": "多属性",
+      "description": "自身属性会根据持有石板而改变。"
+    },
+    "FLOWERGIFT": {
+      "id": 122,
+      "internalName": "FLOWERGIFT",
+      "name": "花之礼",
+      "description": "晴朗天气时，自己与同伴的攻击和 特防能力会提高。"
+    },
+    "BADDREAMS": {
+      "id": 123,
+      "internalName": "BADDREAMS",
+      "name": "梦魇",
+      "description": "给予睡眠状态的对手伤害。"
+    },
+    "PICKPOCKET": {
+      "id": 124,
+      "internalName": "PICKPOCKET",
+      "name": "顺手牵羊",
+      "description": "盗取接触到自己的对手的道具。"
+    },
+    "SHEERFORCE": {
+      "id": 125,
+      "internalName": "SHEERFORCE",
+      "name": "强行",
+      "description": "招式的追加效果消失，但能以更高 的威力使出招式。"
+    },
+    "CONTRARY": {
+      "id": 126,
+      "internalName": "CONTRARY",
+      "name": "唱反调",
+      "description": "能力等级的变化发生逆转。"
+    },
+    "UNNERVE": {
+      "id": 127,
+      "internalName": "UNNERVE",
+      "name": "紧张感",
+      "description": "让对手紧张，使其无法食用树果。"
+    },
+    "DEFIANT": {
+      "id": 128,
+      "internalName": "DEFIANT",
+      "name": "不服输",
+      "description": "能力被降低时，攻击会大幅提高。"
+    },
+    "DEFEATIST": {
+      "id": 129,
+      "internalName": "DEFEATIST",
+      "name": "软弱",
+      "description": "HP减半时，会变得软弱，攻击和 特攻会减半。"
+    },
+    "CURSEDBODY": {
+      "id": 130,
+      "internalName": "CURSEDBODY",
+      "name": "诅咒之躯",
+      "description": "受到攻击时，有时会把对手的招式 变为定身法状态。"
+    },
+    "HEALER": {
+      "id": 131,
+      "internalName": "HEALER",
+      "name": "治愈之心",
+      "description": "有时会治愈异常状态的同伴。"
+    },
+    "FRIENDGUARD": {
+      "id": 132,
+      "internalName": "FRIENDGUARD",
+      "name": "友情防守",
+      "description": "可以减少我方的伤害。"
+    },
+    "WEAKARMOR": {
+      "id": 133,
+      "internalName": "WEAKARMOR",
+      "name": "碎裂铠甲",
+      "description": "受到物理招式伤害，防御会降低， 速度会大幅提高。"
+    },
+    "HEAVYMETAL": {
+      "id": 134,
+      "internalName": "HEAVYMETAL",
+      "name": "重金属",
+      "description": "自身的重量会变为2倍。"
+    },
+    "LIGHTMETAL": {
+      "id": 135,
+      "internalName": "LIGHTMETAL",
+      "name": "轻金属",
+      "description": "自身的重量会减半。"
+    },
+    "MULTISCALE": {
+      "id": 136,
+      "internalName": "MULTISCALE",
+      "name": "多重鳞片",
+      "description": "HP全满时，受到的伤害会变少。"
+    },
+    "TOXICBOOST": {
+      "id": 137,
+      "internalName": "TOXICBOOST",
+      "name": "中毒激升",
+      "description": "变为中毒状态时，物理招式的威力 会提高。"
+    },
+    "FLAREBOOST": {
+      "id": 138,
+      "internalName": "FLAREBOOST",
+      "name": "受热激升",
+      "description": "变为灼伤状态时，特殊招式的威力 会提高。"
+    },
+    "HARVEST": {
+      "id": 139,
+      "internalName": "HARVEST",
+      "name": "收获",
+      "description": "可以多次制作出已被使用掉的树果 。"
+    },
+    "TELEPATHY": {
+      "id": 140,
+      "internalName": "TELEPATHY",
+      "name": "心灵感应",
+      "description": "读取我方的攻击，并闪避其招式伤 害。"
+    },
+    "MOODY": {
+      "id": 141,
+      "internalName": "MOODY",
+      "name": "心情不定",
+      "description": "每一回合某项能力会大幅提高，而 某项会降低。"
+    },
+    "OVERCOAT": {
+      "id": 142,
+      "internalName": "OVERCOAT",
+      "name": "防尘",
+      "description": "不受沙暴或冰雹等伤害。不受粉末 类招式的攻击。"
+    },
+    "POISONTOUCH": {
+      "id": 143,
+      "internalName": "POISONTOUCH",
+      "name": "毒手",
+      "description": "只通过接触就有可能让对手变为中毒 状态。"
+    },
+    "REGENERATOR": {
+      "id": 144,
+      "internalName": "REGENERATOR",
+      "name": "再生力",
+      "description": "退回同行队伍后，HP会少量回复 。"
+    },
+    "BIGPECKS": {
+      "id": 145,
+      "internalName": "BIGPECKS",
+      "name": "健壮胸肌",
+      "description": "不会受到防御降低的效果。"
+    },
+    "SANDRUSH": {
+      "id": 146,
+      "internalName": "SANDRUSH",
+      "name": "拨沙",
+      "description": "沙暴天气时，速度会提高。"
+    },
+    "WONDERSKIN": {
+      "id": 147,
+      "internalName": "WONDERSKIN",
+      "name": "奇迹皮肤",
+      "description": "成为不易受到变化招式攻击的身体 。"
+    },
+    "ANALYTIC": {
+      "id": 148,
+      "internalName": "ANALYTIC",
+      "name": "分析",
+      "description": "如果在最后使出招式，招式的威力 会提高。"
+    },
+    "ILLUSION": {
+      "id": 149,
+      "internalName": "ILLUSION",
+      "name": "幻觉",
+      "description": "假扮成队伍中的最后一个宝可梦出 场，迷惑对手。"
+    },
+    "IMPOSTER": {
+      "id": 150,
+      "internalName": "IMPOSTER",
+      "name": "变身者",
+      "description": "变身为当前面对的宝可梦。"
+    },
+    "INFILTRATOR": {
+      "id": 151,
+      "internalName": "INFILTRATOR",
+      "name": "穿透",
+      "description": "可以穿透对手的壁障或替身进行攻 击。"
+    },
+    "MUMMY": {
+      "id": 152,
+      "internalName": "MUMMY",
+      "name": "木乃伊",
+      "description": "被对手接触到后，会将对手变为木 乃伊。"
+    },
+    "MOXIE": {
+      "id": 153,
+      "internalName": "MOXIE",
+      "name": "自信过度",
+      "description": "如果打倒对手，就会充满自信，攻 击会提高。"
+    },
+    "JUSTIFIED": {
+      "id": 154,
+      "internalName": "JUSTIFIED",
+      "name": "正义之心",
+      "description": "受到恶属性的招式攻击时，因为正 义感，攻击会提高。"
+    },
+    "RATTLED": {
+      "id": 155,
+      "internalName": "RATTLED",
+      "name": "胆怯",
+      "description": "受到恶、幽灵和虫属性的招式攻击 时，速度会提高。"
+    },
+    "MAGICBOUNCE": {
+      "id": 156,
+      "internalName": "MAGICBOUNCE",
+      "name": "魔法镜",
+      "description": "可以不受到由对手使出的变化招式 影响，并将其反弹。"
+    },
+    "SAPSIPPER": {
+      "id": 157,
+      "internalName": "SAPSIPPER",
+      "name": "食草",
+      "description": "受到草属性的招式攻击时，不受伤 害，而是提高攻击。"
+    },
+    "PRANKSTER": {
+      "id": 158,
+      "internalName": "PRANKSTER",
+      "name": "恶作剧之心",
+      "description": "可以率先使出变化招式。"
+    },
+    "SANDFORCE": {
+      "id": 159,
+      "internalName": "SANDFORCE",
+      "name": "沙之力",
+      "description": "沙暴天气时，岩石、地面和钢属性 招式威力会提高。"
+    },
+    "IRONBARBS": {
+      "id": 160,
+      "internalName": "IRONBARBS",
+      "name": "铁刺",
+      "description": "用铁刺给予接触到自己的对手伤害 。"
+    },
+    "ZENMODE": {
+      "id": 161,
+      "internalName": "ZENMODE",
+      "name": "达摩模式",
+      "description": "HP变为一半以下时，样子会改变 。"
+    },
+    "VICTORYSTAR": {
+      "id": 162,
+      "internalName": "VICTORYSTAR",
+      "name": "胜利之星",
+      "description": "自己和同伴的命中率会提高。"
+    },
+    "TURBOBLAZE": {
+      "id": 163,
+      "internalName": "TURBOBLAZE",
+      "name": "涡轮火焰",
+      "description": "无视对手特性使出招式，且降低除自 己以外的宝可梦的特防。"
+    },
+    "TERAVOLT": {
+      "id": 164,
+      "internalName": "TERAVOLT",
+      "name": "兆级电压",
+      "description": "无视对手特性使出招式，且降低除自 己以外的宝可梦的物防。"
+    },
+    "AROMAVEIL": {
+      "id": 165,
+      "internalName": "AROMAVEIL",
+      "name": "芳香幕",
+      "description": "可以防住向自己和同伴发出的心灵 攻击。"
+    },
+    "FLOWERVEIL": {
+      "id": 166,
+      "internalName": "FLOWERVEIL",
+      "name": "花幕",
+      "description": "我方草系宝可梦能力不会降低，不 会变为异常状态。"
+    },
+    "CHEEKPOUCH": {
+      "id": 167,
+      "internalName": "CHEEKPOUCH",
+      "name": "颊囊",
+      "description": "无论是哪种树果，食用后，HP都 会回复。"
+    },
+    "PROTEAN": {
+      "id": 168,
+      "internalName": "PROTEAN",
+      "name": "变幻自如",
+      "description": "变为与自己使出的招式相同的属性 。"
+    },
+    "FURCOAT": {
+      "id": 169,
+      "internalName": "FURCOAT",
+      "name": "毛皮大衣",
+      "description": "对手给予的物理招式的伤害会减半 。"
+    },
+    "MAGICIAN": {
+      "id": 170,
+      "internalName": "MAGICIAN",
+      "name": "魔术师",
+      "description": "夺走被自己的招式击中的对手的道 具。"
+    },
+    "BULLETPROOF": {
+      "id": 171,
+      "internalName": "BULLETPROOF",
+      "name": "防弹",
+      "description": "可以防住对手的球和弹类招式。"
+    },
+    "COMPETITIVE": {
+      "id": 172,
+      "internalName": "COMPETITIVE",
+      "name": "好胜",
+      "description": "如果能力被降低，特攻就会大幅提 高。"
+    },
+    "STRONGJAW": {
+      "id": 173,
+      "internalName": "STRONGJAW",
+      "name": "强壮之颚",
+      "description": "因为颚部强壮，啃咬类招式的威 力会提高。"
+    },
+    "REFRIGERATE": {
+      "id": 174,
+      "internalName": "REFRIGERATE",
+      "name": "冰冻皮肤",
+      "description": "一般属性的招式会变为冰属性。威 力会少量提高。"
+    },
+    "SWEETVEIL": {
+      "id": 175,
+      "internalName": "SWEETVEIL",
+      "name": "甜幕",
+      "description": "我方的宝可梦不会变为睡眠状态。"
+    },
+    "STANCECHANGE": {
+      "id": 176,
+      "internalName": "STANCECHANGE",
+      "name": "战斗切换",
+      "description": "根据使出的招式改变为刀剑形态或 盾牌形态。"
+    },
+    "GALEWINGS": {
+      "id": 177,
+      "internalName": "GALEWINGS",
+      "name": "疾风之翼",
+      "description": "HP全满时，飞行属性的招式可以 率先使出。"
+    },
+    "MEGALAUNCHER": {
+      "id": 178,
+      "internalName": "MEGALAUNCHER",
+      "name": "超级发射器",
+      "description": "波动和波导类招式的威力会提高 。"
+    },
+    "GRASSPELT": {
+      "id": 179,
+      "internalName": "GRASSPELT",
+      "name": "草之毛皮",
+      "description": "在青草场地时，防御会提高。"
+    },
+    "SYMBIOSIS": {
+      "id": 180,
+      "internalName": "SYMBIOSIS",
+      "name": "共生",
+      "description": "同伴使用道具时，会把自己持有的 道具传递给同伴。"
+    },
+    "TOUGHCLAWS": {
+      "id": 181,
+      "internalName": "TOUGHCLAWS",
+      "name": "硬爪",
+      "description": "接触到对手的招式威力会提高。"
+    },
+    "PIXILATE": {
+      "id": 182,
+      "internalName": "PIXILATE",
+      "name": "妖精皮肤",
+      "description": "一般属性的招式会变为妖精属性。 威力会少量提高。"
+    },
+    "GOOEY": {
+      "id": 183,
+      "internalName": "GOOEY",
+      "name": "黏滑",
+      "description": "对于用攻击接触到自己的对手，会 降低其速度。"
+    },
+    "AERILATE": {
+      "id": 184,
+      "internalName": "AERILATE",
+      "name": "飞行皮肤",
+      "description": "一般属性的招式会变为飞行属性。 威力会少量提高。"
+    },
+    "PARENTALBOND": {
+      "id": 185,
+      "internalName": "PARENTALBOND",
+      "name": "亲子爱",
+      "description": "亲子俩可以合计攻击2次。"
+    },
+    "DARKAURA": {
+      "id": 186,
+      "internalName": "DARKAURA",
+      "name": "暗黑气场",
+      "description": "全体的恶属性招式变强。"
+    },
+    "FAIRYAURA": {
+      "id": 187,
+      "internalName": "FAIRYAURA",
+      "name": "妖精气场",
+      "description": "全体的妖精属性招式变强。"
+    },
+    "AURABREAK": {
+      "id": 188,
+      "internalName": "AURABREAK",
+      "name": "气场破坏",
+      "description": "让气场的效果发生逆转，降低威力 。"
+    },
+    "PRIMORDIALSEA": {
+      "id": 189,
+      "internalName": "PRIMORDIALSEA",
+      "name": "始源之海",
+      "description": "变为不会受到火属性攻击的天气。"
+    },
+    "DESOLATELAND": {
+      "id": 190,
+      "internalName": "DESOLATELAND",
+      "name": "终结之地",
+      "description": "变为不会受到水属性攻击的天气。"
+    },
+    "DELTASTREAM": {
+      "id": 191,
+      "internalName": "DELTASTREAM",
+      "name": "德尔塔气流",
+      "description": "变为令飞行属性的弱点消失的天气 。"
+    },
+    "STAMINA": {
+      "id": 192,
+      "internalName": "STAMINA",
+      "name": "持久力",
+      "description": "受到攻击时，防御会提高。"
+    },
+    "WIMPOUT": {
+      "id": 193,
+      "internalName": "WIMPOUT",
+      "name": "跃跃欲逃",
+      "description": "HP变为一半时，会退回同行队伍 中。"
+    },
+    "EMERGENCYEXIT": {
+      "id": 194,
+      "internalName": "EMERGENCYEXIT",
+      "name": "危险回避",
+      "description": "HP变为一半时，会退回到同行队 伍中。"
+    },
+    "WATERCOMPACTION": {
+      "id": 195,
+      "internalName": "WATERCOMPACTION",
+      "name": "遇水凝固",
+      "description": "受到水属性的招式攻击时，防御会 大幅提高。"
+    },
+    "MERCILESS": {
+      "id": 196,
+      "internalName": "MERCILESS",
+      "name": "不仁不义",
+      "description": "攻击中毒状态的对手时，必定会击 中要害。"
+    },
+    "SHIELDSDOWN": {
+      "id": 197,
+      "internalName": "SHIELDSDOWN",
+      "name": "界限盾壳",
+      "description": "HP变为一半时，壳会坏掉，变得 有攻击性。"
+    },
+    "STAKEOUT": {
+      "id": 198,
+      "internalName": "STAKEOUT",
+      "name": "蹲守",
+      "description": "可以对替换出场的对手以2倍的伤 害进行攻击。"
+    },
+    "WATERBUBBLE": {
+      "id": 199,
+      "internalName": "WATERBUBBLE",
+      "name": "水泡",
+      "description": "降低与自己相对的火属性招式的威 力，不会灼伤。"
+    },
+    "STEELWORKER": {
+      "id": 200,
+      "internalName": "STEELWORKER",
+      "name": "钢能力者",
+      "description": "钢属性的招式威力会提高。"
+    },
+    "BERSERK": {
+      "id": 201,
+      "internalName": "BERSERK",
+      "name": "怒火冲天",
+      "description": "因对手的攻击HP变为一半时，特 攻会提高。"
+    },
+    "SLUSHRUSH": {
+      "id": 202,
+      "internalName": "SLUSHRUSH",
+      "name": "拨雪",
+      "description": "冰雹或雪天时，速度会提高。"
+    },
+    "LONGREACH": {
+      "id": 203,
+      "internalName": "LONGREACH",
+      "name": "远隔",
+      "description": "可以不接触对手就使出所有的招式 。"
+    },
+    "LIQUIDVOICE": {
+      "id": 204,
+      "internalName": "LIQUIDVOICE",
+      "name": "湿润之声",
+      "description": "所有的声音的招式都变为水属性。"
+    },
+    "TRIAGE": {
+      "id": 205,
+      "internalName": "TRIAGE",
+      "name": "先行治疗",
+      "description": "可以率先使出回复招式。"
+    },
+    "GALVANIZE": {
+      "id": 206,
+      "internalName": "GALVANIZE",
+      "name": "电气皮肤",
+      "description": "一般属性的招式会变为电属性。威 力会少量提高。"
+    },
+    "SURGESURFER": {
+      "id": 207,
+      "internalName": "SURGESURFER",
+      "name": "冲浪之尾",
+      "description": "电气场地时，速度会变为2倍。"
+    },
+    "SCHOOLING": {
+      "id": 208,
+      "internalName": "SCHOOLING",
+      "name": "鱼群",
+      "description": "HP多的时候会聚起来变强。HP 变少时，会分崩离析。"
+    },
+    "DISGUISE": {
+      "id": 209,
+      "internalName": "DISGUISE",
+      "name": "画皮",
+      "description": "通过画皮覆盖住身体，可以防住1 次攻击。"
+    },
+    "BATTLEBOND": {
+      "id": 210,
+      "internalName": "BATTLEBOND",
+      "name": "牵绊变身",
+      "description": "打倒对手时，变为小智版甲贺忍 蛙。"
+    },
+    "POWERCONSTRUCT": {
+      "id": 211,
+      "internalName": "POWERCONSTRUCT",
+      "name": "群聚变形",
+      "description": "战斗中登场时变为完全体形态。"
+    },
+    "CORROSION": {
+      "id": 212,
+      "internalName": "CORROSION",
+      "name": "腐蚀",
+      "description": "可以使钢属性和毒属性的宝可梦 也陷入中毒状态。"
+    },
+    "COMATOSE": {
+      "id": 213,
+      "internalName": "COMATOSE",
+      "name": "绝对睡眠",
+      "description": "总是半梦半醒的不会醒来，可以就 这么睡着进行攻击。"
+    },
+    "QUEENLYMAJESTY": {
+      "id": 214,
+      "internalName": "QUEENLYMAJESTY",
+      "name": "女王的威严",
+      "description": "向对手施加威慑力，使其无法对 我方使出先制招式。"
+    },
+    "INNARDSOUT": {
+      "id": 215,
+      "internalName": "INNARDSOUT",
+      "name": "飞出的内在物",
+      "description": "被对手打倒时，会给予对手相当于 HP剩余量的伤害。"
+    },
+    "DANCER": {
+      "id": 216,
+      "internalName": "DANCER",
+      "name": "舞者",
+      "description": "有谁使出跳舞招式时，自己也能 接着使出跳舞招式。"
+    },
+    "BATTERY": {
+      "id": 217,
+      "internalName": "BATTERY",
+      "name": "蓄电池",
+      "description": "会提高我方的特殊招式的威力。"
+    },
+    "FLUFFY": {
+      "id": 218,
+      "internalName": "FLUFFY",
+      "name": "毛茸茸",
+      "description": "受接触类招式的伤害减半，火属性 招式的伤害变为2倍。"
+    },
+    "DAZZLING": {
+      "id": 219,
+      "internalName": "DAZZLING",
+      "name": "鲜艳之躯",
+      "description": "让对手吓一跳，使其无法对我方使 出先制招式。"
+    },
+    "SOULHEART": {
+      "id": 220,
+      "internalName": "SOULHEART",
+      "name": "魂心",
+      "description": "每当场上有宝可梦被打倒时，特 攻提高1个等级。"
+    },
+    "TANGLINGHAIR": {
+      "id": 221,
+      "internalName": "TANGLINGHAIR",
+      "name": "卷发",
+      "description": "对于用攻击接触到自己的对手，会 降低其速度。"
+    },
+    "RECEIVER": {
+      "id": 222,
+      "internalName": "RECEIVER",
+      "name": "接球手",
+      "description": "继承被打倒的同伴的特性，变为相 同的特性。"
+    },
+    "POWEROFALCHEMY": {
+      "id": 223,
+      "internalName": "POWEROFALCHEMY",
+      "name": "化学之力",
+      "description": "继承被打倒的同伴的特性，变为相 同的特性。"
+    },
+    "BEASTBOOST": {
+      "id": 224,
+      "internalName": "BEASTBOOST",
+      "name": "异兽提升",
+      "description": "打倒对手的时候，自己最高的那项 能力会提高。"
+    },
+    "RKSSYSTEM": {
+      "id": 225,
+      "internalName": "RKSSYSTEM",
+      "name": "AR系统",
+      "description": "根据持有的存储碟，自己的属性会 改变。"
+    },
+    "ELECTRICSURGE": {
+      "id": 226,
+      "internalName": "ELECTRICSURGE",
+      "name": "电气制造者",
+      "description": "出场时，会布下电气场地。"
+    },
+    "PSYCHICSURGE": {
+      "id": 227,
+      "internalName": "PSYCHICSURGE",
+      "name": "精神制造者",
+      "description": "出场时，会布下精神场地。"
+    },
+    "MISTYSURGE": {
+      "id": 228,
+      "internalName": "MISTYSURGE",
+      "name": "薄雾制造者",
+      "description": "出场时，会布下薄雾场地。"
+    },
+    "GRASSYSURGE": {
+      "id": 229,
+      "internalName": "GRASSYSURGE",
+      "name": "青草制造者",
+      "description": "出场时，会布下青草场地。"
+    },
+    "FULLMETALBODY": {
+      "id": 230,
+      "internalName": "FULLMETALBODY",
+      "name": "金属防护",
+      "description": "不会因为对手的招式或特性而被降 低能力。"
+    },
+    "SHADOWSHIELD": {
+      "id": 231,
+      "internalName": "SHADOWSHIELD",
+      "name": "幻影防守",
+      "description": "HP全满时，受到的伤害会变少 。"
+    },
+    "PRISMARMOR": {
+      "id": 232,
+      "internalName": "PRISMARMOR",
+      "name": "棱镜装甲",
+      "description": "受到效果绝佳的攻击时，可以减弱 其威力。"
+    },
+    "NEUROFORCE": {
+      "id": 233,
+      "internalName": "NEUROFORCE",
+      "name": "脑核之力",
+      "description": "效果绝佳的攻击，威力会变得更强 。"
+    },
+    "INTREPIDSWORD": {
+      "id": 234,
+      "internalName": "INTREPIDSWORD",
+      "name": "不挠之剑",
+      "description": "出场时，攻击会提高。"
+    },
+    "DAUNTLESSSHIELD": {
+      "id": 235,
+      "internalName": "DAUNTLESSSHIELD",
+      "name": "不屈之盾",
+      "description": "出场时，防御会提高。"
+    },
+    "LIBERO": {
+      "id": 236,
+      "internalName": "LIBERO",
+      "name": "自由者",
+      "description": "变为与自己使出的招式相同的属性 。"
+    },
+    "BALLFETCH": {
+      "id": 237,
+      "internalName": "BALLFETCH",
+      "name": "捡球",
+      "description": "未携带道具时，会拾取第1个捕 捉失败的精灵球。"
+    },
+    "COTTONDOWN": {
+      "id": 238,
+      "internalName": "COTTONDOWN",
+      "name": "棉絮",
+      "description": "受到攻击后降低除自己以外的所有宝 可梦的速度。"
+    },
+    "PROPELLERTAIL": {
+      "id": 239,
+      "internalName": "PROPELLERTAIL",
+      "name": "螺旋尾鳍",
+      "description": "能无视具有吸引招式效果的特性 或招式的影响。"
+    },
+    "MIRRORARMOR": {
+      "id": 240,
+      "internalName": "MIRRORARMOR",
+      "name": "镜甲",
+      "description": "反弹自己受到的能力降低效果。"
+    },
+    "GULPMISSILE": {
+      "id": 241,
+      "internalName": "GULPMISSILE",
+      "name": "一口导弹",
+      "description": "冲浪或潜水时会叼来猎物。受害 会吐出猎物攻击。"
+    },
+    "STALWART": {
+      "id": 242,
+      "internalName": "STALWART",
+      "name": "坚毅",
+      "description": "能无视具有吸引对手招式效果的特 性或招式的影响。"
+    },
+    "STEAMENGINE": {
+      "id": 243,
+      "internalName": "STEAMENGINE",
+      "name": "蒸汽机",
+      "description": "受到水或火属性的招式攻击时， 速度会巨幅提高。"
+    },
+    "PUNKROCK": {
+      "id": 244,
+      "internalName": "PUNKROCK",
+      "name": "庞克摇滚",
+      "description": "声音招式的威力会提高。受到的声 音招式伤害会减半。"
+    },
+    "SANDSPIT": {
+      "id": 245,
+      "internalName": "SANDSPIT",
+      "name": "吐沙",
+      "description": "受到攻击时，会刮起沙暴。"
+    },
+    "ICESCALES": {
+      "id": 246,
+      "internalName": "ICESCALES",
+      "name": "冰鳞粉",
+      "description": "由于有冰鳞粉的守护，受到的特 殊攻击伤害会减半。"
+    },
+    "RIPEN": {
+      "id": 247,
+      "internalName": "RIPEN",
+      "name": "熟成",
+      "description": "使树果成熟，效果变为2倍。"
+    },
+    "ICEFACE": {
+      "id": 248,
+      "internalName": "ICEFACE",
+      "name": "结冻头",
+      "description": "头部的冰会代替自己承受物理攻击 ，但样子会改变。"
+    },
+    "POWERSPOT": {
+      "id": 249,
+      "internalName": "POWERSPOT",
+      "name": "能量点",
+      "description": "只要处在相邻位置，招式的威力就 会提高。"
+    },
+    "MIMICRY": {
+      "id": 250,
+      "internalName": "MIMICRY",
+      "name": "拟态",
+      "description": "宝可梦的属性会根据场地的状态而 变化。"
+    },
+    "SCREENCLEANER": {
+      "id": 251,
+      "internalName": "SCREENCLEANER",
+      "name": "除障",
+      "description": "出场时场上的光墙"
+    },
+    "STEELYSPIRIT": {
+      "id": 252,
+      "internalName": "STEELYSPIRIT",
+      "name": "钢之意志",
+      "description": "我方的钢属性攻击威力会提高5 0%。"
+    },
+    "PERISHBODY": {
+      "id": 253,
+      "internalName": "PERISHBODY",
+      "name": "灭亡之躯",
+      "description": "受到接触类攻击时，双方都会在3 回合后变为濒死。"
+    },
+    "WANDERINGSPIRIT": {
+      "id": 254,
+      "internalName": "WANDERINGSPIRIT",
+      "name": "游魂",
+      "description": "与使用接触类招式攻击自己的宝可 梦互换特性。"
+    },
+    "GORILLATACTICS": {
+      "id": 255,
+      "internalName": "GORILLATACTICS",
+      "name": "一猩一意",
+      "description": "虽然攻击会提高，但是只能使出一 开始所选的招式。"
+    },
+    "NEUTRALIZINGGAS": {
+      "id": 256,
+      "internalName": "NEUTRALIZINGGAS",
+      "name": "化学变化气体",
+      "description": "在场时，场上宝可梦的特性效果 会消失或者无法生效。"
+    },
+    "PASTELVEIL": {
+      "id": 257,
+      "internalName": "PASTELVEIL",
+      "name": "粉彩护幕",
+      "description": "自己和同伴都不会陷入中毒的异常 状态。"
+    },
+    "HUNGERSWITCH": {
+      "id": 258,
+      "internalName": "HUNGERSWITCH",
+      "name": "饱了又饿",
+      "description": "每回合结束时会在满腹与空腹花 纹间交替改变样子。"
+    },
+    "QUICKDRAW": {
+      "id": 259,
+      "internalName": "QUICKDRAW",
+      "name": "速击",
+      "description": "有时能比对手先一步行动。"
+    },
+    "UNSEENFIST": {
+      "id": 260,
+      "internalName": "UNSEENFIST",
+      "name": "无形拳",
+      "description": "接触类招式可以无视对方守护效果 进行攻击。"
+    },
+    "CURIOUSMEDICINE": {
+      "id": 261,
+      "internalName": "CURIOUSMEDICINE",
+      "name": "怪药",
+      "description": "出场时会从贝壳撒药，将我方的 能力变化复原。"
+    },
+    "TRANSISTOR": {
+      "id": 262,
+      "internalName": "TRANSISTOR",
+      "name": "电晶体",
+      "description": "电属性的招式威力会提高50% 。"
+    },
+    "DRAGONSMAW": {
+      "id": 263,
+      "internalName": "DRAGONSMAW",
+      "name": "龙颚",
+      "description": "龙属性的招式威力会提高50% 。"
+    },
+    "CHILLINGNEIGH": {
+      "id": 264,
+      "internalName": "CHILLINGNEIGH",
+      "name": "苍白嘶鸣",
+      "description": "打倒对手时会用冰冷的声音嘶鸣 并提高攻击。"
+    },
+    "GRIMNEIGH": {
+      "id": 265,
+      "internalName": "GRIMNEIGH",
+      "name": "漆黑嘶鸣",
+      "description": "打败一只宝可梦后，自身特攻提 升1级。"
+    },
+    "ASONEICE": {
+      "id": 266,
+      "internalName": "ASONEICE",
+      "name": "人马一体",
+      "description": "同时发动蕾冠王以及所骑爱马的 特性。"
+    },
+    "ASONEGHOST": {
+      "id": 267,
+      "internalName": "ASONEGHOST",
+      "name": "人马一体",
+      "description": "同时发动蕾冠王以及所骑爱马的 特性。"
+    },
+    "TOXICDEBRIS": {
+      "id": 268,
+      "internalName": "TOXICDEBRIS",
+      "name": "毒满地",
+      "description": "受到物理招式攻击时向对手的场地 撒下毒菱。"
+    },
+    "SHARPNESS": {
+      "id": 269,
+      "internalName": "SHARPNESS",
+      "name": "锋锐",
+      "description": "提高切割对手的招式的威力。"
+    },
+    "SUPREMEOVERLORD": {
+      "id": 270,
+      "internalName": "SUPREMEOVERLORD",
+      "name": "大将",
+      "description": "每位倒下的宝可梦都会增强招式 的力量。"
+    },
+    "THERMALEXCHANGE": {
+      "id": 271,
+      "internalName": "THERMALEXCHANGE",
+      "name": "热交换",
+      "description": "受到火属性的招式攻击时，攻击 会提高，且不会陷入灼伤状态。"
+    },
+    "SUPERSWEETSYRUP": {
+      "id": 272,
+      "internalName": "SUPERSWEETSYRUP",
+      "name": "甘露之蜜",
+      "description": "出场时，会散发出甜腻的蜜的香 味来降低对手的闪避率。"
+    },
+    "RIGHTTOFIGHT": {
+      "id": 273,
+      "internalName": "RIGHTTOFIGHT",
+      "name": "正义变身",
+      "description": "出场时或在场时若友方被打倒 ，则会变身为正义侠。"
+    },
+    "ANGERSHELL": {
+      "id": 274,
+      "internalName": "ANGERSHELL",
+      "name": "愤怒甲壳",
+      "description": "受到攻击HP变为一半时降低防御和 特防。但双攻、速度会提高。"
+    },
+    "ARMORTAIL": {
+      "id": 275,
+      "internalName": "ARMORTAIL",
+      "name": "尾甲",
+      "description": "包裹头部的神秘尾巴使对手无法对 我方使出先制招式。"
+    },
+    "COMMANDER": {
+      "id": 276,
+      "internalName": "COMMANDER",
+      "name": "发号施令",
+      "description": "出场时，若我方当中有吃吼霸， 就会进入其口中发出指令。"
+    },
+    "COSTAR": {
+      "id": 277,
+      "internalName": "COSTAR",
+      "name": "同台共演",
+      "description": "出场时，复制同伴的能力变化。"
+    },
+    "CUDCHEW": {
+      "id": 278,
+      "internalName": "CUDCHEW",
+      "name": "反刍",
+      "description": "吃了树果后，会在下一回合结束时 从胃反刍出来再吃1次。"
+    },
+    "EARTHEATER": {
+      "id": 279,
+      "internalName": "EARTHEATER",
+      "name": "食土",
+      "description": "受到地面属性的招式攻击时，不会 受到伤害，而是会得到回复。"
+    },
+    "ELECTROMORPHOSIS": {
+      "id": 280,
+      "internalName": "ELECTROMORPHOSIS",
+      "name": "电力转换",
+      "description": "受到伤害时，会变为充电状态。"
+    },
+    "GOODASGOLD": {
+      "id": 281,
+      "internalName": "GOODASGOLD",
+      "name": "黄金之躯",
+      "description": "不会氧化的坚固黄金身躯不会受到 对手的变化招式的影响。"
+    },
+    "GUARDDOG": {
+      "id": 282,
+      "internalName": "GUARDDOG",
+      "name": "看门犬",
+      "description": "受到威吓时，攻击会提高。不受替 换宝可梦的招式和道具影响。"
+    },
+    "LINGERINGAROMA": {
+      "id": 283,
+      "internalName": "LINGERINGAROMA",
+      "name": "甩不掉的气味",
+      "description": "被对手接触到后，甩不掉的气味 会沾上对手。"
+    },
+    "MYCELIUMMIGHT": {
+      "id": 284,
+      "internalName": "MYCELIUMMIGHT",
+      "name": "菌丝之力",
+      "description": "使出变化招式时，虽然行动会变 慢，但能不受对手的特性妨碍。"
+    },
+    "OPPORTUNIST": {
+      "id": 285,
+      "internalName": "OPPORTUNIST",
+      "name": "跟风",
+      "description": "对手的能力提高时，自己也会趁机 同样地提高能力。"
+    },
+    "PURIFYINGSALT": {
+      "id": 286,
+      "internalName": "PURIFYINGSALT",
+      "name": "洁净之盐",
+      "description": "因洁净的盐不会陷入异常状态。 会让幽灵属性的招式伤害减半。"
+    },
+    "ROCKYPAYLOAD": {
+      "id": 287,
+      "internalName": "ROCKYPAYLOAD",
+      "name": "搬岩",
+      "description": "岩石属性的招式威力会提高50 %。"
+    },
+    "SEEDSOWER": {
+      "id": 288,
+      "internalName": "SEEDSOWER",
+      "name": "掉出种子",
+      "description": "受到攻击时，会将脚下变成青草 场地。"
+    },
+    "WELLBAKEDBODY": {
+      "id": 289,
+      "internalName": "WELLBAKEDBODY",
+      "name": "焦香之躯",
+      "description": "受到火属性的招式攻击时，不会 受到伤害，而是大幅提高防御。"
+    },
+    "WINDPOWER": {
+      "id": 290,
+      "internalName": "WINDPOWER",
+      "name": "风力发电",
+      "description": "受到风的招式攻击或己方使用顺 风时，会进入充电状态。"
+    },
+    "WINDRIDER": {
+      "id": 291,
+      "internalName": "WINDRIDER",
+      "name": "乘风",
+      "description": "吹起顺风或受到风的招式攻击时 不会受到伤害，而是提高攻击。"
+    },
+    "ZEROTOHERO": {
+      "id": 292,
+      "internalName": "ZEROTOHERO",
+      "name": "全能变身",
+      "description": "回到同行队伍后，会变为全能形 态。"
+    },
+    "HOSPITALITY": {
+      "id": 293,
+      "internalName": "HOSPITALITY",
+      "name": "款待",
+      "description": "出场时款待同伴，回复其少量H P。"
+    },
+    "TOXICCHAIN": {
+      "id": 294,
+      "internalName": "TOXICCHAIN",
+      "name": "毒锁链",
+      "description": "凭借含有毒素的锁链的力量，有时 能让被击中的对手陷入剧毒。"
+    },
+    "MINDSEYE": {
+      "id": 295,
+      "internalName": "MINDSEYE",
+      "name": "心眼",
+      "description": "一般和格斗招式可以击中幽灵。 无视对手闪避，命中不会降低。"
+    },
+    "SWORDOFRUIN": {
+      "id": 296,
+      "internalName": "SWORDOFRUIN",
+      "name": "灾祸之剑",
+      "description": "以能呼唤灾厄的剑的力量降低除 自己以外的宝可梦的防御。"
+    },
+    "TABLETSOFRUIN": {
+      "id": 297,
+      "internalName": "TABLETSOFRUIN",
+      "name": "灾祸之简",
+      "description": "以能呼唤灾厄的简的力量降低除 自己以外的宝可梦的攻击。"
+    },
+    "VESSELOFRUIN": {
+      "id": 298,
+      "internalName": "VESSELOFRUIN",
+      "name": "灾祸之鼎",
+      "description": "以能呼唤灾厄的鼎的力量降低除 自己以外的宝可梦的特攻。"
+    },
+    "BEADSOFRUIN": {
+      "id": 299,
+      "internalName": "BEADSOFRUIN",
+      "name": "灾祸之玉",
+      "description": "以能呼唤灾厄的勾玉的力量降低 除自己以外的宝可梦的特防。"
+    },
+    "QUARKDRIVE": {
+      "id": 300,
+      "internalName": "QUARKDRIVE",
+      "name": "夸克充能",
+      "description": "携带着驱劲能量或在电气场地上时 ，数值最高的能力会提高。"
+    },
+    "PROTOSYNTHESIS": {
+      "id": 301,
+      "internalName": "PROTOSYNTHESIS",
+      "name": "古代活性",
+      "description": "携带着驱劲能量或天气为晴朗时 ，数值最高的能力会提高。"
+    },
+    "ORICHALCUMPULSE": {
+      "id": 302,
+      "internalName": "ORICHALCUMPULSE",
+      "name": "绯红脉动",
+      "description": "出场时，会将天气变为晴朗。日 照强烈时，会提高攻击。"
+    },
+    "HADRONENGINE": {
+      "id": 303,
+      "internalName": "HADRONENGINE",
+      "name": "强子引擎",
+      "description": "出场时，会布下电气场地。处于 电气场地时，会提高特攻。"
+    },
+    "POISONPUPPETEER": {
+      "id": 304,
+      "internalName": "POISONPUPPETEER",
+      "name": "毒傀儡",
+      "description": "因桃歹郎的招式而陷入中毒的对 手同时也会陷入混乱状态。"
+    },
+    "TERASHIFT": {
+      "id": 305,
+      "internalName": "TERASHIFT",
+      "name": "太晶变形",
+      "description": "出场时，会吸收周围的能量，变 为太晶形态。"
+    },
+    "TERASHELL": {
+      "id": 306,
+      "internalName": "TERASHELL",
+      "name": "太晶甲壳",
+      "description": "将自己HP全满时受到的伤害全 都变为效果不好。"
+    },
+    "TERAFORMZERO": {
+      "id": 307,
+      "internalName": "TERAFORMZERO",
+      "name": "归零化境",
+      "description": "蕴藏在身上的力量会将天气和场地 的影响全部归零。"
+    },
+    "SUPERSUN": {
+      "id": 308,
+      "internalName": "SUPERSUN",
+      "name": "超级太阳",
+      "description": "自身的招式效果始终视为在晴天下 。"
+    },
+    "DRAGONSKIN": {
+      "id": 309,
+      "internalName": "DRAGONSKIN",
+      "name": "龙之皮肤",
+      "description": "一般属性的招式会变为龙属性。 威力会少量提高。"
+    },
+    "PIERCINGDRILL": {
+      "id": 310,
+      "internalName": "PIERCINGDRILL",
+      "name": "贯穿钻",
+      "description": "使用接触类招式时无视防守效果 ，但造成的伤害会减少。"
+    },
+    "FIREMANE": {
+      "id": 311,
+      "internalName": "FIREMANE",
+      "name": "火焰鬃毛",
+      "description": "火属性的招式威力会提高。"
+    },
+    "SAVAGECEREMONY": {
+      "id": 400,
+      "internalName": "SAVAGECEREMONY",
+      "name": "荒之礼",
+      "description": "物理攻击的威力会大幅度提高。且 会变为与自己使出的招式相同的属 性。"
+    },
+    "ADAPTARMOR": {
+      "id": 401,
+      "internalName": "ADAPTARMOR",
+      "name": "适应装甲",
+      "description": "自身体重翻倍，命中自身的招式不 会效果绝佳。"
+    },
+    "DIMENSIONBODY": {
+      "id": 402,
+      "internalName": "DIMENSIONBODY",
+      "name": "次元之躯",
+      "description": "察觉到对手拥有的危险招式时， 闪避率会提高。"
+    },
+    "THUNDERCLOUD": {
+      "id": 403,
+      "internalName": "THUNDERCLOUD",
+      "name": "雷云",
+      "description": "出场时布下电气场地，雨天电属 性招式威力大幅提高。"
+    },
+    "ICEBSORB": {
+      "id": 404,
+      "internalName": "ICEBSORB",
+      "name": "霜食",
+      "description": "受到冰属性的招式攻击时回复H P。"
+    },
+    "EERIEBODY": {
+      "id": 405,
+      "internalName": "EERIEBODY",
+      "name": "灵异躯体",
+      "description": "幽灵和超能属性招式的威力小幅 度提高。"
+    },
+    "GHOSTRAMPAGE": {
+      "id": 406,
+      "internalName": "GHOSTRAMPAGE",
+      "name": "幽灵暴走",
+      "description": "受到恶属性的招式攻击时，攻击 会大幅提高。"
+    },
+    "ENDLESSDARKN": {
+      "id": 407,
+      "internalName": "ENDLESSDARKN",
+      "name": "无终之黯",
+      "description": "无视对手特性干扰，且切割类招 式威力提升。"
+    },
+    "ETRTNALIGHT": {
+      "id": 408,
+      "internalName": "ETRTNALIGHT",
+      "name": "无限之光",
+      "description": "无视对手特性干扰，命中自身的招 式不会效果绝佳。"
+    },
+    "FAIRYSONG": {
+      "id": 409,
+      "internalName": "FAIRYSONG",
+      "name": "妖醒之歌",
+      "description": "声音类招式变成妖精属性，且威 力增加。"
+    },
+    "FAIRYDANCE": {
+      "id": 410,
+      "internalName": "FAIRYDANCE",
+      "name": "妖醒之舞",
+      "description": "HP减半时，接触类招式变妖精 属性并先制。"
+    },
+    "RAPIDASH": {
+      "id": 411,
+      "internalName": "RAPIDASH",
+      "name": "统天之角",
+      "description": "战斗中招式「闪焰冲锋」将变成 「爆焰角袭」。"
+    },
+    "STARFISSURE": {
+      "id": 412,
+      "internalName": "STARFISSURE",
+      "name": "星界裂隙",
+      "description": "出场时，会布下星界丝缕，自己 的虚空招式威力提高。"
+    },
+    "BEIMINGBLADE": {
+      "id": 413,
+      "internalName": "BEIMINGBLADE",
+      "name": "北冥之刃",
+      "description": "霍光骁勇善战，攻击容易击中对手 的要害。"
+    },
+    "SEAMLESS": {
+      "id": 414,
+      "internalName": "SEAMLESS",
+      "name": "此身无间",
+      "description": "攻击有30%概率令对手畏缩， 且每一回合速度会变快。"
+    },
+    "MOERAE": {
+      "id": 415,
+      "internalName": "MOERAE",
+      "name": "命运之轮",
+      "description": "每回合随机提升一项能力，不受对 手变化招式影响并反弹。"
+    },
+    "BLACKHAND": {
+      "id": 416,
+      "internalName": "BLACKHAND",
+      "name": "黑手",
+      "description": "出场时，命中率会提高。"
+    },
+    "DEMONKILLER": {
+      "id": 417,
+      "internalName": "DEMONKILLER",
+      "name": "皆杀恶魔",
+      "description": "接触类招式威力翻倍，不会变为 混乱状态。"
+    },
+    "SLEEPSOUNDLY": {
+      "id": 418,
+      "internalName": "SLEEPSOUNDLY",
+      "name": "酣眠",
+      "description": "出场时睡觉。睡眠时会变得坚硬 ，被惊醒时会大怒。"
+    },
+    "PHANTOMROCK": {
+      "id": 419,
+      "internalName": "PHANTOMROCK",
+      "name": "幽灵岩壳",
+      "description": "受到物理招式伤害时，速度会提 高到最大。"
+    },
+    "ELIMINATEEVIL": {
+      "id": 420,
+      "internalName": "ELIMINATEEVIL",
+      "name": "除恶",
+      "description": "对幽灵或恶属性目标造成效果绝 佳伤害时伤害翻倍。"
+    },
+    "SOUNDSTRIDE": {
+      "id": 421,
+      "internalName": "SOUNDSTRIDE",
+      "name": "音跃节拍",
+      "description": "虫属性招式的威力提升30%且可 以率先使出。"
+    },
+    "RUYIBLADE": {
+      "id": 422,
+      "internalName": "RUYIBLADE",
+      "name": "如意神兵",
+      "description": "不接触对手就使出所有的招式， 命中对手招式不会收效甚微。"
+    },
+    "STEELDYNASTY": {
+      "id": 423,
+      "internalName": "STEELDYNASTY",
+      "name": "钢铁始皇",
+      "description": "自身能力不会下降，在场时其他宝 可梦的特性无法生效。"
+    },
+    "NOBLESTRIKE": {
+      "id": 424,
+      "internalName": "NOBLESTRIKE",
+      "name": "高洁之锋",
+      "description": "可远程施展招式，不会被击中要 害，也不受能力削弱。"
+    },
+    "FLAMEVEIL": {
+      "id": 425,
+      "internalName": "FLAMEVEIL",
+      "name": "火焰外壳",
+      "description": "用火焰外壳作为伪装，能完全抵 挡一次攻击，但外壳会碎裂。"
+    },
+    "AURAVOICE": {
+      "id": 426,
+      "internalName": "AURAVOICE",
+      "name": "欧若拉之声",
+      "description": "出场吟诵神秘的声音，对我方开 启极光幕。"
+    },
+    "SHATTERFIST": {
+      "id": 427,
+      "internalName": "SHATTERFIST",
+      "name": "粉碎之拳",
+      "description": "拳类招式威力增强，并无视对手 特性发动。"
+    },
+    "FEARLESS": {
+      "id": 428,
+      "internalName": "FEARLESS",
+      "name": "无畏",
+      "description": "击败对手时攻击上升，面对恶系 时攻击不会降低，反而上升。"
+    },
+    "DEMONCLOAK": {
+      "id": 429,
+      "internalName": "DEMONCLOAK",
+      "name": "恶魔之衣",
+      "description": "每回合结束时对手场上宝可梦进 入哈欠状态。"
+    },
+    "MAGICQUEEN": {
+      "id": 430,
+      "internalName": "MAGICQUEEN",
+      "name": "女王之心",
+      "description": "每回合结束时对手场上的宝可梦 混乱。"
+    },
+    "MERMAIDSOUND": {
+      "id": 431,
+      "internalName": "MERMAIDSOUND",
+      "name": "人鱼之声",
+      "description": "自身声音招式变为水属性，并回 复已损失HP的1/4。"
+    },
+    "YSNJ": {
+      "id": 432,
+      "internalName": "YSNJ",
+      "name": "源石内境",
+      "description": "受到直接攻击时，有时会免疫此 攻击，并提高特攻等级。"
+    },
+    "RADIANTRULE": {
+      "id": 433,
+      "internalName": "RADIANTRULE",
+      "name": "辉耀领域",
+      "description": "登场时激活精神场地，并阻止对 手以变化类招式影响我方。"
+    },
+    "DIVINEPACT": {
+      "id": 434,
+      "internalName": "DIVINEPACT",
+      "name": "圣约之链",
+      "description": "场上宝可梦倒下时提升特攻， 免疫天气伤害与粉类效果。"
+    },
+    "CALAMITYABYSSAL": {
+      "id": 435,
+      "internalName": "CALAMITYABYSSAL",
+      "name": "灾厄·海孽",
+      "description": "登场时降下倾盆大雨，压制对手 ，使其技能耗能更快。"
+    },
+    "CALAMITYINFERNAL": {
+      "id": 436,
+      "internalName": "CALAMITYINFERNAL",
+      "name": "灾厄·炎祟",
+      "description": "登场时照出灼日烈阳，压制对手 ，使其技能耗能更快。"
+    },
+    "CALAMITYAERIAL": {
+      "id": 437,
+      "internalName": "CALAMITYAERIAL",
+      "name": "灾厄·岚戾",
+      "description": "登场时吹起乱象狂风，降低其他 所有宝可梦的速度。"
+    },
+    "BROKENBREATH": {
+      "id": 438,
+      "internalName": "BROKENBREATH",
+      "name": "破灭之息",
+      "description": "在场时，场上所有宝可梦的特防 减半。"
+    },
+    "ROSYAEGIS": {
+      "id": 439,
+      "internalName": "ROSYAEGIS",
+      "name": "蔷薇庇护",
+      "description": "登场展开光之花幕。命中率不 会被降低。"
+    },
+    "ROSEGARDEN": {
+      "id": 440,
+      "internalName": "ROSEGARDEN",
+      "name": "蔷薇花园",
+      "description": "出场时布下青草场地。草场中我 方火属性招式威力提升。"
+    },
+    "ROSEARCADIA": {
+      "id": 441,
+      "internalName": "ROSEARCADIA",
+      "name": "蔷薇箱庭",
+      "description": "出场时布下青草场地。草场中我 方冰属性招式威力提升。"
+    },
+    "VERDANTWARD": {
+      "id": 442,
+      "internalName": "VERDANTWARD",
+      "name": "翠野护场",
+      "description": "出场时布下青草场地。草场中我 方防御提升。"
+    },
+    "NETHERDRIVE": {
+      "id": 443,
+      "internalName": "NETHERDRIVE",
+      "name": "冥焰战意",
+      "description": "打倒对手时，提升自身的特攻。 且切割类招式威力提升。"
+    },
+    "PSYCHICEDGE": {
+      "id": 444,
+      "internalName": "PSYCHICEDGE",
+      "name": "心灵锋刃",
+      "description": "出场时布下精神场地，且切割类 招式威力提升。"
+    },
+    "ETERNALFLAME": {
+      "id": 445,
+      "internalName": "ETERNALFLAME",
+      "name": "永恒之焱",
+      "description": "出场时天气变为晴朗。且可以无 视对手特性向对手使出招式。"
+    },
+    "BAMBOOFEATHER": {
+      "id": 446,
+      "internalName": "BAMBOOFEATHER",
+      "name": "竹翎",
+      "description": "攻击造成伤害时会用竹翎造成额 外伤害，对手越强伤害越高。"
+    },
+    "ANGERFLAME": {
+      "id": 447,
+      "internalName": "ANGERFLAME",
+      "name": "怒炎",
+      "description": "处于异常状态或有能力降低时，攻 击数值会提高为1.5倍。"
+    },
+    "RAINCURTAIN": {
+      "id": 448,
+      "internalName": "RAINCURTAIN",
+      "name": "雨幕",
+      "description": "雨天时双防数值会提高，不会发 生异常状态。"
+    },
+    "ENERGYACCU": {
+      "id": 449,
+      "internalName": "ENERGYACCU",
+      "name": "聚能",
+      "description": "通过聚集成倍的钢、草、岩石能 量，提高对应属性招式的威力。"
+    },
+    "CONFLUENCE": {
+      "id": 450,
+      "internalName": "CONFLUENCE",
+      "name": "汇流",
+      "description": "使水、火、电三种自然力量汇于 一身，提高对应属性招式的威力。"
+    },
+    "FLUFFYCOAT": {
+      "id": 451,
+      "internalName": "FLUFFYCOAT",
+      "name": "毛绵绵",
+      "description": "受到物理、特殊招式减半，但每 回合损失1/8hp"
+    },
+    "ZEROSUMBODY": {
+      "id": 452,
+      "internalName": "ZEROSUMBODY",
+      "name": "零和躯体",
+      "description": "光属性·超能属性招式的威力提高 。"
+    },
+    "TMOVERLORD": {
+      "id": 453,
+      "internalName": "TMOVERLORD",
+      "name": "时间领主",
+      "description": "每回合速度会变快。同伴倒下越 多招式威力越强。"
+    },
+    "SPOVERLORD": {
+      "id": 454,
+      "internalName": "SPOVERLORD",
+      "name": "空间领主",
+      "description": "反弹自己受到的能力降低效果。同 伴倒下越多招式威力越强。"
+    },
+    "DSOVERLORD": {
+      "id": 455,
+      "internalName": "DSOVERLORD",
+      "name": "毁坏领主",
+      "description": "踩住对手的影子使其无法逃走。 同伴倒下越多招式威力越强。"
+    },
+    "LASTSTAND": {
+      "id": 456,
+      "internalName": "LASTSTAND",
+      "name": "困兽之斗",
+      "description": "因对手的攻击HP变为一半时，物 攻会提高。"
+    },
+    "COMBATMACHINE": {
+      "id": 457,
+      "internalName": "COMBATMACHINE",
+      "name": "战斗机器",
+      "description": "提升效果绝佳招式的威力，并减 弱受到的效果绝佳伤害。"
+    },
+    "CONFESSIONLIST": {
+      "id": 458,
+      "internalName": "CONFESSIONLIST",
+      "name": "忏悔表",
+      "description": "使对方非飞行属性宝可梦无法逃 走，且对手无法使用树果。"
+    },
+    "GHASTLYWAIL": {
+      "id": 459,
+      "internalName": "GHASTLYWAIL",
+      "name": "厉鬼悲鸣",
+      "description": "击败对手后特攻升1级，且声音 招式威力大幅度提升。"
+    },
+    "DRAGONSOULCRY": {
+      "id": 460,
+      "internalName": "DRAGONSOULCRY",
+      "name": "龙魂天鸣",
+      "description": "如果打倒对手，攻击会提升。"
+    },
+    "ANGRYBODY": {
+      "id": 461,
+      "internalName": "ANGRYBODY",
+      "name": "狂暴身躯",
+      "description": "不受妖精属性招式的影响，受到 妖精属性招式攻击时，攻击会提高 。"
+    },
+    "ETERNALSTAR": {
+      "id": 462,
+      "internalName": "ETERNALSTAR",
+      "name": "星火长明",
+      "description": "每回合能够恢复少量的ＨＰ，且 自身的能力阶级不会被对手降低。"
+    },
+    "FROZENARMOR": {
+      "id": 463,
+      "internalName": "FROZENARMOR",
+      "name": "结冻盔甲",
+      "description": "用冻结的水汽在身体上制造盔甲 。处于冰冷场地时，防御会提高。"
+    },
+    "TRAPTRICK": {
+      "id": 464,
+      "internalName": "TRAPTRICK",
+      "name": "陷阱诡计",
+      "description": "处于虫惑场地时，可以率先使用变 化招式。"
+    },
+    "BUGLURESURGE": {
+      "id": 465,
+      "internalName": "BUGLURESURGE",
+      "name": "虫惑制造者",
+      "description": "出场时，会布下虫惑场地。"
+    },
+    "COLDSURGE": {
+      "id": 466,
+      "internalName": "COLDSURGE",
+      "name": "冰汽制造者",
+      "description": "出场时，会布下冰冷场地。"
+    },
+    "BESTOWEDRAIN": {
+      "id": 467,
+      "internalName": "BESTOWEDRAIN",
+      "name": "悲雨落叹",
+      "description": "出场时，会将天气变为下雨。下雨天 气时，速度会提高。"
+    },
+    "RAGEFIREBLAST": {
+      "id": 468,
+      "internalName": "RAGEFIREBLAST",
+      "name": "怒炎焚击",
+      "description": "使用接触类招式时威力会提高，且 不会受到反作用力的伤害。"
+    },
+    "CLEARHEART": {
+      "id": 469,
+      "internalName": "CLEARHEART",
+      "name": "清澈之心",
+      "description": "每回合结束时会治愈自身最大HP的1/8。 并且能够反弹对手施加的变化招式。"
+    },
+    "SOARINGSTAGE": {
+      "id": 470,
+      "internalName": "SOARINGSTAGE",
+      "name": "高歌舞台",
+      "description": "声音类招式变为飞行系， 且在场时我方招式威力提升30%。"
+    },
+    "TRANSLUCENTGHOST": {
+      "id": 471,
+      "internalName": "TRANSLUCENTGHOST",
+      "name": "半透明幽魂",
+      "description": "可以无视守住状态直接攻击目标， 且不会因对手的招式或特性而被 降低能力值。"
+    },
+    "BIYIHUANGYAN": {
+      "id": 472,
+      "internalName": "BIYIHUANGYAN",
+      "name": "比翼煌炎",
+      "description": "火与光属性招式必定灼伤对手，晴 天下灼伤无法治愈。自己灼伤时 不会受到伤害，而是回复HP。"
+    },
+    "SACREDREBORN": {
+      "id": 473,
+      "internalName": "SACREDREBORN",
+      "name": "圣光涅槃",
+      "description": "受到攻击倒下后能够复活， 并回复最大HP的一半。 每场战斗仅能触发一次。"
+    },
+    "ABYSSREBORN": {
+      "id": 474,
+      "internalName": "ABYSSREBORN",
+      "name": "暗渊返魄",
+      "description": "受到攻击倒下后能够复活， 并回复最大HP的一半。 每场战斗仅能触发一次。"
+    },
+    "SHINYHERO": {
+      "id": 475,
+      "internalName": "SHINYHERO",
+      "name": "闪耀变身",
+      "description": "回到同行队伍后，会变为闪耀形 态。"
+    },
+    "DEEPSEAFASCINATION": {
+      "id": 476,
+      "internalName": "DEEPSEAFASCINATION",
+      "name": "深海幻惑",
+      "description": "出场时降低对手的特攻。不会 变为灼伤状态。"
+    },
+    "PLAYFULHEART": {
+      "id": 477,
+      "internalName": "PLAYFULHEART",
+      "name": "玩乐之心",
+      "description": "不会陷入异常状态。 接触类招式的威力会提高。"
+    },
+    "WANXIANG": {
+      "id": 478,
+      "internalName": "WANXIANG",
+      "name": "万相乖离",
+      "description": "HP减半时，攻击与特攻 减半。物理攻击的威力会提高。"
+    },
+    "STORMEYE": {
+      "id": 479,
+      "internalName": "STORMEYE",
+      "name": "风暴之眼",
+      "description": "出场时，会将天气变为下雨。 受到电系招式攻击的伤害降低。"
+    },
+    "RAINBOWARCH": {
+      "id": 480,
+      "internalName": "RAINBOWARCH",
+      "name": "虹霓之穹",
+      "description": "出场时，会将天气变为晴朗。 受到水系招式攻击的伤害降低。"
+    }
+  }
+}
