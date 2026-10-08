@@ -37,6 +37,25 @@ final class AiMaster {
         if (foe == null || foe.pokemon == null) return NONE;
         AiCtx ctx = prepare(battle, user, foe, rng);
 
+        int[] score = scoreMoves(ctx, battle, user, foe);
+        // :380-411 pick the best, ties at random
+        int[] best = new int[Battler.MOVES_MAX];
+        int numBest = 1;
+        best[0] = 0;
+        for (int i = 1; i < Battler.MOVES_MAX; i++) {
+            if (user.moveSlot(i) == null) continue;                                                    // :390 moves[i] != MOVE_NONE
+            if (score[best[0]] == score[i]) {
+                best[numBest++] = i;
+            } else if (score[best[0]] < score[i]) {
+                numBest = 1;
+                best[0] = i;
+            }
+        }
+        return best[ctx.random() % numBest];                                                           // :411
+    }
+
+    /** The score of every move slot against {@code foe}: the enabled scripts, then the signature bonus. */
+    static int[] scoreMoves(AiCtx ctx, Battle battle, Battler user, Battler foe) {
         int[] score = new int[Battler.MOVES_MAX];
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
             score[i] = AiCalc.usable(ctx, user, i) ? 100 : 0;                                          // :122-127,:146 limited moves score 0
@@ -65,25 +84,14 @@ final class AiMaster {
                 }
             }
         }
-        // :380-411 pick the best, ties at random
-        int[] best = new int[Battler.MOVES_MAX];
-        int numBest = 1;
-        best[0] = 0;
-        for (int i = 1; i < Battler.MOVES_MAX; i++) {
-            if (user.moveSlot(i) == null) continue;                                                    // :390 moves[i] != MOVE_NONE
-            if (score[best[0]] == score[i]) {
-                best[numBest++] = i;
-            } else if (score[best[0]] < score[i]) {
-                numBest = 1;
-                best[0] = i;
-            }
-        }
-        return best[ctx.random() % numBest];                                                           // :411
+        return score;
     }
 
     /** {@code BattleAI_SetupAIData} (:112) + {@code CalculateAIPredictions} (:1008): the per-turn AI context. */
     static AiCtx prepare(Battle battle, Battler user, Battler foe, Random rng) {
         AiCtx ctx = new AiCtx(battle, rng, SMARTEST);
+        ctx.user = user;
+        ctx.target = foe;
         for (int i = 0; i < Battler.MOVES_MAX; i++) ctx.simulatedRng[i] = ctx.random() % 100;          // :151
         ctx.suckerPunchOkay = (ctx.random() & 1) != 0;                                                 // UpdateStrongestMoves :1253
         predictMoves(ctx, foe, user);

@@ -296,4 +296,21 @@ class AiCfruTest {
         AiItems.use(battle, foe, "HYPERPOTION");
         assertTrue(foe.hp > 100 || foe.hp == foe.maxHp());
     }
+
+    @Test
+    @DisplayName("in a double battle the foe aims its Normal move at the target that is not immune (ChooseTarget_Doubles, ai_master.c:622)")
+    void doublesAvoidsImmuneTarget() {
+        Battle battle = new Battle(pbs, new Random(5), (user, target, moves) -> 0);
+        battle.trainerBattle = true;
+        battle.setSideSizes(2, 2);
+        battle.addPlayer(mon("GHOSTY", 50, "TACKLE")).addPlayer(mon("FAT", 50, "TACKLE"));
+        battle.addFoe(mon("HERO", 50, "STRONGHIT")).addFoe(mon("HERO", 50, "TACKLE"));
+        Battler user = battle.battlerAt(1);
+        for (int seed = 0; seed < 20; seed++) {
+            AiDoubles.Choice choice = AiDoubles.choose(battle, user, new Random(seed));
+            assertNotNull(choice);
+            assertEquals(0, choice.slot);
+            assertEquals(2, choice.target, "index 0 is the Ghost, 2 is the Normal-type FAT");
+        }
+    }
 }

@@ -46,6 +46,19 @@ final class AiCtx {
         return rng.nextInt(Integer.MAX_VALUE);
     }
 
+    /** The Pokemon choosing and the one it is being scored against ({@code gBankAttacker} / {@code gBankTarget}). */
+    Battler user;
+    Battler target;
+
+    /** The opposing Pokemon of {@code bank} for this evaluation (singles: the other side's battler). */
+    Battler foeOf(Battler bank) {
+        if (user != null && target != null) {
+            if (bank == user) return target;
+            if (bank == target) return user;
+        }
+        return battle.battlerAt(bank.index ^ 1);
+    }
+
     /** {@code GOOD_AI} (ai_negatives.c:35): {@code aiFlags > AI_SCRIPT_CHECK_BAD_MOVE}. */
     boolean goodAi() {
         return flags > FLAG_CHECK_BAD_MOVE;

@@ -578,7 +578,7 @@ final class AiCalc {
         int reflectionNum = 0;
         int statusMoveNum = 0;
         int cls = CLASS_NONE;
-        Battler foe = ctx.battle.battlerAt(bank.index ^ 1);
+        Battler foe = ctx.foeOf(bank);
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
             BattleMove move = bank.moveSlot(i);
             if (move == null) continue;                                                              // :414

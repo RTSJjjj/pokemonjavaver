@@ -62,6 +62,13 @@ Not CFRU's `ShouldAIUseItem` (it needs CFRU's item-effect table, which the proje
 missing HP / matching status / stat below +6, healing amounts are `ItemUse.healValue`, X items use the stat/stages of the plugin's own `xItems` table, and the per-item
 result messages are not shown (only `pbUseItemMessage`). Doubles trainers' item lists (`@items[owner]`) are phase 4.
 
+## Phase 4: doubles move/target choice (partly done)
+`AiDoubles` = `ChooseMoveOrAction_Doubles` + `ChooseTarget_Doubles` (ai_master.c:525-846 and the static helpers :412-523): each move is scored against every living target
+with the singles scripts (`AiMaster.scoreMoves`, `AiCtx.user/target/foeOf`), then the target is chosen with the KO / most-damage / dangerous-foe rules. `Battle.chooseFor`
+uses it for trainer (and rank>=2 boss) foes in double battles and registers the target (`choices[3]`) for single-target moves.
+登记: `ai_partner.c` (an ally target is always -1), Z-moves, doubles fighting classes (read from the singles class), `CanKnockOutWithFasterMove` approximated,
+doubles branches inside AiNegatives/AiPositives, doubles switching and item use (still singles only).
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.

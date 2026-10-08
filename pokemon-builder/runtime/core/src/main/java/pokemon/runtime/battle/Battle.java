@@ -2346,6 +2346,20 @@ public final class Battle {
                 return;
             }
         }
+        // CFRU ChooseMoveOrAction_Doubles (ai_master.c:525): score against every target, then choose the target
+        if (controller == null && user.foe && !singleBattle() && !user.fainted() && user.hasUsableMove()
+                && !BattleAi.handles(this, user)
+                && (trainerBattle || (user.pokemon != null && user.pokemon.battleRank >= 2))) {
+            AiDoubles.Choice choice = AiDoubles.choose(this, user, random);
+            BattleMove picked = choice == null ? null : user.moveSlot(choice.slot);
+            if (picked != null) {
+                c[0] = ":UseMove";
+                c[1] = choice.slot;
+                c[2] = picked;
+                c[3] = PBTargets.oneTarget(AiCalc.fx(picked).pbTarget(picked, user)) ? choice.target : -1;   // pbRegisterTarget
+                return;
+            }
+        }
         BattleMove move = pickMove(user, foe, controller);
         if (move == null) {
             return;
