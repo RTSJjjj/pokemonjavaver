@@ -499,7 +499,7 @@ final class AiPositiveEffects {
     }
 
     /** {@code BadIdeaToBurn(bankDef,bankAtk)} (ai_util.c:2951), single battle. */
-    private static boolean badIdeaToBurn(AiCtx ctx, Battler def, Battler atk) {
+    static boolean badIdeaToBurn(AiCtx ctx, Battler def, Battler atk) {
         String d = def.ability == null ? "" : def.ability;
         return !AiCalc.canBeBurned(ctx.battle, def, atk)
                 || d.equals("SHEDSKIN") || d.equals("QUICKFEET") || d.equals("MAGICGUARD")
@@ -594,7 +594,7 @@ final class AiPositiveEffects {
     }
 
     /** {@code AI_RECOVER:} (:698-714). */
-    private static int recover(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls) {
+    static int recover(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls) {
         if (AiPositiveHelpers.shouldRecover(ctx, atk, def, move)) return recoverBoost(ctx, atk, def, viability, cls);
         return viability;                                                                           // 登记: Jungle Healing / Lunar Blessing (not in this project)
     }

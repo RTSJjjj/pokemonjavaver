@@ -89,8 +89,38 @@ final class AiNegativeHistory {
                 else AiNegativeEffects.substituteCheck(move, atk, def, r);
                 return true;
             }
+            case "063": case "064": case "065": case "066": case "067": case "068": {             // EFFECT_SKILL_SWAP family (:2560)
+                if (abilityMoveFails(f, atk, def) || (!f.equals("067") && !f.equals("065") && AiCalc.blockedBySubstitute(move, atk, def))) {
+                    r.viability -= 10;
+                } else {
+                    AiNegativeEffects.substituteCheck(move, atk, def, r);
+                }
+                return true;
+            }
             default:
                 return false;
+        }
+    }
+
+    /**
+     * The failure rules of the ability-changing moves. CFRU keeps them in {@code gSpecialAbilityFlags}; this project's plugin has its own
+     * (Move_Effects_000-07F.rb:2082-2355, mirrored in {@code PokeBattle_Move_063..068}), which is what actually decides whether the move works.
+     */
+    private static boolean abilityMoveFails(String f, Battler atk, Battler def) {
+        String a = atk.ability == null ? "" : atk.ability;
+        String d = def.ability == null ? "" : def.ability;
+        if (def.hasActiveItem("ABILITYSHIELD") && !f.equals("065")) return true;
+        switch (f) {
+            case "063": return def.unstoppableAbility(null) || d.equals("TRUANT") || d.equals("SIMPLE");
+            case "064": return def.unstoppableAbility(null) || d.equals("TRUANT") || d.equals("INSOMNIA");
+            case "068": return def.unstoppableAbility(null) || def.effects.truthy(PBEffects.Battler.GastroAcid);
+            case "066": return a.isEmpty() || atk.ungainableAbility(null) || a.equals("POWEROFALCHEMY") || a.equals("RECEIVER") || a.equals("TRACE")
+                    || def.unstoppableAbility(null) || d.equals("TRUANT");
+            case "065": return atk.unstoppableAbility(null) || d.isEmpty() || a.equals(d) || def.ungainableAbility(null)
+                    || d.equals("POWEROFALCHEMY") || d.equals("RECEIVER") || d.equals("TRACE") || d.equals("WONDERGUARD");
+            default:                                                                                // 067 Skill Swap
+                return a.isEmpty() || d.isEmpty() || atk.unstoppableAbility(null) || atk.ungainableAbility(null) || a.equals("WONDERGUARD")
+                        || def.unstoppableAbility(null) || def.ungainableAbility(null) || d.equals("WONDERGUARD");
         }
     }
 

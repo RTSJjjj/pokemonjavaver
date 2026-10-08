@@ -99,4 +99,53 @@ class AiRealPbsTest {
         assertEquals(foe.maxHp(), foe.hp);
         assertEquals(java.util.List.of("PROTEIN"), battle.foeItems);
     }
+
+    private Battle realBattle(PbsData p, String foeMove1, String foeMove2) {
+        Battle battle = new Battle(p, new Random(5), (user, target, moves) -> 0);
+        battle.trainerBattle = true;
+        battle.addPlayer(new pokemon.runtime.pokemon.Pokemon(p.species("BULBASAUR"), 50, p));
+        pokemon.runtime.pokemon.Pokemon foe = new pokemon.runtime.pokemon.Pokemon(p.species("CHARMANDER"), 50, p);
+        foe.moves.clear();
+        foe.moves.add(new pokemon.runtime.pokemon.Pokemon.MoveSlot(p.move(foeMove1)));
+        if (foeMove2 != null) foe.moves.add(new pokemon.runtime.pokemon.Pokemon.MoveSlot(p.move(foeMove2)));
+        battle.addFoe(foe);
+        battle.addFoe(new pokemon.runtime.pokemon.Pokemon(p.species("SQUIRTLE"), 50, p));
+        return battle;
+    }
+
+    @Test
+    @DisplayName("Skill Swap cannot be used with Wonder Guard on either side (the plugin's rule, Move_Effects_000-07F.rb:2260-2290)")
+    void skillSwapRules() {
+        PbsData p = real();
+        Battle battle = realBattle(p, "SKILLSWAP", "EMBER");
+        Battler foe = battle.foe();
+        Battler player = battle.player();
+        foe.ability = "BLAZE";
+        player.ability = "OVERGROW";
+        AiCtx ctx = new AiCtx(battle, new Random(1), AiMaster.SMARTEST);
+        assertTrue(AiNegatives.score(ctx, foe, player, foe.moveSlot(0), 100) >= 100);
+        player.ability = "WONDERGUARD";
+        assertTrue(AiNegatives.score(ctx, foe, player, foe.moveSlot(0), 100) < 100);
+    }
+
+    @Test
+    @DisplayName("a cleric uses Heal Bell only when a party member has a status (ShouldUseWishAromatherapy, ai_advanced.c:1262)")
+    void healBellNeedsAStatus() {
+        PbsData p = real();
+        Battle battle = realBattle(p, "HEALBELL", "EMBER");
+        Battler foe = battle.foe();
+        AiCtx ctx = AiMaster.prepare(battle, foe, battle.player(), new Random(1));
+        assertFalse(AiPositiveItems.shouldUseWishAromatherapy(ctx, foe, battle.player(), foe.moveSlot(0), AiCalc.CLASS_CLERIC));
+        battle.partyOf(foe.index).get(1).setStatus("POISON");
+        assertTrue(AiPositiveItems.shouldUseWishAromatherapy(ctx, foe, battle.player(), foe.moveSlot(0), AiCalc.CLASS_CLERIC));
+        assertFalse(AiPositiveItems.shouldUseWishAromatherapy(ctx, foe, battle.player(), foe.moveSlot(0), AiCalc.CLASS_STALL));
+    }
+
+    @Test
+    @DisplayName("gAbilityRatings is loaded from the CFRU table")
+    void abilityRatings() {
+        assertEquals(9, AiAbilityRatings.of("ARENATRAP"));
+        assertEquals(0, AiAbilityRatings.of("NOSUCHABILITY"));
+        assertTrue(AiAbilityRatings.of("WONDERGUARD") > 5);
+    }
 }

@@ -85,6 +85,14 @@ the screen and hazard "player will cheese it" -9 checks (Brick Break/Defog/Rapid
 Conversion 2, Sketch. 登记: banned-move flags (approximated by function code), `CanLastMoveNotBeEncored`, Mirror Move (`lastTakenMoveFrom`), Counter's `previousMovePredictions` branch,
 Imprison clauses, `NoUsableHazardsInMoveset`.
 
+## Batch 9 (done): items, abilities and whole-party cases
+`AiAbilityRatings` = `gAbilityRatings[]` (ability_battle_effects.c:42, 263 of 264 entries; PORTALPOWER is not in this project). `AiPositiveItems`: Wish / Heal Bell (`ShouldUseWishAromatherapy`),
+Thief/Covet, Trick/Bestow, Skill Swap / Simple Beam / Worry Seed / Gastro Acid / Entrainment, Power/Guard/Heart/Speed Swap, Power/Guard Split, Power Trick, Psych Up, Spectral Thief,
+Imprison, Refresh, Mud/Water Sport, Trick Room, Magic/Wonder Room. Negatives for the ability-changing moves use the plugin's own failure rules (`PokeBattle_Move_063..068`) instead of
+CFRU's `gSpecialAbilityFlags`, because those decide whether the move really works here.
+Still open in Positives: Utility Umbrella / Eject Button / Assault Vest branches of Trick, Role Play ("To do" in CFRU), Psycho Shift status hand-over, Fling, Feint, Embargo/Powder/Throat Chop/Heal Block branches,
+Soak/Trick-or-Treat, Topsy-Turvy/Electrify, Fairy Lock, Tailwind, Lucky Chant, Magnet Rise, Camouflage, Secret Power, Smack Down, Bug Bite/Incinerate, Clear Smog-type effects, Gravity, Ion Deluge, Court Change, Defog/Rapid Spin.
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.

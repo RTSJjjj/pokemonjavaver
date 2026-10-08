@@ -129,7 +129,7 @@ final class AiPositiveMore {
                 return viability;
             }
             default:
-                return viability;
+                return AiPositiveItems.apply(ctx, atk, def, move, viability, cls, atkAbility, defAbility);
         }
     }
 
