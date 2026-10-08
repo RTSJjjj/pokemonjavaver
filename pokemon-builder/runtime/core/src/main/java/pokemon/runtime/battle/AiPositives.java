@@ -27,7 +27,7 @@ final class AiPositives {
         String defAbility = def.ability == null ? "" : def.ability;                                  // :52
         if (atk.hasMoldBreaker()) defAbility = "";                                                   // :54
 
-        // 登记: :70-2722 the per-effect switch (moveEffect) - later batches.
+        viability = AiPositiveEffects.apply(ctx, atk, def, move, viability, cls, atkAbility, defAbility);   // :55-2722 switch (moveEffect), part 1
 
         if (!move.statusMove()) {                                                                    // :2724 moveSplit != SPLIT_STATUS
             viability = damageMoveViabilityIncrease(ctx, atk, def, move, viability, cls, predictedMove, atkAbility, defAbility);

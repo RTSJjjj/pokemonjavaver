@@ -29,9 +29,15 @@ guesses were corrected. Any effect without a case runs `AI_STANDARD_DAMAGE`, as 
 `AiNegativeEffects` now covers essentially all of ai_negatives.c:760-3120 that does not need data this runtime lacks (parts 1-4: stat moves, sleep/status
 moves, recovery, screens, recoil, protect, hazards, weather, two-turn attacks, baton pass, field effects, terrains, type changers...).
 
+## Batch 4 (done)
+`AiPositiveHelpers` (IncreaseStatusViability / IncreaseStatViability, ShouldTryToSetUpStat, GoodIdea/BadIdea to raise or lower a stat, ShouldRecover,
+ShouldPhaze, IncreaseSleepViability, GetAmountToRecoverBy, CountUsefulStatChanges) and `AiPositiveEffects` part 1 (ai_positives.c:57-1010): sleep/yawn,
+drain, all stat raising/lowering moves, Haze, Roar, recovery, Rest, poison, Mist, Focus Energy, Confuse, Paralyze, Leech Seed, Snore/Sleep Talk, Laser Focus.
+Every `HasUsedMove*` history test is treated as false (no used-move history).
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
-2. `AIScript_Positives` per-effect `switch` (ai_positives.c:55-2722): set-up moves, status, hazards, healing, Protect...
+2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1010 on (Protect, hazards, weather, screens, Baton Pass/pivots, Taunt, Trick, Substitute, secondary-effect HIT cases, Explosion, ...) and the 登记 cases listed in `AiPositiveEffects`.
 3. Target-ability cases needing `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (ai_negatives.c:222-324).
 4. `BadIdeaToMakeContactWith`, `BetterToKOLastFoeMon`, `HasUsedMove` history, `usingDesperateMove`, `NoUsableHazardsInMoveset`,
    Focus Sash / Sturdy damage clamps, Parental Bond, `BracketCalc`, critical-hit chance in `AI_CalcDmg`.

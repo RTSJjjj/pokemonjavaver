@@ -152,4 +152,26 @@ class AiCfruTest {
         Battler foe = foe("FAT", 50, "HERO", 50, "SPIKES", "TACKLE");
         for (int i = 0; i < 10; i++) assertEquals(1, AiMaster.chooseMove(foe.battle, foe, new Random(i)));
     }
+
+    @Test
+    @DisplayName("a set-up move beats a plain hit when nothing threatens the attacker (ai_positives.c:215-225, ai_advanced.c:1940)")
+    void setsUpWhenSafe() {
+        Battler foe = foe("FAT", 100, "HERO", 50, "SWORDSDANCE", "TACKLE");
+        AiCtx ctx = new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST);
+        int setUp = AiPositives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100);
+        assertTrue(setUp > 100, "Swords Dance gets a bonus: " + setUp);
+    }
+
+    @Test
+    @DisplayName("recovery is only favoured when the foe threatens a knock-out (ShouldRecover, ai_advanced.c:1029)")
+    void recoversWhenThreatened() {
+        Battler foe = foe("HERO", 100, "FAT", 20, "RECOVER", "TACKLE");
+        foe.setHp(foe.maxHp() / 4);
+        AiCtx ctx = new AiCtx(foe.battle, new Random(1), AiMaster.SMARTEST);
+        int heal = AiPositives.score(ctx, foe, foe.battle.player(), foe.moveSlot(0), 100);
+        assertTrue(heal >= 100);
+        Battler healthy = foe("FAT", 5, "HERO", 50, "RECOVER", "TACKLE");
+        AiCtx ctx2 = new AiCtx(healthy.battle, new Random(1), AiMaster.SMARTEST);
+        assertEquals(100, AiPositives.score(ctx2, healthy, healthy.battle.player(), healthy.moveSlot(0), 100));
+    }
 }
