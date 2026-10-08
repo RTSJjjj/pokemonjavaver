@@ -44,6 +44,20 @@ final class AiPositives {
         return Math.min(viability, 255);                                                             // :2738
     }
 
+    /**
+     * {@code NoUsableHazardsInMoveset(bankAtk,bankDef,data)} (ai_util.c:4686). <b>CFRU defect fixed:</b> the C function returns FALSE both inside
+     * the loop (a hazard move can still be used) and after it, so "no usable hazards" was never true; the end now returns TRUE.
+     */
+    private static boolean noUsableHazardsInMoveset(AiCtx ctx, Battler atk, Battler def) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = atk.moveSlot(i);
+            if (m == null) break;
+            if (!AiCalc.usable(ctx, atk, i) || !AiCalc.oneOf(m, "103", "104", "105", "153")) continue;
+            if (AiNegatives.score(ctx, atk, def, m, 100) >= 100) return false;                       // some hazard move can still be used
+        }
+        return true;
+    }
+
     /** Item-removal moves (Knock Off, Thief/Covet, Trick/Switcheroo, Corrosive Gas) are worth a lot against a Pokemon that only obeys with its item. */
     static final int OBEDIENCE_ITEM_BONUS = 40;
 
@@ -97,7 +111,7 @@ final class AiPositives {
                 && AiCalc.canHealFirstToPreventKnockOut(ctx, atk, def))
                 && predictedMove != null && AiCalc.knocksOutXHits(ctx, predictedMove, def, atk, 1)   // :2777 foe can kill attacker
                 && AiCalc.strongestMoveGoesFirst(ctx, move, atk, def)                                // :2778
-                && (!(cls == AiCalc.CLASS_ENTRY_HAZARDS) || (ctx.simulatedRng[3] & 1) != 0 /* NoUsableHazardsInMoveset: 登记 */)
+                && (!(cls == AiCalc.CLASS_ENTRY_HAZARDS) || (ctx.simulatedRng[3] & 1) != 0 || noUsableHazardsInMoveset(ctx, atk, def))
                 && (cls != AiCalc.CLASS_PHAZING || priorityButSlower)
                 && (!AiCalc.classStall(cls) || priorityButSlower)
                 && !hasMoveNamedUsable(ctx, atk, "FAKEOUT", def)) {

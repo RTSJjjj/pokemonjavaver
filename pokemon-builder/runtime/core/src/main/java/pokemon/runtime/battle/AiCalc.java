@@ -621,6 +621,21 @@ final class AiCalc {
         return b.isSpecies("HAXORUS") && b.form() == 2 && b.hasActiveItem("TYRANTCREST");
     }
 
+    /**
+     * Runs the engine's own {@code pbFailsAgainstTarget} for {@code move} and throws away the messages it displays: the engine's failure tests
+     * stand in for CFRU's ability ban tables (gSkillSwapBannedAbilities, gWorrySeedBannedAbilities, ...), which this runtime does not carry.
+     */
+    static boolean failsAgainstTargetSilently(Battle battle, BattleMove move, Battler atk, Battler def) {
+        int messages = battle.roundMessages.size, events = battle.roundEvents.size, eor = battle.endOfRoundMessages.size;
+        try {
+            return fx(move).pbFailsAgainstTarget(move, atk, def);
+        } finally {
+            battle.roundMessages.setSize(messages);
+            battle.roundEvents.setSize(events);
+            battle.endOfRoundMessages.setSize(eor);
+        }
+    }
+
     /** {@code IsMoxieAbility(ability)}. */
     static boolean isMoxie(String ability) {
         return "MOXIE".equals(ability) || "BEASTBOOST".equals(ability) || "CHILLINGNEIGH".equals(ability)

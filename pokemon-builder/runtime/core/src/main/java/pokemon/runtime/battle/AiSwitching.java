@@ -917,8 +917,39 @@ final class AiSwitching {
             case "05B": return atk.pbOwnSide().effects.intVal(PBEffects.Side.Tailwind) > 0;
             case "0A1": return atk.pbOwnSide().effects.intVal(PBEffects.Side.LuckyChant) == 0;
             case "063": case "064": case "065": case "066": case "068": return true;                  // the other EFFECT_SKILL_SWAP moves
-            default: return false;                                                                    // 登记: weather hurting the foe, Trick with a status orb
+            case "101": return sandstormHurts(def);                                                   // EFFECT_SANDSTORM
+            case "102": case "1C0": return hailHurts(def);                                            // EFFECT_HAIL (and this project's snow)
+            case "0F2": {                                                                             // EFFECT_TRICK, MOVE_TRICK only
+                if (!AiCalc.named(m, "TRICK")) return false;
+                String ai = atk.item == null ? "" : atk.item;
+                if (ai.isEmpty() || def.item == null || def.item.isEmpty() || atk.unlosableItem(ai) || def.unlosableItem(def.item)
+                        || atk.unlosableItem(def.item) || def.unlosableItem(ai)) return false;           // CanTransferItem x4
+                switch (ai) {
+                    case "TOXICORB": return AiCalc.canBePoisoned(battle, def, atk);                      // goto PSN_CHECK
+                    case "FLAMEORB": return AiCalc.canBeBurned(battle, def, atk);                        // goto BRN_CHECK
+                    case "BLACKSLUDGE": return !def.hasType("POISON");
+                    case "STICKYBARB": return true;
+                    default: return false;
+                }
+            }
+            default: return false;
         }
+    }
+
+    /** {@code TakesGeneralWeatherDamage(bank)} reduced to what this runtime has: Magic Guard, Overcoat, Safety Goggles. */
+    private static boolean takesGeneralWeatherDamage(Battler b) {
+        return !b.hasActiveAbility(new String[] {"MAGICGUARD", "OVERCOAT"}) && !b.hasActiveItem("SAFETYGOGGLES");
+    }
+
+    /** {@code SandstormHurts(bank)} (general_bs_commands.c:3206). */
+    private static boolean sandstormHurts(Battler b) {
+        return takesGeneralWeatherDamage(b) && !b.hasType("ROCK") && !b.hasType("GROUND") && !b.hasType("STEEL")
+                && !b.hasActiveAbility(new String[] {"SANDVEIL", "SANDRUSH", "SANDFORCE"});
+    }
+
+    /** {@code HailHurts(bank)} (general_bs_commands.c:3231). */
+    private static boolean hailHurts(Battler b) {
+        return takesGeneralWeatherDamage(b) && !b.hasType("ICE") && !b.hasActiveAbility(new String[] {"ICEBODY", "SNOWCLOAK"});
     }
 
     // --- ShouldSwitchIfOnlyBadMovesLeft (:256) ---
@@ -1370,7 +1401,7 @@ final class AiSwitching {
     // ai_util.c helpers
     // ------------------------------------------------------------------
 
-    /** {@code IsTrapped(bank,TRUE)}. 登记: Shadow Tag / Arena Trap / Magnet Pull on the foe's side. */
+    /** {@code IsTrapped(bank,TRUE)}. Shadow Tag / Arena Trap / Magnet Pull and the project trapping abilities count (AiCalc.trappedByOpposingAbility). */
     private static boolean isTrapped(Battler b) {
         if (b.pbHasType("GHOST")) return false;
         return b.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || b.effects.intVal(PBEffects.Battler.Trapping) > 0
@@ -1392,7 +1423,9 @@ final class AiSwitching {
         if (b.stage(PBStats.ATTACK) > 0 && AiCalc.physicalMoveInMoveset(ctx, b)) return true;
         if (b.stage(PBStats.DEFENSE) > 0 && AiCalc.named(firstMove(b, "BODYPRESS"), "BODYPRESS")) return true;
         if (b.stage(PBStats.SPATK) > 0 && AiCalc.specialMoveInMoveset(ctx, b)) return true;
-        return b.stage(PBStats.SPEED) > 0;
+        if (b.stage(PBStats.SPEED) > 0) return true;
+        if (b.effects.truthy(PBEffects.Battler.FlashFire) && AiCalc.damagingTypeInMoveset(ctx, b, "FIRE")) return true;   // Flash Fire activated
+        return b.effects.truthy(PBEffects.Battler.Unburden) && (b.item == null || b.item.isEmpty());                    // UnburdenBoosts && no item
     }
 
     private static BattleMove firstMove(Battler b, String name) {
@@ -1403,12 +1436,21 @@ final class AiSwitching {
         return null;
     }
 
+    /** The {@code CHECK_AFFECTS} tail of OffensiveSetupMoveInMoveset: effect chance >= 50, the move affects the foe and can be used. */
+    private static boolean secondaryEffectWorthIt(AiCtx ctx, BattleMove m, Battler atk, Battler def) {
+        return AiCalc.secondaryEffectChance(m, atk) >= 50 && !AiCalc.noEffect(ctx.battle, atk, def, m);
+    }
+
     /** {@code OffensiveSetupMoveInMoveset(bankAtk,bankDef)} (ai_util.c:4443). 登记: the secondary-effect stat raisers. */
     private static boolean offensiveSetupMoveInMoveset(AiCtx ctx, Battler atk, Battler def) {
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
             BattleMove m = atk.moveSlot(i);
             if (m == null || !AiCalc.usable(ctx, atk, i)) continue;
-            if (AiCalc.oneOf(m, "01C", "020", "022", "02E", "030", "032", "034", "024", "026", "027", "028", "029", "02C", "03A")) return true;
+            if (AiCalc.oneOf(m, "01C", "020", "022", "02E", "030", "032", "034", "024", "026", "027", "028", "029", "02C", "03A")) {
+                if (!m.statusMove() && !secondaryEffectWorthIt(ctx, m, atk, def)) continue;           // the *_HIT variants (Power-Up Punch, Charge Beam)
+                return true;
+            }
+            if (!m.statusMove() && AiCalc.oneOf(m, "043", "046", "04F") && secondaryEffectWorthIt(ctx, m, atk, def)) return true;   // Sp. Def / Defense down hits
         }
         return false;
     }
@@ -1441,7 +1483,7 @@ final class AiSwitching {
             int viability = AiNegatives.score(ctx, atk, def, m, 100);                              // :4764
             if (viability >= 100) {
                 if (m.statusMove()) return false;                                                  // :4768
-                if (m.function().equals("0F0")) return false;                                      // :4771 Knock Off: 登记 CanKnockOffItem
+                if (m.function().equals("0F0") && def.item != null && !def.item.isEmpty() && !def.unlosableItem(def.item)) return false;   // :4771 Knock Off while CanKnockOffItem(bankDef)
                 numDamageMoves++;
             }
         }

@@ -761,8 +761,7 @@ final class AiNegativeEffects {
     /**
      * Part 4 (ai_negatives.c:2560-3244): Refresh/Psycho Shift, Imprison, Mud/Water Sport, the stat swap/split moves, Natural Gift, the terrain
      * moves, the field-effect moves (Trick Room, Magic/Wonder Room, Gravity, Ion Deluge), Embargo/Powder/Telekinesis/Heal Block, the type
-     * changers, Topsy-Turvy/Electrify, Fairy Lock/Happy Hour/Celebrate. 登记: Knock Off (:2535-2566, item tables), the Skill Swap family
-     * (:2568-2630, ability ban tables), Fling (:2918), Instruct (:3085), Max-move/partner checks, Court Change (:2903, needs ShouldCourtChange).
+     * changers, Topsy-Turvy/Electrify, Fairy Lock/Happy Hour/Celebrate. 登记: Knock Off (:2535-2566) is the "0F0"/"201" case below; the Skill Swap family (:2568-2630) uses the engine's failure tests instead of the ban tables; Fling (:2918), Instruct (:3085), Max-move/partner checks, Court Change (:2903, needs ShouldCourtChange).
      */
     private static boolean part4(AiCtx ctx, Battler atk, Battler def, BattleMove move, Result r) {
         Battle battle = ctx.battle;
@@ -779,6 +778,24 @@ final class AiNegativeEffects {
                     else if (atk.hasStatus("BURN")) { if (!AiCalc.canBeBurned(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10; }
                     else if (!AiCalc.canBeParalyzed(battle, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
                 }
+                return true;
+            }
+            case "0F0": case "201": {                                                             // EFFECT_KNOCK_OFF (:2541): Knock Off, Corrosive Gas
+                String di = def.item == null ? "" : def.item;
+                if (di.equals("ASSAULTVEST") || (di.startsWith("CHOICE") && !atkAbility.equals("GORILLATACTICS") && AiCalc.choiceLocked(def))) {
+                    BattleMove strongest = AiCalc.calcStrongestMove(ctx, def, atk);
+                    if (strongest == null || AiCalc.noEffect(battle, def, atk, strongest)) r.viability -= 9;   // the foe's only moves do nothing to the AI
+                }
+                if (f.equals("201")) {
+                    if (defAbility.equals("STICKYHOLD") || di.isEmpty() || def.unlosableItem(di)) r.viability -= 10;   // !CanKnockOffItem
+                    else if (AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                } else {
+                    r.standardDamage = true;
+                }
+                return true;
+            }
+            case "063": case "064": case "066": case "067": case "068": {                         // EFFECT_SKILL_SWAP family (:2568-2630)
+                if (AiCalc.failsAgainstTargetSilently(battle, move, atk, def)) r.viability -= 10;
                 return true;
             }
             case "0B8": {                                                                         // EFFECT_IMPRISON (:2660)
