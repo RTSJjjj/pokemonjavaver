@@ -42,15 +42,26 @@ Rollout, Fury Cutter, Belly Drum, Sun/Rain/Sandstorm, Pursuit, Baton Pass class 
 ## Batch 6 (done)
 `AiPositiveEffects` part 3 (ai_positives.c:1760-2125): Fake Out, Hail, Torment, Will-O-Wisp, Memento, Taunt, Ingrain/Aqua Ring, Magic Coat, Brick Break.
 
+## Phase 2: switching (done, singles)
+`AiSwitching` (ai_switching.c): `CalcMostSuitableMonToSwitchInto` (:1980-2539, bench Pokemon are scored with the same `AiCalc` damage code) and these
+`ShouldSwitch` reasons, in source order: type-absorb switch (:403), only-bad-moves (:256 + `CalcOnlyBadMovesLeftInMoveset`), Natural Cure/Regenerator (:635),
+yawned (:975), asleep (:1086), annoying secondary damage (:1179), avoid death (:1248), low offensive stats (:1550), save sweeper (:1698).
+Wiring: `Battle.chooseFor` registers `:SwitchOut` for a trainer's single-battle foe (`AiSwitching.decide`), `Battle.pbAttackPhaseSwitchOpposing`
+plays it (Battle_Phase_Attack:50-71) before the moves, and `Battle.defaultChooseNewEnemy` picks the replacement after a faint with the bench scorer.
+登记 (not transcribed): `PassOnWish` (:751), `CanStopLockedMove` (:939), `SemiInvulnerableTroll` (:803, never TRUE in the source), `ShouldSwitchIfPerishSong`
+(body not in the cached source), `ShouldSwitchIfWonderGuard` (:1323), the pivot hand-off (a fast pivoting move simply declines the switch),
+Disguise/Imposter/Trace/Dynamax/Steelsurge on the incoming Pokemon, Wish recovery, `switchingCooldown` (read as "no turn yet"; its setter is outside the cached files),
+the player's and the opponent's switches of one round run player first. Doubles are phase 4.
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
 2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.
 3. Target-ability cases needing `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (ai_negatives.c:222-324).
 4. `BadIdeaToMakeContactWith`, `BetterToKOLastFoeMon`, `HasUsedMove` history, `usingDesperateMove`, `NoUsableHazardsInMoveset`,
    Focus Sash / Sturdy damage clamps, Parental Bond, `BracketCalc`, critical-hit chance in `AI_CalcDmg`.
-5. The signature-move bonus (+6, `AiSignature`), switching (ai_switching.c), item use, doubles (`ChooseMoveOrAction_Doubles`, ai_partner.c).
+5. Item use (`ShouldAIUseItem`), doubles (`ChooseMoveOrAction_Doubles`, ai_partner.c) and the doubles half of switching.
 
 ## Function-code mappings used (Essentials numbering; not checked against this project's moves.json)
 Counter/Mirror Coat/Metal Burst 071-073, Future Sight 111, Explosion 0E0, Recharge 0C2, charge turn 0C3-0CE, OHKO 070, fixed damage 06A-06F,
-Protect 0AA/149/14A/168, Roar 0EB, Haze 051, Wish 0D7, Heal Bell 019, Reflect 0A2, Light Screen 0A3, Leech Seed 0DC, healing 0D5/0D6/0D8/114,
+Protect 0AA/149/14A/168, Roar 0EB, Haze 051, Wish 0D7, Heal Bell 019, Sucker Punch 116, Rapid Spin 110, Defog 049, Pursuit 088, Heart Swap 054, U-Turn/Volt Switch 0EE, Reflect 0A2, Light Screen 0A3, Leech Seed 0DC, healing 0D5/0D6/0D8/114,
 Spikes 103-105/153, stat-boost status 01C-03B, Sleep Talk/Snore 0B4/011, Lock-On 0A6. Verify against the generated `moves.json` before relying on them.

@@ -35,13 +35,7 @@ final class AiMaster {
     static int chooseMove(Battle battle, Battler user, Random rng) {
         Battler foe = battle.battlerAt(user.index ^ 1);
         if (foe == null || foe.pokemon == null) return NONE;
-        AiCtx ctx = new AiCtx(battle, rng, SMARTEST);
-        // BattleAI_SetupAIData (:112): scores and simulatedRNG
-        for (int i = 0; i < Battler.MOVES_MAX; i++) ctx.simulatedRng[i] = ctx.random() % 100;          // :151
-        ctx.suckerPunchOkay = (ctx.random() & 1) != 0;                                                 // UpdateStrongestMoves :1253
-        // CalculateAIPredictions (:1008): PredictMovesForBanks
-        predictMoves(ctx, foe, user);
-        predictMoves(ctx, user, foe);
+        AiCtx ctx = prepare(battle, user, foe, rng);
 
         int[] score = new int[Battler.MOVES_MAX];
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
@@ -85,6 +79,16 @@ final class AiMaster {
             }
         }
         return best[ctx.random() % numBest];                                                           // :411
+    }
+
+    /** {@code BattleAI_SetupAIData} (:112) + {@code CalculateAIPredictions} (:1008): the per-turn AI context. */
+    static AiCtx prepare(Battle battle, Battler user, Battler foe, Random rng) {
+        AiCtx ctx = new AiCtx(battle, rng, SMARTEST);
+        for (int i = 0; i < Battler.MOVES_MAX; i++) ctx.simulatedRng[i] = ctx.random() % 100;          // :151
+        ctx.suckerPunchOkay = (ctx.random() & 1) != 0;                                                 // UpdateStrongestMoves :1253
+        predictMoves(ctx, foe, user);
+        predictMoves(ctx, user, foe);
+        return ctx;
     }
 
     /**

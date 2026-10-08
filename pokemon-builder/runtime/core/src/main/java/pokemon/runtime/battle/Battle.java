@@ -473,6 +473,11 @@ public final class Battle {
         Array<Battler> party = partyOf(idxBattler);
         return idxParty < 0 || idxParty >= party.size ? null : party.get(idxParty);
     }
+    /** {@code gNewBS->ai.didTypeAbsorbSwitchToMonBefore[side]}: party-index bitmask per side (AiSwitching). */
+    final int[] aiAbsorbSwitched = new int[2];
+    /** {@code gNewBS->ai.typeAbsorbSwitchingCooldown}: the round of the last type-absorb switch per side, null = never. */
+    final Integer[] aiTypeAbsorbSwitchTurn = new Integer[2];
+
     /** {@code pbParty(idxBattler)} (PokeBattle_Battle:307-309). */
     public Array<Battler> partyOf(int idxBattler) {
         return (idxBattler & 1) == 0 ? playerParty : foeParty;
@@ -528,6 +533,9 @@ public final class Battle {
         roundEvents.clear();
         if (foe() != null && player() != null) {
             pbChooseAll(false);                                    // Battle_Phase_Command (the player's own action was played by the screen)
+            if (!pbAttackPhaseSwitchOpposing()) {                  // Battle_Phase_Attack:50-71 for the opposing side's registered switches
+                return result();
+            }
             BattleAttackPhase.pbAttackPhase(this);
         }
         endOfTurn();
@@ -536,6 +544,30 @@ public final class Battle {
         BattleMega.pbCommandPhaseZa(this);                         // ZA模式:225-232 (the next command phase starts)
         return result();
     }
+    /**
+     * {@code pbAttackPhaseSwitch} (Battle_Phase_Attack:50-71) for the battlers the screen does not play: an opposing
+     * trainer's voluntary switch (CFRU {@code AI_TrySwitchOrUseItem}, see {@link AiSwitching}).
+     * 登记: the player's and the opponent's switches of one round run player first instead of together in speed order.
+     *
+     * @return false when the battle ended during the switch
+     */
+    private boolean pbAttackPhaseSwitchOpposing() {
+        for (Battler b : pbPriority(false)) {                      // :51
+            if (b.fainted() || pbOwnedByPlayer(b.index)) continue;
+            Object[] c = choices(b.index);
+            if (!":SwitchOut".equals(c[0])) continue;              // :52
+            int idxNew = (Integer) c[1];                           // :53
+            pbPursuit(b.index);                                    // :59
+            if (b.fainted()) continue;                             // :60
+            BattleSwitchAction.pbMessageOnRecall(this, b);         // :57
+            pbRecallAndReplace(b.index, idxNew);                   // :68
+            Battler incoming = battlerAt(b.index);
+            if (incoming != null) incoming.pbEffectsOnSwitchIn(true);   // :69
+            if (result() != null) return false;
+        }
+        return true;
+    }
+
     /**
      * {@code pbReplace} (Battle_Action_Switching:309-320) without the send-out:
      * the incoming Pokemon takes the field slot.
@@ -914,6 +946,15 @@ public final class Battle {
      * @return the party index the AI sends out, or -1 when nothing can come in.
      */
     public int defaultChooseNewEnemy(int idxBattler) {
+        if (trainerBattle && singleBattle() && (idxBattler & 1) == 1) {
+            Battler fainted = battlerAt(idxBattler);
+            if (fainted != null) {
+                int pick = AiSwitching.replacement(this, fainted, random);   // CFRU GetMostSuitableMonToSwitchInto (ai_switching.c:1860)
+                if (pick >= 0 && canSwitchLax(idxBattler, pick) == null) {
+                    return pick;
+                }
+            }
+        }
         Array<Battler> party = partyOf(idxBattler);
         Array<Integer> enemies = new Array<>();                    // :180-183
         for (int i = 0; i < party.size; i++) {
@@ -2283,6 +2324,13 @@ public final class Battle {
         }
         if (":UseMove".equals(c[0]) && c[2] != null && user.hasUsableMove()) {
             return;                                                // registered by pbRegisterMove
+        }
+        // CFRU AI_TrySwitchOrUseItem (ai_master.c:948): a trainer's Pokemon may switch instead of attacking
+        if (controller == null && user.foe && trainerBattle && singleBattle() && !user.fainted()) {
+            int idxSwitch = AiSwitching.decide(this, user, random);
+            if (idxSwitch >= 0 && registerSwitch(user.index, idxSwitch)) {
+                return;
+            }
         }
         BattleMove move = pickMove(user, foe, controller);
         if (move == null) {

@@ -188,4 +188,73 @@ class AiCfruTest {
         assertFalse(AiSignature.isSignature(two, "AAA", "TACKLE"));
         assertFalse(AiSignature.isSignature(two, "BBB", "STRONGHIT"));
     }
+
+    // ------------------------------------------------------------------
+    // Switching (ai_switching.c)
+    // ------------------------------------------------------------------
+
+    private Pokemon mon(String species, int level, String... moves) {
+        Pokemon p = new Pokemon(pbs.species(species), level, pbs);
+        p.moves.clear();
+        for (String id : moves) p.moves.add(new Pokemon.MoveSlot(pbs.move(id)));
+        return p;
+    }
+
+    private Battle trainerBattle(Pokemon player, Pokemon... foeParty) {
+        Battle battle = new Battle(pbs, new Random(5), (user, target, moves) -> 0);
+        battle.trainerBattle = true;
+        battle.addPlayer(player);
+        for (Pokemon f : foeParty) battle.addFoe(f);
+        return battle;
+    }
+
+    @Test
+    @DisplayName("the bench scorer prefers a Pokemon that outspeeds and knocks out the foe (ai_switching.c:2088-2098: +14 +31)")
+    void benchScorerPrefersKnockOut() {
+        Battle battle = trainerBattle(mon("FAT", 5, "TACKLE"),
+                mon("HERO", 5, "TACKLE"), mon("FAT", 5, "TACKLE"), mon("HERO", 100, "STRONGHIT"));
+        Battler foe = battle.foe();
+        AiCtx ctx = AiMaster.prepare(battle, foe, battle.player(), new Random(3));
+        AiSwitching.Bench bench = AiSwitching.calcMostSuitable(ctx, foe, battle.player());
+        assertEquals(2, bench.best);
+        assertTrue((bench.bestFlags & AiSwitching.FLAG_KO_FOE) != 0);
+        assertTrue((bench.bestFlags & AiSwitching.FLAG_OUTSPEEDS) != 0);
+    }
+
+    @Test
+    @DisplayName("a Pokemon that is about to be knocked out swaps for one that takes no damage (ShouldSwitchToAvoidDeath, :1248)")
+    void switchesToAvoidDeath() {
+        Battle battle = trainerBattle(mon("HERO", 100, "STRONGHIT"),
+                mon("HERO", 5, "TACKLE"), mon("GHOSTY", 100, "TACKLE"));
+        Battler foe = battle.foe();
+        foe.turnCount = 3;
+        int switched = 0;
+        for (int seed = 0; seed < 20; seed++) {
+            int pick = AiSwitching.decide(battle, foe, new Random(seed));
+            if (pick == 1) switched++;
+            else assertEquals(AiSwitching.NONE, pick, "the only legal switch is the Ghost");
+        }
+        assertEquals(20, switched);
+    }
+
+    @Test
+    @DisplayName("a Pokemon that can knock out first stays in (:438-441, :1281)")
+    void staysInWhenItCanKnockOut() {
+        Battle battle = trainerBattle(mon("FAT", 5, "TACKLE"),
+                mon("HERO", 100, "STRONGHIT"), mon("GHOSTY", 100, "TACKLE"));
+        Battler foe = battle.foe();
+        foe.turnCount = 3;
+        for (int seed = 0; seed < 20; seed++) {
+            assertEquals(AiSwitching.NONE, AiSwitching.decide(battle, foe, new Random(seed)));
+        }
+    }
+
+    @Test
+    @DisplayName("a trainer's Pokemon never switches on its first turn (switchingCooldown) and the replacement after a faint is the best bench mon")
+    void replacementAfterFaint() {
+        Battle battle = trainerBattle(mon("FAT", 5, "TACKLE"),
+                mon("HERO", 5, "TACKLE"), mon("FAT", 5, "TACKLE"), mon("HERO", 100, "STRONGHIT"));
+        battle.foe().setHp(0);
+        assertEquals(2, battle.defaultChooseNewEnemy(1));
+    }
 }
