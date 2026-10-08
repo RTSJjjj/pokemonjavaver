@@ -159,8 +159,10 @@ final class AiPositiveMore {
         String f = move.function();
         if (battle.pbWeather() == PBWeather.Hail && f.equals("167") && !(reflectUp && screenUp)) return true;
         BattleMove defPrediction = ctx.prediction(def);
-        boolean defPhysical = AiCalc.physicalMoveInMoveset(ctx, def);
-        boolean defSpecial = AiCalc.specialMoveInMoveset(ctx, def);
+        boolean isDouble = AiDoublesScore.isDouble(battle, atk);
+        Battler defPartner = isDouble ? AiDoublesScore.partner(battle, def) : null;
+        boolean defPhysical = AiCalc.physicalMoveInMoveset(ctx, def) || (defPartner != null && AiCalc.physicalMoveInMoveset(ctx, defPartner));
+        boolean defSpecial = AiCalc.specialMoveInMoveset(ctx, def) || (defPartner != null && AiCalc.specialMoveInMoveset(ctx, defPartner));
         if (f.equals("0A2")) {                                                                     // Reflect
             if (defPhysical || moveSplitOnTeam(battle, def, true)) {
                 boolean hasLightScreen = !screenUp && AiCalc.moveFunctionInMoveset(atk, "0A3");
