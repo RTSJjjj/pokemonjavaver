@@ -22,4 +22,11 @@ class ItemsUnlosableTest {
         assertTrue(ItemsUnlosable.isUnlosable("REGISPELL", "REGIGIGAS", "SLOWSTART"));
         assertFalse(ItemsUnlosable.isUnlosable("REGISPELL", "PIKACHU", "STATIC"));
     }
+
+    @Test
+    @DisplayName("project addition: Samurott's CRAFTMIND stays on it in every form (species-keyed)")
+    void craftmindIsUnlosable() {
+        assertTrue(ItemsUnlosable.isUnlosable("CRAFTMIND", "SAMUROTT", "TORRENT"));
+        assertFalse(ItemsUnlosable.isUnlosable("CRAFTMIND", "OSHAWOTT", "TORRENT"));
+    }
 }

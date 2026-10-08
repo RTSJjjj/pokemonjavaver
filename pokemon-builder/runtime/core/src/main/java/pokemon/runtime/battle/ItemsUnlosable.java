@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * {@code pbIsUnlosableItem?(item,species,ability)} (188_PItem_Items.rb:172-346): items bound to a species that cannot be taken away
  * (Knock Off / Thief / Trick ...). The Ruby hash is transcribed in order (a later duplicate key replaces the earlier one, as in Ruby).
- * Project addition (the plugin author left it out): REGIGIGAS holds REGISPELL, which changes its form, so it must not be removable.
+ * Project additions (left out by the plugin author): REGIGIGAS/REGISPELL and SAMUROTT/CRAFTMIND (both change the form), so they must not be removable.
  */
 final class ItemsUnlosable {
     private static final Map<String, String[]> COMBOS = new HashMap<>();
@@ -151,6 +151,7 @@ final class ItemsUnlosable {
         COMBOS.put("CHALLEN", new String[] {"CHARLENEITE", "ZEROSUMHEART"});
         COMBOS.put("OGERPON", new String[] {"HEARTHFLAMEMASK", "WELLSPRINGMASK", "CORNERSTONEMASK"});
         COMBOS.put("REGIGIGAS", new String[] {"REGISPELL"});
+        COMBOS.put("SAMUROTT", new String[] {"CRAFTMIND"});   // project addition: CRAFTMIND turns Samurott into its star form; species-keyed, so every form is covered
     }
 
     private ItemsUnlosable() {}

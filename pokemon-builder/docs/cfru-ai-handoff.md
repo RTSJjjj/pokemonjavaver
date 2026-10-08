@@ -202,6 +202,6 @@ Engine fix found on the way: `pbCanSwitchLax?` only rejected the battler's own P
 - Still 登记: Trace/Imposter/Disguise on the incoming mon, Wonder Guard weather/Trick-orb clauses, Counter/Mirror Coat `previousMovePredictions`. N/A: Z-moves, Dynamax, Steelsurge.
 
 ## Plan tail (added)
-- `pbIsUnlosableItem?` (188_PItem_Items.rb:172) was never ported; now `ItemsUnlosable` (all 140 species rows) is wired into `Battler.unlosableItem`. Project addition: REGIGIGAS/REGISPELL is unlosable (the original plugin omitted it).
+- `pbIsUnlosableItem?` (188_PItem_Items.rb:172) was never ported; now `ItemsUnlosable` (all 140 species rows) is wired into `Battler.unlosableItem`. Project addition: REGIGIGAS/REGISPELL and SAMUROTT/CRAFTMIND (all forms) are unlosable (the original plugin omitted them).
 - TODO (AI): big score bonus for Knock Off (0F0) / Thief, Covet (0F1) / Trick, Switcheroo (0F2) / Bug Bite, Pluck (0F4) / Corrosive Gas (201) when the target is a player-owned Pokemon that only obeys while holding its item (117_Battler_UseMove_SuccessChecks.rb:136-160): SEAMONSTER+EOSINORB, GROUNDMONSTER+ULTRAMARINEORB, SKYMONSTER+BLACKGREENORB, HAXORUS form 2+TYRANTCREST. Also score Thief/Covet/Trick (currently 登记).
 - TODO (AI): original moves (ids 1231-1232, 1300+) and abilities (453-480) have no dedicated AI scoring; damage is handled by the generic calc.
