@@ -185,4 +185,10 @@ Done (tests: `AiPartnerTest`, `AiRealPbsTest` scores every move):
 
 登记: Fling (`gFlingTable` not exported), Camouflage (its C condition can never hold), Z-moves / Dynamax / Max-move variants, Foresight / Miracle Eye partner clause, Pledge combo failure clause, Perish Song partner "same target", `gDoubleDamageOnStatus` / `gAromaVeilProtectedMoves` / `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (rebuilt from moves.json).
 
-**Still to do in doubles: switching.** `ai_switching.c` is transcribed for single battles only (`AiSwitching`); its doubles parts (≈35 `IS_DOUBLE_BATTLE` sites: `LoadBattlersAndFoes` with two foes, every `ShouldSwitch*` check, the two-foe bench scoring in `CalcMostSuitableMonSwitchIfNecessary`, partner replacement coordination) are not, so a trainer's Pokemon never switches voluntarily in a double battle.
+## Batch 12: doubles switching
+
+Done (tests: `AiPartnerTest`): `ai_switching.c` doubles branches - the bench scorer over both foes (`CalcMostSuitableMonToSwitchInto`: type-matchup defence for two foes, faint ⇒ weak-to-move, score cap ×2, hazard remover ×2, thresholds of 3), `FindMonThatAbsorbsOpponentsMove`, `ShouldSwitchIfOnlyBadMovesLeft`, Natural Cure / Regenerator, `ShouldSwitchWhenYawned`, `ShouldSwitchWhileAsleep`, `IsTakingAnnoyingSecondaryDamage`, `ShouldSwitchWhenOffensiveStatsAreLow`; single-only checks (`ShouldSwitchToAvoidDeath`, `ShouldSaveSweeperForLater`, Wonder Guard) are skipped in doubles as in C; also the new singles checks `PassOnWish` and `ShouldSwitchIfWonderGuard`.
+Engine fix found on the way: `pbCanSwitchLax?` only rejected the battler's own Pokemon; it now rejects any Pokemon on the field for the side, and the AI skips a Pokemon the partner has already chosen to switch to.
+`Battle.chooseFor` / `defaultChooseNewEnemy` now use the switching scorer in double battles.
+
+登记 (see the `AiSwitching` header): `CanStopLockedMove`, `SemiInvulnerableTroll` (no effect in the source), `ShouldSwitchIfPerishSong` (body not in the cached source), pivot hand-off, Disguise / Dynamax / Imposter / Steelsurge / Wish recovery on the incoming Pokemon, two trainers on one side.

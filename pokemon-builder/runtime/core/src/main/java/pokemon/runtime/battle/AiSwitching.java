@@ -13,13 +13,15 @@ import pokemon.runtime.battle.AiCalc.AiDmg;
  * <p>Bench Pokemon are {@link Battler}s of the party, so the same damage code the move scorer uses ({@link AiCalc})
  * evaluates them; a bench Pokemon is evaluated with neutral stat stages and no field state of its own.</p>
  *
- * <p>登记 (not transcribed): {@code PassOnWish} (:751), {@code CanStopLockedMove} (:939) and
- * {@code SemiInvulnerableTroll} (:803; it can never return TRUE in the source either), {@code ShouldSwitchIfPerishSong}
- * (its body is not in the cached source), {@code ShouldSwitchIfWonderGuard} (:1323), the pivot hand-off
- * ({@code ConfirmAISwitch(.., willPivot)} :153: a fast pivoting move simply declines the switch here), Disguise on the
- * incoming Pokemon, Dynamax, Imposter/Trace on the incoming Pokemon, Steelsurge, Wish recovery on the incoming Pokemon,
- * and everything doubles-only. {@code switchingCooldown} (set outside the cached files) is read as "this Pokemon has
- * not yet had a turn".</p>
+ * <p>Single and double battles: the bench scorer loops over both foes, every {@code ShouldSwitch*} check has its
+ * {@code IS_DOUBLE_BATTLE} branch, and a Pokemon already chosen by the partner (a registered switch) is not offered again.
+ * 登记 (not transcribed): {@code CanStopLockedMove} (:939) and {@code SemiInvulnerableTroll} (:803) (both emit a switch but
+ * return FALSE, which the caller overrides with "use a move"), {@code ShouldSwitchIfPerishSong} (its body is not in the
+ * cached source), the pivot hand-off ({@code ConfirmAISwitch(.., willPivot)} :153: a fast pivoting move simply declines the
+ * switch here), Disguise on the incoming Pokemon, Dynamax, Imposter/Trace on the incoming Pokemon, Steelsurge, Wish recovery
+ * on the incoming Pokemon, the Trick-with-an-orb and weather clauses of Wonder Guard, and two trainers on one side
+ * ({@code BankSideHasTwoTrainers}: the best-mon data is not shared with a partner trainer). {@code switchingCooldown}
+ * (set outside the cached files) is read as "this Pokemon has not yet had a turn".</p>
  */
 final class AiSwitching {
 
@@ -531,6 +533,10 @@ final class AiSwitching {
     private static int shouldSwitch(AiCtx ctx, Battler user, Battler foe, Bench bench) {
         int r;
         if ((r = absorbsOpponentsMove(ctx, user, foe, bench)) != NONE) return r;                  // :92
+        if ((r = passOnWish(ctx, user, foe, bench)) != NONE) return r;                            // :94
+        // :96 CanStopLockedMove: emits a switch but returns FALSE in the source, which the caller then overrides with "use a move"
+        // :98 ShouldSwitchIfPerishSong: its body is not in the cached source (登记)
+        if ((r = wonderGuard(ctx, user, foe, bench)) != NONE) return r;                           // :100
         if ((r = onlyBadMovesLeft(ctx, user, foe, bench)) != NONE) return r;                      // :102
         if ((r = naturalCureOrRegenerator(ctx, user, foe, bench)) != NONE) return r;              // :104
         if ((r = whenYawned(ctx, user, foe, bench)) != NONE) return r;                            // :108
@@ -662,6 +668,96 @@ final class AiSwitching {
         battle.aiAbsorbSwitched[side] |= 1 << monId;                                                // :392
         battle.aiTypeAbsorbSwitchTurn[side] = battle.turns();                                       // :393
         return true;
+    }
+
+    // --- PassOnWish (:751) ---
+
+    private static boolean passOnWishCheck(AiCtx ctx, Battler user, Battler foe, Battler mon) {
+        return mon.hp < mon.maxHp() / 2 && !willFaintFromHazards(ctx.battle, user, mon)
+                && (AiDoublesScore.isDouble(ctx.battle, user) || predictedMoveWontKO(ctx, user, mon, foe));   // :738-741
+    }
+
+    private static int passOnWish(AiCtx ctx, Battler user, Battler foe, Bench bench) {
+        Battle battle = ctx.battle;
+        BattlePosition pos = battle.field.positions[user.index];
+        if (pos == null || pos.effects.intVal(PBEffects.Position.Wish) <= 0) return NONE;           // gWishFutureKnock.wishCounter
+        boolean isDouble = AiDoublesScore.isDouble(battle, user);
+        Battler foe2 = foe2Of(ctx, user, foe);
+        if (user.hp < user.maxHp() / 2
+                && ((!AiCalc.canKnockOut(ctx, foe, user) && !(isDouble && AiCalc.canKnockOut(ctx, foe2, user)))
+                    || AiDoublesScore.hasProtectionMove(ctx, user, AiDoublesScore.CHECK_REGULAR_PROTECTION | AiDoublesScore.CHECK_MAT_BLOCK))) {
+            return NONE;                                                                             // can survive the hit, or can protect during the wish
+        }
+        Array<Battler> party = battle.partyOf(user.index);
+        if (bench.best != NONE && passOnWishCheck(ctx, user, foe, party.get(bench.best))) return bench.best;
+        if (bench.second != NONE && passOnWishCheck(ctx, user, foe, party.get(bench.second))) return bench.second;
+        for (int i = 0; i < party.size; i++) {
+            if (!candidate(battle, user, i) || i == bench.best || i == bench.second) continue;
+            if (passOnWishCheck(ctx, user, foe, party.get(i))) return i;
+        }
+        return NONE;
+    }
+
+    // --- ShouldSwitchIfWonderGuard (:1323) ---
+
+    private static int wonderGuard(AiCtx ctx, Battler user, Battler foe, Bench bench) {
+        Battle battle = ctx.battle;
+        if (AiDoublesScore.isDouble(battle, user)) return NONE;                                     // :1333
+        if (!foe.hasActiveAbility("WONDERGUARD") || AiCalc.willFaintFromSecondaryDamage(battle, foe)) return NONE;
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {                                                // a move that gets through Wonder Guard
+            BattleMove m = user.moveSlot(i);
+            if (m == null) break;
+            if (!AiCalc.usable(ctx, user, i)) continue;
+            if (!m.statusMove()) {
+                if (user.hasMoldBreaker() || AiCalc.calcDmg(battle, user, foe, m).typeMod > 8) return NONE;   // Mold Breaker or super effective
+            } else if (!AiCalc.blockedBySubstitute(m, user, foe) && statusMoveWorksOnWonderGuard(ctx, user, foe, m)) {
+                return NONE;
+            }
+        }
+        Array<Battler> party = battle.partyOf(user.index);
+        for (int i = 0; i < party.size; i++) {                                                       // a party member with a super effective move
+            if (!candidate(battle, user, i)) continue;
+            Battler mon = party.get(i);
+            for (int j = 0; j < Battler.MOVES_MAX; j++) {
+                BattleMove m = mon.moveSlot(j);
+                if (m == null || m.statusMove()) continue;
+                if (AiCalc.calcDmg(battle, mon, foe, m).typeMod > 8) return i;
+            }
+        }
+        return NONE;
+    }
+
+    /** The status-move switch of ShouldSwitchIfWonderGuard (:1370-1530): true when {@code m} still does something to a Wonder Guard foe. */
+    private static boolean statusMoveWorksOnWonderGuard(AiCtx ctx, Battler atk, Battler def, BattleMove m) {
+        Battle battle = ctx.battle;
+        BattleSide ds = def.pbOwnSide();
+        switch (m.function()) {
+            case "003": case "004": return AiCalc.canBePutToSleep(battle, def, atk);
+            case "0EB": return AiUtil.benchAlive(battle, def) > 0;
+            case "005": case "006": return AiCalc.canBePoisoned(battle, def, atk);
+            case "00A": return AiCalc.canBeBurned(battle, def, atk);
+            case "013": case "040": case "041": return AiCalc.canBeConfused(battle, def, atk);
+            case "007": return AiCalc.canBeParalyzed(battle, def, atk);
+            case "0DC": return !def.hasType("GRASS");
+            case "10F": return def.hasStatus("SLEEP");
+            case "10D": return atk.hasType("GHOST");
+            case "103": case "104": case "105": case "153":
+                if (AiCalc.named(m, "STEALTHROCK")) return ds.effects.intVal(PBEffects.Side.StealthRock) == 0;
+                if (AiCalc.named(m, "TOXICSPIKES")) return ds.effects.intVal(PBEffects.Side.ToxicSpikes) < 2;
+                if (AiCalc.named(m, "STICKYWEB")) return ds.effects.intVal(PBEffects.Side.StickyWeb) == 0;
+                return ds.effects.intVal(PBEffects.Side.Spikes) < 3;
+            case "0E5": return def.effects.intVal(PBEffects.Battler.PerishSong) <= 0;
+            case "0ED": case "0EA": return true;                                                     // Baton Pass, Teleport
+            case "0E2": return true;                                                                  // Memento (a status move)
+            case "0D7": return battle.field.positions[atk.index] == null || battle.field.positions[atk.index].effects.intVal(PBEffects.Position.Wish) == 0;
+            case "067": return false;
+            case "142": return !def.hasType("GHOST");
+            case "143": return !def.hasType("GRASS");
+            case "05B": return atk.pbOwnSide().effects.intVal(PBEffects.Side.Tailwind) > 0;
+            case "0A1": return atk.pbOwnSide().effects.intVal(PBEffects.Side.LuckyChant) == 0;
+            case "063": case "064": case "065": case "066": case "068": return true;                  // the other EFFECT_SKILL_SWAP moves
+            default: return false;                                                                    // 登记: weather hurting the foe, Trick with a status orb
+        }
     }
 
     // --- ShouldSwitchIfOnlyBadMovesLeft (:256) ---

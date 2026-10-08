@@ -283,4 +283,17 @@ class AiPartnerTest {
         fainted.hp = 0;
         assertEquals(2, AiSwitching.replacement(b, fainted, new Random(3)));
     }
+
+    @Test
+    @DisplayName("PassOnWish: a hurt Pokemon on the bench is switched in while a Wish is pending (ai_switching.c:751)")
+    void passesOnAWish() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        b.addFoe(mon("FAT", 50, "TACKLE", "QUICKHIT"));
+        Battler user = b.battlerAt(1);
+        user.turnCount = 3;
+        b.battlerAt(3).turnCount = 3;
+        b.partyOf(1).get(2).hp = b.partyOf(1).get(2).maxHp() / 3;
+        b.field.positions[1].effects.set(PBEffects.Position.Wish, 2);
+        assertEquals(2, AiSwitching.decide(b, user, new Random(1)));
+    }
 }
