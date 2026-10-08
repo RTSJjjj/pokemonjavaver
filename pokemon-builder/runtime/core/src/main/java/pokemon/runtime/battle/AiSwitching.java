@@ -273,7 +273,7 @@ final class AiSwitching {
             canNegateToxicSpikes[i] = mon.pbHasType("POISON") && !mon.airborne();                 // :2059
             if (willFaintFromHazards(battle, user, mon)) continue;                                // :2061
             int passive = passiveRecovery(battle, mon);                                           // :2068
-            int wishRecovery = 0;                                                                 // :2069 登记: Wish
+            int wishRecovery = wishHpRecovery(battle, user);                                      // :2069 GetWishHPRecovery
             int hpOnSwitchIn = Math.max(0, mon.hp - hazardDamage(battle, user, mon));             // :2252
             boolean skipMon = false;
             for (Battler foe : foes) {   // the foe loop (:2071)
@@ -559,6 +559,13 @@ final class AiSwitching {
     private static boolean anyStatGreaterThan(Battler b, int stage) {
         for (int s = PBStats.ATTACK; s <= PBStats.SPDEF; s++) if (b.stage(s) > stage) return true;
         return false;
+    }
+
+    /** battle_util.c:1241 GetWishHPRecovery: pending Wish heals max(1, wish maker's maxHP/2) (stored as WishAmount). */
+    private static int wishHpRecovery(Battle battle, Battler user) {
+        BattlePosition pos = battle.field.positions[user.index];
+        if (pos.effects.intVal(PBEffects.Position.Wish) <= 0) return 0;
+        return Math.max(1, pos.effects.intVal(PBEffects.Position.WishAmount));
     }
 
     private static boolean hasFastPivot(Battler b) {

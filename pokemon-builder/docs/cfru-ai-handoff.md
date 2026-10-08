@@ -192,3 +192,10 @@ Engine fix found on the way: `pbCanSwitchLax?` only rejected the battler's own P
 `Battle.chooseFor` / `defaultChooseNewEnemy` now use the switching scorer in double battles.
 
 登记 (see the `AiSwitching` header): `CanStopLockedMove`, `SemiInvulnerableTroll` (no effect in the source), `ShouldSwitchIfPerishSong` (body not in the cached source), pivot hand-off, Disguise / Dynamax / Imposter / Steelsurge / Wish recovery on the incoming Pokemon, two trainers on one side.
+
+## Batch 13 (gap pass after cloning the CFRU repo)
+- Real CFRU tables replaced reconstructed ones (setsStatus/confuses, DoesProtectionMoveBlockMove, stat-lowering set).
+- Fling (0F7), Perish Song switching, real switchingCooldown counter.
+- CFRU defect fixed: `RunAllSemiInvulnerableLockedMoveCalcs`/`CanStopLockedMove` returned FALSE after emitting the switch; port returns the chosen party index.
+- Wish recovery on the incoming mon (`GetWishHPRecovery`, battle_util.c:1241) now factored into bench scoring.
+- Still 登记: pivot hand-off (`ConfirmAISwitch(.., willPivot)`), Trace/Imposter/Disguise on the incoming mon, Wonder Guard weather/Trick-orb clauses, Counter/Mirror Coat `previousMovePredictions`. N/A: Z-moves, Dynamax, Steelsurge.
