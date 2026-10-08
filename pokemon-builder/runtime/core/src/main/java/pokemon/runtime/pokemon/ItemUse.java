@@ -57,7 +57,7 @@ public final class ItemUse {
         }
     }
 
-    private static int healValue(String id, Pokemon p) {
+    public static int healValue(String id, Pokemon p) {
         int amount = healAmount(id);
         if (amount == -1) return Math.max(0, p.maxHp() - p.hp);
         if (amount == -2) return Math.max(1, p.maxHp() / 4);

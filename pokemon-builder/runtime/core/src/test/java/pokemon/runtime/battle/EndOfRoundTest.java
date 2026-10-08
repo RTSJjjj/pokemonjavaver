@@ -118,7 +118,9 @@ class EndOfRoundTest {
         player.battleRank = 3;
         Battle battle = battle(player, pokemon("TANK", 50));
         battle.player().status = "BURN";
-        int maxHp = player.maxHp();
+        // Battler_Initialize:44-45/78-79: a rank-3 Boss fights with BOSS_HP_RANK[3] = 5 times its HP
+        int maxHp = player.maxHp() * 5;
+        assertEquals(maxHp, battle.player().maxHp());
 
         battle.step();
 
