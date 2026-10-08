@@ -1522,8 +1522,8 @@ public final class Battler {
         if (pokemon != null && pokemon.megaFormIndex(pbs) > 0) {        // :539 getMegaForm(true) > 0
             return true;
         }
-        // 登记: PokeBattle_Battler:541 pbIsUnlosableItem?(check_item,@species,@ability)（本批未建模）
-        return false;
+        String speciesId = pokemon != null && pokemon.species != null ? pokemon.species.internalName : null;
+        return ItemsUnlosable.isUnlosable(checkItem, speciesId, ability);   // :541 pbIsUnlosableItem?(check_item,@species,@ability)
     }
 
     /** {@code hasUtilityUmbrella?} (PokeBattle_Battler:610-613)。 */
