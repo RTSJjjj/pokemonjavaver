@@ -123,6 +123,23 @@ class BattleTriplesTest {
         assertEquals(1, battle.turns());
     }
 
+    @Test void aRankThreeBossScoresItsMovesAgainstTheThreeChallengers() {
+        // CFRU scoring now drives wild Bosses (rank >= 2) in a 3v1 fight: the boss picks a living challenger, never itself
+        port.setBattleSize("3v1");
+        Pokemon boss = pokemon(30);
+        boss.battleRank = 3;
+        port.freeWildBattle(boss);
+        Battle battle = port.session().battle;
+        Battler foe = battle.battlerAt(1);
+        assertTrue(foe.foe && foe.pokemon.battleRank >= 2);
+        for (int seed = 0; seed < 20; seed++) {
+            AiDoubles.Choice choice = AiDoubles.choose(battle, foe, new Random(seed));
+            assertNotNull(choice);
+            assertEquals(0, choice.slot);
+            assertTrue(choice.target == 0 || choice.target == 2 || choice.target == 4, "target " + choice.target);
+        }
+    }
+
     @Test void theTrainerCapForTwoTrainersOnBothSidesStaysAtDouble() {
         // Battle_StartAndEnd:25-28
         Pokemon partner = pokemon(5);

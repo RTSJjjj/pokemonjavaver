@@ -170,9 +170,19 @@ final class AiDoubles {
         BattleMove firstMove = moveAt(user, slotFor[0]);
         boolean usingDefault = true;
         if (firstMove != null && battle.battlerAt(0) != null && wontHit(ctx, user, battle.battlerAt(0), firstMove)) {
-            viable[0] = 1;                                                                      // :639 change the default target
-            mostPoints = points[1];
-            firstMove = moveAt(user, slotFor[1]);
+            // :639 change the default target to the next foe (CFRU: bank 1; a 3v1 boss fight keeps the boss at index 1,
+            // so the next living opponent of the user is taken instead)
+            int second = 1;
+            for (int i = 1; i < n; i++) {
+                Battler o = battle.battlerAt(i);
+                if (o != null && o != user && o.foe != user.foe && !o.fainted()) {
+                    second = i;
+                    break;
+                }
+            }
+            viable[0] = second;
+            mostPoints = points[second];
+            firstMove = moveAt(user, slotFor[second]);
         }
         int mostDmgTarget = viable[0];
         int mostDamage = 0;

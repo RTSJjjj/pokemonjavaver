@@ -25,8 +25,7 @@ fractions for rank > 2, Mega rules, start-of-battle lines, switch-in prompt, dat
    `battleIronJugulis` and `battleOverlordflos` (docs/plugin-usage.md), both transcribed.
 2. **Script-statement form.** Only the code-111 *condition* form (`if battleXxx`) is wired. A `battleXxx` as a plain 355 script
    statement would need the builder's script-compiler to emit an IR command; the game's event data is not in this repo to check which form is used.
-3. **Wild-boss AI** (AI_Move:9 `skill = 20 * battleRank`, :20 `battleRank < 2` branch): bosses with rank >= 2 still use the old
-   fallback `defaultAi`. The plugin's real scorer is AI_Move_EffectScores (3,883 lines) - superseded by TASK 2 (CFRU AI port).
+3. **Wild-boss AI**: done - a Boss with rank >= 2 is scored by the CFRU port (`AiMaster` in singles, `AiDoubles` in the 3v1 fight; `Battle.chooseFor`). `AiDoubles.chooseTarget`'s "next foe" fallback no longer assumes bank 1 is an opponent (the boss itself sits at index 1). Test: `BattleTriplesTest.aRankThreeBossScoresItsMovesAgainstTheThreeChallengers`.
 4. `pbSEPlay("Battle flee")` (PokeBattle_BOSS:160/178/183) is registered, not played: the engine has no SE channel
    (same note as `BattleSwitchAction`'s header).
 5. `pbStorePokemon`'s box messages / Pokedex page after an engine capture are not modelled (the Pokemon joins the party or box via `addToParty`).
