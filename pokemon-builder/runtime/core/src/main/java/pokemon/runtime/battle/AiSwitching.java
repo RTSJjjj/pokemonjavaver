@@ -656,10 +656,12 @@ final class AiSwitching {
         if (foe.hasMoldBreaker()) return NONE;                                                      // :503
         String[] abil;
         switch (type) {
-            case "FIRE": abil = new String[]{"FLASHFIRE"}; break;
+            case "FIRE": abil = new String[]{"FLASHFIRE", "WELLBAKEDBODY"}; break;
             case "ELECTRIC": abil = new String[]{"VOLTABSORB", "LIGHTNINGROD", "MOTORDRIVE"}; break;
             case "WATER": abil = new String[]{"WATERABSORB", "DRYSKIN", "STORMDRAIN"}; break;
             case "GRASS": abil = new String[]{"SAPSIPPER"}; break;
+            case "GROUND": abil = new String[]{"EARTHEATER"}; break;                                 // project absorbers (same hooks)
+            case "ICE": abil = new String[]{"ICEBSORB"}; break;
             default: return NONE;
         }
         for (String a : abil) if (user.hasActiveAbility(a)) return NONE;                            // :531

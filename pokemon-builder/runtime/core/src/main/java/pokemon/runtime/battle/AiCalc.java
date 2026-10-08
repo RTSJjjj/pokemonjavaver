@@ -198,7 +198,7 @@ final class AiCalc {
     /** Function codes Essentials shares between a status move and its damaging "hit with a side effect" variants (CFRU's separate *_HIT effects). */
     static final String[] SIDE_EFFECT_CODES = {"003", "005", "006", "007", "00A", "00C", "013", "042", "043", "044", "045", "046", "047",
             "04B", "04C", "04D", "04E", "04F",
-            "01C", "01D", "01F", "020", "022", "179",      // self stat-raising hits (Power-Up Punch, Steel Wing, Flame Charge, Charge Beam, ...)
+            "01C", "01D", "01F", "020", "022", "179", "1C6",      // 1C6 = original Glow Dance (damage + Sp. Def +1); self stat-raising hits (Power-Up Punch, Steel Wing, Flame Charge, Charge Beam, ...)
             "0A7", "0EF"};                                  // Foresight / trapping hits (Target Beam, Spirit Shackle): plain damage
 
     /** A damaging move whose function code is a status family: CFRU's EFFECT_*_HIT. */
@@ -562,7 +562,7 @@ final class AiCalc {
     }
 
     /** {@code EFFECT_PROTECT} function codes, from the movefx classes (Endure 0E8 is a different effect). */
-    static final String[] PROTECT = {"0AA", "14B", "14C", "168"};   // Protect/Detect, King's Shield, Spiky Shield, Baneful Bunker (movefx table)
+    static final String[] PROTECT = {"0AA", "14B", "14C", "168", "1CC"};   // Protect/Detect, King's Shield, Spiky Shield, Baneful Bunker (movefx table); 1CC Burning Bulwark / original Veil: same class (PokeBattle_ProtectMove)
 
     /** {@code MoveThatCanHelpAttacksHitInMoveset(bank)} (ai_util.c:4207): accuracy-up / evasion-down moves and Lock-On. */
     static boolean moveThatCanHelpAttacksHitInMoveset(AiCtx ctx, Battler b) {

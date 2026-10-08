@@ -60,6 +60,12 @@ final class AiPartner {
                 case "WATERABSORB": case "DRYSKIN":
                     if (type.equals("WATER")) viability = AiDoublesScore.increaseHealPartner(ctx, viability, cls, partner);
                     break;
+                case "EARTHEATER":                                                                    // project absorbers with the same heal hook (pbBattleMoveImmunityHealAbility)
+                    if (type.equals("GROUND")) viability = AiDoublesScore.increaseHealPartner(ctx, viability, cls, partner);
+                    break;
+                case "ICEBSORB":
+                    if (type.equals("ICE")) viability = AiDoublesScore.increaseHealPartner(ctx, viability, cls, partner);
+                    break;
                 case "STORMDRAIN":
                     if (type.equals("WATER") && !totalSupport && AiCalc.specialMoveInMoveset(ctx, partner)
                             && AiCalc.statCanRise(partner, PBStats.SPATK)) {
@@ -306,7 +312,7 @@ final class AiPartner {
         if (AiCalc.named(atkMove, "FEINT", "HYPERSPACEFURY", "HYPERSPACEHOLE", "PHANTOMFORCE", "SHADOWFORCE")) return false;   // gMovesThatLiftProtectTable
         int target = AiCalc.fx(atkMove).pbTarget(atkMove, atk);
         switch (protectMove.function()) {
-            case "0AA": case "14C": case "168": return protectFlag;                                 // Protect, Spiky Shield, Baneful Bunker
+            case "0AA": case "14C": case "168": case "1CC": return protectFlag;                                 // Protect, Spiky Shield, Baneful Bunker
             case "14B": return protectFlag && !status;                                              // King's Shield (and Obstruct)
             case "149": return AiCalc.firstTurn(def) && protectFlag && !status;                    // Mat Block
             case "14A": return target != PBTargets.User && status;                                  // Crafty Shield

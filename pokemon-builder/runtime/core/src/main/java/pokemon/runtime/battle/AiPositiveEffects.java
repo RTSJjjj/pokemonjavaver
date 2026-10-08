@@ -43,8 +43,8 @@ final class AiPositiveEffects {
             boolean blocked = AiCalc.blockedBySubstitute(move, atk, def);
             if (AiCalc.oneOf(move, "0A7", "0EF")) {
                 return viability;                                                                  // plain damage
-            } else if (AiCalc.oneOf(move, "003", "005", "006", "007", "00A", "00C", "01C", "01D", "01F", "020", "022", "179")) {
-                boolean selfRaise = AiCalc.oneOf(move, "01C", "01D", "01F", "020", "022", "179");
+            } else if (AiCalc.oneOf(move, "003", "005", "006", "007", "00A", "00C", "01C", "01D", "01F", "020", "022", "179", "1C6")) {
+                boolean selfRaise = AiCalc.oneOf(move, "01C", "01D", "01F", "020", "022", "179", "1C6");
                 if (chance < 75 || (blocked && !selfRaise)) return viability;
             } else if (f.equals("013")) {
                 if (chance < 75 || blocked || !AiCalc.moveWillHit(battle, atk, def, move)) return viability;
@@ -90,6 +90,11 @@ final class AiPositiveEffects {
             case "020": case "032": case "039":                                                    // EFFECT_SPECIAL_ATTACK_UP(_2)
                 if (!contrary && AiPositiveHelpers.goodIdeaToRaiseSpAttack(ctx, atk, def, f.equals("020") ? 1 : 2)) {
                     viability = incStat(ctx, viability, cls, 2, atk, def, move, SPA, 2);
+                }
+                return viability;
+            case "1C6":                                                                            // original Glow Dance: the one-stage Sp. Def raise (as 033 with 1 stage)
+                if (!contrary && AiPositiveHelpers.goodIdeaToRaiseSpDefense(ctx, atk, def, 1)) {
+                    viability = incStat(ctx, viability, cls, 1, atk, def, move, SPD_EF, 4);
                 }
                 return viability;
             case "033":                                                                            // EFFECT_SPECIAL_DEFENSE_UP_2

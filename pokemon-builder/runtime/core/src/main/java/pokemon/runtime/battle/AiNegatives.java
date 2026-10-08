@@ -33,6 +33,7 @@ final class AiNegatives {
         String atkAbility = atk.ability == null ? "" : atk.ability;                                   // :117 GetAIAbility
         String defAbility = def.ability == null ? "" : def.ability;                                   // :118
         if (atk.hasMoldBreaker()) defAbility = "";                                                    // :120 IsTargetAbilityIgnored
+        if ("1B2".equals(move.function()) && !atk.isSpecies("SUJINRAKU")) return 0;                   // original Abyss Shadow: pbMoveFailed (species-locked), the AI must never pick it
         String moveType = AiCalc.fx(move).pbCalcType(move, atk);                                      // :126 GetMoveTypeSpecial
         boolean status = move.statusMove();                                                           // :125 moveSplit == SPLIT_STATUS
         String target = move.target();                                                                // :127 GetBaseMoveTarget
@@ -64,6 +65,18 @@ final class AiNegatives {
                         break;
                     case "SAPSIPPER":                                                                // Grass
                         if ("GRASS".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
+                        break;
+                    case "EARTHEATER":                                                               // project/Gen 9 absorbers: same MoveImmunityTarget hook as Volt Absorb etc.
+                        if ("GROUND".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
+                        break;
+                    case "ICEBSORB":                                                                 // original ability
+                        if ("ICE".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
+                        break;
+                    case "WELLBAKEDBODY":
+                        if ("FIRE".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
+                        break;
+                    case "GOODASGOLD":                                                               // immune to all status moves (AROMAVEIL-style -10)
+                        if (status && !partnerTarget) return clamp(dec(viability, 10));
                         break;
                     case "JUSTIFIED":                                                                // Dark (:222)
                         if ("DARK".equals(moveType) && !status && !partnerTarget && AiCalc.statCanRise(def, PBStats.ATTACK)
