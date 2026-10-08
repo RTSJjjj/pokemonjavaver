@@ -4,6 +4,8 @@ import static pokemon.runtime.battle.AiPositiveHelpers.inc;
 import static pokemon.runtime.battle.AiPositiveHelpers.incStat;
 import static pokemon.runtime.battle.AiPositiveHelpers.incStatus;
 
+import pokemon.runtime.pokemon.Pokemon;
+
 /**
  * The per-effect {@code switch (moveEffect)} of {@code AIScript_Positives} (ai_positives.c:55-2722), part 1 (:57-1010): Sleep/Yawn,
  * drain moves, the stat-raising and stat-lowering moves, Haze, Roar, multi-hit, recovery, poison, Rest, Mist, Focus Energy, Confuse,
@@ -279,7 +281,211 @@ final class AiPositiveEffects {
                 return incStatus(ctx, viability, cls, 1, atk, def);
             }
             default:
+                return part2(ctx, atk, def, move, viability, cls, atkAbility, defAbility);
+        }
+    }
+
+    /**
+     * Part 2 (ai_positives.c:1010-1760): Destiny Bond, Nightmare, Curse, Foresight/Miracle Eye, Perish Song, Swagger/Flatter, Attract, Safeguard,
+     * Rollout, Fury Cutter, Belly Drum, weather moves, Pursuit, Baton Pass (the class bonus), the entry hazards.
+     * 登记: Protect ({@code ShouldProtect}), Spite, Heal Bell/Wish, Thief, Mean Look (ShouldTrap), pivots ({@code ShouldPivot}), Rapid Spin/Defog,
+     * Psych Up, the Z-Crystal/doubles branches.
+     */
+    private static int part2(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls, String atkAbility, String defAbility) {
+        Battle battle = ctx.battle;
+        String f = move.function();
+        int atkSpeed = AiCalc.speed(atk);
+        int defSpeed = AiCalc.speed(def);
+        switch (f) {
+            case "0E7": {                                                                          // EFFECT_DESTINY_BOND (:1012)
+                if (AiCalc.moveWouldHitFirst(ctx, move, atk, def)) { if (AiCalc.canKnockOut(ctx, def, atk)) viability = incStatus(ctx, viability, cls, 3, atk, def); }
+                else if (AiCalc.can2HKO(ctx, def, atk)) viability = incStatus(ctx, viability, cls, 3, atk, def);
                 return viability;
+            }
+            case "10F": {                                                                          // EFFECT_NIGHTMARE (:1105)
+                if (defAbility.equals("MAGICGUARD")) return viability;
+                if (defAbility.equals("COMATOSE") || (def.hasStatus("SLEEP") && def.statusCount > 1)) viability = incStatus(ctx, viability, cls, 3, atk, def);
+                return viability;
+            }
+            case "10D": {                                                                          // EFFECT_CURSE (:1112)
+                if (atk.hasType("GHOST")) return incStatus(ctx, viability, cls, isTrapped(def) ? 3 : 1, atk, def);
+                if (atkAbility.equals("CONTRARY") || defAbility.equals("MAGICGUARD")) return viability;
+                BattleMove foe = ctx.prediction(def);
+                if (foe != null && AiCalc.oneOf(foe, "051", "0EB")) return viability;               // IsMovePredictionPhazingMove
+                if (AiCalc.moveFunctionInMoveset(atk, "08D")) return incStat(ctx, viability, cls, 4, atk, def, move, ATK, 6);   // Gyro Ball
+                if (atk.stage(SPD) < -3) return viability;
+                if (atk.stage(ATK) < 2) return incStat(ctx, viability, cls, 2, atk, def, move, ATK, 2);
+                if (atk.stage(DEF) < 2) return incStat(ctx, viability, cls, 1, atk, def, move, DEF, 2);
+                return viability;
+            }
+            case "0A8": {                                                                          // MOVE_MIRACLEEYE (:1370)
+                if (def.stage(EVA) > 0 || (def.hasType("DARK") && AiCalc.damagingTypeInMoveset(ctx, atk, "PSYCHIC"))) viability = incStatus(ctx, viability, cls, 2, atk, def);
+                return viability;
+            }
+            case "0A7": {                                                                          // EFFECT_FORESIGHT (:1378)
+                if (atkAbility.equals("SCRAPPY")) return viability;
+                if (def.stage(EVA) > 0 || (def.hasType("GHOST")
+                        && (AiCalc.damagingTypeInMoveset(ctx, atk, "NORMAL") || AiCalc.damagingTypeInMoveset(ctx, atk, "FIGHTING")))) {
+                    viability = incStatus(ctx, viability, cls, 2, atk, def);
+                }
+                return viability;
+            }
+            case "0E5":                                                                            // EFFECT_PERISH_SONG (:1402)
+                return isTrapped(def) ? incStatus(ctx, viability, cls, 3, atk, def) : viability;
+            case "041": case "040": {                                                              // EFFECT_SWAGGER / FLATTER (:1440)
+                boolean psychUp = AiCalc.moveFunctionInMoveset(atk, "055", "15D") || (f.equals("041") && AiCalc.named(firstNamed(atk, "FOULPLAY"), "FOULPLAY"));
+                if (psychUp) return incStatus(ctx, viability, cls, 2, atk, def);
+                if (AiCalc.canBeConfused(battle, def, atk)) {
+                    boolean boost = def.hasStatus("PARALYSIS") || def.effects.intVal(PBEffects.Battler.Attract) >= 0;
+                    viability = incStatus(ctx, viability, cls, boost ? 2 : 1, atk, def);
+                }
+                return viability;
+            }
+            case "016": {                                                                          // EFFECT_ATTRACT (:1465)
+                if (AiCalc.willFaintFromSecondaryDamage(battle, def) && !AiCalc.moveWouldHitFirst(ctx, move, atk, def)) return viability;
+                boolean boost = def.statused() || def.effects.intVal(PBEffects.Battler.Confusion) > 0 || isTrapped(def);
+                return incStatus(ctx, viability, cls, boost ? 2 : 1, atk, def);
+            }
+            case "01A": {                                                                          // EFFECT_SAFEGUARD (:1476)
+                boolean teamSupport = cls == AiCalc.CLASS_BATON_PASS || cls == AiCalc.CLASS_CLERIC || cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_PHAZING;
+                if (teamSupport && !(battle.terrain() == PBBattleTerrains.Misty && !atk.airborne())) viability = incStatus(ctx, viability, cls, 1, atk, def);
+                return viability;
+            }
+            case "0D3": {                                                                          // EFFECT_ROLLOUT (:1432)
+                if (AiCalc.classSweeper(cls) && atk.effects.intVal(PBEffects.Battler.DefenseCurl) > 0) viability = inc(viability, 8);
+                return viability;
+            }
+            case "091": {                                                                          // EFFECT_FURY_CUTTER (:1457)
+                if (AiCalc.classSweeper(cls) && atk.hasActiveItem("METRONOME")) viability = inc(viability, 3);
+                return viability;
+            }
+            case "03A": {                                                                          // EFFECT_BELLY_DRUM (:1593)
+                if (!atkAbility.equals("CONTRARY") && AiCalc.physicalMoveInMoveset(ctx, atk)) {
+                    if (AiPositiveHelpers.badIdeaToRaiseStat(ctx, atk, def, true)) return viability;
+                    viability = incStat(ctx, viability, cls, 2, atk, def, move, ATK, 2);
+                }
+                return viability;
+            }
+            case "0FF": case "100": case "101": {                                                  // EFFECT_SUNNY_DAY / RAIN_DANCE / SANDSTORM (:1405,:1536,:1565)
+                boolean useful;
+                if (f.equals("101")) {
+                    useful = atkAbility.equals("SANDVEIL") || atkAbility.equals("SANDRUSH") || atkAbility.equals("SANDFORCE") || atkAbility.equals("OVERCOAT")
+                            || atkAbility.equals("MAGICGUARD") || atk.hasActiveItem("SAFETYGOGGLES") || atk.hasType("ROCK") || atk.hasType("STEEL")
+                            || atk.hasType("GROUND") || AiCalc.named(firstNamed(atk, "SHOREUP"), "SHOREUP") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
+                            || atk.hasActiveItem("SMOOTHROCK");
+                } else if (f.equals("100")) {
+                    useful = !atk.hasActiveItem("UTILITYUMBRELLA") && (atkAbility.equals("SWIFTSWIM") || atkAbility.equals("FORECAST") || atkAbility.equals("HYDRATION")
+                            || atkAbility.equals("RAINDISH") || atkAbility.equals("DRYSKIN") || AiCalc.moveFunctionInMoveset(atk, "008", "015")
+                            || AiCalc.moveFunctionInMoveset(def, "0D8") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
+                            || AiCalc.damagingTypeInMoveset(ctx, atk, "WATER") || AiCalc.damagingTypeInMoveset(ctx, def, "FIRE") || atk.hasActiveItem("DAMPROCK"));
+                } else {
+                    useful = !atk.hasActiveItem("UTILITYUMBRELLA") && (atkAbility.equals("CHLOROPHYLL") || atkAbility.equals("FLOWERGIFT") || atkAbility.equals("FORECAST")
+                            || atkAbility.equals("LEAFGUARD") || atkAbility.equals("SOLARPOWER") || atkAbility.equals("HARVEST") || AiCalc.moveFunctionInMoveset(atk, "0C4", "0D8")
+                            || AiCalc.moveFunctionInMoveset(def, "008", "015") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL") || AiCalc.named(firstNamed(atk, "GROWTH"), "GROWTH")
+                            || AiCalc.damagingTypeInMoveset(ctx, atk, "FIRE") || AiCalc.damagingTypeInMoveset(ctx, def, "WATER") || atk.hasActiveItem("HEATROCK"));
+                }
+                return useful ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
+            }
+            case "088": {                                                                          // EFFECT_PURSUIT (:1520)
+                if (AiCalc.classSweeper(cls)) {
+                    BattleMove foe = ctx.prediction(def);
+                    if (ctx.predictedToSwitch(def)) viability = inc(viability, 3);
+                    else if (foe != null && AiCalc.oneOf(foe, "0EE") && !AiCalc.moveWouldHitFirst(ctx, move, atk, def)) viability = inc(viability, 3);
+                }
+                return viability;
+            }
+            case "0ED": {                                                                          // MOVE_BATONPASS (:1502)
+                if (cls == AiCalc.CLASS_BATON_PASS) viability = inc(viability, 3);
+                return viability;
+            }
+            case "103": case "104": case "105": case "153":                                        // EFFECT_SPIKES (:1360)
+                return hazards(ctx, atk, def, move, viability, cls);
+            default:
+                return viability;
+        }
+    }
+
+    private static BattleMove firstNamed(Battler b, String name) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = b.moveSlot(i);
+            if (m != null && AiCalc.named(m, name)) return m;
+        }
+        return new BattleMove(null);
+    }
+
+    /** {@code IsTrapped(bank,TRUE)} (ai_util.c): held in by a trapping move, Mean Look or a Ghost-type exemption. */
+    private static boolean isTrapped(Battler b) {
+        if (b.hasType("GHOST")) return false;
+        return b.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || b.effects.intVal(PBEffects.Battler.Trapping) > 0
+                || b.effects.truthy(PBEffects.Battler.Ingrain);                                    // 登记: Shadow Tag / Arena Trap / Magnet Pull
+    }
+
+    /** {@code IsMonAffectedByHazards(mon)} + grounding for the bench Pokemon of {@code def}'s side. */
+    private static boolean benchAffectedByHazards(Battler member, boolean needsGrounding) {
+        Pokemon p = member.pokemon;
+        if ("MAGICGUARD".equals(p.ability) || "HEAVYDUTYBOOTS".equals(p.item)) return false;
+        if (needsGrounding && (p.types().contains("FLYING", false) || "LEVITATE".equals(p.ability) || "AIRBALLOON".equals(p.item))) return false;
+        return true;
+    }
+
+    /** The EFFECT_SPIKES case (:1360-1560): does the foe's bench have a Pokemon the hazard hurts. */
+    private static int hazards(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls) {
+        String f = move.function();
+        boolean useful = false;
+        for (Battler m : ctx.battle.partyOf(def.index)) {
+            if (m == null || m == def || m.removedFromParty || m.fainted() || m.pokemon.egg) continue;     // i != gBattlerPartyIndexes[foe]
+            if (f.equals("153")) {                                                                           // Sticky Web: grounded and slower than one of ours
+                if (!benchAffectedByHazards(m, true)) continue;
+                for (Battler mine : ctx.battle.partyOf(atk.index)) {
+                    if (mine == null || mine.removedFromParty || mine.fainted() || mine.pokemon.egg) continue;
+                    if (mine.pokemon.speed() < m.pokemon.speed()) { useful = true; break; }
+                }
+            } else if (f.equals("105")) {                                                                    // Stealth Rock
+                useful = benchAffectedByHazards(m, false);
+            } else if (f.equals("104")) {                                                                    // Toxic Spikes
+                if (!benchAffectedByHazards(m, true)) continue;
+                if (m.pokemon.types().contains("POISON", false)) { useful = false; break; }                  // someone can just absorb them
+                if (!m.pokemon.types().contains("STEEL", false) && !"IMMUNITY".equals(m.pokemon.ability)) useful = true;
+            } else {                                                                                         // Spikes
+                useful = benchAffectedByHazards(m, true);
+            }
+            if (useful && !f.equals("104")) break;
+        }
+        return useful ? increaseEntryHazards(ctx, viability, cls, atk, def, move) : viability;
+    }
+
+    /** {@code IncreaseEntryHazardsViability} (ai_advanced.c:2428-2570), single battle. 登记: HasUsedMoveWithEffect(Magic Coat). */
+    private static int increaseEntryHazards(AiCtx ctx, int viability, int cls, Battler atk, Battler def, BattleMove move) {
+        int monsLeft = AiUtil.benchAlive(ctx.battle, def) + 1;
+        boolean worth = monsLeft != 2;                                                                       // IsWorthSettingHazards
+        String f = move.function();
+        BattleSide side = def.pbOwnSide();
+        switch (cls) {
+            case AiCalc.CLASS_SWEEPER_KILL: return viability;
+            case AiCalc.CLASS_SWEEPER_SETUP_STATS: case AiCalc.CLASS_SWEEPER_SETUP_STATUS:
+                return worth ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
+            case AiCalc.CLASS_STALL: case AiCalc.CLASS_CLERIC: case AiCalc.CLASS_SCREENS: case AiCalc.CLASS_SWEEPER_SETUP_SCREENS:
+                return incStatus(ctx, viability, cls, worth ? 2 : 1, atk, def);
+            case AiCalc.CLASS_BATON_PASS: {
+                // effect == EFFECT_SPIKES for every function in this case
+                if (AiCalc.moveWouldHitFirst(ctx, move, atk, def)) {
+                    if (!AiCalc.canKnockOut(ctx, def, atk) && !AiCalc.willFaintFromSecondaryDamage(ctx.battle, atk)) return inc(viability, 4);
+                } else if (!AiCalc.can2HKO(ctx, def, atk)) {
+                    return inc(viability, 4);
+                }
+                return viability;
+            }
+            case AiCalc.CLASS_PHAZING: {
+                boolean moreLayers = (AiCalc.named(move, "SPIKES") && side.effects.intVal(PBEffects.Side.Spikes) > 0)
+                        || (AiCalc.named(move, "TOXICSPIKES") && side.effects.intVal(PBEffects.Side.ToxicSpikes) > 0);
+                boolean otherHazard = (side.effects.intVal(PBEffects.Side.StealthRock) == 0 && AiCalc.moveFunctionInMoveset(atk, "105"))
+                        || (side.effects.intVal(PBEffects.Side.StickyWeb) == 0 && AiCalc.moveFunctionInMoveset(atk, "153"));
+                if (moreLayers && otherHazard) return incStatus(ctx, viability, cls, monsLeft == 2 ? 1 : 2, atk, def);
+                return incStatus(ctx, viability, cls, monsLeft == 2 ? 2 : 3, atk, def);
+            }
+            case AiCalc.CLASS_ENTRY_HAZARDS:
+                return inc(viability, f.equals("153") ? 7 : f.equals("105") ? 6 : f.equals("104") ? 5 : 4);
+            default: return viability;
         }
     }
 

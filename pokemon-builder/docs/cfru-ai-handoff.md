@@ -35,9 +35,13 @@ ShouldPhaze, IncreaseSleepViability, GetAmountToRecoverBy, CountUsefulStatChange
 drain, all stat raising/lowering moves, Haze, Roar, recovery, Rest, poison, Mist, Focus Energy, Confuse, Paralyze, Leech Seed, Snore/Sleep Talk, Laser Focus.
 Every `HasUsedMove*` history test is treated as false (no used-move history).
 
+## Batch 5 (done)
+`AiPositiveEffects` part 2 (ai_positives.c:1010-1760): Destiny Bond, Nightmare, Curse, Foresight/Miracle Eye, Perish Song, Swagger/Flatter, Attract, Safeguard,
+Rollout, Fury Cutter, Belly Drum, Sun/Rain/Sandstorm, Pursuit, Baton Pass class bonus, and entry hazards (`IncreaseEntryHazardsViability`).
+
 ## Not yet transcribed (explicit, in order of value)
 1. `AIScript_Negatives`: the cases listed as 登记 in `AiNegativeEffects` (Haze/Psych Up GOOD_AI branch, Bide, Roar, Conversion, Knock Off, Skill Swap family, Fling, Instruct, Court Change, Spite/Mimic/Disable/Encore/Sketch which need last-used-move history, Max-move/partner checks) and the ability cases of the preamble (ai_negatives.c:222-324).
-2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1010 on (Protect, hazards, weather, screens, Baton Pass/pivots, Taunt, Trick, Substitute, secondary-effect HIT cases, Explosion, ...) and the 登记 cases listed in `AiPositiveEffects`.
+2. `AIScript_Positives` per-effect `switch` from ai_positives.c:1760 on, plus Protect (`ShouldProtect`), screens (`ShouldSetUpScreens`), pivots (`ShouldPivot`), Substitute, Taunt, Trick, the secondary-effect HIT cases, Explosion, Mean Look/Trap (`ShouldTrap`), Heal Bell/Wish and the 登记 cases listed in `AiPositiveEffects`.
 3. Target-ability cases needing `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (ai_negatives.c:222-324).
 4. `BadIdeaToMakeContactWith`, `BetterToKOLastFoeMon`, `HasUsedMove` history, `usingDesperateMove`, `NoUsableHazardsInMoveset`,
    Focus Sash / Sturdy damage clamps, Parental Bond, `BracketCalc`, critical-hit chance in `AI_CalcDmg`.
