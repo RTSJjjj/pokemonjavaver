@@ -48,7 +48,8 @@ class AiPartnerTest {
                 + species("ABSORBER", 2, "ELECTRIC", 80, 80, 80, 40, "VOLTABSORB") + ","
                 + species("TRUANTER", 3, "NORMAL", 80, 80, 80, 40, "TRUANT") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + ","
-                + species("SLEEPLESS", 5, "NORMAL", 80, 80, 80, 40, "INSOMNIA") + "}}");
+                + species("SLEEPLESS", 5, "NORMAL", 80, 80, 80, 40, "INSOMNIA") + ","
+                + species("SUGARDEVOIR", 6, "NORMAL", 80, 80, 80, 40, "SACREDREBORN") + "}}");
         write(tempDir, "moves.json", "{\"total\":12,\"moves\":{"
                 + move("TACKLE", 40, "NORMAL", "Physical", "000", "NearOther", 0) + ","
                 + move("QUICKHIT", 40, "NORMAL", "Physical", "000", "NearOther", 0) + ","
@@ -69,6 +70,7 @@ class AiPartnerTest {
                 + "\"ELECTRIC\":{\"id\":13,\"internalName\":\"ELECTRIC\",\"name\":\"Electric\"}}}");
         write(tempDir, "abilities.json", "{\"total\":3,\"abilities\":{"
                 + "\"VOLTABSORB\":{\"id\":1,\"internalName\":\"VOLTABSORB\",\"name\":\"VOLTABSORB\"},"
+                + "\"SACREDREBORN\":{\"id\":5,\"internalName\":\"SACREDREBORN\",\"name\":\"SACREDREBORN\"},"
                 + "\"INSOMNIA\":{\"id\":4,\"internalName\":\"INSOMNIA\",\"name\":\"INSOMNIA\"},"
                 + "\"TRUANT\":{\"id\":2,\"internalName\":\"TRUANT\",\"name\":\"TRUANT\"},"
                 + "\"NONE\":{\"id\":3,\"internalName\":\"NONE\",\"name\":\"NONE\"}}}");
@@ -379,5 +381,22 @@ class AiPartnerTest {
         assertTrue(AiCalc.abilityTraps(holder, victim));
         victim.ability = "DSOVERLORD";
         assertFalse(AiCalc.abilityTraps(holder, victim));
+    }
+
+    @Test
+    @DisplayName("Sacred Reborn: the Pokemon that has just fainted comes back once with half HP (BattleHandlers_Abilities.rb:4428)")
+    void rebornRevivesOnce() {
+        Battle b = doubles(mon("SUGARDEVOIR", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler target = b.battlerAt(1);
+        Battler user = b.battlerAt(0);
+        target.pokemon.ability = "SACREDREBORN";
+        target.ability = "SACREDREBORN";
+        target.hp = 0;
+        BattleHandlers.triggerTargetAbilityOnHit("SACREDREBORN", user, target, user.moveSlot(0), b);
+        assertEquals(target.maxHp() / 2, target.hp);
+        assertTrue(target.reborn());
+        target.hp = 0;
+        BattleHandlers.triggerTargetAbilityOnHit("SACREDREBORN", user, target, user.moveSlot(0), b);
+        assertEquals(0, target.hp, "only once per battle");
     }
 }

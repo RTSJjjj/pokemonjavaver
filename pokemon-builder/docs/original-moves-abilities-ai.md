@@ -60,4 +60,6 @@ Still open: **MURKYMIST** (1D6 is a damaging move; "our side wrapped in smoke, p
 - New switch rule `AiSwitching.statusImmuneSwitch` (project extension): a foe predicted to use, or that has used, a sleep / poison / paralysis / burn move is answered by a bench Pokemon whose
   ability blocks that status through the engine's StatusImmunityAbility handlers (Insomnia, Vital Spirit, Sweet Veil, Limber, Immunity, Water Veil, Purifying Salt, Playful Heart, Rain Curtain...).
   Same cooldown as the type-absorb switch; not right after switching in; not if the user is already statused or immune.
-- Reborn abilities (SACREDREBORN = SUGARDEVOIR only, ABYSSREBORN = SUJINRAKU only): the plugin's revive code is a 登记 in the Java port (the handler does nothing), so there is nothing for the AI to rank yet.
+- Reborn abilities (SACREDREBORN = SUGARDEVOIR only, ABYSSREBORN = SUJINRAKU only): the engine now revives (`AbilitiesOnHit.reborn`, transcribed from rb:4431-4446: once per battle, half HP,
+  status and confusion cured; only the animation calls stay 登记), and the AI treats them like Disguise in `AiCalc.knocksOutXHits` (one hit wasted, until the Pokemon has used its revive).
+- Owner decision: MURKYMIST (1D6) and ABYSSSHADOW (1B2) are left as they are.

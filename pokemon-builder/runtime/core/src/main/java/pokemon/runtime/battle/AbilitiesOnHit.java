@@ -53,9 +53,8 @@ import pokemon.runtime.pokemon.PbsData;
  *     the assignment goes through {@link PendingApi#setForm(Battler, int)}
  *     (already present for HUNGERSWITCH, BattleHandlers_Abilities:2312).</li>
  * <li>{@code battle.choices[user.index][4]} - :602 (DAZZLING): the priority {@link BattleAttackPhase} saved.</li>
- * <li>{@code target.reborn?}/{@code setReborn} + {@code battle.scene.pbReborn1Battler/pbReborn2Battler}
- *     - :4431-4461, :4454-4465: the plugin's revive system + scene; both
- *     SACREDREBORN/ABYSSREBORN bodies are registered in full as a comment.</li>
+ * <li>{@code battle.scene.pbReborn1Battler/pbReborn2Battler} - :4433, :4438, :4456, :4461: the revive animation only;
+ *     the revive itself ({@code reborn(..)} below) is implemented.</li>
  * <li>{@code pbWait(20)} - :1436, :1459 (the scene's frame wait).</li>
  * </ul>
  *
@@ -1067,39 +1066,38 @@ final class AbilitiesOnHit {
 
         BattleHandlers.TargetAbilityOnHit.add("SACREDREBORN", (ability, user, target, move, battle) -> {
             // BattleHandlers_Abilities.rb:4428-4449
-            // 登记: BattleHandlers_Abilities:4430-4447 - the plugin's revive system:
-            //   :4430 next if !target.isSpecies?(:SUGARDEVOIR)
-            //   :4431 if target.fainted? && !target.reborn?
-            //   :4432   target.setReborn
-            //   :4433   battle.scene.pbReborn1Battler(target)
-            //   :4434   battle.pbDisplayPaused("{1}倒下了...？")
-            //   :4435   pbWait(20)
-            //   :4437   battle.pbShowAbilitySplash(target)
-            //   :4438   battle.scene.pbReborn2Battler(target)
-            //   :4440   target.pbRecoverHP(target.totalhp/2,false)
-            //   :4441   target.pbCureStatus(false)
-            //   :4442   target.pbCureConfusion
-            //   :4444   battle.pbDisplay("<c3=FFCCCC,FF0000>{1}从濒死中复活了！</c3>")
-            //   :4446   battle.pbHideAbilitySplash(target)
+            if (!target.isSpecies("SUGARDEVOIR")) {                              // :4430
+                return;
+            }
+            reborn(target, battle);
         });
 
         BattleHandlers.TargetAbilityOnHit.add("ABYSSREBORN", (ability, user, target, move, battle) -> {
             // BattleHandlers_Abilities.rb:4451-4472
-            // 登记: BattleHandlers_Abilities:4453-4469 - the plugin's revive system:
-            //   :4453 next if !target.isSpecies?(:SUJINRAKU)
-            //   :4454 if target.fainted? && !target.reborn?
-            //   :4455   target.setReborn
-            //   :4456   battle.scene.pbReborn1Battler(target)
-            //   :4457   battle.pbDisplayPaused("{1}倒下了...？")
-            //   :4458   pbWait(20)
-            //   :4460   battle.pbShowAbilitySplash(target)
-            //   :4461   battle.scene.pbReborn2Battler(target)
-            //   :4463   target.pbRecoverHP(target.totalhp/2,false)
-            //   :4464   target.pbCureStatus(false)
-            //   :4465   target.pbCureConfusion
-            //   :4467   battle.pbDisplay("<c3=FFCCCC,FF0000>{1}从濒死中复活了！</c3>")
-            //   :4469   battle.pbHideAbilitySplash(target)
+            if (!target.isSpecies("SUJINRAKU")) {                                // :4453
+                return;
+            }
+            reborn(target, battle);
         });
+    }
+
+    /**
+     * The shared body of SACREDREBORN / ABYSSREBORN (BattleHandlers_Abilities.rb:4431-4446 / :4454-4469): a Pokemon that has just
+     * fainted comes back once per battle with half its HP, status and confusion cured.
+     * 登记: the scene calls (:4433 pbReborn1Battler, :4438 pbReborn2Battler) and pbWait(20) - animation only.
+     */
+    private static void reborn(Battler target, Battle battle) {
+        if (!target.fainted() || target.reborn()) {                              // :4431
+            return;
+        }
+        target.setReborn();                                                      // :4432
+        battle.display(target.pbThis() + "倒下了...？");                          // :4434
+        battle.showAbilitySplash(target);                                        // :4437
+        target.pbRecoverHP(target.maxHp() / 2, false, false);                  // :4440
+        target.pbCureStatus(false);                                              // :4441
+        target.pbCureConfusion();                                                // :4442
+        battle.display(target.pbThis() + "从濒死中复活了！");                     // :4444
+        battle.hideAbilitySplash(target);                                        // :4446
     }
 
     // ==================================================================

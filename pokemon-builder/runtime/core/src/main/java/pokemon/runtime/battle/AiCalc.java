@@ -386,6 +386,10 @@ final class AiCalc {
         else if (def.form() == 0 && ((def.isSpecies("MIMIKYU") && def.hasActiveAbility("DISGUISE"))
                 || ((def.isSpecies("KABLIT") || def.isSpecies("FLAMBLOOM") || def.isSpecies("BLAZEPHEX")) && def.hasActiveAbility("FLAMEVEIL")))   // Flame Veil = Disguise
                 && !atk.hasMoldBreaker() && !move.statusMove() && numHits > 0) numHits -= 1;       // :1207 IsAffectedByDisguse
+        // Sacred / Abyss Reborn are "Disguise" for the AI: one hit is wasted on it like a Disguise (the KO is undone once per battle; not for a Pokemon that already used it)
+        if (!atk.hasMoldBreaker() && !move.statusMove() && numHits > 0 && !def.reborn()
+                && ((def.isSpecies("SUGARDEVOIR") && def.hasActiveAbility("SACREDREBORN"))
+                || (def.isSpecies("SUJINRAKU") && def.hasActiveAbility("ABYSSREBORN")))) numHits -= 1;
         if (chargesFirst(battle, move) && numHits > 0) numHits -= 1;                                // :1213
         if (move.function().equals("0E0")) {                                                         // :1219 EFFECT_EXPLOSION
             if (numHits > 0) numHits = 1;
