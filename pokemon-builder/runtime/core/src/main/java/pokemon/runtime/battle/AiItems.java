@@ -15,11 +15,10 @@ import pokemon.runtime.pokemon.ItemUse;
  * have; the plugin's own item AI works on item names and is what {@code pbDefaultChooseEnemyCommand}
  * (142_PokeBattle_AI.rb:168-170) calls.</p>
  *
- * <p>登记: the handlers {@code ItemHandlers.triggerCanUseInBattle} / {@code BattleUseOnBattler}
- * (PItem_BattleItemEffects) are not in the plugin source available here. "Can use" is read as: HP items need missing HP,
- * status cures need that status, X items need the stat below +6; the effect itself is {@link ItemUse}'s amount for
- * healing, the status cured, or the stat/stages of the plugin's own {@code xItems} table. Their per-item messages
- * are not shown (only {@code pbUseItemMessage}).</p>
+ * <p>The item effects are transcribed from 190_PItem_BattleItemEffects.rb ({@code CanUseInBattle}, {@code BattleUseOnPokemon},
+ * {@code BattleUseOnBattler}). 登记: its helpers {@code pbBattleHPItem}, {@code pbBattleItemCanCureStatus?} and
+ * {@code pbBattleItemCanRaiseStat?} are defined in a section that is not exported; they are read in their standard Essentials
+ * meaning (HP restored through {@code pbRecoverHP}, "status equals the cured status", "{@code pbCanRaiseStatStage?}").</p>
  */
 final class AiItems {
 
@@ -144,6 +143,7 @@ final class AiItems {
         for (String i : items) {                                                             // :153
             if (i == null) continue;
             if (user.pokemon.egg || user.effects.intVal(PBEffects.Battler.Embargo) > 0) continue;   // :155 pbCanUseItemOnPokemon?
+            if (!canUseInBattle(i, user)) continue;                                          // :156 ItemHandlers.triggerCanUseInBattle
             if (lostHp > 0) {                                                                // :158
                 int power = hpItemPower(i, user);
                 if (power >= 0) {
@@ -170,7 +170,7 @@ final class AiItems {
                 }
             }
             int[] xi = xItem(i);                                                             // :199
-            if (xi != null && user.stage(xi[0]) < 6) {
+            if (xi != null) {
                 x.add(new Candidate(i, user.stage(xi[0]), xi[1]));
             }
         }
@@ -214,21 +214,91 @@ final class AiItems {
         return true;
     }
 
+    private static boolean isHpItem(String id) {
+        return battleHeal(id, null) != 0 || id.equals("MAXPOTION");
+    }
+
+    /** The amount each {@code BattleUseOnPokemon} HP handler restores (190:262-314); MAXPOTION restores everything, SITRUSBERRY a quarter. */
+    private static int battleHeal(String id, Battler b) {
+        switch (id) {
+            case "POTION": case "BERRYJUICE": return 20;
+            case "SWEETHEART": return 80;
+            case "SUPERPOTION": return 50;
+            case "HYPERPOTION": return 200;
+            case "MAXPOTION": return b == null ? 1 : b.maxHp() - b.hp;
+            case "FRESHWATER": return 50;
+            case "SODAPOP": return 60;
+            case "LEMONADE": return 80;
+            case "MOOMOOMILK": return 100;
+            case "ORANBERRY": return 10;
+            case "SITRUSBERRY": return b == null ? 1 : b.maxHp() / 4;
+            case "CIDER": return 50;
+            case "MIXEDBEVERAGES": return 100;
+            case "WWINE": return 150;
+            case "ENERGYPOWDER": return 50;
+            case "ENERGYROOT": return 200;
+            default: return 0;
+        }
+    }
+
+    private static String cureStatusOf(String id) {
+        for (String[] row : ONE_STATUS) for (int i = 1; i < row.length; i++) if (row[i].equals(id)) return row[0];
+        return null;
+    }
+
+    private static boolean isFullHealType(String id) {
+        return id.equals("FULLHEAL") || contains(ALL_STATUS, id);
+    }
+
+    /** {@code ItemHandlers.triggerCanUseInBattle} (190:1-236) for the items the AI knows. */
+    static boolean canUseInBattle(String id, Battler b) {
+        boolean able = !b.fainted();
+        boolean confused = b.effects.intVal(PBEffects.Battler.Confusion) > 0;
+        if (isHpItem(id)) return able && b.hp != b.maxHp();                                 // :70-81
+        String cure = cureStatusOf(id);
+        if (cure != null) {
+            if (id.equals("BLUEFLUTE") && b.hasActiveAbility("SOUNDPROOF")) return false;   // :80-86
+            return able && b.hasStatus(cure);                                                // pbBattleItemCanCureStatus?
+        }
+        if (isFullHealType(id)) return able && (hasStatus(b) || confused);                   // :113-126
+        if (id.equals("FULLRESTORE")) return able && !(b.hp == b.maxHp() && !hasStatus(b) && !confused);   // :130-138
+        int[] xi = xItem(id);
+        if (xi != null) return b.pbCanRaiseStatStage(xi[0], b);                              // pbBattleItemCanRaiseStat?
+        return false;
+    }
+
     /** One opposing {@code :UseItem} of {@code pbAttackPhaseItems} (139:74-90) + {@code pbUseItemOnPokemon} (135:83-97). */
     static void use(Battle battle, Battler user, String item) {
         user.lastMoveFailed = false;                                                         // 139:75
         pokemon.runtime.pokemon.PbsData.Item data = battle.pbs() == null ? null : battle.pbs().item(item);
         String name = data == null ? item : data.name;
         battle.displayBrief(battle.pbGetOwnerName(user.index) + "使用了" + name + "。");           // 135:77-80 pbUseItemMessage
-        int amount = ItemUse.healValue(item, user.pokemon);
+        if (!canUseInBattle(item, user)) {                                                   // 135:89 triggerCanUseInBattle with showMessages
+            battle.display("这没有任何效果…");
+            battle.foeItems.add(item);                                                       // 135:95 pbReturnUnusedItemToBag
+            battle.choices(user.index)[1] = "";
+            return;
+        }
         int[] xi = xItem(item);
-        if (xi != null) {
+        String cure = cureStatusOf(item);
+        if (xi != null) {                                                                    // 190:480-: BattleUseOnBattler X items
             user.pbRaiseStatStage(xi[0], xi[1], user);
+        } else if (cure != null) {                                                           // 190:316-: single-status cures
+            user.pbCureStatus(false);
+            String[] msg = {"SLEEP", "{1}醒来了！", "POISON", "{1}的毒被消去了！", "BURN", "{1}的灼伤被治愈了！",
+                    "PARALYSIS", "{1}的麻痹被解除了！", "FREEZE", "{1}不再被冰冻了"};
+            for (int i = 0; i < msg.length; i += 2) if (msg[i].equals(cure)) battle.display(msg[i + 1].replace("{1}", user.pbThis()));
+        } else if (isFullHealType(item)) {                                                   // 190:354-: Full Heal family
+            user.pbCureStatus(false);
+            user.pbCureConfusion();
+            battle.display(user.pbThis() + "恢复健康了。");
+        } else if (item.equals("FULLRESTORE")) {                                             // 190:376-
+            user.pbCureStatus(false);
+            user.pbCureConfusion();
+            if (user.hp < user.maxHp()) user.pbRecoverHP(user.maxHp());                      // pbBattleHPItem(pokemon,battler,totalhp)
+            else battle.display(user.pbThis() + "恢复健康了。");
         } else {
-            if (amount > 0 && user.hp < user.maxHp()) user.pbRecoverHP(amount);
-            if (hasStatus(user) && (item.equals("FULLRESTORE") || contains(ALL_STATUS, item) || oneStatusMatches(item, user))) {
-                user.pbCureStatus();
-            }
+            user.pbRecoverHP(battleHeal(item, user));                                        // pbBattleHPItem
         }
         battle.choices(user.index)[1] = "";                                                  // 135:91 ch[1]=0
     }

@@ -578,7 +578,7 @@ final class AiCalc {
     /** {@code IsMoxieAbility(ability)}. */
     static boolean isMoxie(String ability) {
         return "MOXIE".equals(ability) || "BEASTBOOST".equals(ability) || "CHILLINGNEIGH".equals(ability)
-                || "GRIMNEIGH".equals(ability) || "ASONE".equals(ability);
+                || "GRIMNEIGH".equals(ability) || "ASONEGHOST".equals(ability);
     }
 
     /** {@code CanHealFirstToPreventKnockOut(bankAtk,foe)} (ai_util.c:2478): a healing move that goes first and keeps the foe from a KO. */
