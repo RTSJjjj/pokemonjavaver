@@ -37,7 +37,7 @@ final class AiPositives {
             viability = damageMoveViabilityIncrease(ctx, atk, def, move, viability, cls, predictedMove, atkAbility, defAbility);
         }
         // :2728-2736 STATUS1_FREEZE unfreeze: this project has no FROSTBITE, so a frozen attacker prefers a thawing move.
-        if (atk.hasStatus("FROZEN") && AiCalc.has(move, 'g')) viability += 10;                       // INCREASE_VIABILITY(10) (single battle)
+        if (atk.hasStatus("FROZEN") && AiCalc.has(move, 'g')) viability += ctx.battle.singleBattle() ? 10 : 20;   // INCREASE_VIABILITY(10), 20 in a double battle
         return Math.min(viability, 255);                                                             // :2738
     }
 

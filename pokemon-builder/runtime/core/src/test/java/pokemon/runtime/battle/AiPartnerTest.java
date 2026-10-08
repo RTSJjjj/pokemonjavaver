@@ -230,4 +230,27 @@ class AiPartnerTest {
         int score = AiPositives.score(ctx, user, b.battlerAt(0), user.moveSlot(0), 100);
         assertTrue(ctx.prediction(b.battlerAt(0)) == null || score >= 100);
     }
+
+    @Test
+    @DisplayName("a Trick Room user that is slower than the foes scores +19 as a doubles Trick Room class (ai_positives.c:2423)")
+    void trickRoomForADoublesTrickRoomer() {
+        Battle b = doubles(mon("FAT", 50, "TRICKROOM", "TACKLE"), mon("FAT", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler user = b.battlerAt(1);
+        AiCtx ctx = AiMaster.prepare(b, user, b.battlerAt(0), new Random(1));
+        assertEquals(AiCalc.CLASS_D_TRICK_ROOM_SETUP, AiCalc.fightingStyle(ctx, user));
+        assertTrue(AiPositives.score(ctx, user, b.battlerAt(0), user.moveSlot(0), 100) >= 119);
+        b.field.effects.set(PBEffects.Field.TrickRoom, 5);
+        assertEquals(100, AiPositives.score(AiMaster.prepare(b, user, b.battlerAt(0), new Random(1)), user, b.battlerAt(0), user.moveSlot(0), 100),
+                "no point while Trick Room is already up");
+    }
+
+    @Test
+    @DisplayName("Tailwind is worth a lot to a doubles team-support Pokemon (IncreaseTailwindViability, ai_advanced.c:2972)")
+    void tailwindForTeamSupport() {
+        Battle b = defaultDoubles(mon("HERO", 50, "TAILWIND", "REFLECT"), mon("HERO", 50, "TACKLE"));
+        Battler user = b.battlerAt(1);
+        AiCtx ctx = AiMaster.prepare(b, user, b.battlerAt(0), new Random(1));
+        assertEquals(AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT, AiCalc.fightingStyle(ctx, user));
+        assertTrue(AiPositives.score(ctx, user, b.battlerAt(0), user.moveSlot(0), 100) >= 118);
+    }
 }

@@ -498,6 +498,19 @@ final class AiPositiveHelpers {
     /** {@code ShouldPhaze(bankAtk,bankDef,move,class)} (ai_advanced.c:1198-1262), single battle. */
     static boolean shouldPhaze(AiCtx ctx, Battler atk, Battler def, BattleMove move, int cls) {
         if (AiNegativeEffects.canKnockOutWithoutMove(ctx, move, atk, def)) return false;
+        if (AiDoublesScore.isDouble(ctx.battle, atk)) {                                              // Double Battle (ai_advanced.c:1371)
+            BattleSide dside = def.pbOwnSide();
+            switch (move.function()) {
+                case "0EB":
+                    return AiCalc.classPhazer(cls) && (dside.effects.intVal(PBEffects.Side.StealthRock) > 0
+                            || dside.effects.intVal(PBEffects.Side.ToxicSpikes) >= 1 || dside.effects.intVal(PBEffects.Side.Spikes) >= 1
+                            || anyUsefulStatIsRaised(ctx, def, atk));
+                case "051":
+                    return false;                                                                   // Haze: false whether or not the partner would lose its boosts
+                default:
+                    return anyUsefulStatIsRaised(ctx, def, atk);
+            }
+        }
         if (AiCalc.canKnockOut(ctx, atk, def)) return false;
         int perish = def.effects.intVal(PBEffects.Battler.PerishSong);
         if (perish > 0) {

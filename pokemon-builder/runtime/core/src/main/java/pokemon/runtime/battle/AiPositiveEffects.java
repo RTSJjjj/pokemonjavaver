@@ -44,7 +44,7 @@ final class AiPositiveEffects {
                 if (chance < 75 || blocked || !AiCalc.moveWillHit(battle, atk, def, move)) return viability;
             } else if (f.equals("044")) {
                 if (chance < 50 || blocked) return viability;
-            } else if (AiCalc.classDamager(cls) || chance < 50 || blocked) {                     // STAT_DOWN_HIT_CHECK
+            } else if (!AiDoublesScore.isDouble(ctx.battle, atk) ? (AiCalc.classDamager(cls) || chance < 50 || blocked) : true) {   // STAT_DOWN_HIT_CHECK needs IS_SINGLE_BATTLE
                 return viability;
             }
         }
@@ -59,7 +59,9 @@ final class AiPositiveEffects {
                 }
                 if (AiPositiveHelpers.shouldRecover(ctx, atk, def, move)) {                         // AI_DRAIN_HP_CHECK
                     if (AiCalc.classStall(cls)) viability = incStatus(ctx, viability, cls, 2, atk, def);
-                    else viability = inc(viability, 3);                                             // IS_SINGLE_BATTLE: past strongest move
+                    else if (cls == AiCalc.CLASS_D_TRICK_ROOM_SETUP) viability = inc(viability, 16);
+                    else if (!AiDoublesScore.isDouble(battle, atk)) viability = inc(viability, 3);  // IS_SINGLE_BATTLE: past strongest move
+                    else viability = AiDoublesScore.increaseDamageToScore(ctx, viability, cls, 5, atk, def);
                 }
                 return viability;
             }
@@ -192,6 +194,16 @@ final class AiPositiveEffects {
             case "043": case "04C":
                 return AiPositiveHelpers.goodIdeaToLowerDefense(ctx, def, atk, move) ? incStatus(ctx, viability, cls, 1, atk, def) : viability;
             case "044":
+                if (!move.statusMove()) {                                                          // EFFECT_SPEED_DOWN_HIT (:836)
+                    if (!AiDoublesScore.isDouble(ctx.battle, atk)) {
+                        return AiPositiveHelpers.goodIdeaToLowerSpeed(ctx, def, atk, move, 1) ? inc(viability, 3) : viability;
+                    }
+                    if (!def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY"}) && !defAbility.equals("CONTRARY")
+                            && def.stage(PBStats.SPEED) > -6) {
+                        return AiDoublesScore.increaseSpeedControl(ctx, viability, cls, atk, def)[0];
+                    }
+                    return viability;
+                }
                 return AiPositiveHelpers.goodIdeaToLowerSpeed(ctx, def, atk, move, 1) ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
             case "04D":
                 return AiPositiveHelpers.goodIdeaToLowerSpeed(ctx, def, atk, move, 2) ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
@@ -215,7 +227,9 @@ final class AiPositiveEffects {
 
             case "051": {                                                                          // EFFECT_HAZE (:640)
                 if (AiPositiveHelpers.shouldPhaze(ctx, atk, def, move, cls)) {
-                    if (cls == AiCalc.CLASS_PHAZING) viability = inc(viability, 8);
+                    if (cls == AiCalc.CLASS_D_PHAZING) viability = inc(viability, 15);
+                    else if (AiCalc.classPhazer(cls)) viability = inc(viability, 8);
+                    else if (cls == AiCalc.CLASS_D_SETUP_ATTACKER) viability = inc(viability, 12);
                     else viability = incStatus(ctx, viability, cls, 2, atk, def);
                 } else if (AiPositiveHelpers.countUsefulStatChanges(ctx, atk, atk, def, true) > 0) {
                     viability = incStatus(ctx, viability, cls, 1, atk, def);                      // reset lowered stats
@@ -224,7 +238,9 @@ final class AiPositiveEffects {
             }
             case "0EB": {                                                                          // EFFECT_ROAR (:660)
                 if (!AiCalc.blockedBySubstitute(move, atk, def) && AiPositiveHelpers.shouldPhaze(ctx, atk, def, move, cls)) {
-                    if (cls == AiCalc.CLASS_PHAZING) {
+                    if (cls == AiCalc.CLASS_D_PHAZING) {
+                        viability = inc(viability, 16);
+                    } else if (cls == AiCalc.CLASS_PHAZING) {
                         viability = AiCalc.canKnockOut(ctx, def, atk) && move.priority() < 0 ? inc(viability, 1) : inc(viability, 8);
                     } else {
                         viability = incStatus(ctx, viability, cls, 2, atk, def);
@@ -249,32 +265,28 @@ final class AiPositiveEffects {
                 return viability;
             }
 
-            case "005": case "006": {                                                              // EFFECT_POISON / TOXIC (:729)
+            case "005": case "006": {                                                              // EFFECT_POISON / TOXIC (:674)
                 if (!badIdeaToPoison(ctx, def, atk)) {
-                    if (AiCalc.named(move, "VENOSHOCK") || AiCalc.moveFunctionInMoveset(atk, "07B", "140") || atkAbility.equals("MERCILESS")) {
+                    if (AiCalc.moveFunctionInMoveset(atk, "07B", "209", "140") || atkAbility.equals("MERCILESS")) {   // Venoshock, Barb Barrage, Venom Drench
                         viability = incStatus(ctx, viability, cls, 2, atk, def);
+                    } else if (AiCalc.doubleDamageWithStatusMoveByTeam(ctx, atk, def) && AiCalc.moveFunctionInMoveset(atk, "00A")
+                            && (!AiCalc.physicalMoveInMoveset(ctx, def) || badIdeaToBurn(ctx, def, atk) || defAbility.equals("FLASHFIRE"))) {
+                        viability = incStatus(ctx, viability, cls, 2, atk, def);                  // preferably burn a physical attacker
                     } else {
                         viability = incStatus(ctx, viability, cls, 1, atk, def);                  // AI enjoys poisoning
                     }
                 }
                 return viability;
             }
-            case "056":                                                                            // EFFECT_MIST (:756)
-                if (cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_SWEEPER_SETUP_SCREENS) viability = inc(viability, 6);
-                return viability;
-            case "023":                                                                            // EFFECT_FOCUS_ENERGY (:769)
-                return incStatus(ctx, viability, cls, atkAbility.equals("SUPERLUCK") || atkAbility.equals("SNIPER") || atk.hasActiveItem("SCOPELENS") ? 2 : 1, atk, def);
-            case "013": {                                                                          // EFFECT_CONFUSE (:778)
-                if (AiCalc.canBeConfused(battle, def, atk)) {
-                    boolean boost = def.hasStatus("PARALYSIS") || def.effects.intVal(PBEffects.Battler.Attract) >= 0;
-                    viability = incStatus(ctx, viability, cls, boost ? 2 : 1, atk, def);
-                }
-                return viability;
-            }
-            case "007": {                                                                          // EFFECT_PARALYZE (:821) 登记: IncreaseViabilityForSpeedControl, flinch moves
+            case "007": {                                                                          // EFFECT_PARALYZE (:801)
                 if (!badIdeaToParalyze(ctx, def, atk)) {
+                    int[] speedControl = AiDoublesScore.increaseSpeedControl(ctx, viability, cls, atk, def);
+                    viability = speedControl[0];
+                    if (speedControl[1] == 1) return viability;
                     boolean goFirstAfter = defSpeed >= atkSpeed && defSpeed / 2 < atkSpeed;
-                    boolean boost = goFirstAfter || def.effects.intVal(PBEffects.Battler.Attract) >= 0 || def.effects.intVal(PBEffects.Battler.Confusion) > 0;
+                    boolean boost = goFirstAfter || AiCalc.doubleDamageWithStatusMoveByTeam(ctx, atk, def)
+                            || AiCalc.moveFunctionInMoveset(atk, "00F", "010", "011", "012")           // FlinchingMoveInMoveset
+                            || def.effects.intVal(PBEffects.Battler.Attract) >= 0 || def.effects.intVal(PBEffects.Battler.Confusion) > 0;
                     viability = incStatus(ctx, viability, cls, boost ? 2 : 1, atk, def);
                 }
                 return viability;
@@ -362,7 +374,20 @@ final class AiPositiveEffects {
                 boolean boost = def.statused() || def.effects.intVal(PBEffects.Battler.Confusion) > 0 || isTrapped(def);
                 return incStatus(ctx, viability, cls, boost ? 2 : 1, atk, def);
             }
-            case "01A": {                                                                          // EFFECT_SAFEGUARD (:1476)
+            case "056":                                                                            // EFFECT_MIST (:734)
+                if (!AiDoublesScore.isDouble(battle, atk)) {
+                    if (cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_SWEEPER_SETUP_SCREENS) viability = inc(viability, 6);
+                } else if (AiCalc.classDoublesTeamSupport(cls) && AiDoublesScore.foes(battle, atk).size() > 1) {
+                    viability = inc(viability, 8);                                                 // just try to kill the last foe
+                }
+                return viability;
+            case "110": case "049":                                                                // EFFECT_RAPID_SPIN: Rapid Spin, Defog (:1553)
+                return rapidSpin(ctx, atk, def, move, viability, cls);
+            case "01A": {                                                                          // EFFECT_SAFEGUARD (:1483)
+                if (AiDoublesScore.isDouble(battle, atk)) {
+                    if (AiCalc.classDoublesTeamSupport(cls) && AiDoublesScore.foes(battle, atk).size() > 1) viability = inc(viability, 8);
+                    return viability;
+                }
                 boolean teamSupport = cls == AiCalc.CLASS_BATON_PASS || cls == AiCalc.CLASS_CLERIC || cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_PHAZING;
                 if (teamSupport && !(battle.terrain() == PBBattleTerrains.Misty && !atk.airborne())) viability = incStatus(ctx, viability, cls, 1, atk, def);
                 return viability;
@@ -400,7 +425,12 @@ final class AiPositiveEffects {
                             || AiCalc.moveFunctionInMoveset(def, "008", "015") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL") || AiCalc.named(firstNamed(atk, "GROWTH"), "GROWTH")
                             || AiCalc.damagingTypeInMoveset(ctx, atk, "FIRE") || AiCalc.damagingTypeInMoveset(ctx, def, "WATER") || atk.hasActiveItem("HEATROCK"));
                 }
-                return useful ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
+                String speedAbility = f.equals("101") ? "SANDRUSH" : f.equals("100") ? "SWIFTSWIM" : "CHLOROPHYLL";
+                if (cls == AiCalc.CLASS_D_SETUP_ATTACKER && atkAbility.equals(speedAbility)) {            // the weather doubles its Speed: like Tailwind
+                    return AiDoublesScore.increaseTailwind(ctx, viability, cls, atk, def);
+                }
+                if (!useful) return viability;
+                return AiCalc.classDoublesTeamSupport(cls) ? inc(viability, 17) : incStatus(ctx, viability, cls, 2, atk, def);
             }
             case "088": {                                                                          // EFFECT_PURSUIT (:1520)
                 if (AiCalc.classSweeper(cls)) {
@@ -437,22 +467,30 @@ final class AiPositiveEffects {
             case "102": {                                                                          // EFFECT_HAIL (:1773)
                 if (AiCalc.moveFunctionInMoveset(atk, "167")) {                                   // Aurora Veil usable
                     if (cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_SWEEPER_SETUP_SCREENS) return inc(viability, 8);
+                    if (AiCalc.classDoublesTeamSupport(cls)) return inc(viability, 17);
+                    return viability;                                                              // the other branches belong to the else of this if
+                }
+                if (cls == AiCalc.CLASS_D_SETUP_ATTACKER && atkAbility.equals("SLUSHRUSH")) {
+                    return AiDoublesScore.increaseTailwind(ctx, viability, cls, atk, def);
                 }
                 if (atkAbility.equals("SNOWCLOAK") || atkAbility.equals("ICEBODY") || atkAbility.equals("FORECAST") || atkAbility.equals("SLUSHRUSH")
                         || atkAbility.equals("MAGICGUARD") || atkAbility.equals("OVERCOAT") || AiCalc.named(firstNamed(atk, "BLIZZARD"), "BLIZZARD")
-                        || AiCalc.moveFunctionInMoveset(atk, "167") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
+                        || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
                         || AiCalc.moveFunctionInMoveset(def, "0D8") || atk.hasActiveItem("ICYROCK")) {
-                    viability = incStatus(ctx, viability, cls, 2, atk, def);
+                    viability = AiCalc.classDoublesTeamSupport(cls) ? inc(viability, 17) : incStatus(ctx, viability, cls, 2, atk, def);
                 }
                 return viability;
             }
             case "0B7":                                                                            // EFFECT_TORMENT (:1810)
                 return incStatus(ctx, viability, cls, AiCalc.choiceLocked(def) ? 2 : 0, atk, def);
-            case "00A": {                                                                          // EFFECT_WILL_O_WISP (:1818)
+            case "00A": {                                                                          // EFFECT_WILL_O_WISP (:1823)
                 if (!badIdeaToBurn(ctx, def, atk)) {
-                    if (predicted != null && predicted.physical() && !predicted.statusMove() && AiCalc.knocksOutXHits(ctx, predicted, def, atk, 1)) {
+                    if ((cls == AiCalc.CLASS_D_UTILITY || AiCalc.classDoublesTeamSupport(cls)) && AiCalc.physicalMoveInMoveset(ctx, def)) {
+                        viability = inc(viability, 11);
+                    } else if (predicted != null && predicted.physical() && !predicted.statusMove() && AiCalc.knocksOutXHits(ctx, predicted, def, atk, 1)) {
                         viability = incStatus(ctx, viability, cls, 3, atk, def);
-                    } else if (AiCalc.physicalMoveInMoveset(ctx, def) || AiCalc.named(firstNamed(atk, "INFERNALPARADE"), "INFERNALPARADE")) {
+                    } else if (AiCalc.doubleDamageWithStatusMoveByTeam(ctx, atk, def) || AiCalc.named(firstNamed(atk, "INFERNALPARADE"), "INFERNALPARADE")
+                            || AiCalc.physicalMoveInMoveset(ctx, def)) {
                         viability = incStatus(ctx, viability, cls, 2, atk, def);
                     } else {
                         viability = incStatus(ctx, viability, cls, 1, atk, def);
@@ -467,8 +505,18 @@ final class AiPositiveEffects {
                     if (AiCalc.speed(atk) <= AiCalc.speed(def)) { if (def.statusCount > 2) return viability; }
                     else if (def.statusCount > 1) return viability;                                // wait until the last possible turn
                 }
+                if (AiCalc.choiceLocked(def) && def.effects.intVal(PBEffects.Battler.ChoiceBand) < 0) return viability;   // not locked yet: no point
                 if (predicted != null && predicted.statusMove() || goodToTaunt(AiCalc.fightingStyle(ctx, def))) {
                     return incStatus(ctx, viability, cls, 3, atk, def);
+                }
+                if (cls == AiCalc.CLASS_D_UTILITY && AiDoublesScore.hasProtectionMove(ctx, def, AiDoublesScore.CHECK_QUICK_GUARD | AiDoublesScore.CHECK_WIDE_GUARD)) {
+                    return inc(viability, 15);                                                     // taunt the Wide Guard user
+                }
+                if (AiCalc.classDoublesTeamSupport(cls) && AiDoublesScore.hasProtectionMove(ctx, def, AiDoublesScore.CHECK_QUICK_GUARD | AiDoublesScore.CHECK_WIDE_GUARD)) {
+                    return inc(viability, 13);
+                }
+                if ((cls == AiCalc.CLASS_D_TRICK_ROOM_ATTACKER || cls == AiCalc.CLASS_D_TRICK_ROOM_SETUP) && AiCalc.moveFunctionInMoveset(def, "11F")) {
+                    return inc(viability, 13);                                                     // taunt the Trick Room user
                 }
                 for (int i = 0; i < Battler.MOVES_MAX; i++) {                                      // StatusMoveInMoveset(bankDef)
                     BattleMove m = def.moveSlot(i);
@@ -498,7 +546,8 @@ final class AiPositiveEffects {
     /** {@code IsClassGoodToTaunt(class)} (ai_advanced.c:326). */
     private static boolean goodToTaunt(int c) {
         return c == AiCalc.CLASS_STALL || c == AiCalc.CLASS_SWEEPER_SETUP_SCREENS || c == AiCalc.CLASS_BATON_PASS || c == AiCalc.CLASS_CLERIC
-                || c == AiCalc.CLASS_SCREENS || c == AiCalc.CLASS_ENTRY_HAZARDS;
+                || c == AiCalc.CLASS_SCREENS || c == AiCalc.CLASS_ENTRY_HAZARDS || c == AiCalc.CLASS_D_TRICK_ROOM_SETUP
+                || c == AiCalc.CLASS_D_UTILITY || AiCalc.classDoublesTeamSupport(c);
     }
 
     /** {@code BadIdeaToBurn(bankDef,bankAtk)} (ai_util.c:2951), single battle. */
@@ -521,6 +570,10 @@ final class AiPositiveEffects {
     }
 
     /** {@code IsTrapped(bank,TRUE)} (ai_util.c): held in by a trapping move, Mean Look or a Ghost-type exemption. */
+    static boolean trappedPublic(Battler b) {
+        return isTrapped(b);
+    }
+
     private static boolean isTrapped(Battler b) {
         if (b.hasType("GHOST")) return false;
         return b.effects.intVal(PBEffects.Battler.MeanLook) >= 0 || b.effects.intVal(PBEffects.Battler.Trapping) > 0
@@ -608,6 +661,46 @@ final class AiPositiveEffects {
         return battle.trainerBattle && battle.pbTrainerCount(b.index & 1) > 1;
     }
 
+    /** The {@code EFFECT_RAPID_SPIN} case (ai_positives.c:1553-1597). 登记: {@code SIDE_STATUS_SPIKES} is read as the Spikes layers only. */
+    private static int rapidSpin(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls) {
+        Battle battle = ctx.battle;
+        boolean isDouble = AiDoublesScore.isDouble(battle, atk);
+        int viable = AiUtil.benchAlive(battle, atk) + (int) countFieldAlive(battle, atk);
+        if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Spikes) > 0) {
+            if ((!isDouble && viable >= 2) || (isDouble && viable >= 3)) {
+                return isDouble ? AiDoublesScore.increaseHelpingHand(viability, cls) : incStatus(ctx, viability, cls, 3, atk, def);
+            }
+        }
+        if (AiCalc.named(move, "DEFOG")) {
+            BattleSide ds = def.pbOwnSide();
+            if (ds.effects.intVal(PBEffects.Side.Reflect) > 0 || ds.effects.intVal(PBEffects.Side.LightScreen) > 0
+                    || ds.effects.intVal(PBEffects.Side.Safeguard) > 0 || ds.effects.intVal(PBEffects.Side.Mist) > 0
+                    || ds.effects.intVal(PBEffects.Side.AuroraVeil) > 0) {
+                return isDouble ? AiDoublesScore.increaseHelpingHand(viability, cls) : incStatus(ctx, viability, cls, 3, atk, def);
+            }
+            if (ds.effects.intVal(PBEffects.Side.Spikes) == 0) {                                   // do not blow away hazards you set up
+                if (isDouble) {
+                    Battler partner = AiDoublesScore.partner(battle, atk);
+                    BattleMove partnerMove = partner == null ? null : battle.chosenMove(partner.index);
+                    if (partnerMove != null && AiCalc.oneOf(partnerMove, "103", "104", "105", "153")
+                            && !AiCalc.wouldHitBefore(battle, move, atk, partnerMove, partner)) return viability;   // the partner sets up before the Defog
+                }
+                return AiPositiveHelpers.goodIdeaToLowerEvasion(ctx, def, atk) ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
+            }
+        } else if (AiCalc.calcDmg(battle, atk, def, move).typeMod != 0) {                         // Rapid Spin: not DOESNT_AFFECT_FOE
+            if (atk.effects.intVal(PBEffects.Battler.LeechSeed) != -1 || atk.effects.intVal(PBEffects.Battler.Trapping) > 0) {
+                return incStatus(ctx, viability, cls, 3, atk, def);
+            }
+        }
+        return viability;
+    }
+
+    private static long countFieldAlive(Battle battle, Battler b) {
+        long n = 0;
+        for (Battler o : battle.eachSameSideBattler(b.index)) if (!o.fainted()) n++;
+        return n;
+    }
+
     /** {@code IncreaseFakeOutViability(&viability,class,bankAtk,bankDef,move)} (ai_advanced.c:2584-2656). */
     static int increaseFakeOut(AiCtx ctx, int viability, int cls, Battler atk, Battler def, BattleMove move) {
         int decrement = 0;
@@ -643,7 +736,8 @@ final class AiPositiveEffects {
 
     /** {@code AI_RECOVER_VIABILITY_INCREASE:} (:701-709). */
     private static int recoverBoost(AiCtx ctx, Battler atk, Battler def, int viability, int cls) {
-        if (AiCalc.classStall(cls) || cls == AiCalc.CLASS_PHAZING) return inc(viability, 8);
+        if (AiCalc.classStall(cls) || AiCalc.classPhazer(cls)) return inc(viability, 8);
+        if (cls == AiCalc.CLASS_D_TRICK_ROOM_SETUP) return inc(viability, 16);
         return incStatus(ctx, viability, cls, 3, atk, def);
     }
 

@@ -46,6 +46,7 @@ final class AiPositiveMore {
                 if (shouldSetUpScreens(ctx, atk, def, move)) {
                     boolean veil = f.equals("167");
                     if (cls == AiCalc.CLASS_SCREENS || cls == AiCalc.CLASS_SWEEPER_SETUP_SCREENS) return viability + (veil ? 8 : 7);
+                    if (AiCalc.classDoublesTeamSupport(cls)) return inc(viability, 15);
                     return incStatus(ctx, viability, cls, 2, atk, def);
                 }
                 return viability;
@@ -508,7 +509,27 @@ final class AiPositiveMore {
                 || (b.stage(PBStats.SPATK) > 0 && AiCalc.specialMoveInMoveset(ctx, b)) || b.stage(PBStats.SPEED) > 0;
     }
 
+    /** {@code MoveSplitOnTeam(bank,SPLIT_PHYSICAL)}: some Pokemon of the side has a physical attack. */
+    private static boolean physicalOnTeam(Battle battle, Battler b) {
+        for (Battler m : battle.partyOf(b.index)) {
+            if (m == null || m.removedFromParty || m.fainted()) continue;
+            for (int i = 0; i < Battler.MOVES_MAX; i++) {
+                BattleMove mv = m.moveSlot(i);
+                if (mv != null && !mv.statusMove() && mv.physical()) return true;
+            }
+        }
+        return false;
+    }
+
     private static int pivot(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls) {
+        if (AiDoublesScore.isDouble(ctx.battle, atk)) {                                           // Double Battle (:1525)
+            if (AiUtil.benchAlive(ctx.battle, atk) == 0) return viability;                         // can't switch
+            if (atk.pokemon != null && "INTIMIDATE".equals(atk.pokemon.ability) && physicalOnTeam(ctx.battle, def)) {
+                if (cls == AiCalc.CLASS_D_UTILITY) return inc(viability, 16);
+                if (cls == AiCalc.CLASS_D_ALL_OUT_ATTACKER) return inc(viability, 18);
+            }
+            return viability;
+        }
         int should = shouldPivot(ctx, atk, def, move, cls);
         if (should == PIVOT) {                                                                     // IncreasePivotViability (ai_advanced.c:2658)
             switch (cls) {

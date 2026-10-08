@@ -65,17 +65,13 @@ final class AiPositiveItems {
                 if (AiCalc.classDamager(cls)) return AiPositiveHelpers.incStat(ctx, viability, cls, 3, atk, def, move, AiPositiveHelpers.ALL_STATS, 6);
                 return inc(viability, 3);
             }
-            case "11F": {                                                                          // MOVE_TRICKROOM (:2433), singles
-                if (!AiCalc.trickRoom(battle) && AiCalc.speed(atk) < AiCalc.speed(def)) return incStatus(ctx, viability, cls, 3, atk, def);
-                return viability;
-            }
             case "0F9": return incStatus(ctx, viability, cls, 1, atk, def);                       // MOVE_MAGICROOM
             case "124": {                                                                          // MOVE_WONDERROOM
                 if ((AiCalc.physicalMoveInMoveset(ctx, def) && atk.defense() < atk.spDef())
                         || (AiCalc.specialMoveInMoveset(ctx, def) && atk.spDef() < atk.defense())) return incStatus(ctx, viability, cls, 2, atk, def);
                 return viability;
             }
-            default: return viability;
+            default: return AiPositiveField.apply(ctx, atk, def, move, viability, cls, atkAbility, defAbility);
         }
     }
 

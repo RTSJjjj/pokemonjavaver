@@ -841,6 +841,23 @@ final class AiCalc {
         return CLASS_D_UTILITY;                                                                   // the default class
     }
 
+    /** {@code DoubleDamageWithStatusMoveInMovesetThatAffects(bankAtk,bankDef)} (ai_util.c:4590). 登记: {@code gDoubleDamageOnStatus} was not exported; the moves that double on a status. */
+    static boolean doubleDamageWithStatusMoveThatAffects(AiCtx ctx, Battler atk, Battler def) {
+        if (atk == null || def == null) return false;
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = atk.moveSlot(i);
+            if (m != null && usable(ctx, atk, i) && named(m, "HEX", "VENOSHOCK", "BARBBARRAGE", "BITTERMALICE", "INFERNALPARADE", "SMELLINGSALTS", "WAKEUPSLAP")
+                    && !noEffect(ctx.battle, atk, def, m)) return true;
+        }
+        return false;
+    }
+
+    /** {@code DoubleDamageWithStatusMoveInMovesetThatAffects} for the attacker or, in a double battle, its partner. */
+    static boolean doubleDamageWithStatusMoveByTeam(AiCtx ctx, Battler atk, Battler def) {
+        if (doubleDamageWithStatusMoveThatAffects(ctx, atk, def)) return true;
+        return AiDoublesScore.isDouble(ctx.battle, atk) && doubleDamageWithStatusMoveThatAffects(ctx, AiDoublesScore.partner(ctx.battle, atk), def);
+    }
+
     // ------------------------------------------------------------------
     // Stat / moveset predicates used by the per-effect cases
     // ------------------------------------------------------------------
