@@ -16,9 +16,8 @@ import pokemon.runtime.pokemon.ItemUse;
  * (142_PokeBattle_AI.rb:168-170) calls.</p>
  *
  * <p>The item effects are transcribed from 190_PItem_BattleItemEffects.rb ({@code CanUseInBattle}, {@code BattleUseOnPokemon},
- * {@code BattleUseOnBattler}). 登记: its helpers {@code pbBattleHPItem}, {@code pbBattleItemCanCureStatus?} and
- * {@code pbBattleItemCanRaiseStat?} are defined in a section that is not exported; they are read in their standard Essentials
- * meaning (HP restored through {@code pbRecoverHP}, "status equals the cured status", "{@code pbCanRaiseStatStage?}").</p>
+ * {@code BattleUseOnBattler}). Its helpers {@code pbBattleHPItem}, {@code pbBattleItemCanCureStatus?} and
+ * {@code pbBattleItemCanRaiseStat?} are in 188_PItem_Items.rb:586/705/713.</p>
  */
 final class AiItems {
 
@@ -267,6 +266,11 @@ final class AiItems {
         return false;
     }
 
+    /** {@code pbBattleHPItem(pkmn,battler,restoreHP,scene)} (188_PItem_Items:586-597). */
+    private static void battleHpItem(Battle battle, Battler user, int restoreHp) {
+        if (user.pbRecoverHP(restoreHp) > 0) battle.display(user.pbThis() + "的HP回复了。");
+    }
+
     /** One opposing {@code :UseItem} of {@code pbAttackPhaseItems} (139:74-90) + {@code pbUseItemOnPokemon} (135:83-97). */
     static void use(Battle battle, Battler user, String item) {
         user.lastMoveFailed = false;                                                         // 139:75
@@ -295,10 +299,10 @@ final class AiItems {
         } else if (item.equals("FULLRESTORE")) {                                             // 190:376-
             user.pbCureStatus(false);
             user.pbCureConfusion();
-            if (user.hp < user.maxHp()) user.pbRecoverHP(user.maxHp());                      // pbBattleHPItem(pokemon,battler,totalhp)
+            if (user.hp < user.maxHp()) battleHpItem(battle, user, user.maxHp());             // pbBattleHPItem(pokemon,battler,totalhp)
             else battle.display(user.pbThis() + "恢复健康了。");
         } else {
-            user.pbRecoverHP(battleHeal(item, user));                                        // pbBattleHPItem
+            battleHpItem(battle, user, battleHeal(item, user));                              // pbBattleHPItem
         }
         battle.choices(user.index)[1] = "";                                                  // 135:91 ch[1]=0
     }
