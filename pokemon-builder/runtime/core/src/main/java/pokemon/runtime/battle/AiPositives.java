@@ -36,11 +36,25 @@ final class AiPositives {
         if (!move.statusMove()) {                                                                    // :2724 moveSplit != SPLIT_STATUS
             viability = damageMoveViabilityIncrease(ctx, atk, def, move, viability, cls, predictedMove, atkAbility, defAbility);
         }
+        viability = stripObedienceItem(ctx, atk, def, move, viability, defAbility);
         // Mega Rapidash's 统天之角 swaps Flare Blitz for Flame Explosion (BattleMega): prefer the signature move when it can hit
         if ("RAPIDASH".equals(atkAbility) && AiCalc.named(move, "FLAMEEXPLOSION") && !AiCalc.noEffect(ctx.battle, atk, def, move)) viability += 5;
         // :2728-2736 STATUS1_FREEZE unfreeze: this project has no FROSTBITE, so a frozen attacker prefers a thawing move.
         if (atk.hasStatus("FROZEN") && AiCalc.has(move, 'g')) viability += ctx.battle.singleBattle() ? 10 : 20;   // INCREASE_VIABILITY(10), 20 in a double battle
         return Math.min(viability, 255);                                                             // :2738
+    }
+
+    /** Item-removal moves (Knock Off, Thief/Covet, Trick/Switcheroo, Corrosive Gas) are worth a lot against a Pokemon that only obeys with its item. */
+    static final int OBEDIENCE_ITEM_BONUS = 40;
+
+    private static int stripObedienceItem(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, String defAbility) {
+        if (!AiCalc.oneOf(move, "0F0", "0F1", "0F2", "201") || !AiCalc.obeysOnlyWithItem(ctx.battle, def)) return viability;
+        String di = def.item;
+        if (def.unlosableItem(di) || defAbility.equals("STICKYHOLD") || def.effects.intVal(PBEffects.Battler.Substitute) > 0) return viability;
+        if (AiCalc.oneOf(move, "0F1") && atk.item != null && !atk.item.isEmpty()) return viability;          // Thief/Covet only steal into an empty hand
+        if (AiCalc.oneOf(move, "0F2") && atk.unlosableItem(atk.item)) return viability;                        // Trick fails if the user's item cannot move
+        if (AiCalc.noEffect(ctx.battle, atk, def, move)) return viability;
+        return viability + OBEDIENCE_ITEM_BONUS;
     }
 
     /** {@code DamageMoveViabilityIncrease(...)} (ai_positives.c:2741), single-battle branch (:2743-2877). */

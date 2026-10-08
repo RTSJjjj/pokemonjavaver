@@ -608,6 +608,19 @@ final class AiCalc {
         return false;
     }
 
+    /**
+     * Project rule (117_Battler_UseMove_SuccessChecks.rb:136-152 {@code pbObedienceCheck?}): a player's Pokemon that only obeys while holding
+     * its special item - SEAMONSTER/EOSINORB, GROUNDMONSTER/ULTRAMARINEORB, SKYMONSTER/BLACKGREENORB, HAXORUS form 2/TYRANTCREST.
+     * (Regigigas' REGISPELL works the other way round and is unlosable.)
+     */
+    static boolean obeysOnlyWithItem(Battle battle, Battler b) {
+        if (!battle.internalBattle || !battle.pbOwnedByPlayer(b.index)) return false;
+        if (b.isSpecies("SEAMONSTER")) return b.hasActiveItem("EOSINORB");
+        if (b.isSpecies("GROUNDMONSTER")) return b.hasActiveItem("ULTRAMARINEORB");
+        if (b.isSpecies("SKYMONSTER")) return b.hasActiveItem("BLACKGREENORB");
+        return b.isSpecies("HAXORUS") && b.form() == 2 && b.hasActiveItem("TYRANTCREST");
+    }
+
     /** {@code IsMoxieAbility(ability)}. */
     static boolean isMoxie(String ability) {
         return "MOXIE".equals(ability) || "BEASTBOOST".equals(ability) || "CHILLINGNEIGH".equals(ability)

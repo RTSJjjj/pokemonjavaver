@@ -49,7 +49,8 @@ class AiPartnerTest {
                 + species("TRUANTER", 3, "NORMAL", 80, 80, 80, 40, "TRUANT") + ","
                 + species("FAT", 4, "NORMAL", 250, 40, 40, 40, "NONE") + ","
                 + species("SLEEPLESS", 5, "NORMAL", 80, 80, 80, 40, "INSOMNIA") + ","
-                + species("SUGARDEVOIR", 6, "NORMAL", 80, 80, 80, 40, "SACREDREBORN") + "}}");
+                + species("SUGARDEVOIR", 6, "NORMAL", 80, 80, 80, 40, "SACREDREBORN") + ","
+                + species("SEAMONSTER", 7, "NORMAL", 250, 40, 40, 40, "NONE") + "}}");
         write(tempDir, "moves.json", "{\"total\":12,\"moves\":{"
                 + move("TACKLE", 40, "NORMAL", "Physical", "000", "NearOther", 0) + ","
                 + move("QUICKHIT", 40, "NORMAL", "Physical", "000", "NearOther", 0) + ","
@@ -64,7 +65,8 @@ class AiPartnerTest {
                 + move("PROTECT", 0, "NORMAL", "Status", "0AA", "User", 4) + ","
                 + move("TAILWIND", 0, "NORMAL", "Status", "05B", "UserSide", 0) + ","
                 + move("WIDEGUARD", 0, "NORMAL", "Status", "0AC", "UserSide", 3) + ","
-                + move("SPORE", 0, "NORMAL", "Status", "003", "NearOther", 0) + "}}");
+                + move("SPORE", 0, "NORMAL", "Status", "003", "NearOther", 0) + ","
+                + move("KNOCKOFF", 65, "NORMAL", "Physical", "0F0", "NearOther", 0) + "}}");
         write(tempDir, "types.json", "{\"total\":2,\"types\":{"
                 + "\"NORMAL\":{\"id\":0,\"internalName\":\"NORMAL\",\"name\":\"Normal\"},"
                 + "\"ELECTRIC\":{\"id\":13,\"internalName\":\"ELECTRIC\",\"name\":\"Electric\"}}}");
@@ -398,5 +400,20 @@ class AiPartnerTest {
         target.hp = 0;
         BattleHandlers.triggerTargetAbilityOnHit("SACREDREBORN", user, target, user.moveSlot(0), b);
         assertEquals(0, target.hp, "only once per battle");
+    }
+
+    @Test
+    @DisplayName("Knock Off scores far higher against a player's Pokemon that only obeys while holding its orb")
+    void knockOffTargetsTheObedienceItem() {
+        Battle b = doubles(mon("HERO", 50, "KNOCKOFF", "TACKLE"), mon("HERO", 50, "TACKLE"), mon("SEAMONSTER", 50, "TACKLE"), mon("FAT", 50, "TACKLE"));
+        Battler atk = b.battlerAt(1);
+        Battler def = b.battlerAt(0);
+        def.item = "EOSINORB";
+        AiCtx ctx = AiMaster.prepare(b, atk, def, new Random(1));
+        int without = AiPositives.score(ctx, atk, def, atk.moveSlot(1), 100);
+        int knock = AiPositives.score(ctx, atk, def, atk.moveSlot(0), 100);
+        assertTrue(knock >= without + AiPositives.OBEDIENCE_ITEM_BONUS - 10, "knock off = " + knock + " vs tackle " + without);
+        def.item = null;
+        assertTrue(AiPositives.score(ctx, atk, def, atk.moveSlot(0), 100) < knock);
     }
 }
