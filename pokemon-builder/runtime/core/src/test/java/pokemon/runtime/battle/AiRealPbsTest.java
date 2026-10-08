@@ -148,4 +148,41 @@ class AiRealPbsTest {
         assertEquals(0, AiAbilityRatings.of("NOSUCHABILITY"));
         assertTrue(AiAbilityRatings.of("WONDERGUARD") > 5);
     }
+
+    @Test
+    @DisplayName("every move of the real PBS can be scored (Negatives, Positives, full pick) without an exception, against a normal and a status-ridden target")
+    void scoresEveryMove() {
+        PbsData p = real();
+        int checked = 0;
+        java.util.Map<String, String> failures = new java.util.TreeMap<>();
+        for (pokemon.runtime.pokemon.PbsData.Move data : p.moves.values()) {
+            for (int variant = 0; variant < 2; variant++) {
+                Battle battle = realBattle(p, data.internalName, "TACKLE");
+                Battler foe = battle.foe();
+                Battler player = battle.player();
+                if (variant == 1) {
+                    player.setStatus("SLEEP");
+                    foe.setHp(foe.maxHp() / 3);
+                    foe.stages[0] = 2;
+                    player.effects.set(PBEffects.Battler.Substitute, 10);
+                    battle.partyOf(foe.index).get(1).setStatus("POISON");
+                }
+                try {
+                    AiCtx ctx = AiMaster.prepare(battle, foe, player, new Random(3));
+                    BattleMove m = foe.moveSlot(0);
+                    assertNotNull(m, data.internalName);
+                    int neg = AiNegatives.score(ctx, foe, player, m, 100);
+                    int pos = AiPositives.score(ctx, foe, player, m, Math.max(neg, 1));
+                    assertTrue(neg >= 0 && pos >= 0 && pos <= 255, data.internalName + " " + neg + " " + pos);
+                    assertTrue(AiMaster.chooseMove(battle, foe, new Random(4)) >= 0);
+                } catch (RuntimeException e) {
+                    String where = e.getStackTrace().length > 0 ? e.getStackTrace()[0].toString() : "";
+                    failures.putIfAbsent(data.internalName, e.getClass().getSimpleName() + ": " + e.getMessage() + " @ " + where);
+                }
+                checked++;
+            }
+        }
+        assertTrue(failures.isEmpty(), failures.size() + " moves cannot be scored: " + failures);
+        assertTrue(checked > 1500);
+    }
 }

@@ -3668,7 +3668,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battler#belched?} (PokeBattle_Battler:756-758). 本运行时缺此方法。 */
     private static boolean belched(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:756-758 belched?");
+        return battler.belched();
     }
 
     /** {@code Battler#pbRecoverHPFromDrain(amt,target,msg=nil)} (Battler_ChangeSelf:33-39). 本运行时缺此方法。 */

@@ -191,8 +191,10 @@ final class AiCalc {
     }
 
     /** Function codes Essentials shares between a status move and its damaging "hit with a side effect" variants (CFRU's separate *_HIT effects). */
-    static final String[] SIDE_EFFECT_CODES = {"005", "006", "007", "00A", "00C", "013", "042", "043", "044", "045", "046", "047",
-            "04B", "04C", "04D", "04E", "04F"};
+    static final String[] SIDE_EFFECT_CODES = {"003", "005", "006", "007", "00A", "00C", "013", "042", "043", "044", "045", "046", "047",
+            "04B", "04C", "04D", "04E", "04F",
+            "01C", "01D", "01F", "020", "022", "179",      // self stat-raising hits (Power-Up Punch, Steel Wing, Flame Charge, Charge Beam, ...)
+            "0A7", "0EF"};                                  // Foresight / trapping hits (Target Beam, Spirit Shackle): plain damage
 
     /** A damaging move whose function code is a status family: CFRU's EFFECT_*_HIT. */
     static boolean isSideEffectHit(BattleMove move) {

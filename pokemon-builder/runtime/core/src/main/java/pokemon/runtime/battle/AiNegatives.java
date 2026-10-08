@@ -87,7 +87,7 @@ final class AiNegatives {
             //       COMPETITIVE, SHIELDSDOWN, WONDERSKIN, LEAFGUARD need gStatLoweringMoveEffects / gSetStatusMoveEffects.
 
             // Prankster (:487)
-            if (atk.hasActiveAbility("PRANKSTER") && status && !"OpposingSide".equals(target)
+            if (atk.hasActiveAbility("PRANKSTER") && status && !"FoeSide".equals(target)
                     && def.hasType("DARK")) {
                 return clamp(dec(viability, 10));
             }

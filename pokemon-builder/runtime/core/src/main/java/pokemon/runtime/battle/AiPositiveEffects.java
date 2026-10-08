@@ -35,8 +35,11 @@ final class AiPositiveEffects {
         if (AiCalc.isSideEffectHit(move)) {                                                    // EFFECT_*_HIT (:93-113, :839-885): only worth it for a likely side effect
             int chance = AiCalc.secondaryEffectChance(move, atk);
             boolean blocked = AiCalc.blockedBySubstitute(move, atk, def);
-            if (AiCalc.oneOf(move, "005", "006", "007", "00A", "00C")) {
-                if (chance < 75 || blocked) return viability;
+            if (AiCalc.oneOf(move, "0A7", "0EF")) {
+                return viability;                                                                  // plain damage
+            } else if (AiCalc.oneOf(move, "003", "005", "006", "007", "00A", "00C", "01C", "01D", "01F", "020", "022", "179")) {
+                boolean selfRaise = AiCalc.oneOf(move, "01C", "01D", "01F", "020", "022", "179");
+                if (chance < 75 || (blocked && !selfRaise)) return viability;
             } else if (f.equals("013")) {
                 if (chance < 75 || blocked || !AiCalc.moveWillHit(battle, atk, def, move)) return viability;
             } else if (f.equals("044")) {

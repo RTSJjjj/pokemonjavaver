@@ -749,7 +749,8 @@ public final class MoveEffects_080_0AF {
         @Override
         public int pbBaseDamage(BattleMove move, int baseDmg, Battler user, Battler target) {
             int[] dmgs = {200, 80, 60, 50, 40};                              // :565
-            int ppLeft = Math.min(movePp(move), dmgs.length - 1);            // :566 [@pp,dmgs.length-1].min
+            int slot = user.moveSlotIndex(move);                             // @pp = the PP of the slot being used (PokeBattle_Move.rb:38)
+            int ppLeft = Math.min(slot < 0 ? 0 : user.moveSlotPp(slot), dmgs.length - 1);   // :566 [@pp,dmgs.length-1].min
             return dmgs[ppLeft];                                             // :567
         }
     }
@@ -1862,7 +1863,7 @@ public final class MoveEffects_080_0AF {
      * but not the current PP of the move being used.</p>
      */
     private static int movePp(BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Move.rb:38 @pp");
+        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Move.rb:38 @pp");   // unused: Trump Card reads the user's slot PP directly
     }
 
     /**

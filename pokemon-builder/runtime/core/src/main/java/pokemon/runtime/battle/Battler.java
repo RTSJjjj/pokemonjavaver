@@ -1568,8 +1568,7 @@ public final class Battler {
             effects.set(PBEffects.Battler.PickupUse, 0);                // :175 @battle.nextPickupUse
         }
         if (belch && isBerry(item)) {                                   // :177 pbIsBerry?(@item)
-            effects.set(PBEffects.Battler.Unburden, true);              // :177 setBelched → 见下
-            setBelchedFlag();
+            setBelched();                                               // :177
         }
         pbRemoveItem(true);                                             // :178
         if (symbiosis) {                                                // :179
@@ -1577,9 +1576,14 @@ public final class Battler {
         }
     }
 
-    /** {@code setBelched} (PokeBattle_Battler:760-762)：运行时用 {@code Unburden} 兼作标记（登记见调用点）。 */
-    private void setBelchedFlag() {
-        // 登记: PokeBattle_Battler:760-762 @battle.belch[side][pokemonIndex]（Battle 未暴露 belch 表）
+    /** {@code belched?} (PokeBattle_Battler:756-758): {@code @battle.belch[@index&1][@pokemonIndex]}. */
+    public boolean belched() {
+        return battle.belch(index & 1, battle.partyOf(index).indexOf(this, true));
+    }
+
+    /** {@code setBelched} (PokeBattle_Battler:760-762): {@code @battle.belch[@index&1][@pokemonIndex] = true}. */
+    public void setBelched() {
+        battle.setBelch(index & 1, battle.partyOf(index).indexOf(this, true));
     }
 
     /** {@code pbIsBerry?} 的最小等价：按内部名以 BERRY 结尾判定（PItem_Items:99 是道具表查询）。 */

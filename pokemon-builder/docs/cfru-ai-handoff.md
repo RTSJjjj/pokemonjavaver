@@ -119,3 +119,14 @@ Spikes 103-105/153, stat-boost status 01C-03B, Sleep Talk/Snore 0B4/011, Lock-On
 Checked against the exported PBS: all 239 function codes the AI uses map to moves of the expected kind (no orphan code), the flag letters (a contact, b protect, c magic coat, g thaw, k sound, l powder, n bomb)
 match, and every ability / item / move name the scorer compares against exists - except `ASONE` (fixed to `ASONEGHOST`; `ASONEICE` is not a Moxie-type). The test keeps this from drifting.
 Real trainer item lists are only FULLRESTORE, MAXPOTION, BURNHEAL, POTION, SUPERPOTION, HYPERPOTION, MAXREVIVE and vitamins (PROTEIN/CARBOS/CALCIUM, ignored by the AI).
+
+## moves.json conformance pass (done)
+Against the real `plugin-src/pbs/moves.json` (1010 moves): see `AiRealPbsTest`.
+- Every function code the AI uses exists and belongs to the expected move (70 hand-checked pairs).
+- Shared codes: Essentials gives a status move and its damaging "hit" variants the same code. `AiCalc.SIDE_EFFECT_CODES` now also covers the self-raising hits (01C Power-Up Punch / Meteor Mash, 01D Steel Wing,
+  01F Flame Charge, 020 Charge Beam, 022, 179), sleep hits (003 Relic Song), and the plain-damage trap / Foresight hits (0EF Spirit Shackle..., 0A7 Target Beam): Negatives treat them as plain damage,
+  Positives only run the status case when the side-effect chance is >= 75%.
+- `move.target()` strings: the Prankster exemption compared against "OpposingSide", the data says "FoeSide" - fixed.
+- Accuracy 0 = never misses (handled), power 0 never appears on a damaging category, flag letters match.
+- Every move is scored (Negatives, Positives, full pick) against two board states without an exception. This found two engine gaps, fixed: Trump Card read an unwired `@pp`
+  (now the PP of the slot used) and Belch an unwired `belched?` (now `Battle.belch` per side/party index as in Ruby; `pbConsumeItem` no longer sets Unburden as a marker).

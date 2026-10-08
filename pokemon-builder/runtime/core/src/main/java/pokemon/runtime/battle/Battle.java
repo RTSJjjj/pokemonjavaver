@@ -476,6 +476,17 @@ public final class Battle {
     /** {@code @items[1]}: the opposing trainer's items (TrainerData.items), consumed by {@link AiItems}. */
     public final java.util.List<String> foeItems = new java.util.ArrayList<>();
 
+    /** {@code @belch} (PokeBattle_Battle:161): per side, per party index, whether that Pokemon has eaten a berry (Belch). */
+    private final boolean[][] belchTable = new boolean[2][16];
+
+    public boolean belch(int side, int partyIndex) {
+        return partyIndex >= 0 && partyIndex < belchTable[side].length && belchTable[side][partyIndex];
+    }
+
+    public void setBelch(int side, int partyIndex) {
+        if (partyIndex >= 0 && partyIndex < belchTable[side].length) belchTable[side][partyIndex] = true;
+    }
+
     /** {@code gNewBS->ai.didTypeAbsorbSwitchToMonBefore[side]}: party-index bitmask per side (AiSwitching). */
     final int[] aiAbsorbSwitched = new int[2];
     /** {@code gNewBS->ai.typeAbsorbSwitchingCooldown}: the round of the last type-absorb switch per side, null = never. */
