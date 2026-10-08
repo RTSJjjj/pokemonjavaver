@@ -212,8 +212,7 @@ final class AiNegatives {
             if (terrain == PBBattleTerrains.Electric) {
                 if (AiCalc.oneOf(move, "003", "004") && grounded) return clamp(dec(viability, 10));   // EFFECT_SLEEP / EFFECT_YAWN
             } else if (terrain == PBBattleTerrains.Misty) {
-                if (status && grounded && AiCalc.oneOf(move, "003", "004", "005", "006", "007", "00A", "00B", "00C", "00D", "00E",
-                        "013", "014", "015", "016", "017", "018", "019")) {
+                if (grounded && (setsStatus(move) || confuses(move))) {
                     return clamp(dec(viability, 10));
                 }
             } else if (terrain == PBBattleTerrains.Psychic) {
@@ -266,9 +265,14 @@ final class AiNegatives {
         return viability;
     }
 
-    /** {@code CheckTableForMovesEffect(move,gSetStatusMoveEffects)}: a move that sets a major status. 登记: table not exported; the status-inflicting status moves. */
+    /** {@code CheckTableForMovesEffect(move,gSetStatusMoveEffects)} (move_effect_table.s:277: sleep, toxic, poison, paralyze, Will-O-Wisp, Yawn). */
     static boolean setsStatus(BattleMove move) {
-        return AiCalc.oneOf(move, "003", "004", "005", "006", "007", "00A", "00B", "00C", "00D", "00E", "0C5", "0C6", "0C7");
+        return move.statusMove() && AiCalc.oneOf(move, "003", "004", "005", "006", "007", "00A", "159");
+    }
+
+    /** {@code CheckTableForMovesEffect(move,gConfusionMoveEffects)} (confuse, Swagger, Flatter). */
+    static boolean confuses(BattleMove move) {
+        return move.statusMove() && AiCalc.oneOf(move, "013", "040", "041");
     }
 
     private static int clamp(int viability) {

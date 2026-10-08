@@ -841,12 +841,12 @@ final class AiCalc {
         return CLASS_D_UTILITY;                                                                   // the default class
     }
 
-    /** {@code DoubleDamageWithStatusMoveInMovesetThatAffects(bankAtk,bankDef)} (ai_util.c:4590). 登记: {@code gDoubleDamageOnStatus} was not exported; the moves that double on a status. */
+    /** {@code DoubleDamageWithStatusMoveInMovesetThatAffects(bankAtk,bankDef)} (ai_util.c:4590). gDoubleDamageOnStatus holds only Hex. */
     static boolean doubleDamageWithStatusMoveThatAffects(AiCtx ctx, Battler atk, Battler def) {
         if (atk == null || def == null) return false;
         for (int i = 0; i < Battler.MOVES_MAX; i++) {
             BattleMove m = atk.moveSlot(i);
-            if (m != null && usable(ctx, atk, i) && named(m, "HEX", "VENOSHOCK", "BARBBARRAGE", "BITTERMALICE", "INFERNALPARADE", "SMELLINGSALTS", "WAKEUPSLAP")
+            if (m != null && usable(ctx, atk, i) && named(m, "HEX")                                     // gDoubleDamageOnStatus (move_tables.json)
                     && !noEffect(ctx.battle, atk, def, m)) return true;
         }
         return false;

@@ -10,7 +10,7 @@ import static pokemon.runtime.battle.AiPositiveHelpers.incStatus;
  * After You / Quash (:2634), Tailwind / Lucky Chant / Magnet Rise (:2658), Flame Burst (:2699), Sky Drop (:2710), Bug Bite /
  * Incinerate / Smack Down / Clear Smog (:2323-2345), Feint (:2538).
  *
- * <p>登记: Fling (:2468, its item table {@code gFlingTable} was not exported), Z-Moves, Dynamax, Camouflage (:2688, its
+ * <p>登记: Z-Moves, Dynamax, Camouflage (:2688, its
  * condition needs a status move to be damaging, so it never applies), Happy Hour / Hold Hands / Celebrate (Z-move only).</p>
  */
 final class AiPositiveField {
@@ -199,10 +199,53 @@ final class AiPositiveField {
                 }
                 return viability;
             }
+            case "0F7":                                                                            // EFFECT_FLING (:2468, gFlingTable item_tables.c:108)
+                if (AiCalc.blockedBySubstitute(move, atk, def) || atk.item == null) return viability;
+                switch (atk.item) {
+                    case "FLAMEORB": return AiPositiveEffects.scoreAs(ctx, atk, def, "WILLOWISP", viability, cls, atkAbility, defAbility);
+                    case "LIGHTBALL": return AiPositiveEffects.scoreAs(ctx, atk, def, "THUNDERWAVE", viability, cls, atkAbility, defAbility);
+                    case "TOXICORB": return AiPositiveEffects.scoreAs(ctx, atk, def, "TOXIC", viability, cls, atkAbility, defAbility);
+                    case "POISONBARB": return AiPositiveEffects.scoreAs(ctx, atk, def, "POISONGAS", viability, cls, atkAbility, defAbility);
+                    case "KINGSROCK": case "RAZORFANG": return flinchChecks(ctx, viability, cls, atk, def, move, atkAbility);
+                    case "SNOWBALL": return freezeChecks(ctx, viability, cls, atk, def);
+                    default: return viability;
+                }
             case "0AD":                                                                            // EFFECT_FEINT (:2538)
                 return predicted != null && AiCalc.oneOf(predicted, AiCalc.PROTECT) ? inc(viability, 3) : viability;
             default:
                 return viability;
+        }
+    }
+
+    /** {@code AI_FLINCH_CHECKS:} (ai_positives.c:635). */
+    private static int flinchChecks(AiCtx ctx, int viability, int cls, Battler atk, Battler def, BattleMove move, String atkAbility) {
+        boolean canFlinch = !def.hasActiveAbility("INNERFOCUS") && !(def.hasActiveAbility("SHIELDDUST") && !atk.hasMoldBreaker())
+                && def.effects.intVal(PBEffects.Battler.Substitute) == 0;                          // CanBeFlinched
+        if (!canFlinch) return viability;
+        if (atkAbility.equals("SERENEGRACE") || def.hasStatus("PARALYSIS") || def.effects.intVal(PBEffects.Battler.Attract) >= 0
+                || def.effects.intVal(PBEffects.Battler.Confusion) > 0) {
+            boolean useful = !(def.hasStatus("SLEEP") && def.statusCount > 1 && !AiCalc.moveFunctionInMoveset(def, "0B4", "011"));   // IsUsefulToFlinchTarget
+            if (useful && (AiCalc.secondaryEffectChance(move, atk) >= 60 || !AiCalc.can2HKO(ctx, atk, def))) {
+                return incStatus(ctx, viability, cls, 3, atk, def);
+            }
+        }
+        return viability;
+    }
+
+    /** {@code IncreaseFreezeViability(&viability,class,bankAtk,bankDef)} (ai_advanced.c:2246). */
+    private static int freezeChecks(AiCtx ctx, int viability, int cls, Battler atk, Battler def) {
+        if (AiDoublesScore.badIdeaToFreeze(ctx, def, atk)) return viability;
+        switch (cls) {
+            case AiCalc.CLASS_SWEEPER_KILL: return viability;
+            case AiCalc.CLASS_SWEEPER_SETUP_STATS: case AiCalc.CLASS_BATON_PASS: case AiCalc.CLASS_PHAZING: return inc(viability, 9);
+            case AiCalc.CLASS_SWEEPER_SETUP_STATUS: case AiCalc.CLASS_STALL: case AiCalc.CLASS_SCREENS:
+            case AiCalc.CLASS_SWEEPER_SETUP_SCREENS: case AiCalc.CLASS_ENTRY_HAZARDS: return inc(viability, 8);
+            case AiCalc.CLASS_CLERIC: return inc(viability, 7);
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER: case AiCalc.CLASS_D_UTILITY: case AiCalc.CLASS_D_PHAZING: return inc(viability, 17);
+            case AiCalc.CLASS_D_SETUP_ATTACKER: return inc(viability, 18);
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER: case AiCalc.CLASS_D_TRICK_ROOM_SETUP: return inc(viability, 16);
+            case AiCalc.CLASS_D_TEAM_SUPPORT: case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT: return inc(viability, 19);
+            default: return viability;
         }
     }
 

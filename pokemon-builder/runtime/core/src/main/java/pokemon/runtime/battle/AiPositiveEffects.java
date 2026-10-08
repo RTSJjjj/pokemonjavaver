@@ -24,6 +24,12 @@ final class AiPositiveEffects {
     private static final int ATK = PBStats.ATTACK, DEF = PBStats.DEFENSE, SPD = PBStats.SPEED, SPA = PBStats.SPATK, SPD_EF = PBStats.SPDEF,
             ACC = PBStats.ACCURACY, EVA = PBStats.EVASION;
 
+    /** Scores {@code atk}'s move as if it were the named move (a {@code goto AI_*_CHECKS} of ai_positives.c, e.g. from Fling). */
+    static int scoreAs(AiCtx ctx, Battler atk, Battler def, String moveName, int viability, int cls, String atkAbility, String defAbility) {
+        BattleMove proxy = AiCalc.moveByName(ctx.battle, moveName);
+        return proxy == null ? viability : apply(ctx, atk, def, proxy, viability, cls, atkAbility, defAbility);
+    }
+
     /** @return the viability after this move's effect case. */
     static int apply(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls, String atkAbility, String defAbility) {
         Battle battle = ctx.battle;

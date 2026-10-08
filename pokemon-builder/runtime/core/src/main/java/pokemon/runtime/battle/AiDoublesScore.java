@@ -311,6 +311,11 @@ final class AiDoublesScore {
         }
     }
 
+    /** {@code CanBeFrozen(bankDef,bankAtk,TRUE)}. */
+    static boolean canBeFrozenBy(AiCtx ctx, Battler def, Battler atk) {
+        return def.pbCanFreeze(atk, false, null);
+    }
+
     /** {@code BadIdeaToFreeze(bankDef,bankAtk)} (ai_util.c:2998). */
     static boolean badIdeaToFreeze(AiCtx ctx, Battler def, Battler atk) {
         return !def.pbCanFreeze(atk, false, null)

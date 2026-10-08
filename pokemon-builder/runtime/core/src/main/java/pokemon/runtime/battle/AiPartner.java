@@ -13,12 +13,10 @@ import java.util.List;
  * Psych Up 055, Skill Swap family 063-068, Soak 061, Heal Pulse 0DF, Ion Deluge 146, Magnet Rise 119, After You 11D,
  * Instruct 16B.</p>
  *
- * <p>登记: Z-moves and Max moves (no such mechanic); {@code DoesProtectionMoveBlockMove} (its source was not exported):
- * built from this engine's own protection rules - Protect-like moves block protectable moves (flag b), Wide Guard
- * blocks spread moves, Quick Guard priority moves, Crafty Shield status moves, Mat Block damaging moves;
- * {@code CanKnockOffItem} (no wild-item rule) is "holds a transferable item"; Ion Deluge's second foe reads
- * {@code data->foe1} twice in CFRU ({@code :594}) and does here as well; the Mummy / Lightning-Rod style checks use
- * every living foe instead of exactly two.</p>
+ * <p>登记: Z-moves and Max moves (no such mechanic); {@code CanKnockOffItem} is "holds a transferable item" (no wild-item
+ * rule); Ion Deluge's second foe reads {@code data->foe1} twice in CFRU ({@code :594}) and does here as well; the Mummy /
+ * Lightning-Rod style checks use every living foe instead of exactly two. The move tables ({@code gStatLoweringMoveEffects},
+ * {@code DoesProtectionMoveBlockMove}) are transcribed from the CFRU repository.</p>
  */
 final class AiPartner {
     private AiPartner() {
@@ -241,8 +239,9 @@ final class AiPartner {
     // Pieces
     // ------------------------------------------------------------------
 
+    /** {@code gStatLoweringMoveEffects} (assembly/data/move_effect_table.s:288) mapped to this project's function codes through battle_moves.c. */
     private static final String[] STAT_LOWERING = {"042", "043", "044", "045", "046", "047", "048", "04A", "04B", "04C", "04D", "04E",
-            "04F", "13A", "13C", "13D", "140"};   // gStatLoweringMoveEffects (move_tables.c was not exported): the status moves that lower a target stat
+            "04F", "139", "13A", "13C", "13D", "140", "186"};
 
     /** {@code CheckTableForMovesEffect(move,gStatLoweringMoveEffects)}: a status move that lowers a stat of its target. */
     static boolean statLowering(BattleMove move) {
@@ -299,15 +298,22 @@ final class AiPartner {
         return false;
     }
 
-    /** {@code DoesProtectionMoveBlockMove(bankAtk,bankDef,atkMove,protectMove)}: see the class comment. */
-    private static boolean doesProtectionMoveBlockMove(Battle battle, Battler atk, Battler def, BattleMove atkMove, BattleMove protectMove) {
-        if (protectMove == null) return false;
-        if (AiCalc.oneOf(protectMove, AiCalc.PROTECT)) return AiCalc.has(atkMove, 'b');
-        if (AiCalc.oneOf(protectMove, "0AC")) return AiDoublesScore.spread(battle, atk, atkMove);                       // Wide Guard
-        if (AiCalc.oneOf(protectMove, "0AB")) return AiCalc.priorityCalc(battle, atk, atkMove) > 0;                    // Quick Guard
-        if (AiCalc.oneOf(protectMove, "14A")) return atkMove.statusMove() && atk != def;                                // Crafty Shield
-        if (AiCalc.oneOf(protectMove, "149")) return !atkMove.statusMove() && AiCalc.has(atkMove, 'b');                 // Mat Block
-        return false;
+    /** {@code DoesProtectionMoveBlockMove(bankAtk,bankDef,atkMove,protectMove)} (accuracy_calc.c:286). */
+    static boolean doesProtectionMoveBlockMove(Battle battle, Battler atk, Battler def, BattleMove atkMove, BattleMove protectMove) {
+        if (protectMove == null || atkMove == null) return false;
+        boolean protectFlag = AiCalc.has(atkMove, 'b');
+        boolean status = atkMove.statusMove();
+        if (AiCalc.named(atkMove, "FEINT", "HYPERSPACEFURY", "HYPERSPACEHOLE", "PHANTOMFORCE", "SHADOWFORCE")) return false;   // gMovesThatLiftProtectTable
+        int target = AiCalc.fx(atkMove).pbTarget(atkMove, atk);
+        switch (protectMove.function()) {
+            case "0AA": case "14C": case "168": return protectFlag;                                 // Protect, Spiky Shield, Baneful Bunker
+            case "14B": return protectFlag && !status;                                              // King's Shield (and Obstruct)
+            case "149": return AiCalc.firstTurn(def) && protectFlag && !status;                    // Mat Block
+            case "14A": return target != PBTargets.User && status;                                  // Crafty Shield
+            case "0AB": return protectFlag && AiCalc.priorityCalc(battle, atk, atkMove) > 0;        // Quick Guard
+            case "0AC": return protectFlag && (target == PBTargets.AllNearFoes || target == PBTargets.AllNearOthers);   // Wide Guard
+            default: return false;
+        }
     }
 
     private static int weatherBoost(AiCtx ctx, int viability, int cls, Battler atk, Battler partner) {

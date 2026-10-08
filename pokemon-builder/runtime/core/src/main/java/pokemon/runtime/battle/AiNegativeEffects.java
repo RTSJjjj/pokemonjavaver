@@ -1,5 +1,7 @@
 package pokemon.runtime.battle;
 
+import com.badlogic.gdx.utils.Array;
+
 /**
  * The per-effect {@code switch (moveEffect)} of {@code AIScript_Negatives} (ai_negatives.c:667-3244), part 1:
  * Sleep, Absorb, Explosion, Dream Eater, Splash, Teleport, stat raising (:853-1085), stat lowering (:1109-1217)
@@ -231,6 +233,27 @@ final class AiNegativeEffects {
         BattleMove predicted = ctx.prediction(def);
         int hpPct = AiCalc.healthPercent(atk);
         switch (f) {
+            case "0F7": {                                                                         // EFFECT_FLING (:2917)
+                Array<Battler> targets = new Array<>();
+                targets.add(def);
+                if (AiCalc.fx(move).pbMoveFailed(move, atk, targets)) r.viability -= 10;           // !CanFling
+                String flung = atk.item == null ? "" : atk.item;
+                String proxy = flung.equals("FLAMEORB") ? "WILLOWISP" : flung.equals("LIGHTBALL") ? "THUNDERWAVE"
+                        : flung.equals("TOXICORB") ? "TOXIC" : flung.equals("POISONBARB") ? "POISONGAS" : null;
+                if (proxy != null) {                                                              // goto AI_BURN_CHECK / PARALYZE / POISON
+                    BattleMove pm = AiCalc.moveByName(battle, proxy);
+                    if (pm != null) {
+                        Result sub = apply(ctx, atk, def, pm, r.viability);
+                        r.viability = sub.viability;
+                        return true;
+                    }
+                } else if (flung.equals("SNOWBALL")) {
+                    if (!AiDoublesScore.canBeFrozenBy(ctx, def, atk) || AiCalc.blockedBySubstitute(move, atk, def)) r.viability -= 10;
+                    return true;
+                }
+                r.standardDamage = true;                                                          // goto AI_STANDARD_DAMAGE
+                return true;
+            }
             case "0D5": case "0D6": case "0D8": case "0D9": {                                     // EFFECT_RESTORE_HP / MORNING_SUN (:1457), EFFECT_REST (:1507)
                 if (f.equals("0D9") && !AiCalc.canRest(battle, atk)) r.viability -= 10;           // EFFECT_REST: CanRest, then AI_RECOVERY
                 recovery(ctx, atk, def, r);
