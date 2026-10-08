@@ -206,11 +206,13 @@ final class AiCalc {
         return !move.statusMove() && move.power() > 0 && oneOf(move, SIDE_EFFECT_CODES);
     }
 
-    /** {@code CalcSecondaryEffectChance(bank,move,ability)} (ai_util.c:2728). 登记: Sheer Force boosted-move table (any move with a chance), Rainbow, flinch table. */
+    /** {@code CalcSecondaryEffectChance(bank,move,ability)} (ai_util.c:2728), with this project's rules instead of CFRU's tables: Sheer Force removes the
+     * chance of every move that has one (the engine's {@code addlEffect > 0} test, BattlerHitEffects:218), and Serene Grace / the side's Rainbow
+     * double it once (they do not stack, MoveEffectBase.pbAdditionalEffectChance). */
     static int secondaryEffectChance(BattleMove move, Battler atk) {
         int chance = move.additionalChance();
         if (chance > 0 && atk.hasActiveAbility("SHEERFORCE")) return 0;
-        if (atk.hasActiveAbility("SERENEGRACE")) chance *= 2;
+        if (atk.hasActiveAbility("SERENEGRACE") || atk.pbOwnSide().effects.intVal(PBEffects.Side.Rainbow) > 0) chance *= 2;
         return chance;
     }
 
@@ -324,7 +326,7 @@ final class AiCalc {
 
     /**
      * {@code GetSecondaryEffectDamage(bank)} (ai_util.c:2628) = {@code CalcSecondaryEffectDamage} (:2594): the damage
-     * the battler takes at the end of the turn. 登记: Sea of Fire, Bad Dreams, Splinters, Bad Thoughts, G-Max
+     * the battler takes at the end of the turn. 登记: Splinters, Bad Thoughts, G-Max
      * residuals (CFRU only); weather duration "about to end" (:2603).
      */
     static int secondaryDamage(Battle battle, Battler b) {
@@ -350,6 +352,15 @@ final class AiCalc {
         }
         if (b.hasStatus("BURN") && !b.hasActiveAbility("HEATPROOF")) dmg += Math.max(1, max / 16);                // GetBurnDamage (NEWEST_BATTLE_MECHANICS)
         if (b.effects.truthy(PBEffects.Battler.Curse)) dmg += Math.max(1, max / 4);       // GetCurseDamage
+        if (b.pbOwnSide().effects.intVal(PBEffects.Side.SeaOfFire) > 0 && !b.hasType("FIRE")
+                && weather != PBWeather.Rain && weather != PBWeather.HeavyRain) {            // GetSeaOfFireDamage (the engine skips it in rain, EOR :272)
+            dmg += Math.max(1, max / 8);
+        }
+        if (b.asleep()) {                                                                  // GetBadDreamsDamage: one 1/8 per Bad Dreams on the other side
+            for (Battler o : battle.eachOtherSideBattler(b.index)) {
+                if (o != null && !o.fainted() && o.hasActiveAbility("BADDREAMS")) dmg += Math.max(1, max / (b.pokemon.battleRank > 2 ? 40 : 8));
+            }
+        }
         return dmg;
     }
 
@@ -378,13 +389,14 @@ final class AiCalc {
         return predicted != null && contactDamage(predicted, atk, def) >= atk.hp;
     }
 
-    /** {@code HighChanceOfBeingImmobilized(bank)} (ai_util.c:2702-): odds of landing an attack below 75%? 登记: confusion branch. */
+    /** {@code HighChanceOfBeingImmobilized(bank)} (ai_util.c:2702): the odds of landing an attack are 50% or less. */
     static boolean highChanceOfBeingImmobilized(Battler b) {
         int odds = 100;
         if (b.hasStatus("PARALYSIS")) odds = odds * 75 / 100;
         else if (b.hasStatus("FROZEN")) odds = odds * 20 / 100;
         if (b.effects.intVal(PBEffects.Battler.Attract) >= 0) odds = odds * 50 / 100;
-        return odds < 75;
+        if (b.effects.intVal(PBEffects.Battler.Confusion) > 1) odds = odds * 67 / 100;               // the engine's self-hit chance is 33% (NEWEST_BATTLE_MECHANICS)
+        return odds <= 50;
     }
 
     // ------------------------------------------------------------------

@@ -416,4 +416,26 @@ class AiPartnerTest {
         def.item = null;
         assertTrue(AiPositives.score(ctx, atk, def, atk.moveSlot(0), 100) < knock);
     }
+
+    @Test
+    @DisplayName("Sea of Fire counts as end-of-turn damage for a non-Fire Pokemon on that side (GetSeaOfFireDamage)")
+    void seaOfFireIsSecondaryDamage() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler victim = b.battlerAt(1);
+        assertEquals(0, AiCalc.secondaryDamage(b, victim));
+        victim.pbOwnSide().effects.set(PBEffects.Side.SeaOfFire, 3);
+        assertEquals(victim.maxHp() / 8, AiCalc.secondaryDamage(b, victim));
+    }
+
+    @Test
+    @DisplayName("HighChanceOfBeingImmobilized: odds of 50% or less; confusion costs 33% (ai_util.c:2702)")
+    void immobilizedOdds() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        Battler v = b.battlerAt(1);
+        assertFalse(AiCalc.highChanceOfBeingImmobilized(v));
+        v.effects.set(PBEffects.Battler.Confusion, 3);
+        assertFalse(AiCalc.highChanceOfBeingImmobilized(v), "67% is not high");
+        v.setStatus("PARALYSIS");
+        assertTrue(AiCalc.highChanceOfBeingImmobilized(v), "75% x 67% = 50%");
+    }
 }

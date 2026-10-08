@@ -68,13 +68,21 @@ final class AiPositiveMore {
             case "05C": {                                                                          // EFFECT_MIMIC (:890)
                 BattleMove lastDef = AiCalc.lastUsedMove(battle, def);
                 if (AiCalc.moveWouldHitFirst(ctx, move, atk, def)) {
-                    if (lastDef != null && !AiCalc.canKnockOut(ctx, def, atk) && AiCalc.knocksOutXHits(ctx, lastDef, atk, def, 1)) {
-                        return incStatus(ctx, viability, cls, 2, atk, def);
+                    if (lastDef != null) {
+                        if (!AiCalc.canKnockOut(ctx, def, atk) && AiCalc.knocksOutXHits(ctx, lastDef, atk, def, 1)) {
+                            return incStatus(ctx, viability, cls, 2, atk, def);
+                        } else if (AiCalc.moveFunctionInMoveset(atk, "0B8")) {                     // EFFECT_IMPRISON: the copied move is then Imprison-proof
+                            return incStatus(ctx, viability, cls, 1, atk, def);
+                        }
                     }
-                } else if (predicted != null && !AiCalc.can2HKO(ctx, def, atk) && AiCalc.knocksOutXHits(ctx, predicted, atk, def, 1)) {
-                    return incStatus(ctx, viability, cls, 1, atk, def);
+                } else if (predicted != null) {
+                    if (!AiCalc.can2HKO(ctx, def, atk) && AiCalc.knocksOutXHits(ctx, predicted, atk, def, 1)) {
+                        return incStatus(ctx, viability, cls, 1, atk, def);
+                    } else if (AiCalc.moveFunctionInMoveset(atk, "0B8")) {
+                        return incStatus(ctx, viability, cls, 1, atk, def);
+                    }
                 }
-                return viability;                                                                  // 登记: the Imprison clauses
+                return viability;
             }
             case "0B9": {                                                                          // EFFECT_DISABLE (:935)
                 if (def.effects.intVal(PBEffects.Battler.Disable) != 0 || def.hasActiveItem("MENTALHERB")) return viability;

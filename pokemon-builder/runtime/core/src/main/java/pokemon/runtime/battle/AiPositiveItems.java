@@ -9,8 +9,8 @@ import static pokemon.runtime.battle.AiPositiveHelpers.incStatus;
  * stat swap/split family (:2200), Psych Up / Spectral Thief (:1719), Imprison, Refresh, Mud/Water Sport, Magic/Wonder Room, Trick Room.
  *
  * <p>Item "hold effects" are the item's own name here (CHOICEBAND/SPECS/SCARF, TOXICORB, FLAMEORB, BLACKSLUDGE, IRONBALL, LAGGINGTAIL,
- * STICKYBARB); everything else counts as CFRU's {@code default} branch. 登记: Utility Umbrella / Eject Button / Assault Vest branches of Trick,
- * Role Play ("To do" in the source), Psycho Shift's status hand-over, doubles.</p>
+ * STICKYBARB, UTILITYUMBRELLA, ASSAULTVEST, EJECTBUTTON); everything else counts as CFRU's {@code default} branch. 登记:
+ * Role Play ("To do" in the source), Psycho Shift's Frostbite branch, doubles.</p>
  */
 final class AiPositiveItems {
 
@@ -46,6 +46,12 @@ final class AiPositiveItems {
                 BattleMove predicted = ctx.prediction(def);
                 boolean known = predicted != null && ownMove(atk, predicted);
                 return incStatus(ctx, viability, cls, known ? 3 : 1, atk, def);
+            }
+            case "01B": {                                                                          // MOVE_PSYCHOSHIFT (:2146): scored as the move that would inflict the status
+                String proxy = atk.hasStatus("POISON") ? "TOXIC" : atk.hasStatus("BURN") ? "WILLOWISP" : atk.hasStatus("PARALYSIS") ? "THUNDERWAVE"
+                        : atk.hasStatus("SLEEP") && atk.statusCount > 1 ? "SPORE" : null;           // 登记: the Frostbite branch (no matching proxy move)
+                return proxy == null ? viability
+                        : AiPositiveEffects.scoreAs(ctx, atk, def, proxy, viability, cls, atkAbility, defAbility);
             }
             case "018": return atk.statused() ? incStatus(ctx, viability, cls, 3, atk, def) : viability;   // EFFECT_REFRESH (:2144): default branch
             case "09D":                                                                            // EFFECT_MUD_SPORT (:2262)
@@ -180,6 +186,18 @@ final class AiPositiveItems {
             case "BLACKSLUDGE": return !def.pbHasType("POISON") ? incStatus(ctx, viability, cls, 3, atk, def) : viability;
             case "IRONBALL": return !has(def, "FLING") || !def.airborne() ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
             case "LAGGINGTAIL": case "STICKYBARB": return incStatus(ctx, viability, cls, 3, atk, def);
+            case "UTILITYUMBRELLA": {                                                              // Slow the foe's weather speed ability down
+                if (atkAbility.equals("SOLARPOWER") || atkAbility.equals("DRYSKIN")) return viability;
+                String da = def.ability == null ? "" : def.ability;
+                int w = ctx.battle.pbWeather();
+                boolean rain = w == PBWeather.Rain || w == PBWeather.HeavyRain, sun = w == PBWeather.Sun || w == PBWeather.HarshSun;
+                if ((da.equals("SWIMSWIFT") || da.equals("SWIFTSWIM")) && rain) return incStatus(ctx, viability, cls, 3, atk, def);
+                if ((da.equals("CHLOROPHYLL") || da.equals("FLOWERGIFT")) && sun) return incStatus(ctx, viability, cls, 3, atk, def);
+                return viability;                                                                  // 登记: Evaporate (not in this project)
+            }
+            case "EJECTBUTTON": return viability;                                                  // CFRU: only against a Dynamaxed foe, and this project has no Dynamax
+            case "ASSAULTVEST":                                                                    // only for Klutz users: ruin a stall strategy
+                return AiCalc.classStall(AiCalc.fightingStyle(ctx, def)) && statusMoveInMoveset(def) ? incStatus(ctx, viability, cls, 2, atk, def) : viability;
             default: break;
         }
         if (!move.function().equals("0F3") && ai.isEmpty() && !di.isEmpty()) {                     // not Bestow, attacker holds nothing
@@ -194,6 +212,14 @@ final class AiPositiveItems {
             }
         }
         return viability;
+    }
+
+    private static boolean statusMoveInMoveset(Battler b) {
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = b.moveSlot(i);
+            if (m != null && m.statusMove()) return true;
+        }
+        return false;
     }
 
     // ---- stat swaps ----
