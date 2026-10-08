@@ -296,4 +296,16 @@ class AiPartnerTest {
         b.field.positions[1].effects.set(PBEffects.Position.Wish, 2);
         assertEquals(2, AiSwitching.decide(b, user, new Random(1)));
     }
+
+    @Test
+    @DisplayName("ShouldSwitchIfPerishSong: a Pokemon that faints at the end of this turn leaves (vanilla pokefirered)")
+    void switchesOutOnPerishSong() {
+        Battle b = doubles(mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"), mon("HERO", 50, "TACKLE"));
+        b.addFoe(mon("FAT", 50, "TACKLE", "QUICKHIT"));
+        Battler user = b.battlerAt(1);
+        user.turnCount = 3;
+        b.battlerAt(3).turnCount = 3;
+        user.effects.set(PBEffects.Battler.PerishSong, 1);
+        assertEquals(2, AiSwitching.decide(b, user, new Random(1)));
+    }
 }

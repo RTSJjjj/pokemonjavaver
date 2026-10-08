@@ -534,11 +534,12 @@ final class AiSwitching {
         int r;
         if ((r = absorbsOpponentsMove(ctx, user, foe, bench)) != NONE) return r;                  // :92
         if ((r = passOnWish(ctx, user, foe, bench)) != NONE) return r;                            // :94
-        // :96 CanStopLockedMove: emits a switch but returns FALSE in the source, which the caller then overrides with "use a move"
-        // :98 ShouldSwitchIfPerishSong: its body is not in the cached source (登记)
+        if ((r = lockedMove(ctx, user, foe, bench, true)) != NONE) return r;                      // :96 CanStopLockedMove
+        if (user.effects.intVal(PBEffects.Battler.PerishSong) == 1) return BEST;                  // :98 ShouldSwitchIfPerishSong (vanilla pokefirered: perishSongTimer == 0, i.e. faints this turn)
         if ((r = wonderGuard(ctx, user, foe, bench)) != NONE) return r;                           // :100
         if ((r = onlyBadMovesLeft(ctx, user, foe, bench)) != NONE) return r;                      // :102
         if ((r = naturalCureOrRegenerator(ctx, user, foe, bench)) != NONE) return r;              // :104
+        if ((r = lockedMove(ctx, user, foe, bench, false)) != NONE) return r;                     // :106 SemiInvulnerableTroll
         if ((r = whenYawned(ctx, user, foe, bench)) != NONE) return r;                            // :108
         if ((r = whileAsleep(ctx, user, foe, bench)) != NONE) return r;                           // :110
         if ((r = annoyingSecondaryDamage(ctx, user, foe, bench)) != NONE) return r;               // :112
@@ -668,6 +669,65 @@ final class AiSwitching {
         battle.aiAbsorbSwitched[side] |= 1 << monId;                                                // :392
         battle.aiTypeAbsorbSwitchTurn[side] = battle.turns();                                       // :393
         return true;
+    }
+
+    // --- CanStopLockedMove (:939) / SemiInvulnerableTroll (:803) ---
+
+    /**
+     * Switch to a Pokemon that a foe's locked-in move ({@code checkLocked}) or two-turn semi-invulnerable move cannot hurt.
+     *
+     * <p><b>Plugin-source defect fixed:</b> in CFRU {@code RunAllSemiInvulnerableLockedMoveCalcs} (:874) finds the Pokemon and
+     * emits the switch but always returns FALSE, so the caller overrides it with "use a move" and the check never does
+     * anything. The evident intent is to switch, so here the found Pokemon is returned.</p>
+     */
+    private static int lockedMove(AiCtx ctx, Battler user, Battler foe, Bench bench, boolean checkLocked) {
+        Battle battle = ctx.battle;
+        boolean isDouble = AiDoublesScore.isDouble(battle, user);
+        Battler foe2 = foe2Of(ctx, user, foe);
+        boolean any = false;
+        for (Battler f : new Battler[] {foe, foe2}) any |= lockedMoveOf(battle, f, checkLocked) != null;
+        if (!any) return NONE;                                                                       // :941-955 / :816-830
+        if (isDouble && viableMons(battle, user) > 1) return NONE;                                  // the AI does not know which Pokemon is targeted
+        for (boolean noEffect : new boolean[] {true, false}) {                                       // DOESNT_AFFECT_FOE first, then NOT_VERY_EFFECTIVE
+            int pick = lockedMovePick(ctx, user, foe, noEffect, checkLocked);                        // foe 1
+            if (pick != NONE) return pick;
+            if (isDouble) {
+                pick = lockedMovePick(ctx, user, foe2, noEffect, checkLocked);                       // foe 2
+                if (pick != NONE) return pick;
+            }
+        }
+        return NONE;
+    }
+
+    /** The move {@code foe} is locked into (or hiding with), when it is aimed at us. */
+    private static BattleMove lockedMoveOf(Battle battle, Battler foe, boolean checkLocked) {
+        if (foe == null || foe.fainted()) return null;
+        BattleMove move = null;
+        if (!checkLocked && foe.semiInvulnerable()) move = AiCalc.lastUsedMove(battle, foe);       // STATUS3_SEMI_INVULNERABLE
+        if (checkLocked && (foe.effects.intVal(PBEffects.Battler.Outrage) > 0 || foe.effects.intVal(PBEffects.Battler.Rollout) > 0
+                || foe.effects.intVal(PBEffects.Battler.Uproar) > 0)) move = AiCalc.lastUsedMove(battle, foe);   // gLockedMoves
+        return move == null || move.statusMove() ? null : move;
+    }
+
+    /** {@code TheCalcForSemiInvulnerableTroll(bankAtk,flags,checkLockedMoves)} (:886). */
+    private static int lockedMovePick(AiCtx ctx, Battler user, Battler foe, boolean noEffectFlag, boolean checkLocked) {
+        Battle battle = ctx.battle;
+        BattleMove move = lockedMoveOf(battle, foe, checkLocked);
+        if (move == null) return NONE;
+        Object[] c = battle.choices(foe.index);
+        if (c[3] instanceof Integer && (Integer) c[3] >= 0 && (Integer) c[3] != user.index && AiDoublesScore.isDouble(battle, user)) return NONE;   // moveTarget[bankAtk] == gActiveBattler
+        int own = AiCalc.calcDmg(battle, foe, user, move).typeMod;
+        if (!user.fainted() && matches(own, noEffectFlag)) return NONE;                              // already has these type flags, why switch?
+        Array<Battler> party = battle.partyOf(user.index);
+        for (int i = 0; i < party.size; i++) {
+            if (!candidate(battle, user, i)) continue;
+            if (matches(AiCalc.calcDmg(battle, foe, party.get(i), move).typeMod, noEffectFlag)) return i;
+        }
+        return NONE;
+    }
+
+    private static boolean matches(int typeMod, boolean noEffect) {
+        return noEffect ? typeMod == 0 : typeMod > 0 && typeMod < 8;
     }
 
     // --- PassOnWish (:751) ---
