@@ -105,6 +105,12 @@ final class AiMaster {
      * scores below 100.
      * 登记: the multi-turn lock-in (:1172) and Truant/recharge (:1163) shortcuts are only applied for recharge and sleep.
      */
+    /** {@code IsValidMovePrediction(atk,def)} for a pair that was not prepared: predicts it first. */
+    static BattleMove predictionOf(AiCtx ctx, Battler atk, Battler def) {
+        predictMoves(ctx, atk, def);
+        return ctx.prediction(atk);
+    }
+
     private static void predictMoves(AiCtx ctx, Battler atk, Battler def) {
         if (atk.fainted() || def.fainted()) return;
         if (atk.effects.intVal(PBEffects.Battler.HyperBeam) > 0) {                                      // :1163 STATUS2_RECHARGE

@@ -236,7 +236,7 @@ final class AiNegativeEffects {
             }
             case "0A3": {                                                                         // EFFECT_LIGHT_SCREEN (:1530)
                 if (atk.pbOwnSide().effects.intVal(PBEffects.Side.LightScreen) > 0) r.viability -= 10;
-                else if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FREEZE"))
+                else if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FROZEN"))
                         && (AiCalc.hasUsedFunction(battle, def, "10A") || AiCalc.hasUsedMove(def, "DEFOG"))) r.viability -= 9;   // :1535 the player will probably cheese it
                 return true;
             }
@@ -294,7 +294,7 @@ final class AiNegativeEffects {
             }
             case "0A2": {                                                                         // EFFECT_REFLECT default (:1634)
                 if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Reflect) > 0) r.viability -= 10;
-                else if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FREEZE"))
+                else if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FROZEN"))
                         && (AiCalc.hasUsedFunction(battle, def, "10A") || AiCalc.hasUsedMove(def, "DEFOG"))) r.viability -= 9;   // :1633
                 return true;
             }
@@ -469,7 +469,7 @@ final class AiNegativeEffects {
                 return true;
             }
             case "103": case "104": case "105": case "153": {                                     // EFFECT_SPIKES (:1991)
-                if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FREEZE"))
+                if (ctx.goodAi() && !(def.hasStatus("SLEEP") || def.hasStatus("FROZEN"))
                         && AiCalc.hasUsedFunction(battle, def, "110")) {                          // :1976 Rapid Spin was used before
                     r.viability -= 9;
                     return true;

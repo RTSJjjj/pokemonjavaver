@@ -27,6 +27,10 @@ final class AiPositives {
         String defAbility = def.ability == null ? "" : def.ability;                                  // :52
         if (atk.hasMoldBreaker()) defAbility = "";                                                   // :54
 
+        if (def != atk && def.foe == atk.foe && AiDoublesScore.isDouble(ctx.battle, atk)) {          // :63 IS_DOUBLE_BATTLE && TARGETING_PARTNER
+            return AiPartner.score(ctx, atk, def, move, originalViability);
+        }
+
         viability = AiPositiveEffects.apply(ctx, atk, def, move, viability, cls, atkAbility, defAbility);   // :55-2722 switch (moveEffect), part 1
 
         if (!move.statusMove()) {                                                                    // :2724 moveSplit != SPLIT_STATUS
@@ -41,6 +45,9 @@ final class AiPositives {
     static int damageMoveViabilityIncrease(AiCtx ctx, Battler atk, Battler def, BattleMove move, int viability, int cls,
                                            BattleMove predictedMove, String atkAbility, String defAbility) {
         Battle battle = ctx.battle;
+        if (AiDoublesScore.isDouble(battle, atk)) {                                                  // :2850 Double Battle
+            return AiDoublesScore.increaseDamage(ctx, viability, cls, atk, def, move);                // :2872 IncreaseDoublesDamageViability
+        }
         boolean predictedSuckerPunch = predictedMove != null && AiCalc.named(predictedMove, "SUCKERPUNCH");   // EFFECT_SUCKER_PUNCH
         int atkSpeed = AiCalc.speed(atk);
         int defSpeed = AiCalc.speed(def);

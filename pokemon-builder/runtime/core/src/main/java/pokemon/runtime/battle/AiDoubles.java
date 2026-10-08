@@ -7,10 +7,10 @@ import java.util.Random;
  * :412-523): every move is scored against every living target with the same scripts the singles AI uses, then the
  * target is picked among those whose best move scores highest.
  *
- * <p>登记: {@code ai_partner.c} (an ally as a target is always -1, i.e. never chosen), Z-moves
- * ({@code TryReplaceMoveWithZMove}), the doubles fighting classes ({@code IsClassDoublesAttacker} is read from the
- * singles class: Sweeper/Damager), {@code CanKnockOutWithFasterMove} (approximated by "can knock out and its strongest
- * move goes first"), and the doubles branches of the scripts and of switching/item use.</p>
+ * <p>The partner as a target is scored by {@link AiPartner} ({@code ai_partner.c}); fight classes, the doubles killing
+ * score and the doubles viability tables are in {@link AiCalc} / {@link AiDoublesScore}.
+ * 登记: Z-moves ({@code TryReplaceMoveWithZMove}), {@code CanKnockOutWithFasterMove} (approximated by "can knock out and its
+ * strongest move goes first"), and the doubles branches of the scripts that are not listed in docs/cfru-ai-handoff.md.</p>
  */
 final class AiDoubles {
 
@@ -112,8 +112,7 @@ final class AiDoubles {
     }
 
     private static boolean classDoublesAttacker(AiCtx ctx, Battler b) {
-        int cls = AiCalc.fightingStyle(ctx, b);
-        return AiCalc.classSweeper(cls) || AiCalc.classDamager(cls);
+        return AiCalc.classDoublesAttacker(AiCalc.fightingStyle(ctx, b));          // IsClassDoublesAttacker(GetBankFightingStyle(bank))
     }
 
     /** {@code ChooseMoveOrAction_Doubles}. Null when nothing could be scored. */
@@ -146,7 +145,6 @@ final class AiDoubles {
             slotFor[i] = best[ctx.random() % num];                                              // :599
             points[i] = score[best[0]];
             if (t.foe == user.foe && points[i] < 101) points[i] = -1;                           // :603 never an ally unless clearly good
-            if (t.foe == user.foe) points[i] = -1;                                              // 登记: ai_partner.c
         }
         AiCtx ctx = null;
         for (AiCtx c : ctxs) if (c != null) { ctx = c; break; }

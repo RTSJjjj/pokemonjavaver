@@ -27,6 +27,11 @@ final class AiCalc {
             CLASS_SWEEPER_SETUP_STATUS = 3, CLASS_SWEEPER_SETUP_SCREENS = 4, CLASS_STALL = 5,
             CLASS_BATON_PASS = 6, CLASS_CLERIC = 7, CLASS_SCREENS = 8, CLASS_PHAZING = 9, CLASS_ENTRY_HAZARDS = 10;
 
+    /** {@code FIGHT_CLASS_DOUBLES_*} ({@code ai_advanced.c:34-47}): the classes of a non-1v1 battle. */
+    static final int CLASS_D_ALL_OUT_ATTACKER = 11, CLASS_D_SETUP_ATTACKER = 12, CLASS_D_TRICK_ROOM_ATTACKER = 13,
+            CLASS_D_TRICK_ROOM_SETUP = 14, CLASS_D_UTILITY = 15, CLASS_D_PHAZING = 16, CLASS_D_TEAM_SUPPORT = 17,
+            CLASS_D_TOTAL_TEAM_SUPPORT = 18;
+
     /** A damage prediction: {@code dmg} is {@code AI_CalcDmg}'s value, {@code typeMod} the type result (0 = no effect). */
     static final class AiDmg {
         final int dmg;
@@ -614,12 +619,18 @@ final class AiCalc {
         return b.hasActiveItem(new String[] {"CHOICEBAND", "CHOICESPECS", "CHOICESCARF"}) || b.hasActiveAbility("GORILLATACTICS");
     }
 
-    /** {@code ShouldUseFakeOut(bankAtk,bankDef,defAbility)} (ai_advanced.c:1430-1475), the single-battle branch. */
+    /** {@code ShouldUseFakeOut(bankAtk,bankDef,defAbility)} (ai_advanced.c:1430-1475). */
     static boolean shouldUseFakeOut(AiCtx ctx, Battler atk, Battler def) {
         if (!AiCalc.firstTurn(atk) || def.hasActiveAbility(new String[] {"INNERFOCUS", "SHIELDDUST", "STEADFAST"})
                 || def.effects.intVal(PBEffects.Battler.Substitute) > 0) return false;                  // isFirstTurn / CanBeFlinched
-        if (choiceLocked(atk) && AiUtil.benchAlive(ctx.battle, atk) <= 0) {
-            if (AiUtil.benchAlive(ctx.battle, def) == 0) {
+        boolean isDouble = AiDoublesScore.isDouble(ctx.battle, atk);
+        if (isDouble) {
+            BattleMove predicted = ctx.prediction(def);
+            if (predicted != null && oneOf(predicted, PROTECT)) return false;                            // CanMovePredictionProtectAgainstMove
+        }
+        int viableLimit = isDouble ? 2 : 1;                                                              // ViableMonCountFromBankLoadPartyRange(bankAtk)
+        if (choiceLocked(atk) && AiUtil.benchAlive(ctx.battle, atk) + 1 <= viableLimit) {
+            if (AiUtil.benchAlive(ctx.battle, def) == 0) {                                               // ViableMonCountFromBank(bankDef) == 1
                 BattleMove fakeOut = null;
                 for (int i = 0; i < Battler.MOVES_MAX; i++) {
                     BattleMove m = atk.moveSlot(i);
@@ -643,6 +654,7 @@ final class AiCalc {
 
     /** {@code PredictBankFightingStyle(bank)} -> {@code PredictFightingStyle} singles branch (ai_advanced.c:380-560). */
     static int fightingStyle(AiCtx ctx, Battler bank) {
+        if (AiDoublesScore.isDouble(ctx.battle, bank)) return doublesFightingStyle(bank);          // :586 the Doubles branch
         boolean leechSeed = false;
         boolean protectionMove = false;
         boolean boostingMove = false;
@@ -737,13 +749,96 @@ final class AiCalc {
         return c == CLASS_SWEEPER_KILL || c == CLASS_SWEEPER_SETUP_STATS || c == CLASS_SWEEPER_SETUP_STATUS;
     }
 
-    /** {@code IsClassDamager}: singles - a sweeper. */
+    /** {@code IsClassDamager} (ai_advanced.c:314-337 region): a sweeper, a doubles attacker or the screens sweeper. */
     static boolean classDamager(int c) {
-        return classSweeper(c);
+        return classSweeper(c) || classDoublesAttacker(c) || c == CLASS_SWEEPER_SETUP_SCREENS;
     }
 
     static boolean classStall(int c) {
         return c == CLASS_STALL;
+    }
+
+    /** {@code IsClassDoublesAttacker}. */
+    static boolean classDoublesAttacker(int c) {
+        return c == CLASS_D_ALL_OUT_ATTACKER || c == CLASS_D_TRICK_ROOM_ATTACKER || c == CLASS_D_SETUP_ATTACKER;
+    }
+
+    /** {@code IsClassDoublesTeamSupport}. */
+    static boolean classDoublesTeamSupport(int c) {
+        return c == CLASS_D_TEAM_SUPPORT || c == CLASS_D_TOTAL_TEAM_SUPPORT;
+    }
+
+    /** {@code IsClassDoublesTotalTeamSupport}. */
+    static boolean classDoublesTotalTeamSupport(int c) {
+        return c == CLASS_D_TOTAL_TEAM_SUPPORT;
+    }
+
+    /** {@code IsClassDoublesUtility}. */
+    static boolean classDoublesUtility(int c) {
+        return c == CLASS_D_UTILITY;
+    }
+
+    /** {@code IsClassDoublesSpecific}. */
+    static boolean classDoublesSpecific(int c) {
+        return c >= CLASS_D_ALL_OUT_ATTACKER && c <= CLASS_D_TOTAL_TEAM_SUPPORT;
+    }
+
+    /** {@code IsClassPhazer}: the singles phazing support or the doubles phazer. */
+    static boolean classPhazer(int c) {
+        return c == CLASS_PHAZING || c == CLASS_D_PHAZING;
+    }
+
+    /** {@code PredictFightingStyle} doubles branch (ai_advanced.c:586-775). */
+    private static int doublesFightingStyle(Battler bank) {
+        boolean hasTrickRoom = false, hasPhazing = false, hasRedirection = false, hasTeamSupport = false, hasPivot = false;
+        boolean hasPersonalProtect = false, hasFakeOut = false;
+        int attackMoveNum = 0, numOffensiveBoostingMoves = 0;
+        String ability = bank.ability == null ? "" : bank.ability;
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove move = bank.moveSlot(i);
+            if (move == null) continue;
+            String f = move.function();
+            if (f.equals("11F")) {                                                                // MOVE_TRICKROOM
+                hasTrickRoom = true;
+            } else if (move.statusMove() && oneOf(move, "01C", "01F", "020", "02E", "030", "032", "026", "02C", "024", "029")) {
+                numOffensiveBoostingMoves++;     // ATTACK_UP/SPEED_UP/SPATK_UP (+2s), DRAGON_DANCE, CALM_MIND, BULK_UP, ATK_ACC_UP
+            } else if (f.equals("13E")) {                                                         // EFFECT_ATK_SPATK_UP: Rototiller
+                if (bank.pbHasType("GRASS") && !bank.airborne()) numOffensiveBoostingMoves++;
+            } else if (f.equals("15C")) {                                                         // Gear Up
+                if (ability.equals("PLUS") || ability.equals("MINUS")) numOffensiveBoostingMoves++;
+            } else if (f.equals("0EB") || f.equals("051") || f.equals("050")) {                  // ROAR, HAZE, REMOVE_TARGET_STAT_CHANGES
+                hasPhazing = true;
+            } else if (f.equals("117")) {                                                         // EFFECT_FOLLOW_ME
+                hasRedirection = true;
+            } else if (oneOf(move, "0A2", "0A3", "019", "01A", "056", "167")) {                   // REFLECT, LIGHT_SCREEN, HEAL_BELL, SAFEGUARD, MIST (+Aurora Veil)
+                hasTeamSupport = true;
+            } else if (oneOf(move, "05B", "0A1")) {                                               // EFFECT_TEAM_EFFECTS except Magnet Rise: Tailwind, Lucky Chant
+                hasTeamSupport = true;
+            } else if (f.equals("0EE") || f.equals("151")) {                                      // EFFECT_BATON_PASS other than Baton Pass: U-turn, Volt Switch, Parting Shot
+                hasPivot = true;
+            } else if (f.equals("03B")) {                                                         // EFFECT_SUPERPOWER with an Eject Pack
+                if (bank.hasActiveItem("EJECTPACK") && !named(move, "HYPERSPACEHOLE")) hasPivot = true;
+            } else if (f.equals("012")) {                                                         // EFFECT_FAKE_OUT: Fake Out
+                if (named(move, "FAKEOUT")) hasFakeOut = true;
+            } else if (oneOf(move, PROTECT)) {                                                    // EFFECT_PROTECT: the personal protections
+                hasPersonalProtect = true;
+            }
+            if (!move.statusMove() && !named(move, "NUZZLE", "FAKEOUT")) attackMoveNum++;        // :687
+        }
+        boolean trickRoomItem = bank.hasActiveItem("ROOMSERVICE") || bank.hasActiveItem("IRONBALL") || bank.hasActiveItem("MACHOBRACE");
+        if (hasTrickRoom) return attackMoveNum <= 1 ? CLASS_D_TRICK_ROOM_SETUP : CLASS_D_TRICK_ROOM_ATTACKER;
+        if (hasRedirection || (ability.equals("INTIMIDATE") && hasFakeOut) || (hasFakeOut && hasPivot)) return CLASS_D_UTILITY;
+        if (hasPhazing) {
+            return attackMoveNum == 3 || (attackMoveNum == 2 && hasPersonalProtect) ? CLASS_D_SETUP_ATTACKER : CLASS_D_PHAZING;
+        }
+        if (attackMoveNum >= Battler.MOVES_MAX || (attackMoveNum == 3 && hasPersonalProtect)) {
+            return trickRoomItem ? CLASS_D_TRICK_ROOM_ATTACKER : CLASS_D_ALL_OUT_ATTACKER;
+        }
+        if (attackMoveNum + numOffensiveBoostingMoves >= 3 || (attackMoveNum + numOffensiveBoostingMoves == 2 && hasPersonalProtect)) {
+            return trickRoomItem ? CLASS_D_TRICK_ROOM_ATTACKER : CLASS_D_SETUP_ATTACKER;
+        }
+        if (hasTeamSupport) return attackMoveNum <= 1 ? CLASS_D_TOTAL_TEAM_SUPPORT : CLASS_D_TEAM_SUPPORT;
+        return CLASS_D_UTILITY;                                                                   // the default class
     }
 
     // ------------------------------------------------------------------

@@ -55,6 +55,25 @@ final class AiPositiveHelpers {
             case AiCalc.CLASS_ENTRY_HAZARDS:
                 viability = inc(viability, 3);
                 break;
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER:
+                break;
+            case AiCalc.CLASS_D_SETUP_ATTACKER:
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER:
+                viability = inc(viability, 4 + boost);
+                break;
+            case AiCalc.CLASS_D_TRICK_ROOM_SETUP:
+                viability = inc(viability, 7 + boost);
+                break;
+            case AiCalc.CLASS_D_UTILITY:
+                viability = inc(viability, 3 + boost);
+                break;
+            case AiCalc.CLASS_D_PHAZING:
+                viability = inc(viability, 8 + boost);
+                break;
+            case AiCalc.CLASS_D_TEAM_SUPPORT:
+            case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT:
+                viability = inc(viability, 2 + boost);
+                break;
             default:
                 break;
         }
@@ -98,6 +117,23 @@ final class AiPositiveHelpers {
                     default:
                         break;
                 }
+                break;
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER:
+                if (stat == ALL_STATS && setUp) viability = inc(viability, 16);
+                break;
+            case AiCalc.CLASS_D_SETUP_ATTACKER:
+                if (stat == PBStats.ATTACK || stat == PBStats.SPATK || stat == PBStats.SPEED || stat == PBStats.ACCURACY
+                        || stat == PBStats.EVASION || stat == ALL_STATS) {
+                    if (stat == ALL_STATS || atk.stage(stat) < 1) viability = inc(viability, 17);        // max 1 boost
+                }
+                break;
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER:
+            case AiCalc.CLASS_D_TRICK_ROOM_SETUP:
+            case AiCalc.CLASS_D_UTILITY:
+            case AiCalc.CLASS_D_PHAZING:
+            case AiCalc.CLASS_D_TEAM_SUPPORT:
+            case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT:
+                if (setUp) viability = incStatus(ctx, viability, cls, 1, atk, def);                 // treat like a low-priority status move
                 break;
             default:
                 break;
@@ -497,6 +533,10 @@ final class AiPositiveHelpers {
             }
         }
         boolean decent = AiCalc.hitChance(ctx.battle, atk, def, move) >= 80;
+        Battler defPartner = AiDoublesScore.partner(ctx.battle, def);
+        boolean spreadSleep = AiDoublesScore.isDouble(ctx.battle, atk) && defPartner != null                 // spreadSleep
+                && AiDoublesScore.spread(ctx.battle, atk, move)
+                && !AiCalc.blockedBySubstitute(move, atk, defPartner) && !badIdeaToPutToSleep(ctx, defPartner, atk);
         switch (cls) {
             case AiCalc.CLASS_SWEEPER_KILL: break;
             case AiCalc.CLASS_SWEEPER_SETUP_STATS: viability = decent ? inc(viability, 9) : incStatus(ctx, viability, cls, 3, atk, def); break;
@@ -507,6 +547,14 @@ final class AiPositiveHelpers {
             case AiCalc.CLASS_SCREENS: case AiCalc.CLASS_SWEEPER_SETUP_SCREENS: viability = decent ? inc(viability, 8) : incStatus(ctx, viability, cls, 3, atk, def); break;
             case AiCalc.CLASS_PHAZING: viability = decent ? inc(viability, 9) : incStatus(ctx, viability, cls, 3, atk, def); break;
             case AiCalc.CLASS_ENTRY_HAZARDS: viability = decent ? inc(viability, 8) : incStatus(ctx, viability, cls, 3, atk, def); break;
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER: viability = incStatus(ctx, viability, cls, 3, atk, def); break;
+            case AiCalc.CLASS_D_SETUP_ATTACKER: viability = spreadSleep ? inc(viability, 18) : incStatus(ctx, viability, cls, 3, atk, def); break;
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER:
+            case AiCalc.CLASS_D_TRICK_ROOM_SETUP: viability = spreadSleep ? inc(viability, 16) : incStatus(ctx, viability, cls, 3, atk, def); break;
+            case AiCalc.CLASS_D_UTILITY: viability = inc(viability, 17); break;
+            case AiCalc.CLASS_D_PHAZING: viability = spreadSleep ? inc(viability, 17) : incStatus(ctx, viability, cls, 3, atk, def); break;
+            case AiCalc.CLASS_D_TEAM_SUPPORT:
+            case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT: viability = spreadSleep ? inc(viability, 19) : incStatus(ctx, viability, cls, 3, atk, def); break;
             default: break;
         }
         return viability;

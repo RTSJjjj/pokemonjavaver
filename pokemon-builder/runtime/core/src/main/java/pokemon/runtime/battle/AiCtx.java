@@ -35,6 +35,9 @@ final class AiCtx {
     private final Map<Battler, BattleMove> strongest = new IdentityHashMap<>();
     private final Map<Battler, Boolean> strongestKnown = new IdentityHashMap<>();
 
+    /** {@code gNewBS->ai.bestDoublesKillingMoves/Scores}: filled lazily per (attacker, defender) pair. */
+    final Map<Integer, AiDoublesScore.Killing> killing = new java.util.HashMap<>();
+
     AiCtx(Battle battle, Random rng, int flags) {
         this.battle = battle;
         this.rng = rng;

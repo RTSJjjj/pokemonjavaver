@@ -36,6 +36,9 @@ final class AiNegatives {
         String moveType = AiCalc.fx(move).pbCalcType(move, atk);                                      // :126 GetMoveTypeSpecial
         boolean status = move.statusMove();                                                           // :125 moveSplit == SPLIT_STATUS
         String target = move.target();                                                                // :127 GetBaseMoveTarget
+        boolean partnerTarget = def != atk && def.foe == atk.foe && AiDoublesScore.isDouble(battle, atk);   // TARGETING_PARTNER (:36)
+        int atkSpeed = AiCalc.speed(atk);
+        int defSpeed = AiCalc.speed(def);
 
         if (!"User".equals(target)) {                                                                 // :138 MOVE_TARGET_USER skips the target checks
             // Gravity Table Prevention Check (:174)
@@ -51,16 +54,36 @@ final class AiNegatives {
             if (!atk.hasMoldBreaker()) {
                 switch (defAbility) {
                     case "VOLTABSORB": case "MOTORDRIVE": case "LIGHTNINGROD":                      // Electric
-                        if ("ELECTRIC".equals(moveType)) return clamp(dec(viability, 20));
+                        if ("ELECTRIC".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));   // good idea to attack the partner
                         break;
                     case "WATERABSORB": case "DRYSKIN": case "STORMDRAIN":                          // Water
-                        if ("WATER".equals(moveType)) return clamp(dec(viability, 20));
+                        if ("WATER".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
                         break;
                     case "FLASHFIRE":                                                                // Fire
-                        if ("FIRE".equals(moveType)) return clamp(dec(viability, 20));
+                        if ("FIRE".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
                         break;
                     case "SAPSIPPER":                                                                // Grass
-                        if ("GRASS".equals(moveType)) return clamp(dec(viability, 20));
+                        if ("GRASS".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
+                        break;
+                    case "JUSTIFIED":                                                                // Dark (:222)
+                        if ("DARK".equals(moveType) && !status && !partnerTarget && AiCalc.statCanRise(def, PBStats.ATTACK)
+                                && !AiCalc.knocksOutXHits(ctx, move, atk, def, 2) && AiCalc.physicalMoveInMoveset(ctx, def)) {
+                            viability = dec(viability, 4);                                           // don't risk raising enemy stats; could get worse
+                        }
+                        break;
+                    case "RATTLED":                                                                  // Multiple move types
+                        if (!status && ("DARK".equals(moveType) || "GHOST".equals(moveType) || "BUG".equals(moveType))
+                                && !partnerTarget && AiCalc.statCanRise(def, PBStats.SPEED) && !AiCalc.knocksOutXHits(ctx, move, atk, def, 1)
+                                && atkSpeed > defSpeed) {
+                            viability = dec(viability, AiCalc.knocksOutXHits(ctx, move, atk, def, 2) ? 1 : 9);
+                        }
+                        break;
+                    case "STEAMENGINE":
+                        if (!status && ("WATER".equals(moveType) || "FIRE".equals(moveType))
+                                && !partnerTarget && AiCalc.statCanRise(def, PBStats.SPEED) && !AiCalc.knocksOutXHits(ctx, move, atk, def, 1)
+                                && atkSpeed > defSpeed) {
+                            viability = dec(viability, AiCalc.knocksOutXHits(ctx, move, atk, def, 2) ? 5 : 9);
+                        }
                         break;
                     case "SOUNDPROOF":                                                               // Move category checks (:325)
                         if (AiCalc.has(move, 'k')) return clamp(dec(viability, 10));
@@ -71,20 +94,67 @@ final class AiNegatives {
                     case "DAZZLING": case "QUEENLYMAJESTY":
                         if (AiCalc.priorityCalc(battle, atk, move) > 0) return clamp(dec(viability, 10));
                         break;
+                    case "AROMAVEIL":                                                                // gAromaVeilProtectedMoves: Taunt, Torment, Encore, Disable, Heal Block, Attract
+                        if (status && AiCalc.named(move, "TAUNT", "TORMENT", "ENCORE", "DISABLE", "HEALBLOCK", "ATTRACT")) return clamp(dec(viability, 10));
+                        break;
+                    case "SWEETVEIL":
+                        if (AiCalc.oneOf(move, "003", "004")) return clamp(dec(viability, 10));
+                        break;
+                    case "FLOWERVEIL":
+                        if (def.hasType("GRASS") && status && (AiPartner.statLowering(move) || AiNegatives.setsStatus(move) || AiCalc.named(move, "PARTINGSHOT"))) {
+                            return clamp(dec(viability, 10));
+                        }
+                        break;
                     case "MAGICBOUNCE":
                         if (AiCalc.has(move, 'c')) return clamp(dec(viability, 20));
                         break;
-                    case "COMATOSE":
-                        if (AiCalc.oneOf(move, "003", "004", "005", "006", "007", "00A", "00B", "00C", "00D", "00E", "0C5", "0C6", "0C7"))
-                            return clamp(dec(viability, 10));                                        // gSetStatusMoveEffects subset: status-inflicting
+                    case "CONTRARY":
+                        if (status && AiPartner.statLowering(move) && !partnerTarget) return clamp(dec(viability, 20));
                         break;
+                    case "MIRRORARMOR":
+                        if (status && AiPartner.statLowering(move)) return clamp(dec(viability, 20));   // bad even when attacking a partner
+                        break;
+                    case "CLEARBODY": case "WHITESMOKE": case "FULLMETALBODY":
+                        if (status && (AiPartner.statLowering(move) || AiCalc.named(move, "PARTINGSHOT"))) return clamp(dec(viability, 10));
+                        break;
+                    case "HYPERCUTTER":
+                        if (status && AiCalc.oneOf(move, "042", "04B")) return clamp(dec(viability, 10));         // EFFECT_ATTACK_DOWN(_2)
+                        break;
+                    case "KEENEYE":
+                        if (status && AiCalc.oneOf(move, "047")) return clamp(dec(viability, 10));
+                        break;
+                    case "BIGPECKS":
+                        if (status && AiCalc.oneOf(move, "043", "04C")) return clamp(dec(viability, 10));         // EFFECT_DEFENSE_DOWN(_2)
+                        break;
+                    case "DEFIANT":
+                        if (status && AiPartner.statLowering(move) && !partnerTarget && AiCalc.statCanRise(def, PBStats.ATTACK)
+                                && AiCalc.physicalMoveInMoveset(ctx, def)) {
+                            return clamp(dec(viability, 8));                                         // not 10 because the move still works
+                        }
+                        break;
+                    case "COMPETITIVE":
+                        if (status && AiPartner.statLowering(move) && !partnerTarget && AiCalc.statCanRise(def, PBStats.SPATK)
+                                && AiCalc.specialMoveInMoveset(ctx, def)) {
+                            return clamp(dec(viability, 8));
+                        }
+                        break;
+                    case "COMATOSE":
+                        if (setsStatus(move)) return clamp(dec(viability, 10));                      // gSetStatusMoveEffects
+                        break;
+                    case "SHIELDSDOWN":
+                        if (def.isSpecies("MINIOR") && def.form() == 0 && setsStatus(move)) return clamp(dec(viability, 10));
+                        break;
+                    case "LEAFGUARD": {
+                        int w = battle.pbWeather();
+                        if ((w == PBWeather.Sun || w == PBWeather.HarshSun) && !def.hasActiveItem("UTILITYUMBRELLA") && setsStatus(move)) {
+                            return clamp(dec(viability, 10));
+                        }
+                        break;
+                    }
                     default:
                         break;
                 }
             }
-            // 登记: :222-324 JUSTIFIED/RATTLED/STEAMENGINE (AI_STAT_CAN_RISE + MoveKnocksOutXHits), AROMAVEIL, SWEETVEIL,
-            //       FLOWERVEIL, CONTRARY, MIRRORARMOR, CLEARBODY/WHITESMOKE, HYPERCUTTER, KEENEYE, BIGPECKS, DEFIANT,
-            //       COMPETITIVE, SHIELDSDOWN, WONDERSKIN, LEAFGUARD need gStatLoweringMoveEffects / gSetStatusMoveEffects.
 
             // Prankster (:487)
             if (atk.hasActiveAbility("PRANKSTER") && status && !"FoeSide".equals(target)
@@ -138,6 +208,11 @@ final class AiNegatives {
         }
         if (viability < 0) return 0;                                                                  // :3263
         return viability;
+    }
+
+    /** {@code CheckTableForMovesEffect(move,gSetStatusMoveEffects)}: a move that sets a major status. 登记: table not exported; the status-inflicting status moves. */
+    static boolean setsStatus(BattleMove move) {
+        return AiCalc.oneOf(move, "003", "004", "005", "006", "007", "00A", "00B", "00C", "00D", "00E", "0C5", "0C6", "0C7");
     }
 
     private static int clamp(int viability) {

@@ -431,7 +431,7 @@ final class AiPositiveEffects {
         BattleMove predicted = ctx.prediction(def);
         switch (f) {
             case "012": {                                                                          // EFFECT_FAKE_OUT (:1765): every singles class falls to the default +8
-                if (AiCalc.named(move, "FAKEOUT") && AiCalc.shouldUseFakeOut(ctx, atk, def)) viability = inc(viability, 8);
+                if (AiCalc.named(move, "FAKEOUT") && AiCalc.shouldUseFakeOut(ctx, atk, def)) viability = increaseFakeOut(ctx, viability, cls, atk, def, move);
                 return viability;
             }
             case "102": {                                                                          // EFFECT_HAIL (:1773)
@@ -592,7 +592,46 @@ final class AiPositiveEffects {
             }
             case AiCalc.CLASS_ENTRY_HAZARDS:
                 return inc(viability, f.equals("153") ? 7 : f.equals("105") ? 6 : f.equals("104") ? 5 : 4);
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER: return viability;
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER:
+                if (!twoTrainers(ctx.battle, def) && AiCalc.named(move, "STEALTHROCK")) return inc(viability, 13);
+                return incStatus(ctx, viability, cls, twoTrainers(ctx.battle, def) ? 1 : 2, atk, def);
+            case AiCalc.CLASS_D_SETUP_ATTACKER: case AiCalc.CLASS_D_TRICK_ROOM_SETUP: case AiCalc.CLASS_D_UTILITY:
+            case AiCalc.CLASS_D_PHAZING: case AiCalc.CLASS_D_TEAM_SUPPORT: case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT:
+                return incStatus(ctx, viability, cls, twoTrainers(ctx.battle, def) ? 1 : 2, atk, def);
             default: return viability;
+        }
+    }
+
+    /** {@code BankSideHasTwoTrainers(bank)}: a multi battle side. */
+    private static boolean twoTrainers(Battle battle, Battler b) {
+        return battle.trainerBattle && battle.pbTrainerCount(b.index & 1) > 1;
+    }
+
+    /** {@code IncreaseFakeOutViability(&viability,class,bankAtk,bankDef,move)} (ai_advanced.c:2584-2656). */
+    static int increaseFakeOut(AiCtx ctx, int viability, int cls, Battler atk, Battler def, BattleMove move) {
+        int decrement = 0;
+        Battle battle = ctx.battle;
+        if (AiCalc.named(move, "FAKEOUT") && AiDoublesScore.isDouble(battle, atk)) {
+            Battler partner = AiDoublesScore.partner(battle, atk);
+            BattleMove partnerMove = partner == null ? null : battle.chosenMove(partner.index);
+            int partnerTarget = partner == null ? -1 : (battle.choices(partner.index)[3] instanceof Integer ? (Integer) battle.choices(partner.index)[3] : -1);
+            if (partner != null && partnerMove != null && AiCalc.named(partnerMove, "FAKEOUT") && partnerTarget == def.index) return viability;   // no benefit to using it twice
+            Battler defPartner = AiDoublesScore.partner(battle, def);
+            if (defPartner != null && !(partner != null && partnerMove != null && AiCalc.named(partnerMove, "FAKEOUT") && partnerTarget == defPartner.index)) {
+                int ko1 = (AiCalc.canKnockOut(ctx, def, atk) ? 1 : 0) + (partner != null && AiCalc.canKnockOut(ctx, def, partner) ? 1 : 0);
+                int ko2 = (AiCalc.canKnockOut(ctx, defPartner, atk) ? 1 : 0) + (partner != null && AiCalc.canKnockOut(ctx, defPartner, partner) ? 1 : 0);
+                if (ko2 > ko1 && !AiCalc.noEffect(battle, atk, def, move)) decrement = 1;                      // the target's partner is more threatening
+            }
+        }
+        switch (cls) {
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER: case AiCalc.CLASS_D_SETUP_ATTACKER: return inc(viability, 15 - decrement);
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER:
+                return AiCalc.trickRoom(battle) ? viability : inc(viability, 17 - decrement);                 // do not burn a Trick Room turn
+            case AiCalc.CLASS_D_TRICK_ROOM_SETUP: return inc(viability, 17 - decrement);
+            case AiCalc.CLASS_D_UTILITY: case AiCalc.CLASS_D_PHAZING: return inc(viability, 19 - decrement);
+            case AiCalc.CLASS_D_TEAM_SUPPORT: case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT: return inc(viability, 17 - decrement);
+            default: return inc(viability, 8 - decrement);
         }
     }
 

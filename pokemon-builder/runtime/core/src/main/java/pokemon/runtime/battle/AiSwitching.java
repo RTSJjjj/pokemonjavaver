@@ -248,7 +248,7 @@ final class AiSwitching {
         for (int i = 0; i < party.size; i++) {                                                   // :2034
             Battler mon = party.get(i);
             if (!candidate(battle, user, i)) continue;
-            boolean asleepOrFrozen = mon.hasStatus("SLEEP") || mon.hasStatus("FREEZE");
+            boolean asleepOrFrozen = mon.hasStatus("SLEEP") || mon.hasStatus("FROZEN");
             if (asleepOrFrozen && mon.statusCount != 1) continue;                                 // :2041-2045
             int[] scores = out.scores;
             int[] flags = out.flags;
@@ -644,7 +644,7 @@ final class AiSwitching {
                 Battler bestMon = bench.best == NONE ? null : battle.partyOf(user.index).get(bench.best);
                 if (bestMon == null || !bestMon.pbHasType("POISON") || bestMon.airborne()) return NONE;   // :660
             }
-            if (user.hasStatus("SLEEP") || user.hasStatus("FREEZE")) {
+            if (user.hasStatus("SLEEP") || user.hasStatus("FROZEN")) {
                 // fall through to the switch (:664-669)
             } else if (user.statused() && user.hp >= user.maxHp() / 2) {                              // :670
                 // fall through
@@ -933,7 +933,7 @@ final class AiSwitching {
         if (justSwitchedIn(user)) return NONE;                                                         // :1705
         BattleMove foePred = ctx.prediction(foe);
         if (!ctx.goodAi()) return NONE;                                                                // :1714
-        if (user.hasStatus("FREEZE")) return NONE;                                                     // :1720
+        if (user.hasStatus("FROZEN")) return NONE;                                                     // :1720
         if (user.hasStatus("PARALYSIS") && !user.hasActiveAbility("QUICKFEET") && !user.hasActiveAbility("GUTS")) return NONE;   // :1722
         if (!AiCalc.classDamager(AiCalc.fightingStyle(ctx, user))) return NONE;                        // :1724
         boolean canKO = AiCalc.canKnockOut(ctx, user, foe);

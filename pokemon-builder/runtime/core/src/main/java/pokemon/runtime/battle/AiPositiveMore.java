@@ -194,7 +194,7 @@ final class AiPositiveMore {
     /** {@code ShouldUseSubstitute(bankAtk,bankDef)} (ai_advanced.c:2071). */
     private static boolean shouldUseSubstitute(AiCtx ctx, Battler atk, Battler def, BattleMove substitute) {
         BattleMove defPrediction = ctx.prediction(def);
-        if (def.hasStatus("SLEEP") || def.hasStatus("FREEZE")) return true;                       // IsBankIncapacitated
+        if (def.hasStatus("SLEEP") || def.hasStatus("FROZEN")) return true;                       // IsBankIncapacitated
         if (defPrediction != null) {
             if (AiCalc.moveWouldHitFirst(ctx, substitute, atk, def)) {
                 return AiCalc.finalDamage(ctx, defPrediction, def, atk, 1) < Math.max(1, atk.maxHp() / 4);
@@ -220,6 +220,8 @@ final class AiPositiveMore {
             case AiCalc.CLASS_BATON_PASS: return inc(viability, 4);
             case AiCalc.CLASS_CLERIC: case AiCalc.CLASS_SCREENS: case AiCalc.CLASS_SWEEPER_SETUP_SCREENS:
             case AiCalc.CLASS_PHAZING: case AiCalc.CLASS_ENTRY_HAZARDS:
+            case AiCalc.CLASS_D_SETUP_ATTACKER: case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER: case AiCalc.CLASS_D_TRICK_ROOM_SETUP:
+            case AiCalc.CLASS_D_UTILITY: case AiCalc.CLASS_D_PHAZING: case AiCalc.CLASS_D_TEAM_SUPPORT: case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT:
                 return incStatus(ctx, viability, cls, 1, atk, def);
             default: return viability;
         }
@@ -238,7 +240,7 @@ final class AiPositiveMore {
         Battle battle = ctx.battle;
         BattleMove predicted = ctx.prediction(def);
         if (AiCalc.willFaintFromSecondaryDamage(battle, atk) && !AiCalc.isMoxie(def.ability == null ? "" : def.ability)) return DONT_PROTECT;
-        if (def.hasStatus("SLEEP") || def.hasStatus("FREEZE") || def.effects.intVal(PBEffects.Battler.HyperBeam) > 0) return DONT_PROTECT;   // IsBankIncapacitated
+        if (def.hasStatus("SLEEP") || def.hasStatus("FROZEN") || def.effects.intVal(PBEffects.Battler.HyperBeam) > 0) return DONT_PROTECT;   // IsBankIncapacitated
         if (usefulItemToProtectFor(ctx, atk) || usefulAbilityToProtectFor(atk, def)
                 || AiCalc.willFaintFromSecondaryDamage(battle, def)
                 || (trapped(def) && AiCalc.takingSecondaryDamage(battle, def))
@@ -290,8 +292,16 @@ final class AiPositiveMore {
 
     /** {@code IncreaseFoeProtectionViability} (ai_advanced.c:2842), singles. */
     private static int foeProtection(AiCtx ctx, int viability, int cls, Battler atk, Battler def) {
-        if (cls == AiCalc.CLASS_STALL) return inc(viability, trapped(def) ? 7 : 3);
-        return incStatus(ctx, viability, cls, 3, atk, def);
+        switch (cls) {
+            case AiCalc.CLASS_STALL: return inc(viability, trapped(def) ? 7 : 3);
+            case AiCalc.CLASS_D_ALL_OUT_ATTACKER: return inc(viability, 12);
+            case AiCalc.CLASS_D_SETUP_ATTACKER: case AiCalc.CLASS_D_UTILITY: return inc(viability, 10);
+            case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER: return inc(viability, 4);
+            case AiCalc.CLASS_D_TRICK_ROOM_SETUP: return inc(viability, 7);
+            case AiCalc.CLASS_D_PHAZING: return inc(viability, 13);
+            case AiCalc.CLASS_D_TEAM_SUPPORT: case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT: return inc(viability, 1);
+            default: return incStatus(ctx, viability, cls, 3, atk, def);
+        }
     }
 
     private static int endure(AiCtx ctx, Battler atk, Battler def, int viability, int cls) {
@@ -404,6 +414,10 @@ final class AiPositiveMore {
                 case AiCalc.CLASS_CLERIC: case AiCalc.CLASS_SCREENS: case AiCalc.CLASS_SWEEPER_SETUP_SCREENS: return inc(viability, 7);
                 case AiCalc.CLASS_PHAZING: return inc(viability, 4);
                 case AiCalc.CLASS_ENTRY_HAZARDS: return inc(viability, 3);
+                case AiCalc.CLASS_D_ALL_OUT_ATTACKER: case AiCalc.CLASS_D_SETUP_ATTACKER: return inc(viability, 18);
+                case AiCalc.CLASS_D_TRICK_ROOM_ATTACKER: case AiCalc.CLASS_D_TRICK_ROOM_SETUP: case AiCalc.CLASS_D_UTILITY: return inc(viability, 16);
+                case AiCalc.CLASS_D_PHAZING: return inc(viability, 14);
+                case AiCalc.CLASS_D_TEAM_SUPPORT: case AiCalc.CLASS_D_TOTAL_TEAM_SUPPORT: return inc(viability, 15);
                 default: return viability;
             }
         }

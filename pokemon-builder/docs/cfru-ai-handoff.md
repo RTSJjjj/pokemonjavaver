@@ -161,3 +161,18 @@ One deviation: `pbItemOpposingStatGainCheck` no longer throws when Mirror Herb t
 - CRAFTMIND 的形参错位（proc 本身只有 `next 值`，无从判断本意）。
 - `DamageCalcTargetAbility.copy(MOLDBREAKER/PRESSURE/SUPREMEOVERLORD…)`：源条目从未注册，无内容可复制。
 - BattleAnimations 的 nil 精灵守卫（不可达）。
+
+## Batch 10: doubles infrastructure and ai_partner.c
+
+Done (tests: `AiPartnerTest`):
+- **Doubles fight classes** (`ai_advanced.c:586-775`, `AiCalc.fightingStyle` → `doublesFightingStyle`) used whenever the battle is not a 1v1 (`AiDoublesScore.isDouble`); `classDamager`/`classDoublesAttacker`/… predicates.
+- **Doubles killing score** (`ai_util.c:796-1130` `UpdateBestDoubleKillingMoveScore`, `GetDoubleKillingScore`) and `gDoublesDamageViabilityMapping`; the doubles branch of `DamageMoveViabilityIncrease` (`ai_positives.c:2870`) now uses it instead of the singles scoring.
+- Doubles cases of `IncreaseStatusViability`, `IncreaseStatViability`, `IncreaseSleepViability`, `IncreaseEntryHazardsViability`, `IncreaseFakeOutViability`, `IncreasePivotViability`, `IncreaseSubstituteViability`, `IncreaseFoeProtectionViability`; new `IncreaseHelpingHand/HealPartner/PsychUp/AllyProtection/TeamProtection/Tailwind/SpeedControl` (the last four are not called yet, see below). `ShouldUseFakeOut` doubles branch.
+- **`AIScript_Partner`** (`ai_partner.c`, whole file) in `AiPartner`; `AiPositives.score` hands over when the target is the partner; `AiDoubles.choose` no longer forces the ally's score to −1.
+- Negatives: `TARGETING_PARTNER` exemptions and the target-Ability cases that were 登记 before (Justified, Rattled, Steam Engine, Aroma/Sweet/Flower Veil, Contrary, Mirror Armor, Clear Body family, Hyper Cutter, Keen Eye, Big Pecks, Defiant, Competitive, Comatose, Shields Down, Leaf Guard).
+- Bug fix found on the way: the AI compared statuses with `"FREEZE"` (never matches); the project's id is `"FROZEN"`.
+- Wild Bosses (rank ≥ 2) in 3v1 go through `AiDoubles` (the boss fight is a non-1v1 battle); the "next foe" fallback no longer assumes bank 1 is an opponent.
+
+登记 (source not exported or no equivalent here): `DoesProtectionMoveBlockMove` (built from this engine's protection rules), `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` / `gAromaVeilProtectedMoves` (move_tables.c: lists rebuilt from the real moves.json), `UnfreezingMoveInMoveset` (flag g), `CanKnockOffItem` (holds a transferable item), Ion Deluge's second foe (the C reads `foe1` twice), triples (CFRU has none: sums run over all living foes).
+
+Still to do in doubles: the `IS_DOUBLE_BATTLE` branches inside the per-effect cases of `AIScript_Positives` (~60 sites: Protect/Quick Guard/Wide Guard/Mat Block with `ShouldProtect` doubles, Tailwind, Follow Me, Trick Room, spread status moves, ally-aware Haze/Roar…) and of `AIScript_Negatives` (Wide Guard, partner-move-same-target checks), `ShouldPivot`/`ShouldSetUpScreens` doubles parts, doubles switching and item lists.
