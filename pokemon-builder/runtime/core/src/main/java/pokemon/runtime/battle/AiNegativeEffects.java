@@ -384,7 +384,18 @@ final class AiNegativeEffects {
             case "071": case "072": case "073": {                                                 // EFFECT_COUNTER / MIRROR_COAT (:1707)
                 if (predicted == null || predicted.statusMove() || AiCalc.blockedBySubstitute(predicted, def, atk)) r.viability -= 10;
                 if (f.equals("073") && AiCalc.moveWouldHitFirst(ctx, move, atk, def)) r.viability -= 10;   // Metal Burst can go first and fail
-                r.standardDamage = true;                                                          // 登记: the previousMovePredictions branch (:1717-1725)
+                if (ctx.goodAi() && !AiCalc.named(move, "METALBURST") && def.lastMoveUsed != null && atk.lastMoveUsed != null) {   // :1740 "tried something else last time"
+                    BattleMove foeLast = AiCalc.moveByName(battle, def.lastMoveUsed);
+                    BattleMove aiLast = AiCalc.moveByName(battle, atk.lastMoveUsed);
+                    BattleMove foePredictedBefore = AiMaster.previousPrediction(battle, def, atk);
+                    if (foeLast != null && aiLast != null && aiLast.function().equals(f) && !foeLast.statusMove()
+                            && foePredictedBefore != null
+                            && !String.valueOf(foeLast.category()).equals(String.valueOf(foePredictedBefore.category()))
+                            && (ctx.simulatedRng[1] & 1) != 0) {
+                        r.viability -= 8;
+                    }
+                }
+                r.standardDamage = true;
                 return true;
             }
             default:

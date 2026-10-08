@@ -492,6 +492,8 @@ public final class Battle {
     /** {@code gNewBS->ai.pivotTo[battler]} (-1 = PARTY_SIZE) and {@code goodToPivot} (bit per battler): the willPivot hand-off. */
     final int[] aiPivotTo = {-1, -1, -1, -1, -1, -1};
     int aiGoodToPivot;
+    /** {@code gNewBS->ai.movePredictions[atk][def]} by round: key = turn * 64 + atk * 8 + def, value = the predicted move's internal name ("" = switch). */
+    final java.util.Map<Integer, String> aiPredictionLog = new java.util.HashMap<>();
     int aiSideSwitchedMask;
     int aiSideSwitchedTurn = -1;
     final int[] aiAbsorbSwitched = new int[2];

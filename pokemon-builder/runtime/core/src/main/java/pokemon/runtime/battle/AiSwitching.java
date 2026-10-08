@@ -637,6 +637,9 @@ final class AiSwitching {
             }
             if (!AiCalc.canKnockOut(ctx, foe, user) && anyStatGreaterThan(user, 1)) return NONE;   // :451
             if (behindSubstitute(user) && !damagingMoveBreaksSubstitute(ctx, foe, user)) return NONE;   // :455
+            if (!AiCalc.firstTurn(user) && !AiCalc.firstTurn(foe) && predicted != null                  // :458 faulty previous prediction
+                    && sameMove(AiMaster.previousPrediction(battle, foe, user), predicted)
+                    && foe.lastMoveUsed != null && !foe.lastMoveUsed.equals(predicted.internalName())) return NONE;
         } else {                                                                                    // Double Battle (:481)
             if (justSwitchedIn(user)) return NONE;
             int score1 = AiDoublesScore.doubleKillingScore(ctx, AiDoublesScore.bestKillingMove(ctx, user, foe), user, foe);
@@ -1434,6 +1437,10 @@ final class AiSwitching {
             if (m != null && AiCalc.named(m, name)) return m;
         }
         return null;
+    }
+
+    private static boolean sameMove(BattleMove a, BattleMove b) {
+        return a != null && b != null && a.internalName().equals(b.internalName());
     }
 
     /** The {@code CHECK_AFFECTS} tail of OffensiveSetupMoveInMoveset: effect chance >= 50, the move affects the foe and can be used. */

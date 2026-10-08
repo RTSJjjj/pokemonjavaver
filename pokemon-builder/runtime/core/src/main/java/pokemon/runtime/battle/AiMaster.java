@@ -140,11 +140,25 @@ final class AiMaster {
         for (int i = 1; i < Battler.MOVES_MAX; i++) if (viability[i] > viability[max]) max = i;         // GetMaxByteIndexInList
         if (viability[max] < 100) {                                                                      // :1218
             ctx.storePrediction(atk, AiCtx.SWITCH);                                                      // StoreSwitchPrediction
+            logPrediction(ctx.battle, atk, def, null);
             return;
         }
         int[] ties = new int[Battler.MOVES_MAX];
         int n = 0;
         for (int i = 0; i < Battler.MOVES_MAX; i++) if (viability[i] == viability[max]) ties[n++] = i;
-        ctx.storePrediction(atk, atk.moveSlot(ties[ctx.random() % n]));                                  // :1221
+        BattleMove chosen = atk.moveSlot(ties[ctx.random() % n]);
+        ctx.storePrediction(atk, chosen);                                                                // :1221
+        logPrediction(ctx.battle, atk, def, chosen);
+    }
+
+    /** Saves the prediction for next round's {@code previousMovePredictions} (:1153). */
+    private static void logPrediction(Battle battle, Battler atk, Battler def, BattleMove move) {
+        battle.aiPredictionLog.put(battle.turns() * 64 + atk.index * 8 + def.index, move == null ? "" : move.internalName());
+    }
+
+    /** {@code gNewBS->ai.previousMovePredictions[bankAtk][bankDef]}: last round's prediction, or null (none / a switch). */
+    static BattleMove previousPrediction(Battle battle, Battler atk, Battler def) {
+        String id = battle.aiPredictionLog.get((battle.turns() - 1) * 64 + atk.index * 8 + def.index);
+        return id == null || id.isEmpty() ? null : AiCalc.moveByName(battle, id);
     }
 }
