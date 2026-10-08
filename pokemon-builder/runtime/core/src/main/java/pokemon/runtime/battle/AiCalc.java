@@ -264,7 +264,7 @@ final class AiCalc {
         return battle.field.effects.intVal(PBEffects.Field.TrickRoom) > 0;
     }
 
-    /** {@code MoveWouldHitBeforeOtherMove(moveAtk,bankAtk,moveDef,bankDef)} (ai_util.c:1853-1893). 登记: BracketCalc. */
+    /** {@code MoveWouldHitBeforeOtherMove(moveAtk,bankAtk,moveDef,bankDef)} (ai_util.c:1853-1893). */
     static boolean wouldHitBefore(Battle battle, BattleMove moveAtk, Battler atk, BattleMove moveDef, Battler def) {
         if (moveDef == null) {
             if (priorityCalc(battle, atk, moveAtk) > 0) return true;                      // :1859
@@ -274,6 +274,9 @@ final class AiCalc {
             if (atkPriority > defPriority) return true;
             if (defPriority > atkPriority) return false;
         }
+        int atkBracket = bracket(atk, moveAtk), defBracket = moveDef == null ? bracket(def, null) : bracket(def, moveDef);
+        if (atkBracket > defBracket) return true;                                         // :1877 BracketCalc
+        if (atkBracket < defBracket) return false;
         int atkSpeed = speed(atk);
         int defSpeed = speed(def);
         if (trickRoom(battle)) {                                                          // :1881
@@ -282,6 +285,24 @@ final class AiCalc {
             atkSpeed = t;
         }
         return atkSpeed > defSpeed;                                                       // :1888
+    }
+
+    /**
+     * {@code BracketCalc(bank,ACTION_USE_MOVE,move)}: the sub-priority inside a priority bracket (BattleAttackPhase:181-202). Only the
+     * deterministic sources are used (Stall, Mycelium Might on a status move, Custap Berry, Lagging Tail / Full Incense); Quick Draw and
+     * Quick Claw roll the battle's RNG, which the AI must not consume.
+     */
+    static int bracket(Battler b, BattleMove move) {
+        int sub = 0;
+        if (b.abilityActive()) {
+            if ("STALL".equals(b.ability) && sub == 0) sub = -1;
+            else if ("MYCELIUMMIGHT".equals(b.ability) && move != null && move.statusMove()) sub = -1;
+        }
+        if (b.itemActive()) {
+            if ("CUSTAPBERRY".equals(b.item) && sub < 1 && b.pbCanConsumeBerry(b.item, true)) sub = 1;
+            else if (("LAGGINGTAIL".equals(b.item) || "FULLINCENSE".equals(b.item)) && sub == 0) sub = -1;
+        }
+        return sub;
     }
 
     /** {@code MoveWouldHitFirst(move,bankAtk,bankDef)} (ai_util.c:1847): uses the foe's predicted move. */
@@ -634,6 +655,18 @@ final class AiCalc {
             battle.roundEvents.setSize(events);
             battle.endOfRoundMessages.setSize(eor);
         }
+    }
+
+    /**
+     * {@code IsAffectedByDisguse(ability,species,split)} for a bench / incoming Pokemon: the damage its Disguise-type ability turns the first hit
+     * into (Disguise / Flame Veil: 1/8 of max HP, Ice Face: none), or -1 when the hit is not absorbed.
+     */
+    static int disguiseDamage(Battler mon, BattleMove move, Battler attacker) {
+        if (move == null || move.statusMove() || mon.form() != 0 || attacker.hasMoldBreaker()) return -1;
+        if (mon.isSpecies("MIMIKYU") && "DISGUISE".equals(mon.ability)) return mon.maxHp() / 8;
+        if ((mon.isSpecies("KABLIT") || mon.isSpecies("FLAMBLOOM") || mon.isSpecies("BLAZEPHEX")) && "FLAMEVEIL".equals(mon.ability)) return mon.maxHp() / 8;
+        if (mon.isSpecies("EISCUE") && "ICEFACE".equals(mon.ability) && move.physical()) return 0;
+        return -1;
     }
 
     /** {@code IsMoxieAbility(ability)}. */

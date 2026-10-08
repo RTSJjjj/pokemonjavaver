@@ -18,7 +18,7 @@ import pokemon.runtime.battle.AiCalc.AiDmg;
  * 登记 (not transcribed): {@code CanStopLockedMove} (:939) and {@code SemiInvulnerableTroll} (:803) (both emit a switch but
  * return FALSE, which the caller overrides with "use a move"), {@code ShouldSwitchIfPerishSong} (its body is not in the
  * cached source), the pivot hand-off ({@code ConfirmAISwitch(.., willPivot)} :153, implemented via {@link #PIVOTING}; formerly: a fast pivoting move simply declined the
- * switch here), Disguise on the incoming Pokemon, Dynamax, Imposter/Trace on the incoming Pokemon, Steelsurge, Wish recovery
+ * switch here), Dynamax, Steelsurge
  * on the incoming Pokemon, the Trick-with-an-orb and weather clauses of Wonder Guard, and two trainers on one side
  * ({@code BankSideHasTwoTrainers}: the best-mon data is not shared with a partner trainer). {@code switchingCooldown}
  * (set outside the cached files) is read as "this Pokemon has not yet had a turn".</p>
@@ -192,7 +192,8 @@ final class AiSwitching {
         if (defMove == null || defMove.statusMove() || defMove.function().equals("088")) return true;   // :177-179 Pursuit
         if ((switchFlags & FLAG_RESIST_ALL_MOVES) != 0) return true;                            // :187
         if (defMove.function().equals("116")) return true;                                      // :190 Sucker Punch
-        int predicted = AiCalc.calcDmg(ctx.battle, foe, mon, defMove).dmg + hazardDamage(ctx.battle, user, mon);   // :202
+        int disguise = AiCalc.disguiseDamage(mon, defMove, foe);                                // :195 IsAffectedByDisguse
+        int predicted = disguise >= 0 ? disguise : AiCalc.calcDmg(ctx.battle, foe, mon, defMove).dmg + hazardDamage(ctx.battle, user, mon);   // :202
         if (predicted >= mon.hp) return false;                                                  // :204
         if (predicted * 2 < mon.hp) return true;                                                // :207
         return predicted * 2 >= mon.maxHp() && healingMoveInMoveset(mon) && mon.speed() > foe.speed();   // :210-212
@@ -203,7 +204,8 @@ final class AiSwitching {
         BattleMove defMove = ctx.prediction(foe);
         if (defMove == null || defMove.statusMove()) return true;                               // :220
         if (defMove.function().equals("116")) return true;                                      // :223
-        int predicted = AiCalc.calcDmg(ctx.battle, foe, mon, defMove).dmg + hazardDamage(ctx.battle, user, mon);   // :235
+        int disguise = AiCalc.disguiseDamage(mon, defMove, foe);                                // :228 IsAffectedByDisguse
+        int predicted = disguise >= 0 ? disguise : AiCalc.calcDmg(ctx.battle, foe, mon, defMove).dmg + hazardDamage(ctx.battle, user, mon);   // :235
         return predicted < mon.hp;                                                              // :237
     }
 
@@ -387,7 +389,9 @@ final class AiSwitching {
                         }
                         int firstHit = AiCalc.calcDmg(battle, foe, mon, m).dmg;                    // :2309 (goodAi, one foe)
                         int otherHits = firstHit;
-                        if (firstHit >= hpOnSwitchIn) {                                            // :2319
+                        int disguised = AiCalc.disguiseDamage(mon, m, foe);                        // :2314 IsAffectedByDisguse
+                        if (disguised >= 0) firstHit = disguised;
+                        else if (firstHit >= hpOnSwitchIn) {                                       // :2319
                             faints = true;
                             if ((flags[i] & FLAG_OUTSPEEDS) != 0 && isPriority.get(k) && battle.terrain() != PBBattleTerrains.Psychic) {   // :2323
                                 flags[i] &= ~FLAG_OUTSPEEDS;
