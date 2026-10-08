@@ -282,6 +282,9 @@ public final class BattleEndOfRoundPhase {
     /** {@code pbEndOfRoundPhase} (:211-827) with the 捕获网 (场地:558-584) and sudden-death (Clauses:39-48) wrappers. */
     public static void pbEndOfRoundPhase(Battle battle) {
         pbEndOfRoundPhaseBase(battle);                                                // Clauses:40 / 场地:559
+        for (Battler b : battle.eachBattler()) {                                      // CFRU end_turn.c:193 --switchingCooldown
+            if (b != null && b.aiSwitchCooldown > 0) b.aiSwitchCooldown--;
+        }
         // ---- 场地:560-583 capture net ----
         if (battle.decision != 0) return;                                             // 场地:560
         for (Battler b : battle.pbPriority(true)) {                                   // 场地:562

@@ -488,6 +488,9 @@ public final class Battle {
     }
 
     /** {@code gNewBS->ai.didTypeAbsorbSwitchToMonBefore[side]}: party-index bitmask per side (AiSwitching). */
+    /** {@code gNewBS->ai.sideSwitchedThisRound}: bit per side, valid for the turn in {@link #aiSideSwitchedTurn}. */
+    int aiSideSwitchedMask;
+    int aiSideSwitchedTurn = -1;
     final int[] aiAbsorbSwitched = new int[2];
     /** {@code gNewBS->ai.typeAbsorbSwitchingCooldown}: the round of the last type-absorb switch per side, null = never. */
     final Integer[] aiTypeAbsorbSwitchTurn = new Integer[2];

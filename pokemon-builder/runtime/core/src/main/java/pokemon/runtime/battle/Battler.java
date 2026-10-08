@@ -53,6 +53,9 @@ public final class Battler {
      */
     public int turnCount;
 
+    /** {@code gNewBS->ai.switchingCooldown[bank]} (end_turn.c:193, battle_script_util.c:2419): the AI sent this Pokemon in recently. */
+    public int aiSwitchCooldown;
+
     public Battler(Pokemon pokemon, boolean foe) {
         this.pokemon = pokemon;
         this.foe = foe;

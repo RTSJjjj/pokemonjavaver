@@ -549,7 +549,7 @@ final class AiSwitching {
     }
 
     private static boolean justSwitchedIn(Battler user) {
-        return AiCalc.firstTurn(user);                                                             // switchingCooldown
+        return user.aiSwitchCooldown > 0;                                                           // gNewBS->ai.switchingCooldown
     }
 
     private static boolean behindSubstitute(Battler b) {

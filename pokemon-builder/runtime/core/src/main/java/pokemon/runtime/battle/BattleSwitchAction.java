@@ -251,7 +251,22 @@ public final class BattleSwitchAction {
         // :311 idxPartyOld = @battlers[idxBattler].pokemonIndex is only read by the party-order swap (:315-316), see class javadoc.
         // :313 pbInitialize(party[idxParty],idxParty,batonPass); :319 pbCalculatePriority(false,[idxBattler]) is
         // part of Battle#replace (it does not depend on the send-out animation, which only draws).
+        boolean replacingFainted = battle.battlerAt(idxBattler) != null && battle.battlerAt(idxBattler).fainted();
         battle.replace(idxBattler, idxParty, batonPass);
+        Battler incoming = battle.battlerAt(idxBattler);
+        if (incoming != null) {                                                        // CFRU switchingCooldown (end_turn.c:2171, battle_script_util.c:2416)
+            incoming.aiSwitchCooldown = 0;
+            if (replacingFainted) {
+                incoming.aiSwitchCooldown = 1;                                         // AI shouldn't switch out again until the next end turn
+            } else {
+                if (battle.aiSideSwitchedTurn != battle.turns()) {
+                    battle.aiSideSwitchedTurn = battle.turns();
+                    battle.aiSideSwitchedMask = 0;
+                }
+                battle.aiSideSwitchedMask |= 1 << (idxBattler & 1);
+                if ((battle.aiSideSwitchedMask & (1 << ((idxBattler & 1) ^ 1))) == 0) incoming.aiSwitchCooldown = 2;   // no change on the other side
+            }
+        }
         pbSendOut(battle, new int[] {idxBattler}, false);                              // :318
     }
 
