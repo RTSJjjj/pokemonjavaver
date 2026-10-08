@@ -175,4 +175,14 @@ Done (tests: `AiPartnerTest`):
 
 登记 (source not exported or no equivalent here): `DoesProtectionMoveBlockMove` (built from this engine's protection rules), `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` / `gAromaVeilProtectedMoves` (move_tables.c: lists rebuilt from the real moves.json), `UnfreezingMoveInMoveset` (flag g), `CanKnockOffItem` (holds a transferable item), Ion Deluge's second foe (the C reads `foe1` twice), triples (CFRU has none: sums run over all living foes).
 
-Still to do in doubles: the `IS_DOUBLE_BATTLE` branches inside the per-effect cases of `AIScript_Positives` (~60 sites: Protect/Quick Guard/Wide Guard/Mat Block with `ShouldProtect` doubles, Tailwind, Follow Me, Trick Room, spread status moves, ally-aware Haze/Roar…) and of `AIScript_Negatives` (Wide Guard, partner-move-same-target checks), `ShouldPivot`/`ShouldSetUpScreens` doubles parts, doubles switching and item lists.
+## Batch 11: doubles branches of Positives / Negatives, items
+
+Done (tests: `AiPartnerTest`, `AiRealPbsTest` scores every move):
+- Protect family in doubles: `ShouldProtect` doubles branch (PROTECT_FROM_ALLIES / PROTECT_FROM_FOES), Quick Guard / Wide Guard / Crafty Shield / Mat Block / King's Shield / Baneful Bunker / Endure in `AiPositiveMore.protect`.
+- Positives: weather moves (+ the speed-ability → Tailwind rule), Will-O-Wisp / poison / paralysis (with `DoubleDamageWithStatusMove…`), Haze / Roar / Clear Smog classes, drain / recover class bonuses, screens, Mist / Safeguard / Lucky Chant, Rapid Spin / Defog, pivot moves, Fake Out, Taunt, Follow Me, Trick Room, Tailwind, Gravity, Ion Deluge, Court Change, Powder, Telekinesis, Throat Chop, Heal Block, Embargo, Soak, Topsy-Turvy, Electrify, Fairy Lock, terrain, Pledge, Quash, Magnet Rise, Flame Burst, Sky Drop, Bug Bite / Incinerate / Smack Down, Feint, multi-hit moves, Fell Stinger (new `AiPositiveField`).
+- Negatives: partner-aware avoidance (`AiNegativeDoubles`: same effect / same target / partner weather / terrain / Trick Room-Tailwind), partner-aware ability checks, Wide Guard, Protect, Spikes, Perish Song, Defog, Helping Hand / Follow Me, Explosion, Haze, Howl / Aromatic Mist / Rototiller / Gear Up / Magnetic Flux.
+- `ShouldSetUpScreens` considers both foes. Trainers use items in doubles too (`Battle.chooseFor`).
+
+登记: Fling (`gFlingTable` not exported), Camouflage (its C condition can never hold), Z-moves / Dynamax / Max-move variants, Foresight / Miracle Eye partner clause, Pledge combo failure clause, Perish Song partner "same target", `gDoubleDamageOnStatus` / `gAromaVeilProtectedMoves` / `gStatLoweringMoveEffects` / `gSetStatusMoveEffects` (rebuilt from moves.json).
+
+**Still to do in doubles: switching.** `ai_switching.c` is transcribed for single battles only (`AiSwitching`); its doubles parts (≈35 `IS_DOUBLE_BATTLE` sites: `LoadBattlersAndFoes` with two foes, every `ShouldSwitch*` check, the two-foe bench scoring in `CalcMostSuitableMonSwitchIfNecessary`, partner replacement coordination) are not, so a trainer's Pokemon never switches voluntarily in a double battle.
