@@ -383,7 +383,8 @@ final class AiCalc {
         Battle battle = ctx.battle;
         if (move == null) return false;
         if (def.effects.intVal(PBEffects.Battler.Substitute) > 0 && numHits > 0) numHits -= 1;     // :1206 MoveBlockedBySubstitute
-        else if (def.isSpecies("MIMIKYU") && def.form() == 0 && def.hasActiveAbility("DISGUISE")
+        else if (def.form() == 0 && ((def.isSpecies("MIMIKYU") && def.hasActiveAbility("DISGUISE"))
+                || ((def.isSpecies("KABLIT") || def.isSpecies("FLAMBLOOM") || def.isSpecies("BLAZEPHEX")) && def.hasActiveAbility("FLAMEVEIL")))   // Flame Veil = Disguise
                 && !atk.hasMoldBreaker() && !move.statusMove() && numHits > 0) numHits -= 1;       // :1207 IsAffectedByDisguse
         if (chargesFirst(battle, move) && numHits > 0) numHits -= 1;                                // :1213
         if (move.function().equals("0E0")) {                                                         // :1219 EFFECT_EXPLOSION

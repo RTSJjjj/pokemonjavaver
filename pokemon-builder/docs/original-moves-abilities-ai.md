@@ -40,7 +40,12 @@ Still open: **MURKYMIST** (1D6 is a damaging move; "our side wrapped in smoke, p
 - Guard Dog: unchanged in the AI (Intimidate/phaze immunity are engine side; the CFRU AI has no Intimidate or Suction Cups scoring to attach to).
 - Swords/Tablets/Vessel/Beads of Ruin: permanent field stat drops, already in the engine damage calc; the AI uses that calc, so nothing to map.
 
-## Not classified yet (for you)
-LIBERO, SAVAGECEREMONY, RAPIDASH, SHATTERFIST, FLAMEVEIL, CALAMITYAERIAL, SPOVERLORD, LINGERINGAROMA, GHASTLYWAIL, NETHERDRIVE (script exists, no category decided);
-weather/terrain setters (BESTOWEDRAIN, STORMEYE, RAINBOWARCH, ORICHALCUMPULSE, ETERNALFLAME, CALAMITY*, BUGLURESURGE, COLDSURGE, ROSE*, HADRONENGINE...), priority changers
-(TRAPTRICK, FAIRYDANCE, SOUNDSTRIDE, QUICKDRAW), reborn (SACREDREBORN, ABYSSREBORN), trapping (DSOVERLORD, CONFESSIONLIST), status immunity (PLAYFULHEART, RAINCURTAIN, PURIFYINGSALT).
+## Second pass (owner's mapping)
+- LIBERO = Protean, SAVAGECEREMONY = Huge Power (+ Protean in the engine), FLAMEVEIL = Disguise, LINGERINGAROMA = Mummy: rated like the original in `AiAbilityRatings`;
+  Flame Veil also joins Disguise in `AiCalc.knocksOutXHits` (Kablit/Flambloom/Blazephex, form 0); Lingering Aroma joins Mummy in `AiPartner`.
+  (The AI has no other Protean/Huge Power code; their effects come from the engine's damage calc.)
+- RAPIDASH (统天之角): the move swap already lives in `BattleMega`; `AiPositives` adds +5 to FLAMEEXPLOSION for a RAPIDASH-ability user when the move can hit (value is my choice).
+  Note moves.json lists FLAMEEXPLOSION as Physical, 150 power, function 1A0 (+1 Atk/+1 Spe on KO), not special.
+- CALAMITYAERIAL: engine fixed - switch-in starts Delta Stream and lowers every other Pokemon's Speed by one stage. The plugin had lumped it in with the Ruin abilities
+  (a message plus a Sp. Def x0.75 in `DamageCalc`); that is removed.
+- Left alone as agreed (they just run in the engine): weather/terrain setters, priority changers, reborn, trapping, status-immunity abilities, SPOVERLORD, GHASTLYWAIL, NETHERDRIVE, SHATTERFIST.

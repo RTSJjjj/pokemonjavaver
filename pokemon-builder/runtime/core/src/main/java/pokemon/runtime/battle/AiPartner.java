@@ -110,7 +110,7 @@ final class AiPartner {
                 case "CONTRARY":
                     if (!totalSupport && statusMove && AiCalc.oneOf(move, STAT_LOWERING)) viability = AiDoublesScore.increaseHelpingHand(viability, cls);
                     break;
-                case "MUMMY":
+                case "MUMMY": case "LINGERINGAROMA":                                                  // engine: copy(MUMMY, LINGERINGAROMA)
                     viability = mummy(ctx, viability, cls, atk, partner, move, atkAbility, foes, partnerMove);
                     break;
                 default:

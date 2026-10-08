@@ -279,6 +279,11 @@ final class AiAbilityRatings {
         "ZENMODE", -1
         };
         for (int i = 0; i < pairs.length; i += 2) RATINGS.put((String) pairs[i], (Integer) pairs[i + 1]);
+        // project abilities that are copies of CFRU ones (rated like the original)
+        RATINGS.put("LIBERO", RATINGS.get("PROTEAN"));
+        RATINGS.put("SAVAGECEREMONY", RATINGS.get("HUGEPOWER"));
+        RATINGS.put("FLAMEVEIL", RATINGS.get("DISGUISE"));
+        RATINGS.put("LINGERINGAROMA", RATINGS.get("MUMMY"));
     }
 
     private AiAbilityRatings() {

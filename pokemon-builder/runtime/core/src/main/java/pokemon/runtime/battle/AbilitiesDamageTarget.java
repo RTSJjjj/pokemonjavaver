@@ -215,7 +215,7 @@ final class AbilitiesDamageTarget {
         BattleHandlers.DamageCalcTargetAbility.copy("MOLDBREAKER", "SHATTERFIST");   // :2653
 
         // 登记: 插件缺陷 —— 本组从未注册 PRESSURE，copy 源缺失 ⇒ 不复制
-        BattleHandlers.DamageCalcTargetAbility.copy("PRESSURE", "CALAMITYAERIAL");   // :2662
+        // (CALAMITYAERIAL was copied from the missing PRESSURE handler here: a no-op; it is no damage ability)
 
         // 登记: 插件缺陷 —— 本组从未注册 SUPREMEOVERLORD，copy 源缺失 ⇒ 不复制
         BattleHandlers.DamageCalcTargetAbility.copy(                                 // :3134

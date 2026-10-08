@@ -153,7 +153,7 @@ public final class DamageCalc {
         boolean special = effect.specialMove(move, null);
         // :297-307 "of Ruin" abilities (Tablets/Sword/Vessel/Beads/Turbo Blaze/Calamity Aerial)
         String[] ruin = { "TABLETSOFRUIN", "SWORDOFRUIN", "VESSELOFRUIN", "BEADSOFRUIN",
-                "TURBOBLAZE", "CALAMITYAERIAL" };
+                "TURBOBLAZE" };   // CALAMITYAERIAL removed: Delta Stream + Speed drop, not a Ruin ability
         for (int i = 0; i < ruin.length; i++) {                                     // :298
             if (user.battle.pbCheckGlobalAbility(ruin[i]) == null) {                  // :299
                 continue;

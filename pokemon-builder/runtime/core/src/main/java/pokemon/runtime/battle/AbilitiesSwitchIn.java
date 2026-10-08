@@ -1030,8 +1030,6 @@ final class AbilitiesSwitchIn {
                 statName = PBStats.getName(PBStats.SPDEF);
             } else if ("TERAVOLT".equals(ability)) {
                 statName = PBStats.getName(PBStats.DEFENSE);
-            } else if ("CALAMITYAERIAL".equals(ability)) {
-                statName = PBStats.getName(PBStats.SPEED);
             }
             battle.showAbilitySplash(battler);                               // :3470
             battle.display(battler.pbThis() + "的" + battler.abilityName()
@@ -1039,7 +1037,22 @@ final class AbilitiesSwitchIn {
             battle.hideAbilitySplash(battler);                               // :3472
         });
         BattleHandlers.AbilityOnSwitchIn.copy("TABLETSOFRUIN", "SWORDOFRUIN", "VESSELOFRUIN",
-                "BEADSOFRUIN", "TURBOBLAZE", "TERAVOLT", "CALAMITYAERIAL");   // :3475
+                "BEADSOFRUIN", "TURBOBLAZE", "TERAVOLT");   // :3475 (CALAMITYAERIAL is not a Ruin ability, see below)
+
+        // 灾厄·岚戾 (CALAMITYAERIAL): per the project owner, switch-in starts Delta Stream (strong winds) and lowers the Speed of every
+        // other Pokemon on the field by one stage. The plugin lumped it in with the Ruin abilities (message + a Sp. Def x0.75 in
+        // DamageCalc), which does not match; corrected here.
+        BattleHandlers.AbilityOnSwitchIn.add("CALAMITYAERIAL", (ability, battler, battle) -> {
+            BattleHandlerHelpers.pbBattleWeatherAbility(PBWeather.StrongWinds, battler, battle, true);
+            battle.showAbilitySplash(battler);
+            for (Battler b : battle.allBattlers()) {
+                if (b.index == battler.index || b.fainted()) continue;
+                if (b.pbCanLowerStatStage(PBStats.SPEED, battler, null)) {
+                    b.pbLowerStatStage(PBStats.SPEED, 1, battler);
+                }
+            }
+            battle.hideAbilitySplash(battler);
+        });
 
         BattleHandlers.AbilityOnSwitchIn.add("PROTOSYNTHESIS", (ability, battler, battle) -> {
             // BattleHandlers_Abilities.rb:3478-3525 古代活性 / 夸克充能

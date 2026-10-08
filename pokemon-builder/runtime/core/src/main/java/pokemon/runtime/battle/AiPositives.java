@@ -36,6 +36,8 @@ final class AiPositives {
         if (!move.statusMove()) {                                                                    // :2724 moveSplit != SPLIT_STATUS
             viability = damageMoveViabilityIncrease(ctx, atk, def, move, viability, cls, predictedMove, atkAbility, defAbility);
         }
+        // Mega Rapidash's 统天之角 swaps Flare Blitz for Flame Explosion (BattleMega): prefer the signature move when it can hit
+        if ("RAPIDASH".equals(atkAbility) && AiCalc.named(move, "FLAMEEXPLOSION") && !AiCalc.noEffect(ctx.battle, atk, def, move)) viability += 5;
         // :2728-2736 STATUS1_FREEZE unfreeze: this project has no FROSTBITE, so a frozen attacker prefers a thawing move.
         if (atk.hasStatus("FROZEN") && AiCalc.has(move, 'g')) viability += ctx.battle.singleBattle() ? 10 : 20;   // INCREASE_VIABILITY(10), 20 in a double battle
         return Math.min(viability, 255);                                                             // :2738

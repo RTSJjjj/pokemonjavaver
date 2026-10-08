@@ -341,4 +341,13 @@ class AiPartnerTest {
         assertTrue(AiCalc.isMoxie("DRAGONSOULCRY"));
         assertFalse(AiCalc.isMoxie("BLAZE"));
     }
+
+    @Test
+    @DisplayName("project copies of CFRU abilities rate like the original (Libero=Protean, Savage Ceremony=Huge Power, Flame Veil=Disguise, Lingering Aroma=Mummy)")
+    void copiedAbilitiesRateLikeTheOriginal() {
+        assertEquals(AiAbilityRatings.of("PROTEAN"), AiAbilityRatings.of("LIBERO"));
+        assertEquals(AiAbilityRatings.of("HUGEPOWER"), AiAbilityRatings.of("SAVAGECEREMONY"));
+        assertEquals(AiAbilityRatings.of("DISGUISE"), AiAbilityRatings.of("FLAMEVEIL"));
+        assertEquals(AiAbilityRatings.of("MUMMY"), AiAbilityRatings.of("LINGERINGAROMA"));
+    }
 }
