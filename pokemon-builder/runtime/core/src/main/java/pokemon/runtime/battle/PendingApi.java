@@ -196,7 +196,15 @@ public final class PendingApi {
      * BattleHandlers_Items:910-911).
      */
     public static java.util.List<Object[]> pbGetEvolvedFormData(Battler target, boolean ignoreNone) {
-        throw new UnsupportedOperationException("M0 待接线: Pokemon_Evolution:138-148 pbGetEvolvedFormData");
+        java.util.List<Object[]> out = new java.util.ArrayList<>();
+        pokemon.runtime.pokemon.PbsData.Species sp = target.pokemon.species;
+        if (sp != null && sp.evolutions != null) {
+            for (pokemon.runtime.pokemon.PbsData.Evolution e : sp.evolutions) {
+                if (ignoreNone && (e.method == null || e.method.equals("None"))) continue;   // :143 skips the "None" method
+                out.add(new Object[] {e.method, e.parameter, e.species});
+            }
+        }
+        return out;
     }
 
     /**

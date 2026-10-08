@@ -1029,11 +1029,11 @@ public class MoveEffectBase implements MoveEffect {
     public MoveStats pbGetAttackStats(BattleMove move, Battler user, Battler target) {
         if (specialMove(move, null)) {                                           // :239
             // :240 return user.spatk, user.stages[PBStats::SPATK]+6
-            return new MoveStats(user.pokemon.spAtk(),
+            return new MoveStats(user.baseSpAtk(),
                     user.stage(PBStats.SPATK) + 6);
         }
         // :242 return user.attack, user.stages[PBStats::ATTACK]+6
-        return new MoveStats(user.pokemon.attack(),
+        return new MoveStats(user.baseAttack(),
                 user.stage(PBStats.ATTACK) + 6);
     }
 
@@ -1042,11 +1042,11 @@ public class MoveEffectBase implements MoveEffect {
     public MoveStats pbGetDefenseStats(BattleMove move, Battler user, Battler target) {
         if (specialMove(move, null)) {                                           // :246
             // :247 return target.spdef, target.stages[PBStats::SPDEF]+6
-            return new MoveStats(target.pokemon.spDef(),
+            return new MoveStats(target.baseSpDef(),
                     target.stage(PBStats.SPDEF) + 6);
         }
         // :249 return target.defense, target.stages[PBStats::DEFENSE]+6
-        return new MoveStats(target.pokemon.defense(),
+        return new MoveStats(target.baseDefense(),
                 target.stage(PBStats.DEFENSE) + 6);
     }
 

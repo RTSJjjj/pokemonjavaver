@@ -130,3 +130,15 @@ Against the real `plugin-src/pbs/moves.json` (1010 moves): see `AiRealPbsTest`.
 - Accuracy 0 = never misses (handled), power 0 never appears on a damaging category, flag letters match.
 - Every move is scored (Negatives, Positives, full pick) against two board states without an exception. This found two engine gaps, fixed: Trump Card read an unwired `@pp`
   (now the PP of the slot used) and Belch an unwired `belched?` (now `Battle.belch` per side/party index as in Ruby; `pbConsumeItem` no longer sets Unburden as a marker).
+
+## Move-effect stubs ("M0 待接线") wired
+Reachability was checked by using every real move in 1v1/2v2 (`MoveSmokeRealPbsTest`) and by reading each stub's call sites. Wired now:
+- Battler stat values (`baseAttack/Defense/SpAtk/SpDef/Speed` + setters, reset on switch-in): Power Trick, Power Split, Guard Split, Speed Swap, Power Shift, Arceus' raw stats, `pbGetAttackStats/DefenseStats`.
+  (The old comment claiming the plugin has no `defense=`/`spdef=` writer was wrong: 109_PokeBattle_Battler.rb:74/88 has `attr_writer`.)
+- Mimic (temporary, restored on switch-out and at battle end) and Sketch (permanent) write the move slot; Keldeo's `pbCheckFormOnMovesetChange`.
+- `addSideStatUps` / `pbMirrorStatUpsOpposing` (Opportunist, Mirror Herb), `Pokemon.statusCount`, Belch (`Battle.belch`), Trump Card PP.
+- Spite, Instruct, Hold-style PP reads: PP and `totalpp` come from the owner's move slot (`Battler.moveTotalPp`, new). Before, `BattleMove.totalpp()` was 0, so Spite/Instruct/Cursed Body always failed.
+- Rapid Spin message (`PBMoves_getName`), Aura Wheel's species check, Ally Switch (`pbSwapBattlers`, `@battlers`, owner index), Evolution Ray (`pbGetEvolvedFormData`), Eviolite.
+Deliberately left as they are (the Ruby crashes there too, or nothing calls them): `target.pbWeather` (BattleHandlers_Abilities:4581), `pbCanConfuse?/pbCanSleep?(…,self)` (Arceus:3884/3896),
+Shadow Pokemon `i.hp` (:593), the "no base default" hooks of the generic move classes, `PBItems_getName`, `pbCalcDamageMultipliers` (not used by `DamageCalc`).
+One deviation: `pbItemOpposingStatGainCheck` no longer throws when Mirror Herb triggers (Ruby raises NoMethodError at Battler_AbilityAndItem:338); now that the stat-up tally is wired the line is reachable, so the item just does not trigger.

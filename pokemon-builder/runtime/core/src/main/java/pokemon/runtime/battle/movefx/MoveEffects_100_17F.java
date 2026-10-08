@@ -1,6 +1,7 @@
 package pokemon.runtime.battle.movefx;
 
 import com.badlogic.gdx.utils.Array;
+import pokemon.runtime.pokemon.PbsData;
 
 import pokemon.runtime.battle.Battle;
 import pokemon.runtime.battle.BattleMove;
@@ -460,7 +461,7 @@ public final class MoveEffects_100_17F {
                 //      故按 AbilitiesOnHit.java:487 的既有写法比较内部名。
                 if (target.lastRegularMoveUsed == null
                         || !target.lastRegularMoveUsed.equals(m.internalName())
-                        || pp(m) == 0 || m.totalpp() <= 0) {
+                        || pp(target, m) == 0 || target.moveTotalPp(m) <= 0) {
                     continue;
                 }
                 failed = false;                                              // :331
@@ -482,8 +483,8 @@ public final class MoveEffects_100_17F {
                         || !target.lastRegularMoveUsed.equals(m.internalName())) {
                     continue;
                 }
-                int reduction = Math.min(4, pp(m));                          // :343 [4,m.pp].min
-                pbSetPP(target, m, pp(m) - reduction);                       // :344
+                int reduction = Math.min(4, pp(target, m));                          // :343 [4,m.pp].min
+                pbSetPP(target, m, pp(target, m) - reduction);                       // :344
                 user.battle.display(target.pbThis(true) + "的" + m.name()
                                 + "减少了" + reduction + "点PP！");            // :345-346
                 break;                                                       // :347
@@ -528,7 +529,7 @@ public final class MoveEffects_100_17F {
             }
             Battle battle = user.battle;
             if (user.effects.intVal(PBEffects.Battler.Trapping) > 0) {     // :381
-                String trapMove = PBMoves_getName(user.effects
+                String trapMove = PBMoves_getName(battle, user.effects
                         .intVal(PBEffects.Battler.TrappingMove));                 // :382
                 Battler trapUser = battle.battlerAt(user.effects
                         .intVal(PBEffects.Battler.TrappingUser));                 // :383 @battle.battlers[...]
@@ -2953,7 +2954,7 @@ public final class MoveEffects_100_17F {
                 return true;                                                 // :2373
             }
             // :2375 @moveBlacklist.include?(pbGetMoveData(lastRegularMoveUsed,MOVE_FUNCTION_CODE))
-            String lastFunction = moveFunctionCode(target.lastRegularMoveUsed);
+            String lastFunction = moveFunctionCode(battle, target.lastRegularMoveUsed);
             for (String black : MOVE_BLACKLIST) {
                 if (black.equals(lastFunction)) {
                     battle.display("但是失败了！");              // :2376
@@ -2973,7 +2974,7 @@ public final class MoveEffects_100_17F {
             // :2383-2386 target.moves[idxMove].pp==0 && target.moves[idxMove].totalpp>0
             if (idxMove >= 0) {
                 BattleMove slotMove = withIndex.get(idxMove);
-                if (pp(slotMove) == 0 && slotMove.totalpp() > 0) {
+                if (pp(target, slotMove) == 0 && target.moveTotalPp(slotMove) > 0) {
                     battle.display("但是失败了！");              // :2384
                     return true;                                             // :2385
                 }
@@ -3609,7 +3610,9 @@ public final class MoveEffects_100_17F {
      * non-empty move slots in slot order. 本运行时缺此方法。
      */
     private static Array<BattleMove> eachMove(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:543-545 eachMove");
+        Array<BattleMove> out = new Array<>();
+        for (BattleMove m : battler.moveSlots()) if (m != null) out.add(m);                // :543-545 non-empty slots in order
+        return out;
     }
 
     /**
@@ -3617,17 +3620,18 @@ public final class MoveEffects_100_17F {
      * 本运行时缺此方法。
      */
     private static Array<BattleMove> eachMoveWithIndex(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:547-549 eachMoveWithIndex");
+        return battler.moveSlots();                                                        // slot order; an empty slot stays null so the index is the slot
     }
 
     /** {@code PokeBattle_Move#pp} (PokeBattle_Move.rb:12/66-70 的 {@code @pp}). 本运行时缺此方法。 */
-    private static int pp(BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Move pp");
+    private static int pp(Battler owner, BattleMove move) {
+        int slot = owner.moveSlotIndex(move);                                              // PP lives on the slot (Pokemon.MoveSlot.pp)
+        return slot < 0 ? 0 : owner.moveSlotPp(slot);
     }
 
     /** {@code Battler#pbSetPP(move,pp)} (Battler_ChangeSelf:132-135). 本运行时缺此方法。 */
     private static void pbSetPP(Battler battler, BattleMove move, int newPp) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:132-135 pbSetPP");
+        battler.pbSetPP(move.internalName(), newPp);
     }
 
     /** {@code Battler#mega?} (PokeBattle_Battler:148). 本运行时缺此方法。 */
@@ -3657,8 +3661,9 @@ public final class MoveEffects_100_17F {
      * {@code pbGetMoveData(move, MOVE_FUNCTION_CODE)} (PBMove:32 的顶层函数)：
      * 按招式身份取 function code。本运行时缺此方法。
      */
-    private static String moveFunctionCode(String moveInternalName) {
-        throw new UnsupportedOperationException("M0 待接线: PBMove:32 pbGetMoveData(MOVE_FUNCTION_CODE)");
+    private static String moveFunctionCode(Battle battle, String moveInternalName) {
+        PbsData.Move data = moveInternalName == null ? null : battle.pbs().move(moveInternalName);
+        return data == null ? null : data.function;
     }
 
     /** {@code Battler#usingMultiTurnAttack?} (PokeBattle_Battler:708-711). 本运行时缺此方法。 */
@@ -3678,7 +3683,7 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battler#species} (PokeBattle_Battler，返回种族内部名). 本运行时缺此方法。 */
     private static String species(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler species");
+        return battler.pokemon.species == null ? null : battler.pokemon.species.internalName;
     }
 
     /**
@@ -3692,8 +3697,9 @@ public final class MoveEffects_100_17F {
     }
 
     /** {@code PBMoves.getName(id)} (Compiler_PBS:446 生成的名称表). 本运行时缺此方法。 */
-    private static String PBMoves_getName(int id) {
-        throw new UnsupportedOperationException("M0 待接线: PBMoves.getName (Compiler_PBS:446)");
+    private static String PBMoves_getName(Battle battle, int id) {
+        for (PbsData.Move m : battle.pbs().moves.values()) if (m.id == id) return m.name;
+        return "";
     }
 
     /**
@@ -3703,7 +3709,9 @@ public final class MoveEffects_100_17F {
      * 本运行时缺此方法。
      */
     private static void swapSpeed(Battler user, Battler target) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_100-17F.rb:2126 speed 交换（Battler.speed 无 setter）");
+        int userSpeed = user.baseSpeed();
+        user.setBaseSpeed(target.baseSpeed());                                             // :2126 user.speed,target.speed = target.speed,user.speed
+        target.setBaseSpeed(userSpeed);
     }
 
     /** {@code Battler#pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-39). 本运行时缺此方法。 */
@@ -3753,7 +3761,9 @@ public final class MoveEffects_100_17F {
      * 本运行时缺此方法。
      */
     private static Array<Battler> battlers(Battle battle) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:46 @battlers");
+        Array<Battler> out = new Array<>();
+        for (int i = 0; i <= battle.maxBattlerIndex(); i++) out.add(battle.battlerAt(i));   // @battlers: every slot, fainted ones included
+        return out;
     }
 
     /** {@code Battle#pbActivateHealingWish(battler)} (Battle_Action_Switching:363). 本运行时缺此方法。 */
@@ -3763,12 +3773,12 @@ public final class MoveEffects_100_17F {
 
     /** {@code Battle#pbGetOwnerIndexFromBattlerIndex(idxBattler)} (PokeBattle_Battle:232). 本运行时缺此方法。 */
     private static int pbGetOwnerIndexFromBattlerIndex(Battle battle, int idxBattler) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:232 pbGetOwnerIndexFromBattlerIndex");
+        return battle.pbGetOwnerIndexFromBattlerIndex(idxBattler);
     }
 
     /** {@code Battle#pbSwapBattlers(idxA,idxB)} (PokeBattle_Battle:593). 本运行时缺此方法。 */
     private static boolean pbSwapBattlers(Battle battle, int idxA, int idxB) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battle:593 pbSwapBattlers");
+        return battle.pbSwapBattlers(idxA, idxB);
     }
 
     /** {@code Battle#pbPursuit(idxSwitcher)} (Battle_Phase_Attack:24). 本运行时缺此方法。 */

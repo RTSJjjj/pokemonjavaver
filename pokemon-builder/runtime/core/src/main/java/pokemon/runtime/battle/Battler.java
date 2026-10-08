@@ -178,6 +178,29 @@ public final class Battler {
         return (float) STAGE_MUL[index] / STAGE_DIV[index];
     }
 
+    /**
+     * {@code @attack/@defense/@spatk/@spdef/@speed} (PokeBattle_Battler:12-17, set from the Pokemon by pbInitialize / pbUpdate and written by
+     * Power Trick, Power/Guard Split, Speed Swap and Arceus): the battler's own stat values before stages. 0 = still the Pokemon's.
+     */
+    private final int[] statOverride = new int[5];   // attack, defense, spatk, spdef, speed
+
+    public int baseAttack() { return statOverride[0] > 0 ? statOverride[0] : pokemon.attack(); }
+    public int baseDefense() { return statOverride[1] > 0 ? statOverride[1] : pokemon.defense(); }
+    public int baseSpAtk() { return statOverride[2] > 0 ? statOverride[2] : pokemon.spAtk(); }
+    public int baseSpDef() { return statOverride[3] > 0 ? statOverride[3] : pokemon.spDef(); }
+    public int baseSpeed() { return statOverride[4] > 0 ? statOverride[4] : pokemon.speed(); }
+
+    public void setBaseAttack(int v) { statOverride[0] = Math.max(1, v); }
+    public void setBaseDefense(int v) { statOverride[1] = Math.max(1, v); }
+    public void setBaseSpAtk(int v) { statOverride[2] = Math.max(1, v); }
+    public void setBaseSpDef(int v) { statOverride[3] = Math.max(1, v); }
+    public void setBaseSpeed(int v) { statOverride[4] = Math.max(1, v); }
+
+    /** {@code pbUpdate}-style reset of the five stat values back to the Pokemon's. */
+    public void clearStatOverrides() {
+        java.util.Arrays.fill(statOverride, 0);
+    }
+
     public int attack() {
         return attack(false);
     }
@@ -188,7 +211,7 @@ public final class Battler {
      * ignored.
      */
     public int attack(boolean critical) {
-        int value = scale(pokemon.attack(), critical ? 6 : stages[0]);
+        int value = scale(baseAttack(), critical ? 6 : stages[0]);
         // Burn halves physical Attack (except with Guts, which is not modelled).
         if (hasStatus("BURN")) {
             value = Math.max(1, value / 2);
@@ -202,7 +225,7 @@ public final class Battler {
 
     /** {@code pbGetDefenseStats} (:272-277): a critical hit ignores raised Defense. */
     public int defense(boolean critical) {
-        return scale(pokemon.defense(), critical ? 6 : stages[1]);
+        return scale(baseDefense(), critical ? 6 : stages[1]);
     }
 
     /**
@@ -210,7 +233,7 @@ public final class Battler {
      * {@code NEWEST_BATTLE_MECHANICS} (Settings:160) and quarters it otherwise.
      */
     public int speed() {
-        int value = scale(pokemon.speed(), stages[2]);
+        int value = scale(baseSpeed(), stages[2]);
         if (hasStatus("PARALYSIS")) {
             value = Math.max(1, Battle.NEWEST_BATTLE_MECHANICS ? value / 2 : value / 4);
         }
@@ -222,7 +245,7 @@ public final class Battler {
     }
 
     public int spAtk(boolean critical) {
-        return scale(pokemon.spAtk(), critical ? 6 : stages[3]);
+        return scale(baseSpAtk(), critical ? 6 : stages[3]);
     }
 
     public int spDef() {
@@ -230,7 +253,7 @@ public final class Battler {
     }
 
     public int spDef(boolean critical) {
-        return scale(pokemon.spDef(), critical ? 6 : stages[4]);
+        return scale(baseSpDef(), critical ? 6 : stages[4]);
     }
 
     /** Accuracy / evasion stage multiplier (PBStats indices 6/7). */
@@ -275,6 +298,33 @@ public final class Battler {
         return slots;
     }
 
+    /** The slot's original entry while a Mimic copy is in it (null = nothing copied). */
+    private final Pokemon.MoveSlot[] mimicOriginal = new Pokemon.MoveSlot[MOVES_MAX];
+
+    /**
+     * {@code user.moves[i] = PokeBattle_Move.pbFromPBMove(@battle,newMove)} (Mimic, Move_Effects_000-07F.rb:1808; Sketch :1860 after
+     * {@code pokemon.moves[i] = newMove} :1859). The plugin's battler moves are a copy of the Pokemon's, so a Mimic lasts until switch-out;
+     * here the Pokemon's slot is swapped and the original put back by {@link #restoreMimickedMoves()}.
+     *
+     * @param permanent true for Sketch (the Pokemon itself learns the move)
+     */
+    public void setBattleMove(int slot, pokemon.runtime.pokemon.PbsData.Move data, boolean permanent) {
+        if (data == null || slot < 0 || slot >= pokemon.moves.size) return;
+        Pokemon.MoveSlot current = pokemon.moves.get(slot);
+        if (current != null && current.move == data) return;
+        if (!permanent && mimicOriginal[slot] == null) mimicOriginal[slot] = current;
+        if (permanent) mimicOriginal[slot] = null;
+        pokemon.moves.set(slot, new Pokemon.MoveSlot(data));
+    }
+
+    /** Puts back the moves a Mimic replaced (switch-out, end of battle). */
+    public void restoreMimickedMoves() {
+        for (int i = 0; i < MOVES_MAX; i++) {
+            if (mimicOriginal[i] != null && i < pokemon.moves.size) pokemon.moves.set(i, mimicOriginal[i]);
+            mimicOriginal[i] = null;
+        }
+    }
+
     /** The move in one slot, or null for a blank slot ({@code id==0}). */
     public BattleMove moveSlot(int slot) {
         if (slot < 0 || slot >= MOVES_MAX || slot >= pokemon.moves.size) {
@@ -308,6 +358,13 @@ public final class Battler {
         }
         Pokemon.MoveSlot entry = pokemon.moves.get(slot);
         return entry == null ? 0 : Math.max(0, entry.pp);
+    }
+
+    /** {@code move.totalpp} (PokeBattle_Move.rb:66-70) of a move this battler knows: the override, else the slot's max PP ({@code @realMove.totalpp}). */
+    public int moveTotalPp(BattleMove move) {
+        if (move != null && move.totalpp() > 0) return move.totalpp();
+        int slot = moveSlotIndex(move);
+        return slot < 0 ? 0 : moveSlotMaxPp(slot);
     }
 
     /** {@code move.totalpp}; 0 for a blank slot. */
@@ -368,6 +425,8 @@ public final class Battler {
     public void resetForSwitchIn() {
         type1 = null;                                            // Battler_Initialize:47-48/81-82 types come from the Pokemon again
         type2 = null;
+        clearStatOverrides();                                    // :52-56 @attack... = pkmn.attack...
+        restoreMimickedMoves();                                  // Mimic lasts until the Pokemon leaves the field
         effectsInitialized = false;                              // :74 pbInitEffects(false) runs in Battle.refreshFieldIndices (needs the new @index)
         for (int i = 0; i < stages.length; i++) {
             stages[i] = 0;                                       // :127-131
@@ -2215,7 +2274,7 @@ public final class Battler {
             toxic = value;
         }
         // 登记: PokeBattle_Battler:116 @battle.scene.pbRefreshOne(@index) 依赖 PokeBattle_Scene
-        // 登记: PokeBattle_Battler:115 @pokemon.statusCount = value（本运行时 Pokemon 无此字段）
+        if (pokemon != null) pokemon.statusCount = value;               // :115 @pokemon.statusCount = value
     }
 
     /** {@code pbCanPoison?} (Battler_Statuses:375-377)。 */
@@ -3317,14 +3376,31 @@ public final class Battler {
      * {@code sideStatUps}，interface-freeze §4 归 infra2）→ 空实现。它只喂
      * Opportunist（跟风）与模仿香草，不影响能力等级本身。</p>
      */
-    private void addSideStatUps(int stat, int increment) {
-        // 登记: PokeBattle_Battler:892-896 @battle.sideStatUps（Battle 未暴露）
+    public void addSideStatUps(int stat, int increment) {
+        java.util.List<int[]> statUps = battle.sideStatUps[idxOwnSide()];          // :893
+        for (int[] entry : statUps) {
+            if (entry[0] == stat) {                                                // :894 statUps[stat] += increment
+                entry[1] += increment;
+                return;
+            }
+        }
+        statUps.add(new int[] {stat, increment});                                  // :894 statUps[stat] = 0 if !statUps[stat]
     }
 
-    /** {@code pbMirrorStatUpsOpposing} (Battler_AbilityAndItem:344-356)。登记同 {@link #addSideStatUps}。 */
+    /** {@code pbMirrorStatUpsOpposing} (Battler_AbilityAndItem:344-356): Opportunist and Mirror Herb. */
     public void pbMirrorStatUpsOpposing() {
-        // 登记: Battler_AbilityAndItem:344-356 依赖 @battle.sideStatUps /
-        //       @battle.allOtherSideBattlers / triggerAbilityOnOpposingStatGain（本批未建模）
+        java.util.List<int[]> statUps = battle.sideStatUps[idxOwnSide()];          // :345
+        if (fainted() || statUps.isEmpty()) return;                                // :346
+        for (Battler b : battle.allOtherSideBattlers(index)) {                     // :347
+            if (b == null || b.fainted()) continue;                                // :348
+            if (b.abilityActive()) {                                               // :349
+                BattleHandlers.triggerAbilityOnOpposingStatGain(b.ability, b, battle, statUps);   // :350
+            }
+            if (b.itemActive()) {                                                  // :352
+                b.pbItemOpposingStatGainCheck(statUps);                            // :353
+            }
+        }
+        statUps.clear();                                                           // :356
     }
 
     // =========================================================================
@@ -4838,8 +4914,9 @@ public final class Battler {
         String itm = item;                                                           // :336
         Boolean ret = BattleHandlers.triggerItemOnOpposingStatGain(itm, this, battle, statUps, false);   // :337 !item_to_use == !0 == false
         if (ret != null && ret) {
-            throw new UnsupportedOperationException(
-                    "插件缺陷: Battler_AbilityAndItem:338 pbHeldItemTriggered(itm, true, false) - forcedItem<=0 对布尔值 NoMethodError");
+            // Ruby raises NoMethodError here (forcedItem<=0 on a boolean, :222). Now that addSideStatUps/pbMirrorStatUpsOpposing are wired
+            // this line is reachable in a real battle (Mirror Herb), so the port does not crash: the item simply does not trigger.
+            // 登记: deviation from the plugin, which crashes.
         }
     }
 

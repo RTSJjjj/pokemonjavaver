@@ -1410,8 +1410,8 @@ public final class MoveEffects_180_1FF {
         /** {@code pbBaseDamage(baseDmg,user,target)} (:854-857). */
         @Override
         public int pbBaseDamage(BattleMove move, int baseDmg, Battler user, Battler target) {
-            // 登记: :855 pbGetEvolvedFormData(target.species).length <= 0 —— 进化表
-            //       （Pokemon_Evolution / pbGetEvolvedFormData）本批未建模 → 不翻倍
+            java.util.List<Object[]> evos = PendingApi.pbGetEvolvedFormData(target, true);   // :855 pbGetEvolvedFormData(target.species)
+            if (evos == null || evos.size() <= 0) baseDmg *= 2;               // :855 length<=0: it cannot evolve
             return baseDmg;                                                  // :856
         }
     }

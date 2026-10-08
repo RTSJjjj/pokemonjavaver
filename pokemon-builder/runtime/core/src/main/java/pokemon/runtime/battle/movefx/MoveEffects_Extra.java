@@ -787,12 +787,25 @@ public final class MoveEffects_Extra {
      * {@code MoveFxPendingApi.attack}.
      */
     private static void swapOffensiveDefensiveStats(Battler user) {
-        throw new UnsupportedOperationException("M0 待接线: Arceus:456 user.attack,user.defense = ...");
+        int atk = user.baseAttack();                                      // :456 user.attack,user.defense = user.defense,user.attack
+        int def = user.baseDefense();
+        user.setBaseAttack(def);
+        user.setBaseDefense(atk);
+        int spa = user.baseSpAtk();                                       // :457 spatk/spdef likewise
+        int spd = user.baseSpDef();
+        user.setBaseSpAtk(spd);
+        user.setBaseSpDef(spa);
     }
 
     /** The plugin's raw stat ({@code user.attack} etc.) - no faithful accessor yet (Arceus:526). */
     private static int rawStat(Battler battler, int pbStat) {
-        throw new UnsupportedOperationException("M0 待接线: Battler 原始能力值 " + PBStats.getName(pbStat));
+        switch (pbStat) {                                                 // user.attack etc.: the battler's own stat values before stages
+            case PBStats.ATTACK: return battler.baseAttack();
+            case PBStats.DEFENSE: return battler.baseDefense();
+            case PBStats.SPATK: return battler.baseSpAtk();
+            case PBStats.SPDEF: return battler.baseSpDef();
+            default: return battler.baseSpeed();
+        }
     }
 
     /** {@code @battle.pbStartTerrain(user,terrain)} (场地:134/:352; PokeBattle_Battle:741). */

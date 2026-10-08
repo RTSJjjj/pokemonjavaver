@@ -488,7 +488,7 @@ final class AbilitiesOnHit {
                 break;
             }
             if (regularMove == null
-                    || (PendingApi.movePp(regularMove) == 0 && regularMove.totalpp() > 0)) {   // :1491
+                    || (user.moveSlotPp(user.moveSlotIndex(regularMove)) == 0 && user.moveTotalPp(regularMove) > 0)) {   // :1491
                 return;
             }
             if (battle.pbRandom(100) >= 30) {                                  // :1492

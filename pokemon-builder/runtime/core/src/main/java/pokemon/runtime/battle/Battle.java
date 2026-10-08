@@ -613,6 +613,7 @@ public final class Battle {
             return false;
         }
         Battler outgoing = battlerAt(idxBattler);
+        if (outgoing != null) outgoing.restoreMimickedMoves();     // Mimic ends when the Pokemon leaves
         incoming.resetForSwitchIn();                               // :313 pbInitialize
         if (batonPass && outgoing != null && outgoing != incoming) {
             incoming.pbInheritBatonPass(outgoing);                 // Battler_Initialize:68 pbInitEffects(true) keeps the passed effects
@@ -2468,6 +2469,8 @@ public final class Battle {
     }
 
     private BattleResult finish(BattleResult.Outcome outcome) {
+        for (Battler battler : playerParty) battler.restoreMimickedMoves();
+        for (Battler battler : foeParty) battler.restoreMimickedMoves();
         for (Battler battler : playerParty) {
             battler.syncHp();
         }

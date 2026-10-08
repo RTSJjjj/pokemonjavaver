@@ -111,7 +111,11 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#pbCheckFormOnMovesetChange} (Battler_ChangeSelf:217-225). */
     private static void pbCheckFormOnMovesetChange(Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: Battler_ChangeSelf:217-225 pbCheckFormOnMovesetChange");
+        if (battler.fainted() || battler.effects.truthy(PBEffects.Battler.Transform)) return;   // :218
+        if (battler.isSpecies("KELDEO")) {                                                 // :220 Keldeo - knowing Secret Sword
+            int newForm = battler.pbHasMove(battler.moveIdOf("SECRETSWORD")) ? 1 : 0;      // :221-222
+            battler.pbChangeFormTransform(newForm, battler.pbThis() + "变身了！");            // :223
+        }
     }
 
     /** {@code Battler#pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-12). */
@@ -133,12 +137,12 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#attack=} ({@code attr_accessor :attack}, PokeBattle_Battler:15). */
     private static void setAttack(Battler battler, int value) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:15 attr_accessor :attack (=)");
+        battler.setBaseAttack(value);
     }
 
     /** {@code Battler#spatk=} ({@code attr_accessor :spatk}, PokeBattle_Battler:16). */
     private static void setSpAtk(Battler battler, int value) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:16 attr_accessor :spatk (=)");
+        battler.setBaseSpAtk(value);
     }
 
     /**
@@ -149,7 +153,7 @@ public final class MoveEffects_000_07F {
      * the Ruby would raise {@code NoMethodError}; reproduced, not corrected.</p>
      */
     private static void setDefense(Battler battler, int value) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_000-07F.rb:1694 defense= (插件无该访问器)");
+        battler.setBaseDefense(value);                      // 109_PokeBattle_Battler.rb:74 attr_writer :defense
     }
 
     /**
@@ -159,7 +163,7 @@ public final class MoveEffects_000_07F {
      * writer exists in the plugin; reproduced, not corrected.</p>
      */
     private static void setSpDef(Battler battler, int value) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_000-07F.rb:1695 spdef= (插件无该访问器)");
+        battler.setBaseSpDef(value);                        // 109_PokeBattle_Battler.rb:88 attr_writer :spdef
     }
 
     /** {@code Battler#pbWeight} (PokeBattle_Battler:281-292). */
@@ -169,7 +173,7 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#addSideStatUps(stat,increment)} (PokeBattle_Battler:892-895). */
     private static void addSideStatUps(Battler battler, int stat, int increment) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:892-895 addSideStatUps");
+        battler.addSideStatUps(stat, increment);
     }
 
     /**
@@ -188,12 +192,13 @@ public final class MoveEffects_000_07F {
 
     /** {@code Battler#moves[i] = move} ({@code attr_accessor :moves}, PokeBattle_Battler:12). */
     private static void setMove(Battler battler, int index, BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Battler:12 attr_accessor :moves (slot write)");
+        PbsData.Move data = move == null ? null : battler.battle.pbs().move(move.internalName());
+        battler.setBattleMove(index, data, false);          // Mimic: lasts until switch-out; Sketch has already replaced the Pokemon's slot
     }
 
     /** {@code pokemon.moves[i] = move} ({@code attr_accessor :moves}, PokeBattle_Pokemon:22). */
     private static void setPokemonMove(Pokemon pkmn, int index, PbsData.Move move) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Pokemon:22 attr_accessor :moves (slot write)");
+        pkmn.moves.set(index, new Pokemon.MoveSlot(move));   // Sketch: the Pokemon learns the move for good
     }
 
     /** {@code Battler#form=} (Move_Effects_000-07F.rb:2664-2665). */
@@ -276,7 +281,7 @@ public final class MoveEffects_000_07F {
 
     /** {@code Pokemon#statusCount = value} (PokeBattle_Pokemon attr_accessor, written by PokeBattle_Battler:115). */
     private static void setPokemonStatusCount(Pokemon pkmn, int value) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Pokemon statusCount= (PokeBattle_Battler:115)");
+        pkmn.statusCount = value;
     }
 
     /**

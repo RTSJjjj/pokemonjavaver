@@ -25,6 +25,7 @@ public final class Pokemon {
     public String ability;
     public final Array<MoveSlot> moves = new Array<>();
     public int hp;
+    public int statusCount;                      // @statusCount (PokeBattle_Pokemon): sleep turns or the toxic counter
     public String status = "";
     public int gender = PokemonStats.GENDERLESS;
     public boolean shiny;
