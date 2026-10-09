@@ -120,6 +120,25 @@ public final class TileMap {
     }
 
     /**
+     * {@code Game_Map#counter?(x,y)} (027_Game_Map:294-301): a tile is a counter
+     * when any of its three layers (top first) has bit 0x80 in its passage. A
+     * player facing a counter talks to the event behind it
+     * ({@code Game_Player#check_event_trigger_there}, 025_Game_Player:279-312).
+     */
+    public boolean counter(int column, int row) {
+        if (!valid(column, row)) {
+            return false;
+        }
+        for (int layer = 2; layer >= 0; layer--) {                // :295 for i in [2, 1, 0]
+            int tile = tileId(layer, column, row);
+            if (tile > 0 && (tileset.passage(tile) & 0x80) == 0x80) {   // :298
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * {@code Game_Map#playerPassable?} (0025.rb:225-252): the player's own tile
      * half of the passage check. It is the only path that looks at
      * {@code $PokemonGlobal.bridge}:
@@ -135,6 +154,15 @@ public final class TileMap {
      * @param bridgeHeight {@code $PokemonGlobal.bridge}
      */
     public boolean playerPassable(int column, int row, int directionBit, int bridgeHeight) {
+        return playerPassable(column, row, directionBit, bridgeHeight, false, false);
+    }
+
+    /**
+     * The same with {@code $PokemonGlobal.surfing} (water tiles that can be surfed are passable) and
+     * {@code $PokemonGlobal.bicycle} (tall grass and ice stop the bicycle), 027_Game_Map:232-237.
+     */
+    public boolean playerPassable(int column, int row, int directionBit, int bridgeHeight,
+                                  boolean surfing, boolean bicycle) {
         if (!valid(column, row)) {
             return false;
         }
@@ -147,6 +175,12 @@ public final class TileMap {
             // `next if PBTerrain.isBridge?(terrain) && $PokemonGlobal.bridge==0`
             if (terrain == TERRAIN_BRIDGE && bridgeHeight == 0) {
                 continue;
+            }
+            if (surfing && pokemon.runtime.field.PBTerrain.isPassableWater(terrain)) {
+                return true;                                          // :233-234 make water passable while surfing
+            }
+            if (bicycle && pokemon.runtime.field.PBTerrain.onlyWalk(terrain)) {
+                return false;                                         // :235-237 no cycling in tall grass / on ice
             }
             // `elsif isBridge? && bridge>0 then return (passage & bit == 0 &&
             //  passage & 0x0f != 0x0f)` - the bridge tile decides, immediately.

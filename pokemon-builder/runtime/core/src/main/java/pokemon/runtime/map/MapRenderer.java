@@ -39,6 +39,11 @@ public final class MapRenderer {
 
     private final Array<MapCharacter> entities = new Array<>();
     private Texture[] entityTextures = new Texture[0];
+    private String[] entityTextureNames = new String[0];
+    /** The tile the surf base stays on while the jump onto / off the water runs (179:728-748 {@code surfJump}), or null. */
+    public int[] surfJumpTile;
+    private Texture surfBase;
+    private boolean surfBaseLoaded;
     private Texture[] runningTextures = new Texture[0];
     private int[] entityDepths = new int[0];
     private long[] entityOrder = new long[0];
@@ -140,6 +145,7 @@ public final class MapRenderer {
         entities.addAll(characters);
         int count = characters.size;
         entityTextures = new Texture[count];
+        entityTextureNames = new String[count];
         runningTextures = new Texture[count];
         entityDepths = new int[count];
         entityOrder = new long[count];
@@ -440,6 +446,9 @@ public final class MapRenderer {
     private void drawEntity(SpriteBatch batch, int index, int left, int bottom, int right, int top,
                             float offsetX, float offsetY) {
         MapCharacter character = entities.get(index);
+        if (character.characterName == null || character.characterName.isEmpty()) {
+            return;                                                // a hidden character (the follower toggled off) keeps no stale sheet
+        }
         boolean running = character.runningCharacterName != null
                 && character.runningCharacterName.equals(character.graphicName());
         Texture image;
@@ -455,8 +464,14 @@ public final class MapRenderer {
                 image = entityTextures[index];
             }
         } else {
+            // The player's graphic changes with the vehicle (pbUpdateVehicle): reload when the name changed.
+            if (entityTextures[index] != null && character.characterName != null
+                    && !character.characterName.equals(entityTextureNames[index])) {
+                entityTextures[index] = null;
+            }
             if (entityTextures[index] == null) {
                 entityTextures[index] = lazyCharacterTexture(character.characterName);
+                entityTextureNames[index] = character.characterName;
             }
             image = entityTextures[index];
         }
@@ -465,11 +480,54 @@ public final class MapRenderer {
         int h = image.getHeight() / 4;
         int x = Math.round(character.pixelX() + (TILE - w) / 2f + offsetX);
         int y = Math.round(character.pixelY() + offsetY);
+        // 026_Game_Player_Visuals:70-78 update_pattern: surfing bobs in place (pattern from the frame count, 2px down on 2 and 3).
+        boolean surfing = character.isPlayer && state.fieldGlobals().surfing;
+        int pattern = character.pattern();
+        int bob = 0;
+        if (surfing) {
+            pattern = (int) ((System.currentTimeMillis() * 40L / 1000L) % 60L / 15L);
+            bob = pattern >= 2 ? 2 : 0;
+            y -= bob;
+        }
         if (x >= right || x + w <= left || y >= top || y + h <= bottom) return;
+        if (surfing) {
+            drawSurfBase(batch, character, bob, pattern, offsetX, offsetY);
+        }
         batch.setColor(1f, 1f, 1f, Math.max(0f, Math.min(1f, character.opacity)));
-        batch.draw(image, x, y, w, h, Math.floorMod(character.pattern(), 4) * w,
+        batch.draw(image, x, y, w, h, Math.floorMod(pattern, 4) * w,
                 directionRow(character.direction()) * h, w, h, false, false);
         batch.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /** 035_Sprite_SurfBase:42-80: the water base under a surfing player (offset 16 px below the feet, bobbing with the player). */
+    private void drawSurfBase(SpriteBatch batch, MapCharacter player, int bob, int pattern, float offsetX, float offsetY) {
+        if (!surfBaseLoaded) {
+            surfBaseLoaded = true;
+            surfBase = lazyCharacterTexture("base_surf");
+        }
+        if (surfBase == null) return;
+        int cw = surfBase.getWidth() / 4;
+        int ch = surfBase.getHeight() / 4;
+        float centerX;
+        float bottom;
+        if (surfJumpTile != null) {
+            centerX = surfJumpTile[0] * TILE + TILE / 2f + offsetX;
+            bottom = worldY(surfJumpTile[1]) + offsetY;
+        } else {
+            centerX = player.pixelX() + TILE / 2f + offsetX;
+            bottom = player.pixelY() + offsetY;
+        }
+        batch.setColor(1f, 1f, 1f, Math.max(0f, Math.min(1f, player.opacity)));
+        batch.draw(surfBase, Math.round(centerX - cw / 2f), Math.round(bottom - 16f - bob), cw, ch,
+                Math.floorMod(pattern, 4) * cw, directionRow(player.direction()) * ch, cw, ch, false, false);
+        batch.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /** The height of one frame of a drawn character's sheet (the sprite's {@code src_rect.height}), 32 when unknown. */
+    public int spriteHeight(MapCharacter character) {
+        int index = entities.indexOf(character, true);
+        Texture image = index >= 0 && index < entityTextures.length ? entityTextures[index] : null;
+        return image == null ? 32 : image.getHeight() / 4;
     }
 
     /** Marks the events that the entity path draws; the static path skips them. */

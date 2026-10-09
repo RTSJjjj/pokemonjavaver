@@ -103,21 +103,44 @@ class WalkingRegressionTest {
         MapData d = data(); TileMap map = new TileMap(d, tiles());
         MapCharacter walk = actor(), run = actor();
         InputManager input = new InputManager(); input.press(GameAction.RIGHT);
-        new MovementController().update(input, 1f, walk, mover(map, d));
+        MovementController walker = new MovementController();
+        walker.update(input, 0.001f, walk, mover(map, d));          // the frame the key goes down only turns (025_Game_Player:363)
+        walker.update(input, 1f, walk, mover(map, d));
         input.press(GameAction.RUN);
-        new MovementController().update(input, 1f, run, mover(map, d));
+        MovementController runner = new MovementController();
+        runner.update(input, 0.001f, run, mover(map, d));
+        runner.update(input, 1f, run, mover(map, d));
         assertEquals(6, walk.x()); assertEquals(10, run.x());
     }
     @Test void framePartitionsGiveTheSameDistanceAndReleaseFinishesOnlyCurrentStep() {
         MapData d = data(); TileMap map = new TileMap(d, tiles());
         MapCharacter c = actor(); MovementController controller = new MovementController();
         InputManager input = new InputManager(); input.press(GameAction.RIGHT);
+        controller.update(input, 0.001f, c, mover(map, d));          // the turn frame
         for (int i = 0; i < 8; i++) controller.update(input, 0.125f, c, mover(map, d));
         assertEquals(6, c.x());
         controller.update(input, 0.125f, c, mover(map, d));
         input.release(GameAction.RIGHT);
         controller.update(input, 1f, c, mover(map, d));
         assertEquals(7, c.x()); assertFalse(c.isMoving());
+    }
+    /** 025_Game_Player:350-375: a short tap only turns; the step comes once the key has been held a few frames. */
+    @Test void aTapTurnsAndOnlyAHoldWalks() {
+        MapData d = data(); TileMap map = new TileMap(d, tiles());
+        MapCharacter c = actor(); c.face(2);
+        MovementController controller = new MovementController();
+        InputManager input = new InputManager(); input.press(GameAction.RIGHT);
+        controller.update(input, 1f / 40f, c, mover(map, d));
+        assertEquals(6, c.direction(), "the first frame turns");
+        assertEquals(2, c.x());
+        controller.update(input, 1f / 40f, c, mover(map, d));
+        input.release(GameAction.RIGHT);
+        controller.update(input, 1f / 40f, c, mover(map, d));
+        assertEquals(2, c.x(), "a tap of two frames never walks");
+        assertFalse(c.isMoving());
+        input.press(GameAction.RIGHT);
+        for (int i = 0; i < 5; i++) controller.update(input, 1f / 40f, c, mover(map, d));
+        assertTrue(c.isMoving() || c.x() > 2, "held long enough: it walks");
     }
     @Test void blockedDirectionTurnsWithoutMovingAndInFlightStepCannotBeOverwritten() {
         MapData d = data(); TilesetData t = tiles(); TileMap map = new TileMap(d, t);

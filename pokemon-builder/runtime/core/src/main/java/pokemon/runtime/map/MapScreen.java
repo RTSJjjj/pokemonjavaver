@@ -9,7 +9,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.Array;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
-import pokemon.runtime.battle.WildEncounters;
+import pokemon.runtime.field.FieldSteps;
+import pokemon.runtime.field.PokemonEncounters;
 import pokemon.runtime.data.GameDatabase;
 import pokemon.runtime.data.AnimationData;
 import pokemon.runtime.data.MapData;
@@ -70,6 +71,15 @@ public final class MapScreen extends ScreenAdapter {
     private MapCamera mapCamera;
     private MapRenderer renderer;
     private final MapCharacter player;
+    /** 182_PField_DependentEvents + 297_Follower_Main: the following Pokemon and the other dependent events. */
+    private FollowerController followers;
+    /** The route the following Pokemon plays during a talk (297_Follower_Config:604-613 {@code followingMoveRoute}). */
+    private pokemon.runtime.event.MoveRoutePlayer followerRoute;
+    /** A route of the player that only waits (the talk's {@code pbMoveRoute($game_player,[Wait,n])}). */
+    private float playerWait;
+    private boolean lastBicycle;
+    private boolean lastSurfing;
+    private boolean lastDiving;
     private final MovementController movement = new MovementController();
     private final MovementController.StepMover stepMover;
     /**
@@ -84,6 +94,17 @@ public final class MapScreen extends ScreenAdapter {
     private boolean playerWasJumping;
     /** PField_Field:1138: the ledge jump's dust plays on the landing frame. */
     private boolean ledgeDustPending;
+    /** 311_BW_SignPosts: the board with the map's name, while it is on screen. */
+    private LocationSignpost signpost;
+    private float signpostClock;
+    /** The map the player came from, until the first frame loads the board's graphics (-1 = nothing pending). */
+    private int pendingSignpostFrom = -1;
+    /** 0 on foot, 1 cycling, 2 surfing: what the player graphic, the speed and the music were last set for. */
+    private int vehicleKey;
+    /** 179:728-748 {@code $PokemonTemp.surfJump}: the tile the surf base stays on while the player jumps on / off the water. */
+    private int[] surfJump;
+    /** 023/025:341-346 {@code $PokemonTemp.endSurf}: the jump onto land is over -> dismount. */
+    private boolean endSurfPending;
     private final EventInterpreter interpreter;
     private MessageWindow messageWindow;
     /** L1: the pause menu overlay (Modular Pause Menu visuals). */
@@ -257,7 +278,22 @@ public final class MapScreen extends ScreenAdapter {
         } else {
             spawn = Collision.debugSpawn(gameState, tileMap, mapData, database.startX(), database.startY());
         }
+        int previousMapId = gameState.currentMapId();
         gameState.enterMap(mapId, spawn[0], spawn[1]);
+        pendingSignpostFrom = previousMapId;
+        gameState.fieldGlobals().outdoorOf = id -> {
+            try {
+                return database.map(id).outdoor;
+            } catch (RuntimeException error) {
+                return null;
+            }
+        };
+        new pokemon.runtime.field.Vehicles(database.pbs(), gameState).onMapChange(mapId);   // Events.onMapChange (170:603-608)
+        noteMapChange(mapId);
+        refreshDarkness(mapId);
+        if (gameState.takeFlyArrival()) {
+            flyArrivalPending = true;                                              // 179:535 pbFlyAnimation(false) once the map has faded in
+        }
         // RMXP rebuilds the screen state on map setup: the black tone a door
         // applied before the transfer must not survive into the new map.
         context.screenEffects().clearTone();
@@ -282,6 +318,7 @@ public final class MapScreen extends ScreenAdapter {
         if (interpreter != null) {
             messageWindow = new MessageWindow(context.messageService(),
                     locator.font(messageFontName), textures, locator);
+            messageWindow.money = () -> context.gameState().trainer().money;
         }
         pauseMenu = new PauseMenuOverlay(context, locator);
         pauseMenu.host(new PauseMenuOverlay.Host() {
@@ -501,6 +538,137 @@ public final class MapScreen extends ScreenAdapter {
                         eventId, player.direction());
             }
 
+            @Override
+            public void startSurfing() {
+                beginSurfing();
+            }
+
+            // 297_Follower_Main: the following Pokemon / dependent events the scripts address.
+            @Override
+            public boolean toggleFollower(String forced) {
+                if (followers == null || followers.follower() == null) {
+                    return false;
+                }
+                followers.toggle(forced, true);
+                rebindEntities();
+                return true;
+            }
+
+            @Override
+            public boolean startFollowing(int eventId) {
+                if (followers == null || !followers.startFollowing(eventId)) {
+                    return false;
+                }
+                rebindEntities();
+                return true;
+            }
+
+            @Override
+            public void removeDependencies(boolean exceptFollower) {
+                if (followers == null) {
+                    return;
+                }
+                if (exceptFollower) {
+                    followers.removeAllButFollower();
+                } else {
+                    followers.removeAll();
+                }
+                rebindEntities();
+            }
+
+            @Override
+            public boolean addDependency(int eventId, String name, int commonEvent) {
+                if (followers == null || followers.addEvent(eventId, name, commonEvent) == null) {
+                    return false;
+                }
+                rebindEntities();
+                return true;
+            }
+
+            @Override
+            public FollowerTalkPlan talkToFollower() {
+                return MapScreen.this.talkToFollower();
+            }
+
+            // 179_PField_FieldMoves: the field side of the hidden moves.
+            @Override
+            public String facingEventName() {
+                pokemon.runtime.data.MapData.EventData event = findFacingEvent();
+                return event == null || event.name == null ? null : event.name.toLowerCase();
+            }
+
+            @Override
+            public int[] facingEventPosition() {
+                pokemon.runtime.data.MapData.EventData event = findFacingEvent();
+                if (event == null) {
+                    return null;
+                }
+                MapCharacter character = eventCharacters == null ? null : eventCharacters.character(event.id);
+                return character == null ? new int[] {event.x, event.y} : new int[] {character.logicalX(), character.logicalY()};
+            }
+
+            @Override
+            public int facingTerrainTag() {
+                return gameState.fieldGlobals().facingTerrainTag;
+            }
+
+            @Override
+            public int playerTerrainTag() {
+                return gameState.fieldGlobals().playerTerrainTag;
+            }
+
+            @Override
+            public boolean facingPassable() {
+                pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+                int bit = Collision.directionBit(player.direction());
+                return tileMap.playerPassable(player.x(), player.y(), bit, gameState.bridge(), g.surfing, g.bicycle);
+            }
+
+            @Override
+            public boolean hasDependentEvents() {
+                return followers != null && followers.hasDependentEvents();
+            }
+
+            @Override
+            public int terrainTagOnMap(int mapId) {
+                return MapScreen.this.terrainTagOnMap(mapId);
+            }
+
+            @Override
+            public float smashFacingEvent() {
+                return MapScreen.this.smashFacingEvent();
+            }
+
+            @Override
+            public float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pokemon) {
+                return MapScreen.this.hiddenMoveAnimation(pokemon);
+            }
+
+            @Override
+            public float ascendWaterfall() {
+                return MapScreen.this.ascendWaterfall();
+            }
+
+            @Override
+            public float sweetScentFlash() {
+                return MapScreen.this.sweetScentFlash();
+            }
+
+            @Override
+            public float flyAnimation(boolean departure) {
+                return MapScreen.this.flyAnimation(departure);
+            }
+
+            @Override
+            public boolean darknessActive() {
+                return darkness != null;
+            }
+
+            @Override
+            public float flashDarkness() {
+                return MapScreen.this.flashDarkness();
+            }
+
             /** R6.30: toggle_liefeng_switches - the floating-plate puzzle maps. */
             @Override
             public void togglePlateSwitches() {
@@ -527,9 +695,9 @@ public final class MapScreen extends ScreenAdapter {
         routeContext = new MapRouteContext(gameState, tileMap, mapData, player,
                 this::playerStep, context.audioManager(), context.game()::log);
         stepMover = (character, stepDirection) -> playerStep(character, stepDirection);
-        Array<MapCharacter> entities = new Array<>();
-        entities.add(player);
-        bindEntities(entities, locator);
+        followers = new FollowerController(gameState, tileMap, mapData, player, followerHost());
+        followers.bind(tileMap, mapData, true);
+        bindEntities(baseEntities(), locator);
         entityVersion = gameState.version();
         followPlayer();
         // R6.15: an arrival door page hides the hero with its very first
@@ -655,11 +823,19 @@ public final class MapScreen extends ScreenAdapter {
                     // the scene's last frame was already black
                     // (PokeBattle_Scene:301 pbFadeOutAndHide), so the map comes
                     // back on black and lifts over the next 16 frames (:123-130).
-                    battleReturnAlpha = 255;
+                    // 174_PField_Battles:329-335 + 656-657: pbAfterBattle (the white-out's pbStartOver) runs inside
+                    // pbBattleAnimation, before this fade back - so a white-out keeps the screen black for its lines
+                    // and the transfer, and the new map is what fades in.
+                    battleReturnAlpha = interpreter != null && interpreter.running() ? 0 : 255;
+                    if (followers != null) {
+                        followers.comeBack(false);                           // 297_Follower_Main:645 callRefresh after a battle
+                        rebindEntities();
+                    }
                 }
                 return;
             }
         }
+        startQueuedHatch();
         if (pauseMenu != null && !pauseMenu.isOpen() && context.menuService().pending() != null) {
             capturePauseMap();
             pauseMenu.openRequest(context.menuService().pending());
@@ -684,6 +860,15 @@ public final class MapScreen extends ScreenAdapter {
             // frame, but the same press must not reopen it or reach a waiting
             // event message in this frame (RMXP's Input.update runs per scene).
             menuHandled = true;
+            pokemon.runtime.pokemon.Pokemon[] hiddenPokemon = new pokemon.runtime.pokemon.Pokemon[1];
+            String hiddenMove = pauseMenu.takeHiddenMove(hiddenPokemon);
+            if (hiddenMove != null && interpreter != null) {
+                interpreter.startHiddenMove(hiddenPokemon[0], hiddenMove);   // 206_PScreen_PauseMenu:183 pbUseHiddenMove
+            }
+            if (followers != null) {
+                followers.comeBack(false);                                   // 297_Follower_Main:579-638 after the party / bag screens
+                rebindEntities();
+            }
             context.inputManager().consumePressed();
         }
         if (!menuHandled && pauseMenu != null && context.inputManager().wasPressed(GameAction.MENU)
@@ -697,32 +882,35 @@ public final class MapScreen extends ScreenAdapter {
         }
         context.pictureService().update(delta);
         context.screenEffects().update(delta);
+        context.gameState().weather().update(delta);
         updateCaveTransition(delta);
         mapAnimations.update(delta, animationTimingSink);
         updateNotice(delta); // L6c: deferred second half of pbNoticePlayer
         if (eventCharacters != null && routeContext != null) {
             eventCharacters.update(delta, routeContext);
         }
+        updateFollowers(delta, true);
+        if (interpreter != null) {
+            interpreter.itemToasts().update(delta);      // 308_ItemFindSimple_Scene:78-88: the boxes expire every frame, event or not
+        }
+        updateScheduledErase(delta);
+        updateFlyBird(delta);
+        updateDarkness(delta);
+        updateHiddenMove(delta);
         if (eventCharacters != null && gameState.version() != entityVersion) {
             // A switch flipped a page: pick up the new sheet and rebind entities.
             entityVersion = gameState.version();
             eventCharacters.refreshGraphics();
-            Array<MapCharacter> base = new Array<>();
-            base.add(player);
-            bindEntities(base, locator);
+            bindEntities(baseEntities(), locator);
         } else if (routeContext != null && routeContext.takeGraphicsDirty()) {
             // R6.18: move route code 41 changed a character sheet (the nurse
             // swapping BW 071 / BW 072, for example); reload its sprites.
-            Array<MapCharacter> base = new Array<>();
-            base.add(player);
-            bindEntities(base, locator);
+            bindEntities(baseEntities(), locator);
         }
         // P3: BerryPlantSprite#update - runs after the page refresh so a
         // switch-driven page change cannot clobber the plant's sheet.
         if (berryPlants != null && berryPlants.update()) {
-            Array<MapCharacter> base = new Array<>();
-            base.add(player);
-            bindEntities(base, locator);
+            bindEntities(baseEntities(), locator);
         }
         if (playerRoute != null && routeContext != null) {
             playerRoute.update(delta, player, routeContext);
@@ -738,12 +926,23 @@ public final class MapScreen extends ScreenAdapter {
         // A step an event route started has to land even though the interpreter
         // owns the input: RMXP updates every character before it runs commands,
         // and without this the hero is stuck mid-step forever (map353/EV006).
-        boolean scriptDriven = playerRoute != null || context.transferPending()
+        boolean scriptDriven = playerRoute != null || context.transferPending() || playerWait > 0f
                 || battleEntry != null
                 || (interpreter != null && interpreter.running());
+        if (deferredWild != null && !(interpreter != null && interpreter.running())
+                && !context.messageService().visible()) {
+            // The step's messages are over: now the wild battle they preceded (PField_Field:488-516 order).
+            java.util.List<PokemonEncounters.Encounter> wild = deferredWild;
+            deferredWild = null;
+            startWildBattle(wild);
+        }
         if (interpreter != null && interpreter.running()) {
             // An event is waiting for input / time: the player stands still (RMXP).
             interpreter.update(delta);
+            if (interpreter.consumeTitleRequest()) {     // 049_Scene_Map:171-174 $game_temp.to_title
+                backToTitle();
+                return;
+            }
         } else if (context.messageService().visible()) {
             // The running event ended or was cut short while its window was up.
             context.messageService().close();
@@ -790,6 +989,7 @@ public final class MapScreen extends ScreenAdapter {
             gameState.setPlayerPosition(player.x(), player.y(), player.direction());
         }
         playerWasJumping = player.isJumping();
+        updateFollowers(delta, false);
         if (ledgeDustPending && !player.isJumping()) {
             // PField_Field:1138: pbLedge's dust, on the frame the jump landed.
             ledgeDustPending = false;
@@ -803,6 +1003,7 @@ public final class MapScreen extends ScreenAdapter {
         if (gameState.playerId() != appliedPlayerId) {
             applyPlayerCharset(); // pbChangePlayer changed the walking graphic
         }
+        updateVehicle();
         updateGrassRustle(); // R6.28: Essentials field-movement rustle
         if (bumpSe > 0f) {
             bumpSe = Math.max(0f, bumpSe - delta); // Game_Player:340
@@ -852,11 +1053,25 @@ public final class MapScreen extends ScreenAdapter {
         }
         renderer.render(batch, mapCamera, this::renderWorldDepth);
         renderAnimations(); // R6.27: Show Animation (207) sits on the toned map
+        renderHeadNames();
         batch.setShader(null);
         renderFog();
         renderPictures();
-        renderMessageWindow();
+        renderDarkness();
+        renderSweetScent(delta);
+        renderFlyBird();
+        renderHiddenMove();
+        renderSignpost();
+        renderKeyItem();
+        boolean blackBackdrop = context.screenEffects().fade() >= 250f;
+        if (!blackBackdrop) {
+            renderMessageWindow();
+        }
+        renderItemToasts();
         renderScreenEffects();
+        if (blackBackdrop) {
+            renderMessageWindow();                                                 // the window sits above the black screen (the white-out lines)
+        }
         renderBattleReturnFade();
         renderCaveTransition();
         if (battleEntry != null) {
@@ -943,6 +1158,10 @@ public final class MapScreen extends ScreenAdapter {
      * 2026-10-05).</p>
      */
     private void switchMap(RuntimeContext.Transfer transfer) {
+        // Scene_Map#transfer_player: pbCancelVehicles($game_temp.player_new_map_id) - surfing ends, the bicycle stays where allowed.
+        if (!transfer.keepVehicles) {
+            new pokemon.runtime.field.Vehicles(context.pbsData(), gameState).cancelVehicles(transfer.mapId);
+        }
         if (mapData != null && transferStaysInMap(mapData.mapId, transfer.mapId)) {
             transferWithinMap(transfer);
             return;
@@ -1032,8 +1251,194 @@ public final class MapScreen extends ScreenAdapter {
     private void startFacingEvent() {
         int x = Collision.targetX(player.x(), player.direction());
         int y = Collision.targetY(player.y(), player.direction());
+        if (startFacingDependent(x, y)) {
+            return;                                                        // the follower / the partner talks first
+        }
         facePlayerWhenTalkedTo(x, y);
-        startEvent(x, y, EventTriggers.ACTION);
+        if (startEvent(x, y, EventTriggers.ACTION)) {
+            return;
+        }
+        if (offerSurf(x, y)) {
+            return;
+        }
+        if (offerWaterMoves()) {
+            return;
+        }
+        // 025_Game_Player:296-311 check_event_trigger_there: nothing to start on the tile in front and
+        // that tile is a counter -> look one tile further (the clerk / nurse behind a counter).
+        if (tileMap != null && tileMap.counter(x, y)) {
+            int farX = Collision.targetX(x, player.direction());
+            int farY = Collision.targetY(y, player.direction());
+            facePlayerWhenTalkedTo(farX, farY);
+            startEvent(farX, farY, EventTriggers.ACTION);
+        }
+    }
+
+    /**
+     * {@code Events.onAction} for Surf (179_PField_FieldMoves:765-772): pressing the action key at the water's edge.
+     * The checks that need the map are here; the question, the badge and the lines are the {@code pbSurf} condition atom.
+     * 登记: {@code pbFacingEvent} (a non-triggering event on the water tile) and the dependent events.
+     */
+    private boolean offerSurf(int x, int y) {
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        if (g.surfing || interpreter == null || interpreter.running() || !tileMap.valid(x, y)) {
+            return false;                                                  // :766
+        }
+        if (new pokemon.runtime.field.Vehicles(context.pbsData(), gameState).bicycleAlways(mapData.mapId)) {
+            return false;                                                  // :767
+        }
+        if (!pokemon.runtime.field.PBTerrain.isSurfable(tileMap.terrainTag(x, y, false, gameState.bridge()))) {
+            return false;                                                  // :768
+        }
+        int bit = player.direction() == 2 ? 1 : player.direction() == 4 ? 2 : player.direction() == 6 ? 4 : 8;
+        if (!tileMap.playerPassable(player.x(), player.y(), bit, gameState.bridge(), false, g.bicycle)) {
+            return false;                                                  // :769 $game_map.passable?
+        }
+        Array<pokemon.runtime.data.EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 111, 12, "pbSurf"));
+        list.add(syntheticCommand(1, 412));
+        list.add(syntheticCommand(2, 0));
+        interpreter.start(list, mapData.mapId, -1);
+        return true;
+    }
+
+    /**
+     * {@code Events.onAction} of the water moves (179_PField_FieldMoves:380-399 Dive / Surfacing, :974-981 Waterfall): the
+     * action key on deep water, or facing a waterfall. The questions are the {@code pbDive} / {@code pbSurfacing} /
+     * {@code pbWaterfall} atoms of the script conditions.
+     */
+    private boolean offerWaterMoves() {
+        if (interpreter == null || interpreter.running()) {
+            return false;
+        }
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        String atom = null;
+        if (g.diving) {                                                            // :381
+            if (pokemon.runtime.field.HiddenMoves.DIVING_SURFACE_ANYWHERE) {
+                atom = "pbSurfacing";                                              // :382-383
+            } else {
+                int divemap = pokemon.runtime.field.HiddenMoves.divemapFor(context.pbsData(), mapData.mapId);   // :385-391
+                if (divemap >= 0 && pokemon.runtime.field.PBTerrain.isDeepWater(terrainTagOnMap(divemap))) {
+                    atom = "pbSurfacing";                                          // :392-394
+                }
+            }
+        } else if (pokemon.runtime.field.PBTerrain.isDeepWater(g.playerTerrainTag)) {
+            atom = "pbDive";                                                       // :397
+        }
+        if (atom == null) {
+            if (g.facingTerrainTag == pokemon.runtime.field.PBTerrain.WATERFALL) {            // :976
+                atom = "pbWaterfall";
+            } else if (g.facingTerrainTag == pokemon.runtime.field.PBTerrain.WATERFALL_CREST) {   // :978
+                Array<pokemon.runtime.data.EventCommand> text = new Array<>();
+                text.add(syntheticCommand(0, 101, "伴随着震耳欲聋的轰鸣声，\\n庞大的瀑布倾泻而下。"));
+                text.add(syntheticCommand(1, 0));
+                interpreter.start(text, mapData.mapId, -1);
+                return true;
+            }
+        }
+        if (atom == null) {
+            return false;
+        }
+        Array<pokemon.runtime.data.EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 111, 12, atom));
+        list.add(syntheticCommand(1, 412));
+        list.add(syntheticCommand(2, 0));
+        interpreter.start(list, mapData.mapId, -1);
+        return true;
+    }
+
+    private static pokemon.runtime.data.EventCommand syntheticCommand(int index, int code, Object... values) {
+        pokemon.runtime.data.EventCommand command = new pokemon.runtime.data.EventCommand();
+        command.index = index;
+        command.code = code;
+        command.parameters = new com.badlogic.gdx.utils.JsonValue(com.badlogic.gdx.utils.JsonValue.ValueType.array);
+        for (Object value : values) {
+            command.parameters.addChild(value instanceof Integer
+                    ? new com.badlogic.gdx.utils.JsonValue((long) (Integer) value)
+                    : new com.badlogic.gdx.utils.JsonValue(String.valueOf(value)));
+        }
+        return command;
+    }
+
+    /**
+     * {@code pbStartSurfing} (179:723-732): the surf flag, the graphic (the frame watcher) and the one-tile jump onto the
+     * water, the surf base staying on the water tile meanwhile.
+     */
+    private void beginSurfing() {
+        if (pokemonEncounters != null) {
+            pokemonEncounters.clearStepCount();                            // :725
+        }
+        gameState.fieldGlobals().surfing = true;                           // :726
+        int fx = Collision.targetX(player.x(), player.direction());
+        int fy = Collision.targetY(player.y(), player.direction());
+        surfJump = new int[] {fx, fy};                                     // :728
+        applyPlayerCharset();                                              // :727 pbUpdateVehicle
+        vehicleKey = 2;
+        player.startJump(fx, fy, TilesetGeometry.TILE_SIZE * 3f / 8f);     // :729 pbJumpToward (distance 1, no sound)
+        vehicleMusic(0, 2);
+    }
+
+    /** {@code pbEndSurf} (179:734-752): leaving the water for a land tile jumps onto it, then the player dismounts. */
+    private boolean endSurfStep(MapCharacter character, int direction, int x, int y) {
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        if (!g.surfing) {
+            return false;                                                  // :735
+        }
+        int current = tileMap.terrainTag(character.x(), character.y(), false, gameState.bridge());
+        int facing = tileMap.terrainTag(x, y, false, gameState.bridge());
+        if (!pokemon.runtime.field.PBTerrain.isSurfable(current) || pokemon.runtime.field.PBTerrain.isSurfable(facing)) {
+            return false;                                                  // :740
+        }
+        surfJump = new int[] {character.x(), character.y()};               // :741
+        character.face(direction);
+        character.startJump(x, y, TilesetGeometry.TILE_SIZE * 3f / 8f);    // :742 pbJumpToward(1, false, true)
+        if (pokemonEncounters != null) {
+            pokemonEncounters.clearStepCount();                            // pbJumpToward:1218
+        }
+        endSurfPending = true;                                             // pbJumpToward:1219
+        return true;
+    }
+
+    /** The per-frame vehicle bookkeeping: terrain tags for the item handlers, the graphic, the speed, the end of a surf. */
+    private void updateVehicle() {
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        g.playerTerrainTag = tileMap.valid(player.x(), player.y())
+                ? tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge()) : 0;
+        int fx = Collision.targetX(player.x(), player.direction());
+        int fy = Collision.targetY(player.y(), player.direction());
+        g.facingTerrainTag = tileMap.valid(fx, fy) ? tileMap.terrainTag(fx, fy, false, gameState.bridge()) : 0;
+        int key = g.surfing ? 2 : g.bicycle ? 1 : 0;
+        if (key != vehicleKey) {
+            int old = vehicleKey;
+            vehicleKey = key;
+            applyPlayerCharset();
+            vehicleMusic(old, key);
+        }
+        movement.vehicleSpeedLevel = key == 1 ? 5 : key == 2 ? 4 : 0;       // 026_Game_Player_Visuals:59-62
+        if (endSurfPending && !player.isJumping()) {                        // 025_Game_Player:341-346
+            endSurfPending = false;
+            surfJump = null;
+            new pokemon.runtime.field.Vehicles(context.pbsData(), gameState).cancelVehicles(null);
+            autoplayMapAudio();                                            // :744 $game_map.autoplayAsCue
+        }
+        if (surfJump != null && !endSurfPending && !player.isJumping()) {
+            surfJump = null;
+        }
+        if (renderer != null) {
+            renderer.surfJumpTile = surfJump;
+        }
+    }
+
+    /** pbMountBike / pbStartSurfing cue the vehicle's music; getting off goes back to the map's (pbDismountBike, :744). */
+    private void vehicleMusic(int from, int to) {
+        pokemon.runtime.pokemon.PbsData.Metadata global = context.pbsData() == null ? null : context.pbsData().globalMetadata();
+        String name = global == null ? null : to == 2 ? global.surfBGM : to == 1 ? global.bicycleBGM : null;
+        pokemon.runtime.audio.BattleMusic.Track track = pokemon.runtime.audio.BattleMusic.resolve(name);
+        if (to != 0 && track != null && track.playable()) {
+            context.audioManager().cueBgm(track.name, track.volume, track.pitch, MAP_BGM_CUE_SECONDS);
+        } else if (to == 0 && from != 0) {
+            autoplayMapAudio();
+        }
     }
 
     /**
@@ -1348,6 +1753,743 @@ public final class MapScreen extends ScreenAdapter {
      * the same interpolation and depth sorting as the player; tile-graphic
      * events (signs, doors drawn from tiles) stay on the static path.
      */
+    // ------------------------------------------------------------------
+    // 182_PField_DependentEvents / 297_Follower_Main: the following Pokemon
+    // ------------------------------------------------------------------
+
+    private FollowerController.Host followerHost() {
+        return new FollowerController.Host() {
+            @Override
+            public void playAnimation(int animationId, int x, int y) {
+                startTileAnimation(animationId, x, y, 3);                          // addUserAnimation(id, x, y)
+            }
+
+            @Override
+            public String mapName() {
+                return mapData == null || mapData.name == null ? "" : mapData.name;
+            }
+
+            @Override
+            public boolean outdoor() {
+                return mapData != null && Boolean.TRUE.equals(mapData.outdoor);
+            }
+
+            @Override
+            public boolean encounterPossible() {
+                return pokemonEncounters != null && pokemonEncounters.isEncounterPossibleHere(playerTerrainTag());
+            }
+
+            @Override
+            public int playerTerrainTag() {
+                return MapScreen.this.playerTerrainTag();
+            }
+
+            @Override
+            public boolean characterExists(String path) {
+                return locator != null && locator.find("Characters", path + ".png") != null;
+            }
+
+            @Override
+            public void eraseEvent(int eventId) {
+                if (eventCharacters != null) {
+                    eventCharacters.erase(eventId);
+                }
+            }
+
+            @Override
+            public String eventGraphic(int eventId) {
+                MapCharacter character = eventCharacters == null ? null : eventCharacters.character(eventId);
+                return character == null ? null : character.characterName;
+            }
+
+            @Override
+            public int[] eventPosition(int eventId) {
+                MapCharacter character = eventCharacters == null ? null : eventCharacters.character(eventId);
+                return character == null ? null : new int[] {character.x(), character.y(), character.direction()};
+            }
+        };
+    }
+
+    /**
+     * One frame of the dependent events. {@code before}: the followers' steps advance first, so a follower lands in the
+     * frame the player does. After the player moved: the follow step, the turn, the walking animation, the follower's
+     * route and the Ctrl toggle (297_Follower_Main:1373-1397 {@code Scene_Map#update}).
+     */
+    private void updateFollowers(float delta, boolean before) {
+        if (followers == null) {
+            return;
+        }
+        if (before) {
+            followers.advance(delta);
+            return;
+        }
+        followers.afterPlayer(delta);
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        if (g.bicycle != lastBicycle || g.surfing != lastSurfing || g.diving != lastDiving) {
+            boolean mounted = g.bicycle && !lastBicycle;
+            boolean dismounted = !g.bicycle && lastBicycle;
+            lastBicycle = g.bicycle;
+            lastSurfing = g.surfing;
+            lastDiving = g.diving;
+            // pbMountBike: come_back(!BicycleAlways), pbDismountBike: come_back(true), the other vehicles: come_back(false).
+            boolean animate = mounted
+                    ? !new pokemon.runtime.field.Vehicles(context.pbsData(), gameState).bicycleAlways(mapData.mapId)
+                    : dismounted;
+            followers.comeBack(animate);
+            rebindEntities();
+        }
+        if (followerRoute != null) {
+            MapCharacter character = followers.followerCharacter();
+            if (character == null || followerRoute.finished()) {
+                followerRoute = null;
+            } else {
+                followerRoute.update(delta, character, followerRouteContext);
+            }
+        }
+        if (playerWait > 0f) {
+            playerWait -= delta;
+        }
+        boolean idle = interpreter != null && !interpreter.running() && !context.messageService().visible()
+                && !context.transferPending() && playerRoute == null;
+        if (idle && followerRoute == null && followers.follower() != null && !g.bicycle
+                && context.inputManager().wasPressed(GameAction.TOGGLE_FOLLOWER)) {
+            followers.toggle(null, true);                                           // :1383-1385 CTRL
+            rebindEntities();
+        }
+    }
+
+    /** Rebinds the drawn characters after the dependent events changed. */
+    private void rebindEntities() {
+        bindEntities(baseEntities(), locator);
+    }
+
+    /** Route context of the follower's talk routes: it only turns, waits and jumps on the spot. */
+    private final pokemon.runtime.event.MoveRoutePlayer.Context followerRouteContext =
+            new pokemon.runtime.event.MoveRoutePlayer.Context() {
+                @Override
+                public boolean step(MapCharacter character, int direction) {
+                    return false;
+                }
+
+                @Override
+                public boolean canLand(MapCharacter character, int x, int y) {
+                    return true;
+                }
+            };
+
+    /** {@code followingMoveRoute(commands)} with the DSL of FollowerTalk: TD/TL/TR/TU turn, Wn wait, J jump on the spot. */
+    private static pokemon.runtime.data.MoveRoute followerRoute(String dsl) {
+        pokemon.runtime.data.MoveRoute route = new pokemon.runtime.data.MoveRoute();
+        for (String token : dsl.split(" ")) {
+            pokemon.runtime.data.MoveRoute.Command command = new pokemon.runtime.data.MoveRoute.Command();
+            command.parameters = new com.badlogic.gdx.utils.JsonValue(com.badlogic.gdx.utils.JsonValue.ValueType.array);
+            switch (token.charAt(0)) {
+                case 'T':
+                    command.code = token.charAt(1) == 'D' ? 16 : token.charAt(1) == 'L' ? 17 : token.charAt(1) == 'R' ? 18 : 19;
+                    break;
+                case 'W':
+                    command.code = 15;
+                    command.parameters.addChild(new com.badlogic.gdx.utils.JsonValue(Long.parseLong(token.substring(1))));
+                    break;
+                default:
+                    command.code = 14;
+                    command.parameters.addChild(new com.badlogic.gdx.utils.JsonValue(0L));
+                    command.parameters.addChild(new com.badlogic.gdx.utils.JsonValue(0L));
+                    break;
+            }
+            route.commands.add(command);
+        }
+        pokemon.runtime.data.MoveRoute.Command end = new pokemon.runtime.data.MoveRoute.Command();
+        end.code = 0;
+        route.commands.add(end);
+        return route;
+    }
+
+    /**
+     * {@code pbTalkToFollower} (297_Follower_Main:68-82): the cry, the handler's emote and routes; the wait and the line
+     * are the plan the event plays.
+     */
+    private MapPort.FollowerTalkPlan talkToFollower() {
+        if (followers == null || !followers.followerShows()) {
+            return null;                                                           // :69
+        }
+        pokemon.runtime.pokemon.Pokemon first = gameState.trainer().party.firstAble();
+        MapCharacter follower = followers.followerCharacter();
+        if (first == null || follower == null) {
+            return null;
+        }
+        if (first.species != null) {
+            context.audioManager().playCry(first.species.id);                       // :77 pbPlayCry
+        }
+        final int weather = gameState.weather().type();
+        pokemon.runtime.field.FollowerTalk.Result result = pokemon.runtime.field.FollowerTalk.choose(first,
+                new pokemon.runtime.field.FollowerTalk.Env() {
+                    @Override
+                    public String mapName() {
+                        return mapData.name;
+                    }
+
+                    @Override
+                    public String trainerName() {
+                        return gameState.trainer().name;
+                    }
+
+                    @Override
+                    public int weather() {
+                        return weather;
+                    }
+
+                    @Override
+                    public boolean holdItem() {
+                        return gameState.fieldGlobals().followerHoldItem;
+                    }
+
+                    @Override
+                    public String itemNameById(int id) {
+                        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+                        pokemon.runtime.pokemon.PbsData.Item item = pbs == null || id <= 0 ? null : pbs.itemById(id);
+                        return item == null ? "SITRUSBERRY" : item.internalName;      // :101-103 an unknown id gives a Sitrus Berry
+                    }
+                }, talkRandom.nextInt(6), talkRandom);                                // :79 rand(6)
+        MapPort.FollowerTalkPlan plan = new MapPort.FollowerTalkPlan();
+        if (result != null) {
+            if (result.animation > 0) {
+                startTileAnimation(result.animation, follower.logicalX(), follower.logicalY() - 2, 3);   // :80 event.x, event.y-2
+            }
+            plan.waitFrames = result.waitFrames;
+            if (result.route != null) {
+                playerWait = result.playerWait / 20f;
+                followerRoute = new pokemon.runtime.event.MoveRoutePlayer(followerRoute(result.route));
+            }
+            if (result.foundItem) {
+                plan.foundItem = result.foundItemName;
+                plan.foundQuantity = result.foundQuantity;
+                plan.foundMessage = result.foundMessage;
+                plan.pokemonName = first.name;
+            } else if (result.message != null) {
+                plan.messages.add(result.message);
+            }
+        }
+        facePlayer(follower);                                                      // :81 pbTurnTowardEvent(event, $game_player)
+        return plan;
+    }
+
+    private final java.util.Random talkRandom = new java.util.Random();
+
+    private void facePlayer(MapCharacter event) {
+        int sx = event.logicalX() - player.logicalX();
+        int sy = event.logicalY() - player.logicalY();
+        if (sx == 0 && sy == 0) {
+            return;
+        }
+        if (Math.abs(sx) > Math.abs(sy)) {
+            event.turn(sx > 0 ? 4 : 6);
+        } else {
+            event.turn(sy > 0 ? 8 : 2);
+        }
+    }
+
+    /** Starts the common event of a dependent event the player faces (182:394-425 updateDependentEvents). */
+    private boolean startFacingDependent(int x, int y) {
+        if (followers == null || interpreter == null) {
+            return false;
+        }
+        pokemon.runtime.state.Dependent entry = followers.at(x, y);
+        if (entry == null || entry.commonEvent < 0) {
+            return false;
+        }
+        return interpreter.startCommonEvent(entry.commonEvent, mapData.mapId);
+    }
+
+    // ------------------------------------------------------------------
+    // 179_PField_FieldMoves: the field side of the hidden moves
+    // ------------------------------------------------------------------
+
+    /** The event the player faces ({@code $game_player.pbFacingEvent}, 025_Game_Player:150-170), or null. */
+    private pokemon.runtime.data.MapData.EventData findFacingEvent() {
+        if (mapData == null || tileMap == null) {
+            return null;
+        }
+        int dx = Collision.targetX(0, player.direction());
+        int dy = Collision.targetY(0, player.direction());
+        int x = player.x() + dx;
+        int y = player.y() + dy;
+        if (!tileMap.valid(x, y)) {
+            return null;                                                           // :154
+        }
+        pokemon.runtime.data.MapData.EventData found = eventFacing(x, y);
+        if (found == null && tileMap.counter(x, y)) {                              // :160-168 across a counter
+            found = eventFacing(x + dx, y + dy);
+        }
+        return found;
+    }
+
+    private pokemon.runtime.data.MapData.EventData eventFacing(int x, int y) {
+        for (pokemon.runtime.data.MapData.EventData event : mapData.events) {
+            MapCharacter character = eventCharacters == null ? null : eventCharacters.character(event.id);
+            int ex = character == null ? event.x : character.logicalX();
+            int ey = character == null ? event.y : character.logicalY();
+            if (ex != x || ey != y) {
+                continue;                                                          // :156
+            }
+            pokemon.runtime.data.MapData.EventPageData page = EventPages.resolve(gameState, mapData.mapId, event);
+            if (page == null) {
+                continue;                                                          // an erased event
+            }
+            if (character != null && character.isJumping()) {
+                continue;                                                          // :157 event.jumping?
+            }
+            if (overTrigger(event, page, ex, ey)) {
+                continue;                                                          // :157 event.over_trigger?
+            }
+            return event;
+        }
+        return null;
+    }
+
+    /** {@code Game_Event#over_trigger?} (024_Game_Event:114-119): a walk-over event (no sheet, or through) on a passable tile. */
+    private boolean overTrigger(pokemon.runtime.data.MapData.EventData event,
+                                pokemon.runtime.data.MapData.EventPageData page, int x, int y) {
+        boolean hasSheet = page.graphic != null && page.graphic.characterName != null && !page.graphic.characterName.isEmpty();
+        if (hasSheet && !EventPages.through(page)) {
+            return false;                                                          // :115
+        }
+        if (event.name != null && event.name.toLowerCase().contains("hiddenitem")) {
+            return false;                                                          // :116
+        }
+        return tileMap.passableAnyDirection(x, y);                                 // :117
+    }
+
+    /** {@code pbSmashEvent}'s erase (179:236-247): events waiting to disappear, [event id, seconds left]. */
+    private final java.util.List<float[]> scheduledErase = new java.util.ArrayList<>();
+
+    private float smashFacingEvent() {
+        pokemon.runtime.data.MapData.EventData event = findFacingEvent();
+        if (event == null || eventCharacters == null) {
+            return 0f;
+        }
+        eventCharacters.setMoveRoute(event.id, followerRoute("W2 TL W2 TR W2 TU W2"));          // :236-244
+        scheduledErase.add(new float[] {event.id, 40 * 4 / 10 / 40f});                          // :245 pbWait(40*4/10), :246 event.erase
+        return 40 * 4 / 10 / 40f;
+    }
+
+    private void updateScheduledErase(float delta) {
+        for (int i = scheduledErase.size() - 1; i >= 0; i--) {
+            float[] entry = scheduledErase.get(i);
+            entry[1] -= delta;
+            if (entry[1] <= 0f) {
+                scheduledErase.remove(i);
+                eventCharacters.erase((int) entry[0]);
+                if (eventCharacters != null) {
+                    rebindEntities();
+                }
+            }
+        }
+    }
+
+    private pokemon.runtime.event.MoveRoutePlayer.Context noRouteContext() {
+        return routeContext;
+    }
+
+    /** {@code pbAscendWaterfall} (179:919-936): up through every waterfall tile, through everything, at move speed 2. */
+    private float ascendWaterfall() {
+        if (player.direction() != 8) {
+            return 0f;                                                             // :922
+        }
+        int terrain = gameState.fieldGlobals().facingTerrainTag;
+        if (!pokemon.runtime.field.PBTerrain.isWaterfall(terrain)) {
+            return 0f;                                                             // :926
+        }
+        int steps = 0;
+        int y = player.y();
+        do {                                                                       // :929-933 move_up until the tile is no waterfall
+            y--;
+            steps++;
+        } while (tileMap.valid(player.x(), y)
+                && pokemon.runtime.field.PBTerrain.isWaterfall(tileMap.terrainTag(player.x(), y, false, gameState.bridge())));
+        pokemon.runtime.data.MoveRoute route = new pokemon.runtime.data.MoveRoute();
+        route.commands.add(command(37, 0));                                         // through on
+        route.commands.add(command(29, 2));                                         // move_speed = 2
+        for (int i = 0; i < steps; i++) {
+            route.commands.add(command(4, -1));                                     // move_up
+        }
+        route.commands.add(command(38, 0));                                         // through off
+        route.commands.add(command(29, player.moveSpeedLevel));                     // restore the speed
+        route.commands.add(command(0, -1));
+        playerRoute = new pokemon.runtime.event.MoveRoutePlayer(route);
+        return steps / pokemon.runtime.map.MapCharacter.SPEEDS[2] + 0.2f;
+    }
+
+    private static pokemon.runtime.data.MoveRoute.Command command(int code, int parameter) {
+        pokemon.runtime.data.MoveRoute.Command command = new pokemon.runtime.data.MoveRoute.Command();
+        command.code = code;
+        command.parameters = new com.badlogic.gdx.utils.JsonValue(com.badlogic.gdx.utils.JsonValue.ValueType.array);
+        if (parameter >= 0 || code == 29) {
+            command.parameters.addChild(new com.badlogic.gdx.utils.JsonValue((long) parameter));
+        }
+        return command;
+    }
+
+    /** {@code $MapFactory.getTerrainTag(mapId, $game_player.x, $game_player.y)}. */
+    private int terrainTagOnMap(int mapId) {
+        if (database == null || mapId <= 0) {
+            return 0;
+        }
+        pokemon.runtime.data.MapData other = database.map(mapId);
+        if (other == null) {
+            return 0;
+        }
+        TileMap otherMap = new TileMap(other, database.tileset(other.tilesetId));
+        return otherMap.valid(player.x(), player.y()) ? otherMap.terrainTag(player.x(), player.y(), false, 0) : 0;
+    }
+
+    // ---- pbHiddenMoveAnimation (179:78-189) ----
+
+    private HiddenMoveAnimation hiddenMoveBanner;
+    private float hiddenMoveClock;
+    private int hiddenMoveSpecies;
+
+    private float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pkmn) {
+        if (pkmn == null || locator == null) {
+            return 0f;                                                             // :79 return false if !pokemon
+        }
+        java.io.File bgFile = locator.find("Pictures", "hiddenMovebg.png");
+        java.io.File strobeFile = locator.find("Pictures", "hiddenMoveStrobes.png");
+        Texture bg = bgFile == null ? null : textures.load("picture:hiddenMovebg", bgFile);
+        Texture strobes = strobeFile == null ? null : textures.load("picture:hiddenMoveStrobes", strobeFile);
+        Texture sprite = null;
+        if (pkmn.species != null) {
+            String base = String.format("%03d", pkmn.species.id) + (pkmn.shiny ? "s" : "");
+            int form = pkmn.formIndex();
+            String[] names = {form > 0 ? base + "_" + form : base, base, String.format("%03d", pkmn.species.id),
+                    pkmn.species.internalName};
+            for (String name : names) {
+                java.io.File file = locator.find("Battlers", name + ".png");
+                if (file != null) {
+                    sprite = textures.load("battler:" + name, file);
+                    break;
+                }
+            }
+            hiddenMoveSpecies = pkmn.species.id;
+        }
+        if (bg == null) {
+            return 0f;
+        }
+        hiddenMoveBanner = new HiddenMoveAnimation(bg, strobes, sprite, (int) ScreenMetrics.logicalWidth(),
+                (int) ScreenMetrics.logicalHeight(), talkRandom);
+        hiddenMoveClock = 0f;
+        return HiddenMoveAnimation.durationSeconds();
+    }
+
+    private void updateHiddenMove(float delta) {
+        if (hiddenMoveBanner == null) {
+            return;
+        }
+        hiddenMoveClock += delta;
+        while (hiddenMoveClock >= 1f / 40f && !hiddenMoveBanner.finished()) {
+            hiddenMoveClock -= 1f / 40f;
+            hiddenMoveBanner.tick();
+            if (hiddenMoveBanner.takeCry() && hiddenMoveSpecies > 0) {
+                context.audioManager().playCry(hiddenMoveSpecies);                  // :130 pbPlayCry(pokemon)
+            }
+        }
+        if (hiddenMoveBanner.finished()) {
+            hiddenMoveBanner = null;
+        }
+    }
+
+    private void renderHiddenMove() {
+        if (hiddenMoveBanner == null) {
+            return;
+        }
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        hiddenMoveBanner.render(batch, mapCamera.originX(), mapCamera.originY(), mapCamera.viewPixelHeight());
+        batch.end();
+    }
+
+    // ---- pbSweetScent's red flash (179:813-839) ----
+
+    private int[] sweetScentAlpha;
+    private float sweetScentClock;
+
+    private float sweetScentFlash() {
+        java.util.List<Integer> alphas = new java.util.ArrayList<>();
+        int alpha = 0;
+        int count = 0;
+        final int alphaDiff = 12;                                                  // :825 12 * frame_rate / 40
+        do {
+            if (count == 0 && alpha < 128) {
+                alpha += alphaDiff;                                                // :827-828
+            } else if (count > 40 / 4) {
+                alpha -= alphaDiff;                                                // :829-830
+            } else {
+                count++;                                                           // :832
+            }
+            alphas.add(Math.max(0, alpha));
+        } while (alpha > 0);                                                       // :837
+        sweetScentAlpha = new int[alphas.size()];
+        for (int i = 0; i < sweetScentAlpha.length; i++) {
+            sweetScentAlpha[i] = alphas.get(i);
+        }
+        sweetScentClock = 0f;
+        return sweetScentAlpha.length / 40f;
+    }
+
+    private void renderSweetScent(float delta) {
+        if (sweetScentAlpha == null) {
+            return;
+        }
+        sweetScentClock += delta;
+        int frame = (int) (sweetScentClock * 40f);
+        if (frame >= sweetScentAlpha.length) {
+            sweetScentAlpha = null;
+            return;
+        }
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        batch.setColor(1f, 0f, 0f, sweetScentAlpha[frame] / 255f);
+        batch.draw(pixel, mapCamera.originX(), mapCamera.originY(), mapCamera.viewPixelWidth(), mapCamera.viewPixelHeight());
+        batch.setColor(1f, 1f, 1f, 1f);
+        batch.end();
+    }
+
+    // ---- pbFlyAnimation (340_Fly_Animation) ----
+
+    private FlyBirdAnimation flyBird;
+    private float flyBirdClock;
+    private boolean flyBirdDeparture;
+    /** The arrival half waits for the fade-in of the new map (the plugin plays it after {@code pbFadeOutIn}). */
+    private boolean flyArrivalPending;
+
+    private float flyAnimation(boolean departure) {
+        if (locator == null) {
+            return 0f;
+        }
+        if (departure) {
+            player.turn(4);                                                        // :25 $game_player.turn_left
+            context.audioManager().playSe("flybird", 100, 100);                    // :26 pbSEPlay("flybird")
+        }
+        // :33-57 SHOW_GEN_4_BIRD, and a 10 % Groudon (:50-51)
+        String name = talkRandom.nextInt(100) < 10 ? "flybird_Groudon" : "flybird_gen4";
+        java.io.File file = locator.find("Pictures", name + ".png");
+        if (file == null) {
+            file = locator.find("Pictures", "flybird.png");
+        }
+        Texture bird = file == null ? null : textures.load("picture:" + file.getName(), file);
+        flyBird = new FlyBirdAnimation(bird, (int) ScreenMetrics.logicalWidth(), (int) ScreenMetrics.logicalHeight());
+        flyBirdClock = 0f;
+        flyBirdDeparture = departure;
+        if (departure) {
+            player.opacity = 0f;                                                   // :80-82 $game_player.setOpacity(0)
+        }
+        return FlyBirdAnimation.durationSeconds();
+    }
+
+    private void updateFlyBird(float delta) {
+        if (flyArrivalPending && context.screenEffects().fade() <= 0f) {
+            flyArrivalPending = false;
+            flyAnimation(false);                                                   // 179:535 pbFlyAnimation(false)
+        }
+        if (flyBird == null) {
+            return;
+        }
+        flyBirdClock += delta;
+        while (flyBirdClock >= 1f / 40f && !flyBird.finished()) {
+            flyBirdClock -= 1f / 40f;
+            flyBird.tick();
+            if (!flyBirdDeparture && flyBird.pastCenter()) {
+                player.opacity = 1f;                                               // :95-97 the player appears at the centre
+            }
+        }
+        if (flyBird.finished()) {
+            if (flyBirdDeparture) {
+                player.opacity = 1f;                                               // :132-134
+            }
+            flyBird = null;
+        }
+    }
+
+    private void renderFlyBird() {
+        if (flyBird == null) {
+            return;
+        }
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        flyBird.render(batch, mapCamera.originX(), mapCamera.originY(), mapCamera.viewPixelHeight());
+        batch.end();
+    }
+
+    /** {@code Events.onMapChange} (170_PField_Field:535-540): the healing spot and the visited maps. */
+    private void noteMapChange(int mapId) {
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        pokemon.runtime.pokemon.PbsData.Metadata meta = pbs == null ? null : pbs.mapMetadata(mapId);
+        if (meta != null && meta.healingSpot != null) {
+            g.healingSpot = meta.healingSpot.clone();                             // :537
+        }
+        g.visitedMaps.add(mapId);                                                  // :540
+    }
+
+    // ---- DarknessSprite / Flash (170_PField_Field:566-585, 171_PField_Visuals:364-404, 179:479-495) ----
+
+    private DarknessOverlay darkness;
+    private boolean darknessGrowing;
+    private float darknessClock;
+
+    /** {@code Events.onMapSceneChange}'s darkness block (170:566-585): a dark map gets the layer, any other drops it. */
+    private void refreshDarkness(int mapId) {
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        pokemon.runtime.pokemon.PbsData.Metadata meta = pbs == null ? null : pbs.mapMetadata(mapId);
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        if (meta != null && meta.darkMap) {
+            if (darkness != null) {
+                darkness.dispose();
+            }
+            darkness = new DarknessOverlay((int) ScreenMetrics.logicalWidth(), (int) ScreenMetrics.logicalHeight());
+            if (g.flashUsed) {
+                darkness.radius(DarknessOverlay.RADIUS_MAX);                       // :572-573 radius = radiusMax
+            }
+        } else {
+            g.flashUsed = false;                                                   // :580
+            if (darkness != null) {
+                darkness.dispose();                                                // :582
+                darkness = null;
+            }
+        }
+        darknessGrowing = false;
+    }
+
+    /** Flash's light circle grows by 8 a frame until it reaches the maximum (179:486-493). */
+    private float flashDarkness() {
+        if (darkness == null) {
+            return 0f;
+        }
+        darknessGrowing = true;
+        darknessClock = 0f;
+        return Math.max(0, DarknessOverlay.RADIUS_MAX - darkness.radius() + 7) / 8 / 40f;
+    }
+
+    private void updateDarkness(float delta) {
+        if (!darknessGrowing || darkness == null) {
+            return;
+        }
+        darknessClock += delta;
+        while (darknessClock >= 1f / 40f && darkness.radius() < DarknessOverlay.RADIUS_MAX) {
+            darknessClock -= 1f / 40f;
+            darkness.radius(Math.min(DarknessOverlay.RADIUS_MAX, darkness.radius() + 8));   // :486/:491-492
+        }
+        if (darkness.radius() >= DarknessOverlay.RADIUS_MAX) {
+            darknessGrowing = false;
+        }
+    }
+
+    private void renderDarkness() {
+        if (darkness == null) {
+            return;
+        }
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        darkness.render(batch, mapCamera.originX(), mapCamera.originY());
+        batch.end();
+    }
+
+    // ---- 375_001_HND_Config / 376_002_HND_Script: Headtop_Name ----
+
+    private static final com.badlogic.gdx.graphics.Color HEAD_BASE = rgb(248, 248, 248);
+    private static final com.badlogic.gdx.graphics.Color HEAD_SHADOW = rgb(24, 24, 24);
+    /** 375_001_HND_Config:9-18 {@code PREFIX_COLOR}, in the plugin's order (the first prefix the name contains wins). */
+    private static final String[] HEAD_PREFIXES = {"#ss", "#s", "#m", "#f", "#r", "#g", "#b", "#y"};
+    private static final com.badlogic.gdx.graphics.Color[] HEAD_COLORS = {
+        rgb(255, 144, 0), rgb(216, 160, 0), rgb(78, 110, 242), rgb(248, 128, 164),
+        rgb(255, 64, 64), rgb(48, 224, 96), rgb(0, 64, 255), rgb(248, 216, 0)};
+    /** {@code NAME_OPACITY} / {@code NAME_OFFSET_Y} / {@code NAME_OFFSET_OY}. */
+    private static final float HEAD_OPACITY = 224f / 255f;
+    private static final float HEAD_OFFSET_Y = -30f;
+    private static final float HEAD_OFFSET_OY = 8f;
+
+    private static com.badlogic.gdx.graphics.Color rgb(int r, int g, int b) {
+        return new com.badlogic.gdx.graphics.Color(r / 255f, g / 255f, b / 255f, 1f);
+    }
+
+    /**
+     * The names above the characters ({@code Headtop_Name#update}, 376:72-130), as the option 头顶名称 allows (1 the hero,
+     * 2 the NPCs, 3 both). An NPC shows the part of its event name after a {@code #}; a colour prefix picks the shadow.
+     */
+    private void renderHeadNames() {
+        int option = context.settings().headtopname;
+        if (option <= 0 || messageWindow == null || mapData == null || mapData.mapId == 1) {
+            return;                                                                // :113 $game_map.map_id != 1
+        }
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        if (option == 1 || option == 3) {
+            pokemon.runtime.pokemon.TrainerState trainer = gameState.trainer();
+            boolean female = trainer.gender == pokemon.runtime.pokemon.PokemonStats.FEMALE;
+            drawHeadName(player, trainer.name, female ? HEAD_COLORS[3] : HEAD_COLORS[2]);   // :32-35 @female_color / @male_color
+        }
+        if ((option == 2 || option == 3) && eventCharacters != null) {
+            for (int i = 0; i < mapData.events.size && i < eventCharacters.characters().size; i++) {
+                pokemon.runtime.data.MapData.EventData event = mapData.events.get(i);
+                MapCharacter character = eventCharacters.characters().get(i);
+                if (event.name == null || event.name.indexOf('#') < 0 || character == null) {
+                    continue;                                                      // :40-41 return unless @event.name.include?('#')
+                }
+                String raw = event.name.substring(event.name.indexOf('#'));       // :42 name[/\\s*#(.+)/i]
+                if (raw.length() < 2) {
+                    continue;
+                }
+                com.badlogic.gdx.graphics.Color color = null;
+                for (int p = 0; p < HEAD_PREFIXES.length; p++) {                   // :44-50
+                    if (raw.contains(HEAD_PREFIXES[p])) {
+                        color = HEAD_COLORS[p];
+                        raw = raw.replace(HEAD_PREFIXES[p], "");
+                        break;
+                    }
+                }
+                raw = raw.replace("#", "");                                        // :51
+                raw = raw.replaceAll("(?i)\\\\pn", java.util.regex.Matcher.quoteReplacement(gameState.trainer().name));   // :52
+                raw = raw.replaceAll("(?i)\\\\rn", "");                            // :53 登记: the rival's name is not modelled
+                if ("路比".equals(raw)) {
+                    color = color != null ? color : rgb(248, 24, 24);              // :56 SPECIAL_NAME_COLORS
+                }
+                drawHeadName(character, raw, color != null ? color : HEAD_SHADOW);
+            }
+        }
+        batch.end();
+    }
+
+    private void drawHeadName(MapCharacter character, String name, com.badlogic.gdx.graphics.Color shadow) {
+        if (character == null || name == null || name.isEmpty() || character.opacity <= 0f
+                || character.characterName == null || character.characterName.isEmpty()) {
+            return;                                                                // :95 @event.character_name != ''
+        }
+        float height = renderer.spriteHeight(character);
+        float centerX = character.pixelX() + TilesetGeometry.TILE_SIZE / 2f;
+        float spriteTop = character.pixelY() + height;
+        float lineTop = spriteTop - (HEAD_OFFSET_Y * -1f) - HEAD_OFFSET_OY;         // :89 tsprite.y = top - NAME_OFFSET_Y, text at +NAME_OFFSET_OY
+        // :96-98 only what is on screen
+        float left = mapCamera.originX();
+        float bottom = mapCamera.originY();
+        if (centerX < left - 64f || centerX > left + mapCamera.viewPixelWidth() + 64f
+                || spriteTop < bottom - 64f || spriteTop > bottom + mapCamera.viewPixelHeight() + 64f) {
+            return;
+        }
+        messageWindow.drawCenteredShadowText(batch, name, centerX, lineTop, HEAD_BASE, shadow, HEAD_OPACITY);
+    }
+
+    /** The player and the characters of the dependent events (the following Pokemon), what the renderer draws besides the map events. */
+    private Array<MapCharacter> baseEntities() {
+        Array<MapCharacter> list = new Array<>();
+        list.add(player);
+        if (followers != null) {
+            for (MapCharacter character : followers.characters()) {
+                list.add(character);
+            }
+        }
+        return list;
+    }
+
     private void bindEntities(Array<MapCharacter> entities, GraphicsLocator locator) {
         Array<MapCharacter> all = new Array<>();
         all.addAll(entities);
@@ -1406,6 +2548,18 @@ public final class MapScreen extends ScreenAdapter {
             if (graphic != null) {
                 charset = blankToNull(graphic.charset);
                 running = blankToNull(graphic.runningCharset);
+                // 025_Game_Player:436-446 pbUpdateVehicle: diving 5, surfing 3, bicycle 2, else 1; a blank entry falls back to 1
+                // (:pbGetPlayerCharset 'ret = meta[1] if !ret || ret==""'). 026_Game_Player_Visuals:42 keeps the running graphic
+                // for walking only. 登记: the diving graphic (Dive is not part of the vehicles yet).
+                pokemon.runtime.state.FieldGlobals vehicle = gameState.fieldGlobals();
+                String vehicleCharset = vehicle.surfing ? blankToNull(graphic.surfCharset)
+                        : vehicle.bicycle ? blankToNull(graphic.bikeCharset) : null;
+                if (vehicle.surfing || vehicle.bicycle) {
+                    running = null;
+                    if (vehicleCharset != null) {
+                        charset = vehicleCharset;
+                    }
+                }
             }
         }
         if (charset == null && !hasSelector) {
@@ -1465,6 +2619,9 @@ public final class MapScreen extends ScreenAdapter {
         if (!Collision.canStep(gameState, tileMap, mapData, character, direction)) {
             blockedStep = true;
             return false;
+        }
+        if (character == player && endSurfStep(character, direction, x, y)) {
+            return true;                                                   // Game_Player:76 return if pbEndSurf
         }
         return character.startMove(x, y, direction);
     }
@@ -1643,6 +2800,7 @@ public final class MapScreen extends ScreenAdapter {
 
     private void crossTo(MapLinks.Crossing crossing) {
         long started = System.nanoTime();
+        int previousMap = mapData.mapId;
         try {
             MapLinks.Link link = linkTo(crossing.mapId);
             // The crossing map is almost always already rendered beyond the
@@ -1699,6 +2857,16 @@ public final class MapScreen extends ScreenAdapter {
             player.setMapBounds(next.width, next.height);
             lastPlayerTile = new int[] {player.x(), player.y()};
             gameState.walkToMap(next.mapId, crossing.x, crossing.y);
+            // Events.onMapChange (PField_Field:537-538): the encounter tables and $PokemonMap are rebuilt for the new map.
+            // A screen that crossed a connection kept the previous map's tables until it was rebuilt.
+            gameState.fieldGlobals().clearMap();
+            if (pokemonEncounters != null) {
+                pokemonEncounters.setup(next.mapId);
+            }
+            new pokemon.runtime.field.Vehicles(context.pbsData(), gameState).onMapChange(next.mapId);
+            noteMapChange(next.mapId);
+            refreshDarkness(next.mapId);
+            showSignpost(previousMap);
             if (interpreter != null) {
                 interpreter.stop();
             }
@@ -1706,9 +2874,8 @@ public final class MapScreen extends ScreenAdapter {
             doorShowHold.clear();
             cameraScroll.reset();
             environment.reset();
-            Array<MapCharacter> base = new Array<>();
-            base.add(player);
-            bindEntities(base, locator);
+            followers.bind(tileMap, mapData, true);                 // 297_Follower_Main:1400-1410 the follower comes along
+            bindEntities(baseEntities(), locator);
             long entitiesDone = System.nanoTime();
             entityVersion = gameState.version();
             applyDayNightTone(0);
@@ -1859,6 +3026,192 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     /** Draws the message window above the map (R6.2, skinned in R6.31). */
+    /** 308_ItemFindSimple_Scene:2-62: the 184x28 box at the right edge with the item's icon, name and quantity. */
+    private void renderItemToasts() {
+        if (interpreter == null || messageWindow == null || interpreter.itemToasts().list().isEmpty()) {
+            return;
+        }
+        float screenRight = mapCamera.originX() + mapCamera.viewPixelWidth();
+        float screenTop = mapCamera.originY() + mapCamera.viewPixelHeight();
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (pokemon.runtime.event.ItemFindToasts.Toast toast : interpreter.itemToasts().list()) {
+            float left = screenRight - pokemon.runtime.event.ItemFindToasts.WIDTH;
+            float bottom = screenTop - toast.y - pokemon.runtime.event.ItemFindToasts.HEIGHT;
+            batch.setColor(0f, 0f, 0f, 64 / 255f);                                 // :25 Color.new(0, 0, 0, 64)
+            batch.draw(pixel, left, bottom, pokemon.runtime.event.ItemFindToasts.WIDTH, pokemon.runtime.event.ItemFindToasts.HEIGHT);
+            batch.setColor(1f, 1f, 1f, 1f);
+            Texture icon = itemToastIcon(toast.item);
+            if (icon != null) {                                                    // :30-33 icon at (x+14, y+14), zoom 0.5
+                batch.draw(icon, left + 14f - 12f, bottom + 14f - 12f, 24f, 24f);
+            }
+            messageWindow.drawToastText(batch, toast.name, left + 28f, bottom + 28f - 3f, false);
+            messageWindow.drawToastText(batch, "×" + toast.qty, screenRight - 2f, bottom + 28f - 3f, true);
+        }
+        batch.end();
+    }
+
+    /**
+     * {@code Events.onMapSceneChange} (170_PField_Field:555-600): the map trail moves on, and a map with {@code ShowArea}
+     * shows its board unless the player came from a map of the same name ({@code NO_SIGNPOSTS} is empty here).
+     */
+    private void showSignpost(int previousMapId) {
+        int[] trail = gameState.fieldGlobals().mapTrail;
+        if (trail[0] != mapData.mapId) {
+            if (trail[2] != 0) trail[3] = trail[2];
+            if (trail[1] != 0) trail[2] = trail[1];
+            if (trail[0] != 0) trail[1] = trail[0];
+        }
+        trail[0] = mapData.mapId;
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        pokemon.runtime.pokemon.PbsData.Metadata meta = pbs == null ? null : pbs.mapMetadata(mapData.mapId);
+        if (previousMapId == mapData.mapId || meta == null || !meta.showArea) {
+            return;                                                                  // no map change / :586 MetadataShowArea
+        }
+        if (trail[1] != 0) {
+            for (pokemon.runtime.data.MapInfo info : database.maps()) {
+                if (info.mapId == trail[1] && mapData.name != null && mapData.name.equals(info.name)) {
+                    return;                                                          // :597-598 the same name as the map before
+                }
+            }
+        }
+        java.io.File board = locator.find("Pictures/Location", "town.png");
+        Texture boardImage = board == null ? null : textures.load("location:town", board);
+        java.io.File seasonFile = locator.find("Pictures/Location", "Spring.png");
+        Texture seasonImage = seasonFile == null ? null : textures.load("location:Spring", seasonFile);
+        signpost = new LocationSignpost(mapData.name, java.time.LocalDate.now().getMonthValue(),
+                boardImage == null ? 66f : boardImage.getHeight(), seasonImage == null ? 50f : seasonImage.getHeight(),
+                ScreenMetrics.logicalHeight());
+        signpostClock = 0f;
+    }
+
+    private Texture locationTexture(String name) {
+        java.io.File file = locator == null ? null : locator.find("Pictures/Location", name + ".png");
+        return file == null ? null : textures.load("location:" + name, file);
+    }
+
+    /** The board (:182-205, :253-285): 40 frames a second, over the map and under the message window. */
+    private void renderSignpost() {
+        if (pendingSignpostFrom >= 0 && locator != null) {
+            int from = pendingSignpostFrom;
+            pendingSignpostFrom = -1;
+            showSignpost(from);
+        }
+        if (signpost == null || messageWindow == null) {
+            return;
+        }
+        signpostClock += Gdx.graphics.getDeltaTime();
+        while (signpostClock >= 1f / 40f && !signpost.finished()) {
+            signpostClock -= 1f / 40f;
+            signpost.tick();
+        }
+        if (signpost.finished()) {
+            signpost = null;
+            return;
+        }
+        float left = mapCamera.originX();
+        float bottom = mapCamera.originY();
+        float height = mapCamera.viewPixelHeight();
+        Texture board = locationTexture(signpost.board());
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        String seasonName = signpost.season();
+        Texture season = seasonName == null ? null : locationTexture(seasonName);
+        if (season != null) {                                                       // :95-109
+            batch.draw(season, left, bottom + height - signpost.seasonY() - season.getHeight());
+        }
+        if (board != null) {
+            float top = signpost.windowY();
+            batch.draw(board, left, bottom + height - top - board.getHeight());
+            com.badlogic.gdx.graphics.Color white = com.badlogic.gdx.graphics.Color.WHITE;
+            com.badlogic.gdx.graphics.Color shade = new com.badlogic.gdx.graphics.Color(115 / 255f, 115 / 255f, 115 / 255f, 1f);
+            messageWindow.drawShadowText(batch, signpost.name(), left + signpost.textX(),
+                    bottom + height - (top + 8f) + 2f, white, shade);               // :189-204
+            if (signpost.routeNumber() != null) {                                   // :206-217 the route number graphics
+                Texture icons = locationTexture("icon_numbers");
+                if (icons != null) {
+                    int charWidth = icons.getWidth() / 10;
+                    float x = left + signpost.routeNumberX();
+                    for (int digit : LocationSignpost.routeDigits(signpost.routeNumber())) {
+                        batch.draw(icons, x, bottom + height - (top + 14f) - icons.getHeight(), charWidth,
+                                icons.getHeight(), digit * charWidth, 0, charWidth, icons.getHeight(), false, false);
+                        x += charWidth;
+                    }
+                }
+            }
+        }
+        batch.end();
+    }
+
+    /** 302_BW_Get_Key_Item:51-80 / :112-190: the white flash, the glowing picture and the icon of pbGetKeyItem. */
+    private void renderKeyItem() {
+        pokemon.runtime.event.KeyItemAnimation animation = interpreter == null ? null : interpreter.keyItemAnimation();
+        if (animation == null) {
+            return;
+        }
+        pokemon.runtime.event.KeyItemAnimation.Frame frame = animation.current();
+        float left = mapCamera.originX();
+        float bottom = mapCamera.originY();
+        float width = mapCamera.viewPixelWidth();
+        float height = mapCamera.viewPixelHeight();
+        Texture background = pictureTexture("keyitembg");
+        Texture icon = keyItemIcon(animation);
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        if (frame.whiteOpacity > 0) {                                         // :30 blackscreen tinted white
+            batch.setColor(1f, 1f, 1f, frame.whiteOpacity / 255f);
+            batch.draw(pixel, left, bottom, width, height);
+        }
+        if (background != null && frame.bgOpacity > 0) {                      // :41-47 centred, zoomed
+            batch.setColor(1f, 1f, 1f, frame.bgOpacity / 255f);
+            float w = background.getWidth(), h = background.getHeight();
+            batch.draw(background, left + width / 2f - w / 2f, bottom + height / 2f - h / 2f, w / 2f, h / 2f, w, h,
+                    frame.bgZoomX, frame.bgZoomY, 0f, 0, 0, background.getWidth(), background.getHeight(), false, false);
+        }
+        if (icon != null && frame.itemOpacity > 0) {                          // :60-77 centred, turning
+            batch.setColor(1f, 1f, 1f, frame.itemOpacity / 255f);
+            float w = icon.getWidth(), h = icon.getHeight();
+            batch.draw(icon, left + width / 2f - w / 2f, bottom + height / 2f - h / 2f, w / 2f, h / 2f, w, h,
+                    frame.itemZoomX, frame.itemZoomY, frame.itemAngle, 0, 0, icon.getWidth(), icon.getHeight(), false, false);
+        }
+        batch.setColor(1f, 1f, 1f, 1f);
+        batch.end();
+    }
+
+    private Texture pictureTexture(String name) {
+        java.io.File file = locator == null ? null : locator.find("Pictures", name + ".png");
+        return file == null ? null : textures.load("pictures:" + name, file);
+    }
+
+    /** :54-60 {@code item%03dkey}, else {@code item%03d}; a fake item is the file name itself. */
+    private Texture keyItemIcon(pokemon.runtime.event.KeyItemAnimation animation) {
+        String name;
+        if (animation.fakeIcon != null) {
+            name = animation.fakeIcon;
+        } else {
+            pokemon.runtime.pokemon.PbsData.Item data = context.pbsData() == null ? null : context.pbsData().item(animation.item);
+            if (data == null) {
+                return null;
+            }
+            name = String.format("item%03dkey", data.id);
+            if (locator == null || locator.find("Icons", name + ".png") == null) {
+                name = String.format("item%03d", data.id);
+            }
+        }
+        java.io.File file = locator == null ? null : locator.find("Icons", name + ".png");
+        return file == null ? null : textures.load("icons:" + name, file);
+    }
+
+    private Texture itemToastIcon(String item) {
+        String name = pokemon.runtime.ui.menu.ItemIcons.name(context.pbsData(), item,
+                candidate -> locator != null && locator.find("Icons", candidate + ".png") != null);
+        if (name == null) {
+            return null;
+        }
+        java.io.File file = locator.find("Icons", name + ".png");
+        return file == null ? null : textures.load("icons:" + name, file);
+    }
+
     private void renderMessageWindow() {
         if (messageWindow == null || interpreter == null || !interpreter.messages().visible()) {
             return;
@@ -1917,6 +3270,16 @@ public final class MapScreen extends ScreenAdapter {
      * project define their BGM that way.
      */
     private void autoplayMapAudio() {
+        if (gameState.fieldGlobals().surfing && context.pbsData() != null) {
+            // 170:942-949 pbAutoplayOnTransition: surfing plays the surf music instead of the map's.
+            pokemon.runtime.pokemon.PbsData.Metadata global = context.pbsData().globalMetadata();
+            pokemon.runtime.audio.BattleMusic.Track surf = global == null ? null
+                    : pokemon.runtime.audio.BattleMusic.resolve(global.surfBGM);
+            if (surf != null && surf.playable()) {
+                context.audioManager().playBgm(surf.name, surf.volume, surf.pitch);
+                return;
+            }
+        }
         if (mapData.autoplayBgm && mapData.bgm != null && !mapData.bgm.isEmpty()) {
             context.audioManager().cueBgm(mapData.bgm.name, mapData.bgm.volume,
                     mapData.bgm.pitch, MAP_BGM_CUE_SECONDS);
@@ -2607,7 +3970,13 @@ public final class MapScreen extends ScreenAdapter {
             new com.badlogic.gdx.utils.IntMap<>();
     private int[] lastPlayerTile = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE};
     /** P2: the wild encounter roll for step-based battles. */
-    private final WildEncounters wildEncounters = new WildEncounters();
+    /** {@code $PokemonEncounters} of this map (Events.onMapChange: {@code setup(map_id)}, PField_Field:538). */
+    private PokemonEncounters pokemonEncounters;
+    private FieldSteps fieldSteps;
+    /** The direction the player faced last frame, for {@code Events.onChangeDirection}. */
+    private int lastPlayerDirection = -1;
+    /** A wild battle waiting for the step's messages to finish. */
+    private java.util.List<PokemonEncounters.Encounter> deferredWild;
     private final java.util.Random encounterRandom = new java.util.Random();
 
     /**
@@ -2630,8 +3999,9 @@ public final class MapScreen extends ScreenAdapter {
             lastPlayerTile[1] = player.y();
             rustleAt(player.x(), player.y());
             stepEggs();
-            checkStepEncounter();
+            onPlayerStep();
         }
+        onPlayerDirection();
         Array<MapCharacter> characters = eventCharacters.characters();
         for (int i = 0; i < characters.size; i++) {
             MapCharacter character = characters.get(i);
@@ -2671,44 +4041,131 @@ public final class MapScreen extends ScreenAdapter {
             return;
         }
         com.badlogic.gdx.utils.Array<pokemon.runtime.pokemon.Pokemon> hatched =
-                gameState.trainer().party.stepEggs();
+                gameState.trainer().party.stepEggs();                       // 225_PScreen_EggHatching:218-233
         for (pokemon.runtime.pokemon.Pokemon egg : hatched) {
-            gameState.trainer().registerOwned(egg);
-            context.game().log("egg hatched: "
-                    + (egg.species == null ? "?" : egg.species.name));
+            pokemon.runtime.pokemon.EggHatching.pbHatch(egg, gameState.trainer(), gameState.currentMapId(),
+                    System.currentTimeMillis() / 1000L);                     // :192 pbHatch
+            hatchQueue.add(egg);
         }
     }
 
+    /** The eggs that reached zero, hatched one after the other ({@code pbHatchAnimation} blocks the game). */
+    private final java.util.ArrayDeque<pokemon.runtime.pokemon.Pokemon> hatchQueue = new java.util.ArrayDeque<>();
+
+    private void startQueuedHatch() {
+        if (hatchQueue.isEmpty() || context.menuService().pending() != null
+                || (interpreter != null && interpreter.running())) {
+            return;
+        }
+        pokemon.runtime.event.MenuService.Request request =
+                new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.HATCH);
+        request.pokemon = hatchQueue.poll();
+        context.menuService().submit(request);
+    }
+
+    private void ensureFieldSteps() {
+        if (pokemonEncounters == null && context.pbsData() != null) {
+            pokemonEncounters = new PokemonEncounters(context.pbsData(), gameState, encounterRandom,
+                    java.time.LocalTime::now);
+            pokemonEncounters.setup(mapData.mapId);                         // Events.onMapChange (PField_Field:538)
+            fieldSteps = new FieldSteps(context.pbsData(), gameState, pokemonEncounters, encounterRandom);
+        }
+    }
+
+    /** {@code pbGetTerrainTag($game_player)}: the bridge only counts while {@code $PokemonGlobal.bridge} is up. */
+    private int playerTerrainTag() {
+        return tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge());
+    }
+
+    /** Whether the plugin would treat the player as busy: a move route forces it, the interpreter or a menu runs. */
+    private boolean stepBlocked() {
+        return playerRoute != null || (interpreter != null && interpreter.running())
+                || (context.messageService() != null && context.messageService().visible());
+    }
+
     /**
-     * P2: a wild encounter on the tile the player just stepped on. Never while
-     * an event or a message is on screen; the roll itself (method, density,
-     * safe steps) lives in {@link WildEncounters} so it stays headless-testable.
+     * {@code pbOnStepTaken} (PField_Field:356-377) for the tile the player just stepped on; the encounter roll is
+     * {@code pbBattleOnStepTaken} (:488-516) in {@link FieldSteps} / {@link PokemonEncounters}.
      */
-    private void checkStepEncounter() {
+    private void onPlayerStep() {
+        // 170_PField_Field:361-366: stepping on grass brings the following Pokemon out (the option 自动跟随 = 开)
+        int stepTag = playerTerrainTag();
+        if (context.settings().autoFollow == 0 && followers != null && followers.follower() != null
+                && !gameState.followerToggled()
+                && (stepTag == pokemon.runtime.field.PBTerrain.GRASS || stepTag == pokemon.runtime.field.PBTerrain.SOOT_GRASS)) {
+            followers.toggle("on", true);
+            rebindEntities();
+        }
         if (context.battlePort() == null || context.pbsData() == null) {
             return;
         }
-        if (interpreter != null && interpreter.running()) {
+        ensureFieldSteps();
+        applyStepResult(fieldSteps.onStepTaken(false, stepBlocked(), playerTerrainTag(), false));
+    }
+
+    /** {@code Events.onChangeDirection} (PField_Field:381-384): turning on the spot can start an encounter too. */
+    private void onPlayerDirection() {
+        int direction = player.direction();
+        int previous = lastPlayerDirection;
+        lastPlayerDirection = direction;
+        if (previous < 0 || previous == direction || context.battlePort() == null || context.pbsData() == null) {
             return;
         }
-        if (context.messageService() != null && context.messageService().visible()) {
+        if (stepBlocked()) {
+            return;                                                         // Game_Player:96 !@move_route_forcing && !pbMapInterpreterRunning?
+        }
+        ensureFieldSteps();
+        applyStepResult(fieldSteps.onChangeDirection(playerTerrainTag(), false));
+    }
+
+    /** Shows the step's messages, then starts its wild battle. */
+    private void applyStepResult(FieldSteps.Result result) {
+        if (result.isEmpty()) {
             return;
         }
-        wildEncounters.onMap(mapData.mapId);
-        // PField_Encounters:153 uses $game_map.terrain_tag(x, y) - the default
-        // countBridge = false, so a bridge tile above the player only answers
-        // while $PokemonGlobal.bridge is up; underneath it the tile below does.
-        int tag = tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge());
-        WildEncounters.WildEncounter encounter =
-                wildEncounters.roll(context.pbsData(), mapData.mapId, tag, encounterRandom);
-        if (encounter == null) {
+        if (!result.messages.isEmpty()) {
+            startMessages(result.messages);
+            if (!result.wild.isEmpty()) {
+                deferredWild = result.wild;
+            }
             return;
         }
-        wildEncounters.reset();
+        startWildBattle(result.wild);
+    }
+
+    private void startMessages(java.util.List<String> texts) {
+        Array<pokemon.runtime.data.EventCommand> list = new Array<>();
+        int index = 0;
+        for (String text : texts) {
+            pokemon.runtime.data.EventCommand command = new pokemon.runtime.data.EventCommand();
+            command.index = index++;
+            command.code = 101;
+            command.indent = 0;
+            command.parameters = new com.badlogic.gdx.utils.JsonValue(com.badlogic.gdx.utils.JsonValue.ValueType.array);
+            command.parameters.addChild(new com.badlogic.gdx.utils.JsonValue(text));
+            list.add(command);
+        }
+        interpreter.start(list, mapData.mapId, -1);
+    }
+
+    /** {@code pbWildBattle} / {@code pbDoubleWildBattle} (PField_Field:502-504). */
+    private void startWildBattle(java.util.List<PokemonEncounters.Encounter> wild) {
+        if (wild.isEmpty()) {
+            return;
+        }
+        if (pokemonEncounters != null) {
+            pokemonEncounters.clearStepCount();                             // the next steps after a battle are safe
+        }
+        PokemonEncounters.Encounter first = wild.get(0);
         if (Boolean.getBoolean("pokemon.debug.flow")) {
-            context.game().log("wild encounter: " + encounter.species + " L" + encounter.level);
+            context.game().log("wild encounter: " + first.species + " L" + first.level
+                    + (wild.size() > 1 ? " + " + wild.get(1).species + " L" + wild.get(1).level : ""));
         }
-        context.battlePort().wildBattle(encounter.species, encounter.level);
+        if (wild.size() > 1) {
+            context.battlePort().doubleWildBattle(first.species, first.level, wild.get(1).species, wild.get(1).level);
+        } else {
+            context.battlePort().wildBattle(first.species, first.level);
+        }
         applyBattleEnvironment();
         // The step that triggered this is still sliding (the logical tile moved
         // when the step started). Snap it so the battle opens on the destination
@@ -2751,6 +4208,10 @@ public final class MapScreen extends ScreenAdapter {
     public void dispose() {
         pixel.dispose();
         worldTone.dispose();
+        if (darkness != null) {
+            darkness.dispose();
+            darkness = null;
+        }
         if (messageWindow != null) {
             messageWindow.dispose();
         }

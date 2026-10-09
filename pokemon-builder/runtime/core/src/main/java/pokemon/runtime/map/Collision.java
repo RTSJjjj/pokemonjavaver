@@ -54,7 +54,8 @@ public final class Collision {
         // self_event==$game_player`. The bridge state is part of that method
         // only, so every other character keeps the plain tile rule.
         if (character != null && character.isPlayer) {
-            return map.playerPassable(x, y, bit, state == null ? 0 : state.bridge());
+            return map.playerPassable(x, y, bit, state == null ? 0 : state.bridge(),
+                    state != null && state.fieldGlobals().surfing, state != null && state.fieldGlobals().bicycle);
         }
         return map.passable(x, y, bit);
     }
@@ -143,7 +144,8 @@ public final class Collision {
         // that is playerPassable? again (Game_Map:162), so a bridge tile answers
         // its own passage bits while $PokemonGlobal.bridge is up.
         boolean tile = character.isPlayer
-                ? map.playerPassable(x, y, 0, state == null ? 0 : state.bridge())
+                ? map.playerPassable(x, y, 0, state == null ? 0 : state.bridge(),
+                        state != null && state.fieldGlobals().surfing, state != null && state.fieldGlobals().bicycle)
                 : map.passableAnyDirection(x, y);
         return tile && !characterAt(state, data, x, y);
     }

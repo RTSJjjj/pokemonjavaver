@@ -9,10 +9,19 @@ import pokemon.runtime.input.GameAction;
  */
 public final class MovementController {
 
+    /** {@code Graphics.frame_rate / 20} frames at 40 fps, plus the frame the key went down: 3 frames. */
+    private static final float TURN_DELAY = 3f / 40f;
+
     private int lastDirection;
+    /** Seconds since the direction input last changed ({@code @lastdirframe}). */
+    private float heldSeconds;
+    /** {@code @moved_last_frame}: the character was walking at the end of the previous frame. */
+    private boolean movedLastFrame;
     private boolean runToggle;
     /** 0 = hold to run, 1 = toggle auto-run (PScreen_Options 跑步键). */
     public int runStyle;
+    /** 026_Game_Player_Visuals:56-66: the move speed level of the vehicle (5 cycling, 4 surfing), 0 = none. */
+    public int vehicleSpeedLevel;
 
     /**
      * @param input     frame input snapshot
@@ -30,17 +39,35 @@ public final class MovementController {
         } else {
             character.running(input.isDown(GameAction.RUN));
         }
+        if (vehicleSpeedLevel > 0 && !character.isMoving()) {
+            character.moveSpeed(vehicleSpeedLevel);
+        }
+        // 025_Game_Player:350-375 update_command_new: a direction that was just pressed only turns the player; the step
+        // follows when it is still held more than frame_rate/20 = 2 frames later, and a step that follows one at once
+        // (the player moved last frame) needs no such wait.
+        int previous = lastDirection;
         int direction = heldDirection(input);
-        lastDirection = direction;
+        if (direction != previous) {
+            heldSeconds = 0f;                                                   // :373 @lastdirframe = Graphics.frame_count
+        } else {
+            heldSeconds += delta;
+        }
+        lastDirection = direction;                                              // :374 @lastdir = dir
+        boolean chained = movedLastFrame;
+        boolean moved = false;
         float remaining = delta;
         while (remaining > 0f) {
             if (!character.isMoving()) {
-                if (direction == 0) return;
-                character.face(direction);
-                if (!mover.tryStep(character, direction) || !character.isMoving()) return;
+                if (direction == 0) break;
+                boolean mayMove = chained || moved || (direction == previous && heldSeconds >= TURN_DELAY);   // :355-356
+                character.face(direction);                                      // :363-369 turn_*
+                if (!mayMove) break;
+                if (!mover.tryStep(character, direction) || !character.isMoving()) break;
+                moved = true;
             }
             remaining = character.advance(remaining);
         }
+        movedLastFrame = moved || character.isMoving();
     }
 
     private int heldDirection(InputManager input) {
