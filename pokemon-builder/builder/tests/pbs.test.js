@@ -214,12 +214,19 @@ test("metadata.txt keeps the global [000] section and the per-map records", () =
       "WildVictoryME = Battle victory wild.ogg",
       "TrainerBattleBGM = Battle trainer.mid",
       "WildBattleBGM = Battle wild.mid",
+      "Home = 3,17,14,8",
+      "SurfBGM = Surfing.mid",
       "[002]",
       "# 茶月镇",
       "BattleBack = field",
       "MapPosition = 0,22,9",
       "Outdoor = true",
       "WildBattleBGM = Route 1",
+      "HealingSpot = 2,15,7",
+      "Weather = Rain,60",
+      "DiveMap = 494",
+      "DarkMap = true",
+      "BicycleAlways = false",
       "[003]",
       "MapPosition = 0,22,9",
       "[004]",
@@ -232,6 +239,9 @@ test("metadata.txt keeps the global [000] section and the per-map records", () =
       trainerBattleBGM: "Battle trainer.mid",
       wildVictoryME: "Battle victory wild.ogg",
       trainerVictoryME: "Battle victory trainer.ogg",
+      home: [3, 17, 14, 8],
+      surfBGM: "Surfing.mid",
+      players: { A: ["POKEMONTRAINER_Red", "trchar000"] },
     }, "map id 0 is the global section, never a map record");
     assert.equal(maps.has(0), false);
     assert.deepEqual(maps.get(2), {
@@ -240,6 +250,11 @@ test("metadata.txt keeps the global [000] section and the per-map records", () =
       mapPosition: [0, 22, 9],
       region: 0,
       battleBack: "field",
+      healingSpot: [2, 15, 7],
+      weather: ["Rain", 60],
+      diveMap: 494,
+      darkMap: true,
+      bicycleAlways: false,
     });
     assert.deepEqual(maps.get(3), { mapPosition: [0, 22, 9], region: 0 });
     assert.equal(maps.has(4), false, "a section with no modelled key stays out");

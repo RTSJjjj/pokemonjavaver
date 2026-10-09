@@ -60,7 +60,7 @@
     },
     {
       "file": "pbs/index.json",
-      "bytes": 789
+      "bytes": 849
     },
     {
       "file": "pbs/pokemon.json",
@@ -113,6 +113,10 @@
     {
       "file": "pbs/townmap.json",
       "bytes": 94
+    },
+    {
+      "file": "pbs/metadata.json",
+      "bytes": 150
     },
     {
       "file": "common-events/common-event-001.json",
@@ -171,11 +175,11 @@
       "bytes": 322
     }
   ],
-  "totalBytes": 345664,
+  "totalBytes": 345874,
   "durations": {
-    "scanMs": 3,
+    "scanMs": 4,
     "eventsMs": 2,
-    "convertMs": 31
+    "convertMs": 54
   },
   "warnings": [],
   "incremental": {

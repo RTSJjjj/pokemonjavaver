@@ -51,7 +51,7 @@ test("parseValue maps Ruby literals to JSON and marks scripts", () => {
 test("pbItemBall becomes GIVE_ITEM IR without any Ruby text", () => {
   const result = compileBlock(essentials("pbItemBall", "pbItemBall(:ORANBERRY,1)"));
   assert.equal(result.status, "TRANSLATED");
-  assert.deepEqual(result.ir, { command: "GIVE_ITEM", item: "ORANBERRY", amount: 1 });
+  assert.deepEqual(result.ir, { command: "GIVE_ITEM", item: "ORANBERRY", amount: 1, mode: "ball" });
   const text = JSON.stringify(result.ir);
   assert.ok(!text.includes("pbItemBall") && !text.includes(":ORANBERRY"), "IR must not carry Ruby");
 });
@@ -681,3 +681,61 @@ test("P3: p.giveRibbon becomes a POKEMON_CALL", () => {
 
 
 
+
+test("stage 1: $game_screen.weather(...) compiles to SET_WEATHER with the PBFieldWeather constant resolved", () => {
+  const result = compileBlock(essentials("weather", "$game_screen.weather(\n    \n  PBFieldWeather::Sun,3,20)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, { command: "SET_WEATHER", type: 7, power: 3, duration: 20 });
+  const heavy = compileBlock(essentials("weather", "$game_screen.weather(\n PBFieldWeather::HeavyRain,6,20)"));
+  assert.deepEqual(heavy.ir, { command: "SET_WEATHER", type: 6, power: 6, duration: 20 });
+  const none = compileBlock(essentials("weather", "$game_screen.weather(\n   PBFieldWeather::None,0.0,10)"));
+  assert.equal(none.status, "TRANSLATED");
+  assert.deepEqual(none.ir, { command: "SET_WEATHER", type: 0, power: 0, duration: 10 });
+});
+
+test("stage 1: get_character(n).setTempSwitchOn(c) targets event n; get_character(0) is this event", () => {
+  const other = compileBlock(essentials("get_character", 'get_character(1).setTempSwitchOn("A")'));
+  assert.equal(other.status, "TRANSLATED");
+  assert.deepEqual(other.ir, { command: "SET_TEMP_SWITCH", channel: "A", value: true, eventId: 1 });
+  const off = compileBlock(essentials("get_character", 'get_character(3).setTempSwitchOff("B")'));
+  assert.deepEqual(off.ir, { command: "SET_TEMP_SWITCH", channel: "B", value: false, eventId: 3 });
+  const self = compileBlock(essentials("get_character", 'get_character(0).setTempSwitchOn("A")'));
+  assert.deepEqual(self.ir, { command: "SET_TEMP_SWITCH", channel: "A", value: true });
+});
+
+test("stage 1: pbToneChangeAll(Tone.new(...), n) compiles to TONE_CHANGE_ALL", () => {
+  const result = compileBlock(essentials("pbToneChangeAll", "pbToneChangeAll(Tone.new(-255,-255,-255,0),20)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, { command: "TONE_CHANGE_ALL", red: -255, green: -255, blue: -255, gray: 0, duration: 20 });
+});
+
+test("stage 6: pbPokemonMart carries speech and cantsell; setPrice / setSellPrice become SET_MART_PRICE", () => {
+  const plain = compileBlock(essentials("pbPokemonMart", "pbPokemonMart([" + '\n' + " :POTION,:ANTIDOTE," + '\n' + "])"));
+  assert.deepEqual(plain.ir, { command: "OPEN_MART", items: ["POTION", "ANTIDOTE"] });
+  const full = compileBlock(essentials("pbPokemonMart", 'pbPokemonMart([:POTION],_I("欢迎"),true)'));
+  assert.deepEqual(full.ir, { command: "OPEN_MART", items: ["POTION"], speech: "欢迎", cantSell: true });
+  const priced = compileBlock(essentials("setPrice", "setPrice(:GOLDBOTTLECAP,80000,0)" + '\n' + "pbPokemonMart([:GOLDBOTTLECAP])"));
+  assert.equal(priced.status, "TRANSLATED");
+  assert.deepEqual(priced.ir.steps[0], { command: "SET_MART_PRICE", item: "GOLDBOTTLECAP", buy: 80000, sell: 0 });
+  assert.equal(priced.ir.steps[1].command, "OPEN_MART");
+  const sell = compileBlock(essentials("setSellPrice", "setSellPrice(:NUGGET,5000)"));
+  assert.deepEqual(sell.ir, { command: "SET_MART_PRICE", item: "NUGGET", buy: -1, sell: 5000 });
+});
+
+test("stage 8.4: DiegoWTsStarterSelection.new(a,b,c) compiles to STARTER_SELECTION", () => {
+  const result = compileBlock(essentials("new", "DiegoWTsStarterSelection.new(152,255,728)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, { command: "STARTER_SELECTION", dex: [152, 255, 728] });
+});
+
+test("the Hall of Fame ribbon loop is one pbGiveRibbonToParty (197_PokeBattle_Pokemon:571-576)", () => {
+  const block = essentials("giveRibbon", "for i in $Trainer.pokemonParty\n  i.giveRibbon(:CHAMPION)\nend");
+  const ir = compileBlock(block);
+  assert.match(JSON.stringify(ir), /GIVE_RIBBON_PARTY/);
+  assert.match(JSON.stringify(ir), /CHAMPION/);
+});
+
+test("the Move Relearner's party choice has its own IR", () => {
+  assert.deepEqual(compileBlock(essentials("pbChoosePokemon", "pbChoosePokemon(1,3,proc{|p|\n pbHasRelearnableMove?(p)\n},true)\n")).ir,
+    { command: "CHOOSE_POKEMON", variable: 1, nameVariable: 3, proc: "relearnable", allowIneligible: true });
+});

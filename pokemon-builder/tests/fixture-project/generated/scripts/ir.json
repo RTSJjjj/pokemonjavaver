@@ -13,7 +13,8 @@
    "ir": {
     "command": "GIVE_ITEM",
     "item": "POTION",
-    "amount": 3
+    "amount": 3,
+    "mode": "ball"
    }
   }
  ]

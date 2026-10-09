@@ -1,0 +1,11 @@
+{
+  "format": "pokemon-builder/pbs/1",
+  "kind": "pbsMetadata",
+  "total": 1,
+  "global": {},
+  "maps": {
+    "1": {
+      "outdoor": true
+    }
+  }
+}

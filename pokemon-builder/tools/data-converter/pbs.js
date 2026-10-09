@@ -718,6 +718,26 @@ export function parseMetadata(projectPath) {
       const value = section.fields.get(key.toLowerCase());
       if (value) record[key] = value;
     }
+    if (isGlobal) {
+      // GlobalTypes (Misc_Data:75-): Home "map,x,y,direction", SurfBGM, BicycleBGM, PlayerA-H
+      // "trainertype,charset,bike,surf,run,dive,fish,surffish".
+      const home = section.fields.get("home");
+      if (home !== undefined) {
+        const parts = home.split(",").map((value) => Number(value.trim()));
+        if (parts.length >= 3 && parts.every((value) => Number.isInteger(value))) record.home = parts.slice(0, 4);
+      }
+      for (const [key, name] of [["surfbgm", "surfBGM"], ["bicyclebgm", "bicycleBGM"]]) {
+        const value = section.fields.get(key);
+        if (value) record[name] = value;
+      }
+      for (const letter of "abcdefgh") {
+        const value = section.fields.get(`player${letter}`);
+        if (value) {
+          record.players = record.players || {};
+          record.players[letter.toUpperCase()] = value.split(",").map((part) => part.trim());
+        }
+      }
+    }
     if (!isGlobal) {
       const flag = (key) => {
         const value = section.fields.get(key);
@@ -745,6 +765,25 @@ export function parseMetadata(projectPath) {
       // in caves.
       const environment = section.fields.get("environment");
       if (environment) record.environment = environment;
+      // NonGlobalTypes (Misc_Data:94-115): HealingSpot "map,x,y", Weather "type,probability", DiveMap id,
+      // DarkMap / SafariMap / Bicycle / BicycleAlways / ShowArea flags.
+      const healing = section.fields.get("healingspot");
+      if (healing !== undefined) {
+        const parts = healing.split(",").map((value) => Number(value.trim()));
+        if (parts.length >= 3 && parts.every((value) => Number.isInteger(value))) record.healingSpot = parts.slice(0, 3);
+      }
+      const weather = section.fields.get("weather");
+      if (weather !== undefined) {
+        const parts = weather.split(",").map((value) => value.trim());
+        if (parts.length >= 2 && parts[0] && Number.isInteger(Number(parts[1]))) record.weather = [parts[0], Number(parts[1])];
+      }
+      const diveMap = section.fields.get("divemap");
+      if (diveMap !== undefined && Number.isInteger(Number(diveMap))) record.diveMap = Number(diveMap);
+      for (const [key, name] of [["darkmap", "darkMap"], ["safarimap", "safariMap"], ["bicycle", "bicycle"],
+        ["bicyclealways", "bicycleAlways"], ["showarea", "showArea"]]) {
+        const value = flag(key);
+        if (value !== undefined) record[name] = value;
+      }
       // A section that only carries keys this runtime does not model yet stays
       // out of the file, so "total" counts the maps that actually say
       // something.

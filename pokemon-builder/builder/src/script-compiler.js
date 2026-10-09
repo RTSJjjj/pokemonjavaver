@@ -40,6 +40,10 @@ export function splitArguments(text) {
   return parts;
 }
 
+const FIELD_WEATHER = {
+  None: 0, Rain: 1, Storm: 2, Snow: 3, Blizzard: 4, Sandstorm: 5, HeavyRain: 6, Sun: 7, Sunny: 7, Fog: 8,
+};
+
 /** Ruby literal -> JSON value; anything else stays as an explicit SCRIPT arg. */
 export function parseValue(text) {
   const value = text.trim();
@@ -48,7 +52,11 @@ export function parseValue(text) {
   // the runtime looks the id up in its own PBS data.
   const constant = /^(?:PBItems|PBSpecies|PBTypes|PBAbilities|PBMoves|PBTrainers|PBStatuses)::([A-Za-z_]\w*)$/.exec(value);
   if (constant) return constant[1];
+  // 172_PField_Weather:3-11 PBFieldWeather (None must be 0 ... Fog 8); Sun and Sunny are the same value.
+  const weather = /^PBFieldWeather::([A-Za-z_]\w*)$/.exec(value);
+  if (weather && FIELD_WEATHER[weather[1]] !== undefined) return FIELD_WEATHER[weather[1]];
   if (/^-?\d+$/.test(value)) return Number(value);
+  if (/^-?\d+\.\d+$/.test(value)) return Number(value);   // Ruby Float literal (0.0, 1.5)
   if (value === "true" || value === "false") return value === "true";
   if (value === "nil") return null;
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
@@ -246,12 +254,41 @@ function rewriteGlobalReceivers(statements) {
     statement
       .replace(/^\s*\$PokemonBag\.(pbStoreItem|pbDeleteItem)\s*\(/, "$1(")
       // R8: the boss reward module calls (Boss_reward:80-346).
-      .replace(/^\s*BossRewards\.(pokemon_reward|blissey|gholdengo_money)\s*$/, "$1()"));
+      .replace(/^\s*BossRewards\.(pokemon_reward|blissey|gholdengo_money)\s*$/, "$1()")
+      // 333_DiegoWT: `DiegoWTsStarterSelection.new(a,b,c)` opens the starter scene.
+      .replace(/^\s*DiegoWTsStarterSelection\.new\s*\(/, "DiegoWTsStarterSelection(")
+      // Game_Screen#weather (019_Game_Screen:78-93): `$game_screen.weather(type,power,duration)`.
+      .replace(/^\s*\$game_screen\.weather\s*\(/, "weather(")
+      // Interpreter#get_character(n).setTempSwitchOn(c) (048_Interpreter:400-412, 024_Game_Event:56-64):
+      // the temp switch of event n; n = 0 is this event, like the bare setTempSwitchOn.
+      .replace(/^\s*get_character\(\s*(\d+)\s*\)\.(setTempSwitchOn|setTempSwitchOff)\(\s*([^)]*?)\s*\)\s*$/,
+        "$2($3, $1)"));
+}
+
+/**
+ * `for i in $Trainer.pokemonParty / i.giveRibbon(:X) / end` (the Hall of Fame events) is one
+ * pbGiveRibbonToParty(:X): PokeBattle_Pokemon#giveRibbon (197:571-576) on every non-egg party member.
+ */
+function rewriteRibbonLoop(statements) {
+  const rewritten = [];
+  for (let i = 0; i < statements.length; i++) {
+    const head = statements[i].match(/^for\s+(\w+)\s+in\s+\$Trainer\.pokemonParty\s*$/);
+    if (head && i + 2 < statements.length && statements[i + 2].trim() === "end") {
+      const body = statements[i + 1].match(/^(\w+)\.giveRibbon\(\s*(:\w+)\s*\)\s*$/);
+      if (body && body[1] === head[1]) {
+        rewritten.push(`pbGiveRibbonToParty(${body[2]})`);
+        i += 2;
+        continue;
+      }
+    }
+    rewritten.push(statements[i]);
+  }
+  return rewritten;
 }
 
 /** The statements of one block, after the project rewrites (R6.30 / P1). */
 function blockStatements(block) {
-  return rewriteGlobalReceivers(rewriteCryStatements(callStatements(block)));
+  return rewriteGlobalReceivers(rewriteRibbonLoop(rewriteCryStatements(callStatements(block))));
 }
 
 /**
@@ -281,11 +318,13 @@ function addWildBattleOptions(command, args, from) {
 }
 
 export const HANDLERS = {
+  // mode: the runtime plays the 309_Item_Find pbItemBall / pbReceiveItem messages; a GIVE_ITEM without a mode is a
+  // silent $PokemonBag.pbStoreItem.
   pbItemBall(args) {
-    return { command: "GIVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1 };
+    return { command: "GIVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1, mode: "ball" };
   },
   pbReceiveItem(args) {
-    return { command: "GIVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1 };
+    return { command: "GIVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1, mode: "receive" };
   },
   pbDeleteItem(args) {
     return { command: "REMOVE_ITEM", item: args[0], amount: args.length > 1 ? args[1] : 1 };
@@ -304,10 +343,36 @@ export const HANDLERS = {
     return ir;
   },
   setTempSwitchOn(args) {
-    return { command: "SET_TEMP_SWITCH", channel: args[0], value: true };
+    const command = { command: "SET_TEMP_SWITCH", channel: args[0], value: true };
+    if (args.length > 1 && args[1] !== 0) command.eventId = args[1];
+    return command;
   },
   setTempSwitchOff(args) {
-    return { command: "SET_TEMP_SWITCH", channel: args[0], value: false };
+    const command = { command: "SET_TEMP_SWITCH", channel: args[0], value: false };
+    if (args.length > 1 && args[1] !== 0) command.eventId = args[1];
+    return command;
+  },
+  /**
+   * pbToneChangeAll(Tone.new(r,g,b,gray), duration) (171_PField_Visuals:691-696): the screen tone and the
+   * tone of every picture change over {@code duration * 40 / 20} frames.
+   */
+  pbToneChangeAll(args) {
+    const tone = args[0] && typeof args[0] === "object" ? /^Tone\.new\(\s*([^)]*?)\s*\)$/.exec(args[0].script || "") : null;
+    if (!tone) throw new Error("pbToneChangeAll needs a literal Tone.new(r,g,b,gray)");
+    const parts = tone[1].split(",").map((part) => Number(part.trim()));
+    if (parts.length < 3 || parts.some((part) => !Number.isFinite(part))) {
+      throw new Error("pbToneChangeAll tone is not numeric");
+    }
+    return {
+      command: "TONE_CHANGE_ALL",
+      red: parts[0], green: parts[1], blue: parts[2], gray: parts.length > 3 ? parts[3] : 0,
+      duration: args.length > 1 ? args[1] : 0,
+    };
+  },
+  /** $game_screen.weather(type, power, duration) (019_Game_Screen:78-93); duration in frames. */
+  weather(args) {
+    if (args.length < 3) throw new Error("weather needs type, power and duration");
+    return { command: "SET_WEATHER", type: args[0], power: args[1], duration: args[2] };
   },
   pbTrainerIntro(args) {
     return { command: "TRAINER_INTRO", trainerType: args[0] };
@@ -321,6 +386,20 @@ export const HANDLERS = {
     return { command: "GENDER_SELECTOR" };
   },
   pbPokeCenterPC() { return { command: "OPEN_PC" }; },
+  /** 362_changeShiny teachEggMoves: the egg-move teacher NPC. */
+  teachEggMoves() { return { command: "TEACH_EGG_MOVES" }; },
+  /** 362_changeShiny pbChangeShinyByNPC: the shiny-colour NPC. */
+  pbChangeShinyByNPC() { return { command: "CHANGE_SHINY" }; },
+  /**
+   * pbChoosePokemon(variable, nameVariable, proc, allowIneligible) (252_PSystem_PokemonUtilities:246-266): the party screen
+   * with the "able" proc; only the Move Relearner's {@code proc{|p| pbHasRelearnableMove?(p)}} is known.
+   */
+  pbChoosePokemon(args) {
+    const proc = args[2] && typeof args[2] === "object" && args[2].script ? args[2].script.replace(/\s+/g, "") : "";
+    if (!Number.isInteger(args[0]) || args[0] < 1 || !Number.isInteger(args[1]) || args[1] < 1 || proc !== "proc{|p|pbHasRelearnableMove?(p)}")
+      throw new Error("Unsupported pbChoosePokemon call");
+    return { command: "CHOOSE_POKEMON", variable: args[0], nameVariable: args[1], proc: "relearnable", allowIneligible: args[3] === true };
+  },
   pbChoosePokemonForTrade(args) {
     if (!Number.isInteger(args[0]) || args[0] < 1 || !Number.isInteger(args[1]) || args[1] < 1 || typeof args[2] !== "string")
       throw new Error("Trade selection requires variable ids and a species");
@@ -486,9 +565,59 @@ export const HANDLERS = {
   pbPokemonFollow(args) {
     return { command: "POKEMON_FOLLOW", target: args.length > 0 ? args[0] : null };
   },
+  /** pbTalkToFollower (297_Follower_Main:68-82; the follower's common event 5). */
+  pbTalkToFollower() {
+    return { command: "TALK_TO_FOLLOWER" };
+  },
+  /** pbRemoveDependencies (182_PField_DependentEvents:12-15; the partner is dropped by its own call). */
+  pbRemoveDependencies() {
+    return { command: "REMOVE_DEPENDENCIES" };
+  },
+  /** pbRemoveDependenciesExceptFollower (297_Follower_Main:87-89). */
+  pbRemoveDependenciesExceptFollower() {
+    return { command: "REMOVE_DEPENDENCIES", exceptFollower: true };
+  },
+  /** pbAddDependency2(eventID, eventName, commonEvent) (182:25-27); `@event_id` is the running event (0). */
+  pbAddDependency2(args) {
+    const target = args[0];
+    const event = target && typeof target === "object" && target.script === "@event_id" ? 0 : target;
+    if (typeof event !== "number" || args.length !== 3 || typeof args[1] !== "string" || typeof args[2] !== "number") {
+      throw new Error("pbAddDependency2 needs an event id, a name and a common event id");
+    }
+    return { command: "ADD_DEPENDENCY", event, name: args[1], commonEvent: args[2] };
+  },
+  /** pbPokemonMart(stock, speech=nil, cantsell=false) (230_PScreen_Mart:807-846). */
   pbPokemonMart(args) {
-    const items = Array.isArray(args[0]) ? args[0] : args;
-    return { command: "OPEN_MART", items };
+    if (!Array.isArray(args[0])) return { command: "OPEN_MART", items: args };
+    const command = { command: "OPEN_MART", items: args[0] };
+    if (typeof args[1] === "string") command.speech = args[1];
+    if (args[2] === true) command.cantSell = true;
+    return command;
+  },
+  /** pbGiveRibbonToParty(:RIBBON): `giveRibbon` for each non-egg party member (197_PokeBattle_Pokemon:571-576). */
+  pbGiveRibbonToParty(args) {
+    if (args.length !== 1 || typeof args[0] !== "string") throw new Error("pbGiveRibbonToParty needs one ribbon symbol");
+    return { command: "GIVE_RIBBON_PARTY", ribbon: args[0] };
+  },
+  /** DiegoWTsStarterSelection.new(pkmn1,pkmn2,pkmn3) (333_DiegoWT): the three starters' dex numbers. */
+  DiegoWTsStarterSelection(args) {
+    if (args.length !== 3 || args.some((arg) => typeof arg !== "number")) {
+      throw new Error("DiegoWTsStarterSelection needs three dex numbers");
+    }
+    return { command: "STARTER_SELECTION", dex: args };
+  },
+  /** setPrice(item, buyprice=-1, sellprice=-1) (230_PScreen_Mart:891-900). */
+  setPrice(args) {
+    return {
+      command: "SET_MART_PRICE",
+      item: args[0],
+      buy: args.length > 1 ? args[1] : -1,
+      sell: args.length > 2 ? args[2] : -1,
+    };
+  },
+  /** setSellPrice(item, sellprice) (230_PScreen_Mart:902-904) = setPrice(item, -1, sellprice). */
+  setSellPrice(args) {
+    return { command: "SET_MART_PRICE", item: args[0], buy: -1, sell: args.length > 1 ? args[1] : -1 };
   },
   // ---- R8: the boss reward system (Boss_reward:3-348) ----
   boss_reward(args) {
@@ -670,7 +799,7 @@ const DOMAIN_APIS = new Set([
   "pbTrainerBattle", "pbDoubleTrainerBattle", "pbTripleTrainerBattle", "pbWildBattle", "pbFreeWildBattle", "pbTrainerIntro",
   "setBattleRule", "pbStartTrade",
   "pbBerryPlant", "pbPickBerry", "pbStoreItem", "pbGetKeyItem", "pbDeleteItem",
-  "pbPokeCenterPC", "pbShowMap", "pbSetPokemonCenter",
+  "pbPokeCenterPC", "teachEggMoves", "pbChangeShinyByNPC", "pbShowMap", "pbSetPokemonCenter",
   "pbToggleFollowingPokemon", "pbRegisterPartner", "pbDeregisterPartner",
   "pbSet", "push", "myAddEgg", "pbCrystalWarp",
 ]);
@@ -920,7 +1049,14 @@ export function compileBlock(block) {
     }
     return { ...entry, status: "UNSUPPORTED", reason: "complex expression needs the script translator" };
   }
-  const handler = name ? HANDLERS[name] : null;
+  let handler = name ? HANDLERS[name] : null;
+  if (!handler) {
+    // The analyzer names a block after its first call, which for a receiver form such as
+    // `get_character(1).setTempSwitchOn("A")` is not the method the project rewrites it to.
+    const first = blockStatements(block)[0];
+    const rewritten = first ? statementName(first) : null;
+    if (rewritten && HANDLERS[rewritten]) handler = HANDLERS[rewritten];
+  }
   // A block whose leading call is a stage 3 domain API stays in the Java-handler
   // bucket even when a later statement cannot translate (section 25).
   const blockIsDomain = name !== null && DOMAIN_APIS.has(name);
