@@ -250,6 +250,10 @@ public final class Battler {
      *
      * @param numBadges {@code @battle.pbPlayer.numbadges}, for the boost of the player's Pokemon in an internal battle
      */
+    public int pbSpeed() {
+        return pbSpeed(battle == null ? 0 : battle.numBadges);
+    }
+
     public int pbSpeed(int numBadges) {
         if (fainted()) {
             return 1;                                                            // :251
@@ -358,12 +362,82 @@ public final class Battler {
         pokemon.moves.set(slot, new Pokemon.MoveSlot(data));
     }
 
-    /** Puts back the moves a Mimic replaced (switch-out, end of battle). */
+    /** Puts back the moves a Mimic replaced and the ones a Transform replaced (switch-out, end of battle). */
     public void restoreMimickedMoves() {
         for (int i = 0; i < MOVES_MAX; i++) {
             if (mimicOriginal[i] != null && i < pokemon.moves.size) pokemon.moves.set(i, mimicOriginal[i]);
             mimicOriginal[i] = null;
         }
+        if (transformOriginalMoves != null) {                    // Transform: the battler's moves were a copy of the target's (Battler_ChangeSelf:434-439)
+            pokemon.moves.clear();
+            for (Pokemon.MoveSlot original : transformOriginalMoves) pokemon.moves.add(original);
+            transformOriginalMoves = null;
+        }
+        displayPokemon = null;                                   // and the sprite is its own again
+    }
+
+    /** The moves the Pokemon really knows while a Transform has replaced them (null = not transformed). */
+    private java.util.List<Pokemon.MoveSlot> transformOriginalMoves;
+
+    /**
+     * The Pokemon whose picture the sprite shows while this battler is transformed ({@code pbChangePokemon(user,target.pokemon)},
+     * Move_Effects_000-07F:2386 / BattleHandlers_Abilities:2614); null = its own.
+     */
+    public Pokemon displayPokemon;
+
+    /** The Pokemon the battler looks like on the field. */
+    public Pokemon visiblePokemon() {
+        return displayPokemon != null ? displayPokemon : pokemon;
+    }
+
+    /**
+     * {@code pbTransform(target)} (111_Battler_ChangeSelf:418-446): becomes a copy of {@code target} - its species picture, types,
+     * ability, five stats, stat stages, critical-hit boosts and moves (5 PP each). The real Pokemon's moves are put back by
+     * {@link #restoreMimickedMoves()} when it leaves the field or the battle ends.
+     */
+    public void pbTransform(Battler target) {
+        String oldAbil = ability;                                                       // :419
+        effects.set(PBEffects.Battler.Transform, true);                                  // :420
+        effects.set(PBEffects.Battler.TransformSpecies,                                  // :421 target.species
+                target.pokemon.species == null ? null : (Object) target.pokemon.species.internalName);
+        pbChangeTypes(target);                                                           // :422
+        ability = target.ability;                                                        // :423
+        setBaseAttack(target.baseAttack());                                              // :424-428
+        setBaseDefense(target.baseDefense());
+        setBaseSpAtk(target.baseSpAtk());
+        setBaseSpDef(target.baseSpDef());
+        setBaseSpeed(target.baseSpeed());
+        for (int s = PBStats.ATTACK; s <= PBStats.EVASION; s++) {                        // :429 PBStats.eachBattleStat
+            setStage(s, target.stage(s));
+        }
+        if (Battle.NEWEST_BATTLE_MECHANICS) {                                            // :430-433
+            effects.set(PBEffects.Battler.FocusEnergy, target.effects.raw(PBEffects.Battler.FocusEnergy));
+            effects.set(PBEffects.Battler.LaserFocus, target.effects.raw(PBEffects.Battler.LaserFocus));
+        }
+        if (transformOriginalMoves == null) {
+            transformOriginalMoves = new java.util.ArrayList<>();
+            for (Pokemon.MoveSlot slot : pokemon.moves) transformOriginalMoves.add(slot);
+        }
+        pokemon.moves.clear();                                                           // :434-439
+        for (int i = 0; i < MOVES_MAX; i++) {
+            BattleMove theirs = target.moveSlot(i);
+            if (theirs == null) continue;
+            Pokemon.MoveSlot copy = new Pokemon.MoveSlot(theirs.move);
+            copy.maxPp = 5;                                                              // @moves[i].pp = 5 / totalpp = 5
+            copy.pp = 5;
+            pokemon.moves.add(copy);
+        }
+        effects.set(PBEffects.Battler.Disable, 0);                                       // :440-441
+        effects.set(PBEffects.Battler.DisableMove, 0);
+        effects.set(PBEffects.Battler.WeightChange, target.effects.raw(PBEffects.Battler.WeightChange));   // :442
+        displayPokemon = target.pokemon.copy();                                          // the sprite (scene.pbRefreshOne, :443)
+        battle.display(pbThis() + "变成了" + target.pbThis(true) + "！");                 // :444
+        pbOnAbilityChanged(oldAbil);                                                     // :445
+    }
+
+    /** {@code @scene.pbChangePokemonTransform(user, target.pokemon)} (345_Transform_Mosaic): the sprite's mosaic change, in the round's order. */
+    public void queueTransformSprite() {
+        battle.roundEvents.add(Battle.RoundEvent.transformSprite(index, visiblePokemon()));
     }
 
     /** The move in one slot, or null for a blank slot ({@code id==0}). */

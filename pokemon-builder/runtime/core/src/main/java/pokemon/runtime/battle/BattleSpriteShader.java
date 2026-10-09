@@ -54,9 +54,16 @@ public final class BattleSpriteShader {
         "uniform sampler2D u_texture;\n" +
         "uniform vec4 u_tone;\n" +
         "uniform vec4 u_blend;\n" +
+        "uniform vec3 u_mosaic;\n" +
         "void main()\n" +
         "{\n" +
-        "  vec4 base = v_color * texture2D(u_texture, v_texCoords);\n" +
+        "  vec2 uv = v_texCoords;\n" +
+        "  if (u_mosaic.x > 1.0)\n" +
+        "  {\n" +
+        "    vec2 block = u_mosaic.x / u_mosaic.yz;\n" +
+        "    uv = (floor(uv / block) + 0.5) * block;\n" +
+        "  }\n" +
+        "  vec4 base = v_color * texture2D(u_texture, uv);\n" +
         "  vec3 shifted = clamp(base.rgb + u_tone.rgb, 0.0, 1.0);\n" +
         "  float luma = dot(shifted, vec3(0.299, 0.587, 0.114));\n" +
         "  vec3 rgb = mix(shifted, vec3(luma), u_tone.a);\n" +
@@ -82,6 +89,11 @@ public final class BattleSpriteShader {
     public void setTone(float[] tone) {
         program.setUniformf("u_tone", tone[0] / 255f, tone[1] / 255f, tone[2] / 255f,
                 Math.max(0f, Math.min(1f, tone[3] / 255f)));
+    }
+
+    /** 345_Transform_Mosaic: draws the texture in blocks of {@code block} texels (0 = normal); the size is the texture's. */
+    public void setMosaic(float block, float textureWidth, float textureHeight) {
+        program.setUniformf("u_mosaic", block, Math.max(1f, textureWidth), Math.max(1f, textureHeight));
     }
 
     /** {@code color} = {red, green, blue, alpha}; alpha is the blend amount (0..255). */

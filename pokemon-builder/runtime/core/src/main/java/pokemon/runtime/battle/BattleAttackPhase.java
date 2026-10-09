@@ -119,7 +119,7 @@ public final class BattleAttackPhase {
                 Battler b = battle.battlerAt(i);                                      // :148
                 if (b == null) continue;                                              // :149
                 // [battler, speed, sub-priority, priority, tie-breaker order]
-                Object[] bArray = {b, b.speed(), 0, 0, randomOrder[i]};               // :151
+                Object[] bArray = {b, b.pbSpeed(), 0, 0, randomOrder[i]};               // :151
                 Object[] choice = battle.choices(b.index);
                 if (":UseMove".equals(choice[0]) || ":Shift".equals(choice[0])) {     // :152
                     // Calculate move's priority
@@ -181,7 +181,7 @@ public final class BattleAttackPhase {
                 Battler ob = (Battler) orderArray[0];
                 if (indexArray != null && !contains(indexArray, ob.index)) continue;  // :215
                 int oldSpeed = (Integer) orderArray[1];                               // :216
-                orderArray[1] = ob.speed();                                           // :217
+                orderArray[1] = ob.pbSpeed();                                           // :217
                 if ((Integer) orderArray[1] != oldSpeed) needRearranging = true;      // :218
             }
         }

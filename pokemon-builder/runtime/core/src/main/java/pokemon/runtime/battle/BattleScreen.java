@@ -1208,7 +1208,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (pokemon != null) {
             pokemon.battler = battler;                                          // :323 setPokemonBitmap
             pokemon.back = back;
-            int[] size = pokemonBitmapSize(battler.pokemon, back);
+            int[] size = pokemonBitmapSize(lookOf(battler), back);
             pokemon.bitmapWidth = size == null ? -1 : size[0];
             pokemon.bitmapHeight = size == null ? -1 : size[1];
             pbSetPokemonSpritePosition(pokemon, sideSize(idxBattler));           // :589 pbSetPosition
@@ -1293,9 +1293,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private float[] battlerMetrics(Battler battler, boolean playerSide) {
         float x = 0f;
         float y = 0f;
-        if (battler != null && battler.pokemon != null && battler.pokemon.species != null) {
-            PbsData.BattlerOffsets m = battler.pokemon.form != null && battler.pokemon.form.battler != null
-                    ? battler.pokemon.form.battler : battler.pokemon.species.battler;
+        Pokemon look = battler == null ? null : lookOf(battler);
+        if (look != null && look.species != null) {
+            PbsData.BattlerOffsets m = look.form != null && look.form.battler != null
+                    ? look.form.battler : look.species.battler;
             if (m != null) {
                 if (playerSide) {                                               // :356
                     x += m.playerX * 2;                                         // :357
@@ -1333,6 +1334,53 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private final java.util.IdentityHashMap<Pokemon, Integer> heldForm = new java.util.IdentityHashMap<>();
     private MegaEvolutionScene megaScene;
     private int megaSceneBattler = -1;
+
+    /** A transformed battler's sprite keeps its old picture until the Transform event plays: Battler -> the Pokemon it showed. */
+    private final java.util.IdentityHashMap<Battler, Pokemon> heldLook = new java.util.IdentityHashMap<>();
+
+    /** The Pokemon whose picture a battler's sprite shows now (its Transform target, or the one it showed before the event). */
+    private Pokemon lookOf(Battler battler) {
+        Pokemon held = heldLook.get(battler);
+        return held != null ? held : battler.visiblePokemon();
+    }
+
+    /** 345_Transform_Mosaic:67-96 pbChangePokemonTransform: the old sprite pixelates for 10 frames, un-pixelates for 10, then the new one shows. */
+    private int transformIdx = -1;
+    private float transformTime;
+
+    private void beginTransformSprite(Battle.RoundEvent event) {
+        Battler battler = session.battle.battlerAt(event.idxBattler);
+        BattleSprite sprite = sprites.get("pokemon_" + event.idxBattler);
+        if (battler == null || sprite == null) {
+            if (battler != null) heldLook.remove(battler);
+            resumeRound();
+            return;
+        }
+        sprite.lookOverride = event.oldLook != null ? event.oldLook : battler.pokemon;
+        heldLook.remove(battler);
+        sprite.mosaic = 0f;
+        transformIdx = event.idxBattler;
+        transformTime = 0f;
+    }
+
+    private void updateTransformSprite(float delta) {
+        BattleSprite sprite = sprites.get("pokemon_" + transformIdx);
+        transformTime += delta;
+        int frame = (int) (transformTime * 40f);
+        if (sprite != null && frame < 20) {
+            sprite.mosaic = frame < 10 ? 2f * (frame + 1) : 2f * (20 - frame);       // :91-92 mosaic += 2 ten times, -= 2 ten times
+            return;
+        }
+        int idx = transformIdx;
+        transformIdx = -1;
+        if (sprite != null) {
+            sprite.mosaic = 0f;
+            sprite.lookOverride = null;
+        }
+        Battler battler = session.battle.battlerAt(idx);
+        if (battler != null) changePokemon(idx, battler);                          // :84-89 the new bitmap, shadow, pbRefreshOne
+        resumeRound();
+    }
 
     private void beginMegaScene(Battle.RoundEvent event) {
         Battler battler = session.battle.battlerAt(event.idxBattler);
@@ -2083,6 +2131,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 for (Battle.HitEvent hit : event.hits) holdHp(hit.idxBattler, hit.oldHp);
             } else if (event.kind == Battle.RoundEvent.Kind.HP_CHANGE) {
                 holdHp(event.idxBattler, event.oldHp);
+            } else if (event.kind == Battle.RoundEvent.Kind.TRANSFORM_SPRITE) {
+                Battler changed = session.battle.battlerAt(event.idxBattler);          // the sprite keeps the old picture until the mosaic plays
+                if (changed != null && event.oldLook != null && !heldLook.containsKey(changed)) {
+                    heldLook.put(changed, event.oldLook);
+                }
             } else if (event.kind == Battle.RoundEvent.Kind.MEGA_SCENE
                     || event.kind == Battle.RoundEvent.Kind.CHANGE_POKEMON) {
                 // The engine already changed the form; the sprite keeps showing the old one until the event plays.
@@ -3069,6 +3122,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 resumeRound();
                 return;
             }
+            case TRANSFORM_SPRITE:
+                beginTransformSprite(event);
+                return;
             case SWAP_SPRITES:
                 // @scene.pbSwapBattlerSprites(idxA,idxB) (PokeBattle_Battle:601)
                 swapBattlerSprites(event.idxBattler, event.oldHp);
@@ -4298,6 +4354,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             updateDamageFlashes();
             return;
         }
+        // ---- pbChangePokemonTransform (345_Transform_Mosaic:67-96) ----
+        if (transformIdx >= 0) {
+            updateTransformSprite(delta);
+            return;
+        }
         // ---- pbShowAbilitySplash / pbHideAbilitySplash (Scene_Animations:171-198) ----
         if (stage == Stage.ABILITY_SPLASH) {
             updateAbilitySplash();
@@ -4401,10 +4462,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // ---- 353 / 354 ES battle info and move info: F5 (R on a touch screen) opens them, F5 / B close them ----
         if (battleInfo != null) {
             if (battleInfo.update(input)) {
+                // 156_Scene_Commands:62-63 breaks out of the menu with -1, which in a double battle's second command menu goes back to
+                // the first battler (Battle_Phase_Command:248-254). That is a side effect nobody wants: the menu stays where it was.
                 battleInfo = null;
-                if (page == 0 && doubles() && actioned.size() > 1) {
-                    backToPreviousBattler();                           // 156_Scene_Commands:62-63 breaks out with -1: "go back" (Battle_Phase_Command:248-254)
-                }
             }
             return;
         }
@@ -4662,6 +4722,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         boolean shaderBound = false;
         boolean toneSet = false;
         boolean colorSet = false;
+        boolean mosaicOn = false;
         int blend = 0;
         for (BattleSprite sprite : sprites.drawOrder()) {
             if (!sprite.visible || sprite.opacity <= 0f || sprite.blinkHidden) {
@@ -4729,7 +4790,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             boolean needsTone = sprite.tone[0] != 0f || sprite.tone[1] != 0f
                     || sprite.tone[2] != 0f || sprite.tone[3] != 0f;
             boolean needsColor = sprite.color[3] != 0f;
-            if ((needsTone || needsColor) && spriteShader != null && spriteShader.isCompiled()) {
+            boolean needsMosaic = sprite.mosaic > 0f;
+            if ((needsTone || needsColor || needsMosaic || mosaicOn) && spriteShader != null && spriteShader.isCompiled()) {
                 if (!shaderBound) {
                     batch.setShader(spriteShader.program());
                     shaderBound = true;
@@ -4745,6 +4807,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     batch.flush();
                     spriteShader.setColor(sprite.color);
                     colorSet = true;
+                }
+                if (needsMosaic || mosaicOn) {                                      // 345_Transform_Mosaic
+                    batch.flush();
+                    spriteShader.setMosaic(needsMosaic ? sprite.mosaic : 0f, texture.getWidth(), texture.getHeight());
+                    mosaicOn = needsMosaic;
                 }
             } else {
                 if (shaderBound) {
@@ -4861,14 +4928,17 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** A POKEMON sprite's own bitmap ({@code @_iconBitmap.bitmap}), or null. */
     private Texture ownTexture(BattleSprite sprite) {
+        if (sprite.lookOverride != null) {
+            return pokemonTexture(sprite.lookOverride, sprite.back);
+        }
         if (sprite.battler == null || sprite.battler.pokemon == null) {
             return null;
         }
-        return pokemonTexture(sprite.battler.pokemon, sprite.back);
+        return pokemonTexture(lookOf(sprite.battler), sprite.back);
     }
 
     private Texture battlerTexture(Battler battler, boolean back) {
-        return battler.pokemon == null ? null : pokemonTexture(battler.pokemon, back);
+        return battler.pokemon == null ? null : pokemonTexture(lookOf(battler), back);
     }
 
     /**

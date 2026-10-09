@@ -345,7 +345,7 @@ public final class MoveEffects_080_0AF {
         /** {@code pbBaseDamage(baseDmg,user,target)} (:227-229). */
         @Override
         public int pbBaseDamage(BattleMove move, int baseDmg, Battler user, Battler target) {
-            return Math.max(Math.min(25 * target.speed() / user.speed(), 150), 1);   // :228
+            return Math.max(Math.min(25 * target.pbSpeed() / user.pbSpeed(), 150), 1);   // :228
         }
     }
 
@@ -786,7 +786,7 @@ public final class MoveEffects_080_0AF {
         @Override
         public int pbBaseDamage(BattleMove move, int baseDmg, Battler user, Battler target) {
             int ret = 40;                                                    // :597
-            int n = user.speed() / target.speed();                           // :598
+            int n = user.pbSpeed() / target.pbSpeed();                           // :598
             if (n >= 4) {                                                    // :599
                 ret = 150;
             } else if (n >= 3) {                                             // :600

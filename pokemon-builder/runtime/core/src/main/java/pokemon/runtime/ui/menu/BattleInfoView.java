@@ -27,8 +27,7 @@ import java.util.List;
  * and the rooms. F5 (R on a touch screen) or B closes it; with more than one battler the arrows pick which one is shown
  * (UP/DOWN between the sides, LEFT/RIGHT between positions).
  *
- * <p>登记: a Pokemon that is Transformed shows its own icon (Transform does not record a species yet, so
- * {@code TransformSpecies} is never set); a fainted battler's icon is dimmed instead of drawn in the RGSS gray tone;
+ * <p>登记: a fainted battler's icon is dimmed instead of drawn in the RGSS gray tone;
  * {@code pbSpeed} leaves out Swamp.</p>
  */
 public final class BattleInfoView {
@@ -216,6 +215,11 @@ public final class BattleInfoView {
             // the Pokemon icon (:100-113)
             Pokemon pkmn = battler.pokemon;
             PbsData.Species iconSpecies = displaySpecies(battler);
+            if (!(battler.effects.raw(PBEffects.Battler.Illusion) instanceof Pokemon)
+                    && battler.effects.truthy(PBEffects.Battler.Transform) && battler.displayPokemon != null
+                    && battler.displayPokemon.species != null) {
+                iconSpecies = battler.displayPokemon.species;                  // :107-108 pkmn.species = TransformSpecies
+            }
             boolean itemShown = switch197() || (owned(battler) && battle.wildBattle());
             boolean hasItemIcon = itemShown && pkmn != null && pkmn.item != null && !pkmn.item.isEmpty();
             float iconX = x - 16f - (hasItemIcon ? 8f : 0f);

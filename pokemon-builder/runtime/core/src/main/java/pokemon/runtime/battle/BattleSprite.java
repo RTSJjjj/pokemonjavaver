@@ -64,6 +64,10 @@ final class BattleSprite {
     boolean visible = true;
     /** PokemonBattlerSprite#update (PokeBattle_SceneElements:623-628): hidden for a blink frame while it is the chosen target. */
     boolean blinkHidden;
+    /** 345_Transform_Mosaic: the Pokemon whose picture is drawn instead of the battler's while its sprite pixelates (null = the battler's). */
+    pokemon.runtime.pokemon.Pokemon lookOverride;
+    /** 345_Transform_Mosaic {@code PokemonBattlerSpriteTransform#mosaic}: the block size in pixels (0 = none). */
+    float mosaic;
     int blendType;
     /** The plugin's full logical path, e.g. {@code Graphics/Battle animations/ball_00}. */
     String name = "";

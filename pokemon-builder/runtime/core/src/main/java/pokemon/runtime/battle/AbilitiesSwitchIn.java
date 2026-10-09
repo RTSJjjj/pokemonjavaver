@@ -427,8 +427,8 @@ final class AbilitiesSwitchIn {
             }
             battle.showAbilitySplash(battler, true);                               // :2611 (delay=true)
             battle.hideAbilitySplash(battler);                               // :2612
-            // 登记: :2614 battle.scene.pbChangePokemonTransform(battler,choice.pokemon) 依赖 PokeBattle_Scene
-            // 登记: :2615 battler.pbTransform(choice) —— Battler 尚无 pbTransform（PokeBattle_Battler:418-446）
+            battler.queueTransformSprite();                                  // :2614 battle.scene.pbChangePokemonTransform(battler,choice.pokemon)
+            battler.pbTransform(choice);                                     // :2615
         });
 
         BattleHandlers.AbilityOnSwitchIn.add("INTIMIDATE", (ability, battler, battle) -> {

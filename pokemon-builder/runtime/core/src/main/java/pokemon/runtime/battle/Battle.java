@@ -1214,6 +1214,11 @@ public final class Battle {
             BALL_SUCCESS,
             /** {@code @scene.pbChangePokemon} + {@code pbRefreshOne} (Mega evolution:426-427). */
             CHANGE_POKEMON,
+            /**
+             * {@code @scene.pbChangePokemonTransform(battler, pokemon)} (345_Transform_Mosaic:67-96): the sprite of {@code idxBattler}
+             * pixelates and takes the picture of {@link #oldLook}'s successor; {@code oldLook} is what it shows until the event plays.
+             */
+            TRANSFORM_SPRITE,
             /** {@code @scene.pbSwapBattlerSprites(idxA,idxB)} (PokeBattle_Scene:266-279): {@code idxBattler}, the other index in {@code oldHp}. */
             SWAP_SPRITES,
             /**
@@ -1343,6 +1348,13 @@ public final class Battle {
         static RoundEvent changePokemon(int idxBattler, int oldForm) {
             return new RoundEvent(Kind.CHANGE_POKEMON, null, false, null, idxBattler, oldForm, -1, false, false);
         }
+        /** TRANSFORM_SPRITE: the Pokemon the sprite showed before the change. */
+        public Pokemon oldLook;
+        static RoundEvent transformSprite(int idxBattler, Pokemon oldLook) {
+            RoundEvent event = new RoundEvent(Kind.TRANSFORM_SPRITE, null, false, null, idxBattler, -1, -1, false, false);
+            event.oldLook = oldLook;
+            return event;
+        }
         static RoundEvent swapSprites(int idxA, int idxB) {
             return new RoundEvent(Kind.SWAP_SPRITES, null, false, null, idxA, idxB, -1, false, false);
         }
@@ -1458,7 +1470,7 @@ public final class Battle {
                 fielded.add(b);
             }
         }
-        fielded.sort((a, b) -> b.speed() - a.speed());
+        fielded.sort((a, b) -> b.pbSpeed() - a.pbSpeed());               // pbPriority(true): pbSpeed (133:151)
         return fielded;
     }
 
@@ -1876,6 +1888,9 @@ public final class Battle {
 
     /** {@code @internalBattle} (PokeBattle_Battle:61, initialised true at :138). */
     public boolean internalBattle = true;
+
+    /** {@code @battle.pbPlayer.numbadges}: the player's badges, which boost Speed (and the other stats) of the player's Pokemon. */
+    public int numBadges;
 
     /** {@code @expGain} (PokeBattle_Battle:68/145): whether Pokemon can gain Exp/EVs; {@code setBattleRule("noExp")} turns it off. */
     public boolean expGain = true;

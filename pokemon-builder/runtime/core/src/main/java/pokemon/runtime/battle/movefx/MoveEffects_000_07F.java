@@ -280,19 +280,6 @@ public final class MoveEffects_000_07F {
     }
 
     /**
-     * {@code Battler#pbTransform(target)} (Battler_ChangeSelf:418-446) - 登记.
-     *
-     * <p>登记: the Ruby body needs {@code @battle.scene.pbRefreshOne} and
-     * {@code PokeBattle_Move.pbFromPBMove} (the function-code factory), so the
-     * m0b notes §384 and {@code AbilitiesSwitchIn:431} both record it as an
-     * empty implementation. Nothing is invented here.</p>
-     */
-    private static void pbTransform(Battler battler, Battler target) {
-        // 登记: Battler_ChangeSelf:418-446 pbTransform —— 依赖 @battle.scene.pbRefreshOne
-        //       与 PokeBattle_Move.pbFromPBMove（function code → 类名映射），本批未建模。
-    }
-
-    /**
      * {@code Battler#inTwoTurnAttack?(*fn)} (PokeBattle_Battler:718-723).
      *
      * <p>Provably {@code false} in this runtime: the Ruby returns
@@ -3008,7 +2995,7 @@ public final class MoveEffects_000_07F {
         /** {@code pbEffectAgainstTarget(user,target)} (:2380-2382). */
         @Override
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
-            pbTransform(user, target);                                        // :2381 user.pbTransform(target)
+            user.pbTransform(target);                                         // :2381 user.pbTransform(target)
         }
 
         /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:2384-2387). */
@@ -3016,8 +3003,7 @@ public final class MoveEffects_000_07F {
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
             super.pbShowAnimation(move, id, user, targets, hitNum, showAnimation);   // :2385 super
-            // 登记: Move_Effects_000-07F.rb:2386 @battle.scene.pbChangePokemon(user,targets[0].pokemon)
-            //       —— 依赖 PokeBattle_Scene（本批未建模）。
+            user.queueTransformSprite();                                             // :2386 / 345_Transform_Mosaic:101 pbChangePokemonTransform(user,targets[0].pokemon)
         }
     }
 

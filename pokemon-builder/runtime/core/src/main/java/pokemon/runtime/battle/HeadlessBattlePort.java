@@ -91,6 +91,7 @@ public final class HeadlessBattlePort implements BattlePort {
             return null; // no Pokemon to send out
         }
         Battle battle = new Battle(data, random, null);
+        battle.numBadges = trainer.badges.size();
         battle.setCanRun(canRun);
         for (Pokemon member : trainer.party.members()) {
             battle.addPlayer(member);

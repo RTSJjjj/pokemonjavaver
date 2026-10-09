@@ -260,7 +260,7 @@ final class AiCalc {
 
     /** {@code SpeedCalc(bank)}. */
     static int speed(Battler b) {
-        return b.speed();
+        return b.pbSpeed();
     }
 
     /** {@code IsTrickRoomActive()}. */

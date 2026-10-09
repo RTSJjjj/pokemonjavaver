@@ -72,6 +72,23 @@ class BattlerPbSpeedTest {
     }
 
     @Test
+    @DisplayName("badges raise the damage the player's Pokemon deal and lower what it takes (122_Move_Usage_Calculations:413-428)")
+    void badgeBoostInDamage() {
+        Battler foe = battle.battlerAt(1);
+        BattleMove tackle = new BattleMove(battle.pbs().move("TACKLE"));
+        battle.numBadges = 0;
+        int plain = DamageCalc.compute(player, foe, tackle, battle.pbs(), new Random(5), false, 1);
+        int taken = DamageCalc.compute(foe, player, tackle, battle.pbs(), new Random(5), false, 1);
+        battle.numBadges = 8;
+        int boosted = DamageCalc.compute(player, foe, tackle, battle.pbs(), new Random(5), false, 1);
+        int takenWithBadges = DamageCalc.compute(foe, player, tackle, battle.pbs(), new Random(5), false, 1);
+        assertTrue(boosted > plain, boosted + " vs " + plain);
+        assertTrue(takenWithBadges < taken, takenWithBadges + " vs " + taken);
+        battle.internalBattle = false;
+        assertEquals(plain, DamageCalc.compute(player, foe, tackle, battle.pbs(), new Random(5), false, 1));
+    }
+
+    @Test
     @DisplayName("a fainted battler's speed is 1")
     void faintedIsOne() {
         player.hp = 0;

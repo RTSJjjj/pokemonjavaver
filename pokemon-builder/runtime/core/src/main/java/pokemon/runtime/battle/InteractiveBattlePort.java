@@ -338,6 +338,7 @@ public final class InteractiveBattlePort implements BattlePort {
             this.trainerData2 = opponents == null || opponents.size() < 2 ? null : opponents.get(1);
             this.trainerData3 = opponents == null || opponents.size() < 3 ? null : opponents.get(2);
             battle = new Battle(data.get(), random, (user, foe, moves) -> move);
+            battle.numBadges = trainer.badges.size();                  // @battle.pbPlayer.numbadges
             battle.zaMode = zaMode;
             battle.fullMegaAnimation = megaAnimation == 0;       // Mega evolution:366-369 za_full_mega_animation?
             battle.bagHasItem = id -> inventory != null && inventory.has(id);   // $PokemonBag.pbHasItem?

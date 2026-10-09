@@ -35,9 +35,6 @@ import java.util.Random;
  *
  * <h2>Documented deviations (registered, not approximated)</h2>
  * <ul>
- * <li><b>Badge multipliers (:413-428)</b> - {@code @battle.internalBattle},
- *     {@code @battle.pbPlayer.numbadges} and {@code NUM_BADGES_BOOST_*} do not exist in
- *     this runtime, so the whole stage is skipped. Written at its line as a comment.</li>
  * <li><b>{@code damageReducedByFrostbite?} (:500-503)</b> - the plugin's
  *     {@code Arceus} section adds this predicate to {@code PokeBattle_Move}
  *     ({@code Arceus:216}) but it was never added to the {@code MoveEffect} surface,
@@ -278,9 +275,24 @@ public final class DamageCalc {
                 && "DRAGON".equals(type)) {
             multipliers[BASE_DMG_MULT] /= 2;
         }
-        // :413-428 badge multipliers
-        // 登记: @battle.internalBattle, @battle.pbPlayer.numbadges and the four
-        // NUM_BADGES_BOOST_* settings are not modelled, so this stage is skipped.
+        // :413-428 badge multipliers (000_Settings:124-128 NUM_BADGES_BOOST_*)
+        if (user.battle.internalBattle) {
+            int badges = user.battle.numBadges;                                    // @battle.pbPlayer.numbadges
+            if (user.pbOwnedByPlayer()) {                                          // :415
+                if (physical && badges >= Battler.NUM_BADGES_BOOST_ATTACK) {
+                    multipliers[ATK_MULT] *= 1.1f;                                 // :417
+                } else if (special && badges >= Battler.NUM_BADGES_BOOST_SPATK) {
+                    multipliers[ATK_MULT] *= 1.1f;                                 // :419
+                }
+            }
+            if (target.pbOwnedByPlayer()) {                                        // :422
+                if (physical && badges >= Battler.NUM_BADGES_BOOST_DEFENSE) {
+                    multipliers[DEF_MULT] *= 1.1f;                                 // :424
+                } else if (special && badges >= Battler.NUM_BADGES_BOOST_SPDEF) {
+                    multipliers[DEF_MULT] *= 1.1f;                                 // :426
+                }
+            }
+        }
         // :430-433 multi-targeting attacks
         if (numTargets > 1) {
             multipliers[FINAL_DMG_MULT] *= 0.75f;
