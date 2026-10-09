@@ -29,8 +29,12 @@ function Compile($srcDir, $dest, $classpath) {
 }
 Compile "$root\runtime\core\src\main\java" $mainOut $cp
 Compile "$root\runtime\lwjgl3\src\main\java" $lwOut ($cp + ';' + $mainOut)
+# The capture tools are a separate source set (runtime/lwjgl3/src/devtools) and are not packed into the game.
+$devOut = "$out\devtools"
+New-Item -ItemType Directory -Force $devOut | Out-Null
+Compile "$root\runtime\lwjgl3\src\devtools\java" $devOut ($cp + ';' + $mainOut + ';' + $lwOut)
 $res = "$root\runtime\core\src\main\resources"
-$full = $cp + ';' + $mainOut + ';' + $lwOut
+$full = $cp + ';' + $mainOut + ';' + $lwOut + ';' + $devOut
 if (Test-Path $res) { $full += ';' + $res }
 $mainClass = if ($env:POKEMON_CAPTURE_MAIN) { $env:POKEMON_CAPTURE_MAIN } else { 'pokemon.runtime.lwjgl3.MenuCapture' }
 & $java '-Dfile.encoding=UTF-8' -cp $full $mainClass $DataRoot $OutDir $Mode

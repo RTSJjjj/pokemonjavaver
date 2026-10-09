@@ -7,8 +7,6 @@ import org.junit.jupiter.api.io.TempDir;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 
@@ -23,23 +21,12 @@ class BattlerPbSpeedTest {
     private Battle battle;
     private Battler player;
 
-    private static void write(Path root, String name, String json) throws Exception {
-        Path file = root.resolve("pbs").resolve(name);
-        Files.createDirectories(file.getParent());
-        Files.write(file, json.getBytes(StandardCharsets.UTF_8));
-    }
-
     @BeforeEach
     void setUp() throws Exception {
-        write(tempDir, "index.json", "{\"format\":\"pokemon-builder/pbs/1\",\"kind\":\"pbsIndex\"}");
-        write(tempDir, "pokemon.json", "{\"total\":1,\"byId\":{},\"species\":{"
-                + "\"BULBASAUR\":{\"id\":1,\"internalName\":\"BULBASAUR\",\"name\":\"妙蛙种子\","
-                + "\"types\":[\"GRASS\"],\"baseStats\":[45,49,49,45,65,65],\"rareness\":45,"
-                + "\"weight\":6.9,\"genderRate\":\"Female50Percent\",\"evolutions\":[]}}}");
-        write(tempDir, "moves.json", "{\"total\":1,\"moves\":{\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\","
-                + "\"name\":\"撞击\",\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\","
-                + "\"accuracy\":100,\"pp\":35,\"effectChance\":0,\"target\":\"NearOther\",\"priority\":0,\"flags\":\"\"}}}");
-        PbsData pbs = PbsData.parse(tempDir.toFile());
+        PbsData pbs = new BattleFixture(tempDir)
+                .species("BULBASAUR", 1, "妙蛙种子", "GRASS", new int[] {45, 49, 49, 45, 65, 65}, "OVERGROW")
+                .move("TACKLE", 33, "NORMAL", 35)
+                .build();
         battle = new Battle(pbs, new Random(7), (user, foe, moves) -> 0);
         battle.addPlayer(new Pokemon(pbs.species("BULBASAUR"), 50, pbs));
         battle.addFoe(new Pokemon(pbs.species("BULBASAUR"), 50, pbs));

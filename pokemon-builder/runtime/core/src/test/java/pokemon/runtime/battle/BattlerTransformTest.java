@@ -10,8 +10,6 @@ import pokemon.runtime.battle.movefx.MoveEffectRegistry;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 
@@ -27,32 +25,16 @@ class BattlerTransformTest {
     private Battler user;      // the Pokemon that transforms: Bulbasaur, knows Tackle
     private Battler target;    // Charmander, knows Ember and Scratch
 
-    private static void write(Path root, String name, String json) throws Exception {
-        Path file = root.resolve("pbs").resolve(name);
-        Files.createDirectories(file.getParent());
-        Files.write(file, json.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String move(String id, int number, String type, int pp) {
-        return "\"" + id + "\":{\"id\":" + number + ",\"internalName\":\"" + id + "\",\"name\":\"" + id + "\",\"function\":\""
-                + ("TRANSFORM".equals(id) ? "069" : "000") + "\",\"power\":" + ("TRANSFORM".equals(id) ? 0 : 40) + ",\"type\":\"" + type
-                + "\",\"category\":\"" + ("TRANSFORM".equals(id) ? "Status" : "Physical") + "\",\"accuracy\":100,\"pp\":" + pp
-                + ",\"effectChance\":0,\"target\":\"NearOther\",\"priority\":0,\"flags\":\"\"}";
-    }
-
     @BeforeEach
     void setUp() throws Exception {
-        write(tempDir, "index.json", "{\"format\":\"pokemon-builder/pbs/1\",\"kind\":\"pbsIndex\"}");
-        write(tempDir, "pokemon.json", "{\"total\":2,\"byId\":{},\"species\":{"
-                + "\"BULBASAUR\":{\"id\":1,\"internalName\":\"BULBASAUR\",\"name\":\"妙蛙种子\",\"types\":[\"GRASS\"],"
-                + "\"baseStats\":[45,49,49,45,65,65],\"rareness\":45,\"genderRate\":\"Female50Percent\","
-                + "\"abilities\":[\"OVERGROW\"],\"evolutions\":[]},"
-                + "\"CHARMANDER\":{\"id\":4,\"internalName\":\"CHARMANDER\",\"name\":\"小火龙\",\"types\":[\"FIRE\"],"
-                + "\"baseStats\":[39,52,43,65,60,50],\"rareness\":45,\"genderRate\":\"Female50Percent\","
-                + "\"abilities\":[\"BLAZE\"],\"evolutions\":[]}}}");
-        write(tempDir, "moves.json", "{\"total\":4,\"moves\":{" + move("TACKLE", 33, "NORMAL", 35) + ","
-                + move("EMBER", 52, "FIRE", 25) + "," + move("SCRATCH", 10, "NORMAL", 35) + "," + move("TRANSFORM", 144, "NORMAL", 10) + "}}");
-        pbs = PbsData.parse(tempDir.toFile());
+        pbs = new BattleFixture(tempDir)
+                .species("BULBASAUR", 1, "妙蛙种子", "GRASS", new int[] {45, 49, 49, 45, 65, 65}, "OVERGROW")
+                .species("CHARMANDER", 4, "小火龙", "FIRE", new int[] {39, 52, 43, 65, 60, 50}, "BLAZE")
+                .move("TACKLE", 33, "NORMAL", 35)
+                .move("EMBER", 52, "FIRE", 25)
+                .move("SCRATCH", 10, "NORMAL", 35)
+                .move("TRANSFORM", 144, "NORMAL", 10, "069", 0, "Status")
+                .build();
         battle = new Battle(pbs, new Random(7), (u, f, moves) -> 0);
         Pokemon mine = new Pokemon(pbs.species("BULBASAUR"), 50, pbs);
         mine.moves.clear();

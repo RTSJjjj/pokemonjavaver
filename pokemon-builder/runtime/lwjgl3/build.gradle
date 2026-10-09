@@ -26,16 +26,27 @@ tasks.named('run') {
     }
 }
 
+// Developer tools (screen captures, the touch layout preview). They run the real screens and write PNGs; they are NOT part of
+// the game, so they live in their own source set and never reach the runnable JAR / dist package (runnableJar packs main only).
+sourceSets {
+    devtools {
+        java.srcDir 'src/devtools/java'
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+tasks.named('check') { dependsOn 'compileDevtoolsJava' }
+
 tasks.register('captureMap', JavaExec) {
     description = 'Captures the production map renderer through a real OpenGL framebuffer.'
-    classpath = sourceSets.main.runtimeClasspath
+    classpath = sourceSets.devtools.runtimeClasspath
     mainClass = 'pokemon.runtime.lwjgl3.MapRenderCapture'
     if (project.hasProperty('captureArgs')) args project.property('captureArgs').split('\\|')
 }
 
 tasks.register('captureMenu', JavaExec) {
     description = 'Captures the title / start / pause menu screens to PNGs (args: dataRoot|outputDir).'
-    classpath = sourceSets.main.runtimeClasspath
+    classpath = sourceSets.devtools.runtimeClasspath
     mainClass = 'pokemon.runtime.lwjgl3.MenuCapture'
     if (project.hasProperty('captureArgs')) args project.property('captureArgs').split('\\|')
 }

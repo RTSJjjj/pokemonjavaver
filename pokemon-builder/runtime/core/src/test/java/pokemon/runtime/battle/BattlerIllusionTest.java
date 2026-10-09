@@ -7,8 +7,6 @@ import org.junit.jupiter.api.io.TempDir;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 
@@ -24,29 +22,14 @@ class BattlerIllusionTest {
     private Pokemon zoroark;
     private Pokemon bulbasaur;
 
-    private static void write(Path root, String name, String json) throws Exception {
-        Path file = root.resolve("pbs").resolve(name);
-        Files.createDirectories(file.getParent());
-        Files.write(file, json.getBytes(StandardCharsets.UTF_8));
-    }
-
     @BeforeEach
     void setUp() throws Exception {
-        write(tempDir, "index.json", "{\"format\":\"pokemon-builder/pbs/1\",\"kind\":\"pbsIndex\"}");
-        write(tempDir, "pokemon.json", "{\"total\":3,\"byId\":{},\"species\":{"
-                + "\"ZOROARK\":{\"id\":571,\"internalName\":\"ZOROARK\",\"name\":\"索罗亚克\",\"types\":[\"DARK\"],"
-                + "\"baseStats\":[60,105,60,105,120,60],\"rareness\":45,\"genderRate\":\"Female50Percent\","
-                + "\"abilities\":[\"ILLUSION\"],\"evolutions\":[]},"
-                + "\"BULBASAUR\":{\"id\":1,\"internalName\":\"BULBASAUR\",\"name\":\"妙蛙种子\",\"types\":[\"GRASS\"],"
-                + "\"baseStats\":[45,49,49,45,65,65],\"rareness\":45,\"genderRate\":\"Female50Percent\","
-                + "\"abilities\":[\"OVERGROW\"],\"evolutions\":[]},"
-                + "\"PIKACHU\":{\"id\":25,\"internalName\":\"PIKACHU\",\"name\":\"皮卡丘\",\"types\":[\"ELECTRIC\"],"
-                + "\"baseStats\":[35,55,40,90,50,50],\"rareness\":45,\"genderRate\":\"Female50Percent\","
-                + "\"abilities\":[\"STATIC\"],\"evolutions\":[]}}}");
-        write(tempDir, "moves.json", "{\"total\":1,\"moves\":{\"TACKLE\":{\"id\":33,\"internalName\":\"TACKLE\","
-                + "\"name\":\"撞击\",\"function\":\"000\",\"power\":40,\"type\":\"NORMAL\",\"category\":\"Physical\","
-                + "\"accuracy\":100,\"pp\":35,\"effectChance\":0,\"target\":\"NearOther\",\"priority\":0,\"flags\":\"\"}}}");
-        pbs = PbsData.parse(tempDir.toFile());
+        pbs = new BattleFixture(tempDir)
+                .species("ZOROARK", 571, "索罗亚克", "DARK", new int[] {60, 105, 60, 105, 120, 60}, "ILLUSION")
+                .species("BULBASAUR", 1, "妙蛙种子", "GRASS", new int[] {45, 49, 49, 45, 65, 65}, "OVERGROW")
+                .species("PIKACHU", 25, "皮卡丘", "ELECTRIC", new int[] {35, 55, 40, 90, 50, 50}, "STATIC")
+                .move("TACKLE", 33, "NORMAL", 35)
+                .build();
         battle = new Battle(pbs, new Random(7), (user, foe, moves) -> 0);
         zoroark = new Pokemon(pbs.species("ZOROARK"), 50, pbs);
         zoroark.name = "小狐";
