@@ -25,10 +25,17 @@ public final class MessageService {
     private boolean visible;
     private boolean waiting;
     private boolean choiceMode;
+    /** Window_InputNumberPokemon (065_SpriteWindow_text:612-): digit count, value and cursor digit. */
+    private boolean numberMode;
+    private int numberDigits;
+    private int number;
+    private int numberIndex;
     /** Window height of the current message (R6.31: {@code \l[n]}). */
     private int linesPerPage = LINES_PER_PAGE;
     /** Windowskin requested by {@code \w[skin]} (R6.31); null = default. */
     private String skin;
+    /** {@code \wm} / {@code \wu}: where the window sits (0 bottom, 1 middle, 2 top). */
+    private int position;
 
     /** Shows one page of text; {@code wait} false means the page needs no confirm. */
     public void showLines(Array<String> pageLines, String speakerName, boolean wait) {
@@ -40,8 +47,15 @@ public final class MessageService {
      * {@code linesPerPage} 0 keeps the default.
      */
     public void showLines(Array<String> pageLines, String speakerName, boolean wait,
+                          int linesPerPage, String skin, int position) {
+        showLines(pageLines, speakerName, wait, linesPerPage, skin);
+        this.position = position;
+    }
+
+    public void showLines(Array<String> pageLines, String speakerName, boolean wait,
                           int linesPerPage, String skin) {
         close();
+        this.position = 0;
         lines.addAll(pageLines);
         speaker = speakerName;
         this.linesPerPage = linesPerPage <= 0 ? LINES_PER_PAGE : linesPerPage;
@@ -53,6 +67,11 @@ public final class MessageService {
     /** Window height of the current page (number of 32px lines). */
     public int linesPerPage() {
         return linesPerPage;
+    }
+
+    /** 0 bottom, 1 middle of the screen, 2 top. */
+    public int position() {
+        return position;
     }
 
     /** Windowskin for the current message, null = the project's speech skin. */
@@ -76,6 +95,67 @@ public final class MessageService {
         visible = true;
         waiting = true;
         choiceMode = true;
+    }
+
+    /**
+     * Opens the number input window (Input Number, command 103): 071_Messages:493-503
+     * builds {@code ChooseNumberParams} ({@code setMaxDigits}, the variable's value as
+     * default) and {@code pbChooseNumber} (071_Messages:761-) shows a
+     * {@code Window_InputNumberPokemon}. The message text on screen stays.
+     */
+    public void showNumberInput(int digitsMax, int initial) {
+        numberDigits = Math.max(1, digitsMax);                          // setMaxDigits :[1,value].max
+        long limit = 1;
+        for (int i = 0; i < numberDigits; i++) {
+            limit *= 10L;
+        }
+        number = (int) Math.max(0L, Math.min(limit - 1L, initial));     // number= / clamp(initial, min, max)
+        numberIndex = numberDigits - 1;                                 // @index=digits_max-1
+        visible = true;
+        waiting = true;
+        numberMode = true;
+    }
+
+    public boolean numberMode() {
+        return numberMode;
+    }
+
+    public int numberDigits() {
+        return numberDigits;
+    }
+
+    public int number() {
+        return number;
+    }
+
+    public int numberIndex() {
+        return numberIndex;
+    }
+
+    /**
+     * UP / DOWN on the window (065_SpriteWindow_text:673-686): the digit under
+     * the cursor goes up or down by one, wrapping 9 -> 0 and 0 -> 9.
+     */
+    public void changeDigit(int delta) {
+        if (!numberMode) {
+            return;
+        }
+        long place = 1;
+        for (int i = 0; i < numberDigits - 1 - numberIndex; i++) {
+            place *= 10L;                                               // 10 ** (digits - 1 - @index)
+        }
+        long n = number / place % 10;                                   // :680
+        long value = number - n * place;                                // :681
+        n = delta > 0 ? (n + 1) % 10 : (n + 9) % 10;                    // :683/:685
+        number = (int) (value + n * place);                             // :687
+    }
+
+    /** LEFT / RIGHT (065_SpriteWindow_text:689-702): moves the cursor, wrapping, when there are two or more digits. */
+    public void moveDigitCursor(int delta) {
+        if (!numberMode || numberDigits < 2) {
+            return;
+        }
+        numberIndex = Math.floorMod(numberIndex + delta, numberDigits);
     }
 
     public boolean visible() {
@@ -140,8 +220,20 @@ public final class MessageService {
         close();
     }
 
+    /** {@code \g}: the money window is up beside this message. */
+    private boolean gold;
+
+    public boolean gold() {
+        return gold;
+    }
+
+    public void gold(boolean value) {
+        gold = value;
+    }
+
     /** Hides the window and clears the per message buffers. */
     public void close() {
+        gold = false;
         lines.clear();
         choices.clear();
         speaker = null;
@@ -149,6 +241,7 @@ public final class MessageService {
         visible = false;
         waiting = false;
         choiceMode = false;
+        numberMode = false;
         linesPerPage = LINES_PER_PAGE;
         skin = null;
     }

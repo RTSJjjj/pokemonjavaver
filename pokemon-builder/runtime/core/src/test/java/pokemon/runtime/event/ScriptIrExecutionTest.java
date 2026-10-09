@@ -42,6 +42,38 @@ class ScriptIrExecutionTest {
         assertEquals("名字$\\", state.variables().text(2)); assertNull(menus.pending());
     }
 
+    @Test void setWeatherIrWritesTheScreenWeather() {
+        ir("stage1-weather", "{\"command\":\"SET_WEATHER\",\"type\":7,\"power\":3,\"duration\":0}");
+        interpreter.start(program(block(0, "stage1-weather")), 2, 5);
+        interpreter.update(0);
+        assertEquals(7, state.weather().type());
+        assertEquals(16f, state.weather().max());
+    }
+
+    @Test void ribbonLoopGivesTheRibbonToEveryPartyMemberOnce() {
+        pokemon.runtime.pokemon.Pokemon mon = new pokemon.runtime.pokemon.Pokemon(null, 5, null);
+        pokemon.runtime.pokemon.Pokemon egg = new pokemon.runtime.pokemon.Pokemon(null, 5, null);
+        egg.egg = true;
+        state.trainer().party.add(mon);
+        state.trainer().party.add(egg);
+        ir("stage1-ribbon", "{\"command\":\"GIVE_RIBBON_PARTY\",\"ribbon\":\"CHAMPION\"}");
+        for (int i = 0; i < 2; i++) {
+            interpreter.start(program(block(0, "stage1-ribbon")), 2, 5);
+            interpreter.update(0);
+        }
+        assertEquals(1, mon.ribbons.size);
+        assertEquals("CHAMPION", mon.ribbons.get(0));
+        assertEquals(0, egg.ribbons.size);
+    }
+
+    @Test void tempSwitchIrCanTargetAnotherEventOfTheMap() {
+        ir("stage1-temp", "{\"command\":\"SET_TEMP_SWITCH\",\"channel\":\"A\",\"value\":true,\"eventId\":9}");
+        interpreter.start(program(block(0, "stage1-temp")), 2, 5);
+        interpreter.update(0);
+        assertTrue(state.tempSwitches().get(2, 9, "A"));
+        assertFalse(state.tempSwitches().get(2, 5, "A"), "the running event's own switch is untouched");
+    }
+
     @Test void stoppingAnInterpreterCancelsItsPendingMenu() {
         MenuService menus = new MenuService(); interpreter.attachMenuService(menus);
         ir("p4-pc", "{\"command\":\"OPEN_PC\"}");
@@ -207,8 +239,16 @@ class ScriptIrExecutionTest {
                 + "{\"command\":\"GIVE_KEY_ITEM\",\"item\":\"itemBadge0Key\",\"amount\":1}]}");
         interpreter.start(program(block(0, "blk")), 2, 5);
         interpreter.update(0f);
-
+        assertNotNull(interpreter.keyItemAnimation(), "the animation plays first");
+        assertEquals(0, inventory.count("BICYCLE"), "the item arrives after the animation (302:170)");
+        interpreter.update(3f);                                           // the animation ends, pbReceiveItem's message follows
+        assertNull(interpreter.keyItemAnimation());
         assertEquals(1, inventory.count("BICYCLE"));
+        for (int i = 0; i < 6 && interpreter.state() != InterpreterState.FINISHED; i++) {
+            interpreter.update(1f);                                       // \wtnp[30] closes the first message by itself
+            messages.close();
+        }
+        interpreter.update(3f);
         assertEquals(0, inventory.count("itemBadge0Key"), "a fake icon item is never stored");
         assertEquals(InterpreterState.FINISHED, interpreter.state());
     }

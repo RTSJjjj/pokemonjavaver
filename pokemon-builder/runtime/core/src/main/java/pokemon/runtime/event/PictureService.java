@@ -25,6 +25,16 @@ public final class PictureService {
         public float opacity = 255f;
         public int blendType;
 
+        /** {@code Game_Picture#tone} (021_Game_Picture): RGSS tone, channel shifts -255..255 and gray 0..255. */
+        public float toneRed;
+        public float toneGreen;
+        public float toneBlue;
+        public float toneGray;
+        private float toneTargetRed, toneTargetGreen, toneTargetBlue, toneTargetGray;
+        /** {@code @tone_duration}: frames (40 per second) still to interpolate. */
+        private int toneDuration;
+        private float toneClock;
+
         private float fromX, fromY, fromZoomX, fromZoomY, fromOpacity;
         private float toX, toY, toZoomX, toZoomY, toOpacity;
         private int toOrigin, toBlend;
@@ -62,7 +72,49 @@ public final class PictureService {
             }
         }
 
+        /**
+         * {@code start_tone_change(tone, duration)} (021_Game_Picture:114-120);
+         * {@code duration} is already in frames ({@code command_234} passes
+         * {@code @parameters[2] * Graphics.frame_rate / 20}).
+         */
+        void startToneChange(float red, float green, float blue, float gray, int durationFrames) {
+            toneTargetRed = red;
+            toneTargetGreen = green;
+            toneTargetBlue = blue;
+            toneTargetGray = gray;
+            toneDuration = durationFrames;                                  // :116
+            toneClock = 0f;
+            if (toneDuration == 0) {                                        // :117
+                toneRed = red;                                              // :118
+                toneGreen = green;
+                toneBlue = blue;
+                toneGray = gray;
+            }
+        }
+
+        /** The tone half of {@code Game_Picture#update} (021_Game_Picture:140-147), 40 frames a second. */
+        private void advanceTone(float delta) {
+            if (toneDuration < 1) {
+                toneClock = 0f;
+                return;
+            }
+            toneClock += Math.max(0f, delta) * 40f;
+            while (toneClock >= 1f && toneDuration >= 1) {
+                toneClock -= 1f;
+                float d = toneDuration;                                     // :141
+                toneRed = (toneRed * (d - 1f) + toneTargetRed) / d;         // :142
+                toneGreen = (toneGreen * (d - 1f) + toneTargetGreen) / d;   // :143
+                toneBlue = (toneBlue * (d - 1f) + toneTargetBlue) / d;      // :144
+                toneGray = (toneGray * (d - 1f) + toneTargetGray) / d;      // :145
+                toneDuration -= 1;                                          // :146
+            }
+            if (toneDuration < 1) {
+                toneClock = 0f;            // the ramp is over: leftover time must not shorten the next one
+            }
+        }
+
         void advance(float delta) {
+            advanceTone(delta);
             if (!moving) {
                 return;
             }
@@ -118,6 +170,19 @@ public final class PictureService {
         Picture picture = pictures.get(id);
         if (picture != null) {
             picture.startMove(durationFrames, origin, x, y, zoomX, zoomY, opacity, blendType);
+        }
+    }
+
+    /**
+     * Change Picture Color Tone (234), 048_Interpreter:1331-1339: a missing
+     * picture is ignored here (the plugin would raise on nil).
+     * {@code duration} is the command's value in twentieths of a second;
+     * RMXP converts it with {@code Graphics.frame_rate / 20} = 2 frames each.
+     */
+    public void tone(int id, float red, float green, float blue, float gray, int duration) {
+        Picture picture = pictures.get(id);
+        if (picture != null) {
+            picture.startToneChange(red, green, blue, gray, duration * 40 / 20);
         }
     }
 

@@ -36,8 +36,23 @@ public final class MessageText {
     /** \w[skin] and the plugin's \sign[skin] spelling. */
     private static final Pattern SKIN = Pattern.compile("\\\\(?:w|sign)\\[([^\\]]*)\\]",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern SE = Pattern.compile("\\\\se\\[([^\\]]*)\\]", Pattern.CASE_INSENSITIVE);
+    /** {@code \g}: the money window (071_Messages:1199, pbDisplayGoldWindow). */
+    private static final Pattern GOLD = Pattern.compile("\\\\g(?![A-Za-z])", Pattern.CASE_INSENSITIVE);
+    private static final Pattern OPEN = Pattern.compile("\\\\op(?![A-Za-z])", Pattern.CASE_INSENSITIVE);
+
+    /** The characters a text would show: control codes and tags removed. */
+    private static int visibleLength(String text) {
+        return text.replaceAll("\\\\[A-Za-z]+(\\[[^\\]]*\\])?", "").replaceAll("<[^<>]*>", "").length();
+    }
+
+    /** \me[name] and \wtnp[n] (071_Messages:1016-1066). */
+    private static final Pattern ME = Pattern.compile("\\\\me\\[([^\\]]*)\\]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WTNP = Pattern.compile("\\\\wtnp\\[(\\d+)\\]", Pattern.CASE_INSENSITIVE);
     /** \l[n]: the message asks for at least n lines. */
     private static final Pattern LINE_COUNT = Pattern.compile("\\\\l\\[(\\d+)\\]");
+    /** {@code \wm} / {@code \wu} / {@code \wd}: the window in the middle, at the top, at the bottom (071_Messages:1198-1217). */
+    private static final Pattern POSITION = Pattern.compile("\\\\w([mud])(?![A-Za-z\\[])", Pattern.CASE_INSENSITIVE);
     /** \b / \r (not followed by another letter) - the plugin's colour codes. */
     private static final Pattern BLUE = Pattern.compile("\\\\b(?![A-Za-z])",
             Pattern.CASE_INSENSITIVE);
@@ -59,6 +74,21 @@ public final class MessageText {
         public String skin;
         /** {@code \l[n]}: requested minimum lines, 0 = the window default. */
         public int lineCount;
+        /** {@code \wd} (default) 0 = bottom, {@code \wm} 1 = middle of the screen, {@code \wu} 2 = top. */
+        public int position;
+        /** {@code \me[name]}: a jingle played when the message appears (071_Messages), null = none. */
+        public String me;
+        /**
+         * {@code \se[name]} before the first visible character (071_Messages:1145-1152 {@code startSE}): replaces the decision
+         * sound the message opens with; an empty name makes it silent. Null = no such control.
+         */
+        public String startSe;
+        /** {@code \g}: the money window is shown beside the message. */
+        public boolean gold;
+        /** {@code \op}: the sign window opens (:1122-1123 signWaitCount), which plays no opening sound. */
+        public boolean open;
+        /** {@code \wtnp[n]}: the message closes by itself after n frames (071_Messages), 0 = waits for input. */
+        public int autoFrames;
     }
 
     private MessageText() { }
@@ -92,6 +122,31 @@ public final class MessageText {
                 if (skin.find()) {
                     parsed.skin = skin.group(1).trim();
                 }
+            }
+            if (i == 0) {
+                Matcher se = SE.matcher(raw);
+                if (se.find() && visibleLength(raw.substring(0, se.start())) == 0) {
+                    parsed.startSe = se.group(1).trim();
+                }
+            }
+            Matcher where = POSITION.matcher(raw);
+            while (where.find()) {
+                char code = Character.toLowerCase(where.group(1).charAt(0));
+                parsed.position = code == 'm' ? 1 : code == 'u' ? 2 : 0;
+            }
+            if (OPEN.matcher(raw).find()) {
+                parsed.open = true;
+            }
+            if (GOLD.matcher(raw).find()) {
+                parsed.gold = true;
+            }
+            Matcher jingle = ME.matcher(raw);
+            if (jingle.find() && parsed.me == null) {
+                parsed.me = jingle.group(1).trim();
+            }
+            Matcher auto = WTNP.matcher(raw);
+            if (auto.find()) {
+                parsed.autoFrames = Integer.parseInt(auto.group(1));
             }
             Matcher lines = LINE_COUNT.matcher(raw);
             if (lines.find()) {

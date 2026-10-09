@@ -64,7 +64,7 @@ class PokemonScriptTest {
                         + "{\"command\":\"POKEMON_SET\",\"local\":\"p\",\"property\":\"ot\",\"value\":\"阿辽\"},"
                         + "{\"command\":\"POKEMON_CALL\",\"local\":\"p\",\"action\":\"pbLearnMove\",\"args\":[\"VINEWHIP\"]},"
                         + "{\"command\":\"POKEMON_CALL\",\"local\":\"p\",\"action\":\"calcStats\",\"args\":[]},"
-                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\"},"
+                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\",\"silent\":true},"
                         + "{\"command\":\"SET_VARIABLE\",\"id\":10,\"value\":7}]}"));
         interpreter.start(program(script("block1")), 1, 5);
         interpreter.update(0f);
@@ -95,7 +95,7 @@ class PokemonScriptTest {
                         + "{\"command\":\"POKEMON_CREATE\",\"local\":\"p\",\"species\":\"BULBASAUR\",\"level\":5},"
                         + "{\"command\":\"POKEMON_SET\",\"local\":\"p\",\"property\":\"form\",\"value\":1},"
                         + "{\"command\":\"POKEMON_CALL\",\"local\":\"p\",\"action\":\"calcStats\",\"args\":[]},"
-                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\"},"
+                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\",\"silent\":true},"
                         + "{\"command\":\"SET_VARIABLE\",\"id\":5,\"value\":42},"
                         + "{\"command\":\"SET_VARIABLE\",\"id\":6,\"value\":{\"variable\":5}}]}"));
         interpreter.start(program(script("block1")), 1, 5);
@@ -109,6 +109,28 @@ class PokemonScriptTest {
         assertEquals(pokemon.maxHp(), pokemon.hp, "calcStats refreshes the current HP");
         assertEquals(80, pokemon.baseStat(PokemonStats.HP), "the form's base stats win");
         assertEquals(42, state.variables().get(6), "pbGet(id) reads the variable back");
+    }
+
+    @Test
+    @DisplayName("pbAddPokemon says it got the Pokemon (252:79) and records it as owned; the Silent form does not talk")
+    void addPokemonTalks(@TempDir Path tempDir) throws Exception {
+        MessageService messages = new MessageService();
+        interpreter = new EventInterpreter(state, messages, new InputManager(), null,
+                id -> null, null, new PictureService(), warnings::add);
+        interpreter.attachScriptIr(scriptIr);
+        interpreter.attachPbs(PbsData.parse(syntheticPbs(tempDir)));
+        state.trainer().name = "小智";
+        scriptIr.put("block1", new JsonReader().parse(
+                "{\"command\":\"SEQUENCE\",\"steps\":["
+                        + "{\"command\":\"POKEMON_CREATE\",\"local\":\"p\",\"species\":\"BULBASAUR\",\"level\":5},"
+                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\"}]}"));
+        interpreter.start(program(script("block1")), 1, 5);
+        interpreter.update(0f);
+        interpreter.update(0f);
+        assertTrue(messages.visible());
+        assertTrue(String.join("|", messages.lines()).contains("小智得到了"), String.join("|", messages.lines()));
+        assertEquals(1, state.trainer().partyCount());
+        assertTrue(state.trainer().owned.contains("BULBASAUR"));
     }
 
     @Test
@@ -130,7 +152,7 @@ class PokemonScriptTest {
         scriptIr.put("block1", new JsonReader().parse(
                 "{\"command\":\"SEQUENCE\",\"steps\":["
                         + "{\"command\":\"POKEMON_CREATE\",\"local\":\"p\",\"species\":\"BULBASAUR\",\"level\":5},"
-                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\"}]}"));
+                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\",\"silent\":true}]}"));
         interpreter.start(program(script("block1")), 1, 5);
         interpreter.update(0f);
         interpreter.update(0f);
@@ -180,7 +202,7 @@ class PokemonScriptTest {
                 "{\"command\":\"SEQUENCE\",\"steps\":["
                         + "{\"command\":\"POKEMON_CREATE\",\"local\":\"p\",\"species\":\"BULBASAUR\",\"level\":5},"
                         + "{\"command\":\"POKEMON_CALL\",\"local\":\"p\",\"action\":\"giveRibbon\",\"args\":[\"EFFORT\"]},"
-                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\"}]}"));
+                        + "{\"command\":\"PARTY_ADD\",\"local\":\"p\",\"silent\":true}]}"));
         interpreter.start(program(script("block1")), 1, 5);
         interpreter.update(0f);
         interpreter.update(0f);

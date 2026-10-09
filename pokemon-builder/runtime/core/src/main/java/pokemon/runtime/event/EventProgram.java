@@ -45,6 +45,16 @@ public final class EventProgram {
     }
 
     /**
+     * Moves the cursor to {@code newIndex} without consuming the command there:
+     * {@code @index = temp_index} of {@code command_119} (048_Interpreter:801),
+     * after which the interpreter's own {@code @index += 1} continues behind
+     * the label.
+     */
+    public void jumpTo(int newIndex) {
+        index = newIndex;
+    }
+
+    /**
      * Skips this command and every following command of its block: RMXP's
      * {@code command_skip}, used by conditional branches and choice blocks.
      */

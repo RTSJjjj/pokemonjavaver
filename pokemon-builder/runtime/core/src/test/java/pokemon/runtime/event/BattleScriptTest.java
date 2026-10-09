@@ -173,6 +173,12 @@ class BattleScriptTest {
     @DisplayName("P2: ROCK_SMASH_ENCOUNTER picks from the map's RockSmash table")
     void rockSmashEncounter(@TempDir Path tempDir) throws Exception {
         interpreter.attachPbs(PbsData.parse(syntheticPbs(tempDir)));
+        interpreter.setEncounterRandom(new java.util.Random() {
+            @Override
+            public int nextInt(int bound) {
+                return 0;                                  // rand(100) < 25: the smash turns up a Pokemon
+            }
+        });
         scriptIr.put("block1", new JsonReader().parse("{\"command\":\"ROCK_SMASH_ENCOUNTER\"}"));
         interpreter.start(program(script("block1")), 1, 5);
         interpreter.update(0f);

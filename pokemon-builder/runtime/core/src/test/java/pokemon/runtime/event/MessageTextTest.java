@@ -103,4 +103,14 @@ class MessageTextTest {
         assertEquals(5 + 27, coloured.first().length());
         assertEquals(5 + 3, coloured.peek().length());
     }
+
+    @Test
+    @DisplayName("\\se[] before the text silences the opening sound; \\se later in the text does not; \\op opens a sign (071:1145-1154)")
+    void startSound() {
+        assertEquals("", MessageText.parse(lines("\\se[]hello\\se[Pkmn move learnt]"), new GameState()).startSe);
+        assertEquals("Item get", MessageText.parse(lines("\\c[1]\\se[Item get]hello"), new GameState()).startSe);
+        assertNull(MessageText.parse(lines("hello\\se[Pkmn move learnt]"), new GameState()).startSe);
+        assertTrue(MessageText.parse(lines("\\op\\w[sign]hello"), new GameState()).open);
+        assertFalse(MessageText.parse(lines("hello"), new GameState()).open);
+    }
 }

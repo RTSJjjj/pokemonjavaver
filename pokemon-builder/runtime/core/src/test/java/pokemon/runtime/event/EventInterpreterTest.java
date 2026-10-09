@@ -331,7 +331,7 @@ class EventInterpreterTest {
     @DisplayName("complex script conditions are reported and treated as false")
     void complexScriptConditionIsReported() {
         interpreter.start(program(
-                cmd(0, 111, 0, array(12, "$PokemonBag.pbHasItem?(:TICKET)")),
+                cmd(0, 111, 0, array(12, "pbMirrorBattle")),
                 cmd(1, 121, 1, array(1, 1, 0)),
                 cmd(2, 411, 0, null),
                 cmd(3, 121, 1, array(2, 2, 0)),
@@ -339,7 +339,7 @@ class EventInterpreterTest {
         interpreter.update(0f);
         assertTrue(state.switches().get(2));
         assertFalse(state.switches().get(1));
-        assertTrue(warnings.stream().anyMatch(w -> w.contains("R7")));
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("pbMirrorBattle")));
     }
 
     @Test

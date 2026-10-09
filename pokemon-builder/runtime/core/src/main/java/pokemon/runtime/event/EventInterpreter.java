@@ -7,7 +7,7 @@ import pokemon.runtime.audio.AudioManager;
 import pokemon.runtime.battle.BattlePort;
 import pokemon.runtime.battle.BattleResult;
 import pokemon.runtime.battle.HeadlessBattlePort;
-import pokemon.runtime.battle.WildEncounters;
+import pokemon.runtime.field.PokemonEncounters;
 import pokemon.runtime.data.EventCommand;
 import pokemon.runtime.data.MoveRoute;
 import pokemon.runtime.input.GameAction;
@@ -15,6 +15,7 @@ import pokemon.runtime.input.InputManager;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
+import pokemon.runtime.pokemon.Storage;
 import pokemon.runtime.state.GameState;
 
 import java.util.regex.Matcher;
@@ -97,7 +98,12 @@ public final class EventInterpreter {
     /** P3: the berry plant stepper ({@code pbBerryPlant} / {@code pbPickBerry}). */
     private BerryInteraction berry;
     /** P2: the random source for triggered encounters (RockSmash). */
-    private final java.util.Random encounterRandom = new java.util.Random();
+    private java.util.Random encounterRandom = new java.util.Random();
+
+    /** Test seam: the random source for the rock smash roll and its encounter table. */
+    public void setEncounterRandom(java.util.Random random) {
+        this.encounterRandom = random;
+    }
     /**
      * P0c: local variables of the Pokemon construction scripts
      * ({@code p = pbGenPkmn(...)}). They live for one compiled SEQUENCE, which
@@ -150,6 +156,7 @@ public final class EventInterpreter {
     /** R6.31: the current message's window size (\l[n]) and skin (\w[skin]). */
     private int messageLinesPerPage = MessageService.LINES_PER_PAGE;
     private String messageSkin;
+    private int messagePosition;
     /** R6.31: a 102 immediately after the text keeps the page on screen. */
     private boolean choicesFollow;
 
@@ -183,10 +190,32 @@ public final class EventInterpreter {
         interpreterState = InterpreterState.RUNNING;
     }
 
+    /**
+     * Starts a common event as the running event (the common event of a dependent event, 182_PField_DependentEvents:
+     * 406-422 {@code pbMapInterpreter.setup(e.list, ...)}). False when there is none to run.
+     */
+    public boolean startCommonEvent(int id, int mapId) {
+        Array<EventCommand> commands = commonEvents == null ? null : commonEvents.commonEvent(id);
+        if (commands == null || commands.size == 0) {
+            return false;
+        }
+        start(commands, mapId, 0);
+        return true;
+    }
+
     /** Aborts the current event (map change, event erased, new interaction). */
     public void stop() {
+        if (scriptTask != null) {
+            scriptTask.abort();
+            scriptTask = null;
+            scriptTaskDone = null;
+            scriptTaskAnswer = null;
+            scriptQuestion = null;
+        }
         if (menuRequest != null) menuRequest.complete(-1, "");
         menuRequest = null;
+        keyItem = null;
+        keyItemAfter = null;
         berry = null;
         stack.clear();
         activeCommonEvents.clear();
@@ -207,6 +236,7 @@ public final class EventInterpreter {
         messageSpeaker = null;
         messageLinesPerPage = MessageService.LINES_PER_PAGE;
         messageSkin = null;
+        messagePosition = 0;
         choicesFollow = false;
         choiceResult = Integer.MIN_VALUE;
         waitTimer = 0f;
@@ -258,16 +288,101 @@ public final class EventInterpreter {
         this.battlePort = port;
     }
 
+    /**
+     * The tail of {@code DiegoWTsStarterSelection#pbChooseBall} (333_DiegoWT:408-419): the chosen slot is
+     * remembered in variable 7 when that is still 0, then {@code pbGenPkmn(dex,STARTERL)}, all IVs 31,
+     * {@code setAbility(2)}, {@code calcStats} and {@code pbAddPokemon(p,STARTERL)}.
+     */
+    private void starterChosen(MenuService.Request request) {
+        int slot = request.result;                                          // @select
+        if (state.variables().get(7) == 0) {                                // :409
+            state.variables().set(7, slot);
+        }
+        if (pbs == null || request.dex == null || slot < 1 || slot > request.dex.length) {
+            log.warn("starter selection without PBS data; nothing given");
+            return;
+        }
+        String speciesName = pbs.speciesById.get(String.valueOf(request.dex[slot - 1]));
+        PbsData.Species species = speciesName == null ? null : pbs.species(speciesName);
+        if (species == null) {
+            log.warn("starter dex number " + request.dex[slot - 1] + " is unknown; nothing given");
+            return;
+        }
+        Pokemon starter = new Pokemon(species, STARTER_LEVEL, pbs);         // :412 pbGenPkmn(..., STARTERL)
+        starter.ivs = new int[] {31, 31, 31, 31, 31, 31};                    // :413
+        applyAbility(starter, 2);                                           // :414
+        starter.hp = starter.maxHp();                                       // :415 calcStats
+        pbAddPokemon(starter, false);                                        // :416 pbAddPokemon
+        log.warn("received starter " + species.internalName + " L" + STARTER_LEVEL);
+    }
+
+    /**
+     * {@code pbAddPokemon(pokemon)} (252_PSystem_PokemonUtilities:67-83) and {@code pbAddPokemonSilent} (:85-101): the
+     * Pokemon joins the party, or goes to the PC when the party is full. The loud form says so with the
+     * "Pkmn get" jingle first (:79) and tells where it went when it was boxed ({@code pbStorePokemon}, :17-49);
+     * {@code pbNickname} (:8-15) is commented out in the plugin. 登记: {@code seenStorageCreator} (the PC's owner name).
+     *
+     * @return false when party and boxes are full
+     */
+    private boolean pbAddPokemon(Pokemon pkmn, boolean silent) {
+        pokemon.runtime.pokemon.TrainerState trainer = state.trainer();
+        boolean boxesFull = trainer.party.isFull() && trainer.currentStorage().full();                  // :4-6 pbBoxesFull?
+        if (boxesFull) {
+            if (!silent) {
+                pendingMessages.add("盒子都满了，不能接受！");                                          // :71
+                showHandlerMessage("There's no more room for Pokémon!");                                // :70
+            }
+            return false;
+        }
+        String speciesName = pkmn.species == null ? pkmn.name : pkmn.species.name;
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        if (!silent) {
+            lines.add(trainer.name + "得到了" + speciesName + "!\\me[Pkmn get]\\wtnp[80]");               // :79
+        }
+        trainer.registerOwned(pkmn);                                                                    // :57-58 / :91-92 seen + owned
+        pkmn.recordFirstMoves();                                                                        // :23 / :94 pbRecordFirstMoves
+        if (trainer.party.size() < 6) {
+            trainer.party.add(pkmn);                                                                    // :24-25
+        } else {
+            pokemon.runtime.pokemon.Storage storage = trainer.currentStorage();
+            int oldBox = storage.currentBox;                                                            // :27
+            int storedBox = storage.pbStoreCaught(pkmn);                                                // :28
+            if (!silent && storedBox >= 0) {
+                String current = storage.box(oldBox).name;                                              // :29
+                String stored = storage.box(storedBox).name;                                            // :30
+                if (storedBox != oldBox) {                                                              // :33
+                    lines.add("寄存系统中的箱子\"" + current + "\"已经满了！");                            // :37
+                    lines.add(pkmn.name + "被送到了箱子\"" + stored + "。\"");                             // :39
+                } else {
+                    lines.add(pkmn.name + "被送到了某人的电脑中。");                                       // :44
+                    lines.add("它被存放在了箱子\"" + stored + "中。\"");                                   // :46
+                }
+            }
+        }
+        for (int i = 1; i < lines.size(); i++) {
+            pendingMessages.add(lines.get(i));
+        }
+        if (!lines.isEmpty()) {
+            showHandlerMessage(lines.get(0));
+        }
+        return true;
+    }
+
+    /** 333_DiegoWT:7 STARTERL. */
+    private static final int STARTER_LEVEL = 5;
+
     /** Called once per frame by the map screen. */
     public void update(float delta) {
         if (battlePort != null && battlePort.pending()) return;
         if (menuRequest != null) {
             if (!menuRequest.done) return;
-            if (menuRequest.kind == MenuService.Kind.CHOOSE_TRADE) {
+            if (menuRequest.kind == MenuService.Kind.CHOOSE_TRADE || menuRequest.kind == MenuService.Kind.CHOOSE_ABLE) {
                 if (menuRequest.variable > 0) state.variables().set(menuRequest.variable, menuRequest.result);
                 if (menuRequest.nameVariable > 0) state.variables().setText(menuRequest.nameVariable, menuRequest.text);
             } else if (menuRequest.kind == MenuService.Kind.CHOOSE_ITEM && berry != null) {
                 berry.itemChosen(menuRequest); // pbChooseItemScreen result
+            } else if (menuRequest.kind == MenuService.Kind.STARTER && menuRequest.result > 0) {
+                starterChosen(menuRequest);
             }
             menuRequest = null;
         }
@@ -290,6 +405,10 @@ public final class EventInterpreter {
                 && menuRequest == null
                 && (battlePort == null || !battlePort.pending())
                 && (repeatFrames.size > 0 || pendingSteps != null || stack.size > 0)) {
+            if (scriptTask != null) {
+                pumpScriptTask();                                // a script condition that talks to the player
+                continue;
+            }
             if (waitingFinishEvent >= 0 && (battlePort == null || !battlePort.pending())) {
                 // PField_Battles:574-576: the waiting trainer is done once the battle is won.
                 BattleResult finished = battlePort == null ? null : battlePort.lastResult();
@@ -381,6 +500,20 @@ public final class EventInterpreter {
             }
             executeCommand(program, program.current());
         }
+    }
+
+    /** {@code $game_temp.to_title} (014_Game_Temp:50): Return to Title Screen (354) was run. */
+    private boolean toTitleRequested;
+
+    /**
+     * Reads and clears {@code $game_temp.to_title}; the map scene checks it after
+     * every update ({@code Scene_Map#update}, 049_Scene_Map:171-174) and calls the
+     * title.
+     */
+    public boolean consumeTitleRequest() {
+        boolean requested = toTitleRequested;
+        toTitleRequested = false;
+        return requested;
     }
 
     private void popFrame() {
@@ -486,8 +619,7 @@ public final class EventInterpreter {
                 shakeScreen(program, command);
                 break;
             case 234:
-                log.warn("Change Picture Color Tone (234) is not implemented yet; skipped");
-                program.advance();
+                changePictureTone(program, command);
                 break;
             case 355: // Script (single line) - compiled to IR by the Builder (R7)
             case 655: // End of a multi line script
@@ -545,6 +677,48 @@ public final class EventInterpreter {
             case 411:
                 elseBranch(program);
                 break;
+            case 103:
+                inputNumber(program, command);
+                break;
+            case 118: // Label: 048_Interpreter:778-781 command_118 only continues.
+                program.advance();
+                break;
+            case 119:
+                jumpToLabel(program, command);
+                break;
+            case 125:
+                changeGold(program, command);
+                break;
+            case 246: // 071_Messages:354-357 command_246: pbBGSFade(pbParams[0])
+                if (audio != null) {
+                    audio.fadeBgs(floatParam(command.parameters, 0, 0f));
+                }
+                program.advance();
+                break;
+            case 354: // 048_Interpreter:1449-1454 $game_temp.to_title = true; return false
+                toTitleRequested = true;
+                program.finish();
+                break;
+            case 236: // 048_Interpreter:1354-1359 $game_screen.weather(@parameters[0..2])
+                state.weather().set(intParam(command.parameters, 0, 0), intParam(command.parameters, 1, 0),
+                        intParam(command.parameters, 2, 0));
+                program.advance();
+                break;
+            case 247: // 048_Interpreter:1361-1367 Memorize BGM/BGS
+                if (audio != null) {
+                    audio.memorizeBgmAndBgs();
+                }
+                program.advance();
+                break;
+            case 248: // 048_Interpreter:1371-1377 Restore BGM/BGS
+                if (audio != null) {
+                    audio.restoreBgmAndBgs();
+                }
+                program.advance();
+                break;
+            case 314:
+                recoverAll(program, command);
+                break;
             default:
                 log.warn("event command " + command.code + " (index " + command.index
                         + ") is not implemented yet; skipped");
@@ -557,12 +731,26 @@ public final class EventInterpreter {
         switch (interpreterState) {
             case WAIT_TIME:
                 waitTimer -= Math.max(0f, delta);
+                if (keyItem != null) {
+                    keyItem.update(delta);
+                    if (keyItem.takeJingle() && audio != null) {
+                        audio.playMe("Key item get", 100, 100);                     // 302:132
+                    }
+                }
                 if (waitTimer <= 0f) {
                     interpreterState = InterpreterState.RUNNING;
+                    if (keyItem != null) {
+                        keyItem = null;
+                        Runnable follow = keyItemAfter;
+                        keyItemAfter = null;
+                        if (follow != null) {
+                            follow.run();                                            // :170 pbReceiveItem
+                        }
+                    }
                 }
                 break;
             case WAIT_MESSAGE:
-                updateMessage();
+                updateMessage(delta);
                 break;
             case WAIT_MOVEMENT:
                 if (mapPort == null || !mapPort.anyRouteActive()) {
@@ -603,12 +791,15 @@ public final class EventInterpreter {
         messageLines = parsed.lines;
         messagePage = 0;
         messageWaits = parsed.waitForInput;
+        noteMessageExtras(parsed);
         messageSpeaker = parsed.speaker;
         messageLinesPerPage = parsed.lineCount > 0 ? parsed.lineCount : MessageService.LINES_PER_PAGE;
         messageSkin = parsed.skin;
+        messagePosition = parsed.position;
         // R6.31: RMXP shows a following Show Choices while the last text page
         // is still on screen, so that page must not wait for its own confirm.
-        choicesFollow = !program.finished() && program.current().code == 102;
+        choicesFollow = !program.finished()
+                && (program.current().code == 102 || program.current().code == 103);
         showMessagePage();
         interpreterState = InterpreterState.WAIT_MESSAGE;
     }
@@ -639,30 +830,257 @@ public final class EventInterpreter {
         }
         boolean lastPage = start + messageLinesPerPage >= messageLines.size;
         boolean pageWaits = messageWaits && !(choicesFollow && lastPage);
-        messages.showLines(page, messageSpeaker, pageWaits, messageLinesPerPage, messageSkin);
+        if (messageMe != null && messagePage == 0) {                       // \me[name]
+            if (audio != null && !messageMe.isEmpty()) {
+                audio.playMe(messageMe, 100, 100);
+            }
+            messageMe = null;
+        }
+        if (messageSeDue && messagePage == 0) {                             // 071_Messages:1150-1154
+            messageSeDue = false;
+            if (messageStartSe != null) {
+                if (audio != null && !messageStartSe.isEmpty()) {
+                    audio.playSe(messageStartSe, 100, 100);                 // pbSEPlay(pbStringToAudioFile(startSE))
+                }
+            } else if (!messageOpen) {
+                pokemon.runtime.audio.UiSounds.decision(audio);             // pbPlayDecisionSE() (letterbyletter, no sign)
+            }
+        }
+        messageAutoTimer = 0f;
+        if (messageAutoFrames > 0 && lastPage && !choicesFollow) {         // \wtnp[n]: no confirm, n frames at 40 fps
+            messageAutoTimer = messageAutoFrames / 40f;
+            pageWaits = false;
+        }
+        messages.showLines(page, messageSpeaker, pageWaits, messageLinesPerPage, messageSkin, messagePosition);
     }
 
-    private void updateMessage() {
+    /**
+     * 297_Follower_Main:815-?? {@code pbStartOver} (the live one; it replaces 171_PField_Visuals:634): heal the party, say
+     * where the player is going, and send the player to the last Pokemon Center - or home when there is none - with the
+     * "starting over" switch on, so the map's recovery event runs. The lines and the transfer run as a small event
+     * program: pushed on top of the running one (the battle's event goes on after it) or started when nothing runs.
+     * 登记: pbRemoveDependenciesExceptFollower (no followers / dependent events yet) and pbEraseEscapePoint
+     * (no escape rope data yet); the bug-contest branch (not part of the game).
+     */
+    public void startOver() {
+        state.trainer().healParty();                                              // pbHealAll
+        int[] target;
+        String text;
+        if (state.trainer().hasPokemonCenter()) {
+            text = "\\w[]\\wm\\c[8]\\l[3]您急忙回到宝可梦中心，保护疲惫的宝可梦\\n免受任何进一步的伤害。";
+            target = new int[] {state.trainer().healMapId, state.trainer().healX, state.trainer().healY,
+                    state.trainer().healDirection};
+        } else {
+            // 用户指定：原工程作者把妈妈的坐标换了，战败回家固定为 3,17,12,8（PBS 的 Home 仍是 3,17,14,8）
+            int[] home = {3, 17, 12, 8};
+            text = "\\w[]\\wm\\c[8]\\l[3]您匆匆回到家中，避免疲惫的宝可梦\\n免受进一步的伤害...";
+            target = new int[] {home[0], home[1], home[2], home.length > 3 ? home[3] : 2};
+        }
+        if (mapPort != null) {
+            mapPort.removeDependencies(true);                                    // pbRemoveDependenciesExceptFollower
+        }
+        state.fieldGlobals().surfing = false;                                    // pbCancelVehicles
+        state.fieldGlobals().bicycle = false;
+        state.fieldGlobals().diving = false;
+        Array<EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 101, text));
+        list.add(syntheticCommand(1, 121, 1, 1, 0));                              // $game_switches[STARTING_OVER_SWITCH] = true
+        // transfer_player: no fade of its own; after a battle the screen is already black and the new map fades in
+        int fade = screenEffects != null && screenEffects.fade() >= 250f ? 0 : 1;
+        list.add(syntheticCommand(2, 201, 0, target[0], target[1], target[2], target[3], fade));
+        list.add(syntheticCommand(3, 0));
+        if (running()) {
+            stack.add(new Frame(new EventProgram(list), -1));
+        } else {
+            start(list, mapId, 0);
+        }
+    }
+
+    private static EventCommand syntheticCommand(int index, int code, Object... values) {
+        EventCommand command = new EventCommand();
+        command.index = index;
+        command.code = code;
+        command.indent = 0;
+        JsonValue parameters = new JsonValue(JsonValue.ValueType.array);
+        for (Object value : values) {
+            parameters.addChild(value instanceof Integer ? new JsonValue((long) (Integer) value)
+                    : new JsonValue(String.valueOf(value)));
+        }
+        command.parameters = parameters;
+        return command;
+    }
+
+    /**
+     * 297_Follower_Main:68-82 pbTalkToFollower after the map side started the cry, the emote and the routes: the wait
+     * ({@code pbWait}) and the line - or the item the follower found ({@code pbPokemonFound}, :95-140) - as a small event
+     * program pushed on top of the running one.
+     */
+    private void startFollowerTalk(MapPort.FollowerTalkPlan plan) {
+        Array<EventCommand> list = new Array<>();
+        int index = 0;
+        if (plan.waitFrames > 0) {
+            list.add(syntheticCommand(index++, 106, (plan.waitFrames + 1) / 2));
+        }
+        if (plan.foundItem != null && pbs != null && pbs.item(plan.foundItem) != null && inventory != null) {
+            list.add(syntheticCommand(index++, 101, plan.foundMessage));                 // :99
+            PbsData.Item item = pbs.item(plan.foundItem);
+            int quantity = plan.foundQuantity;
+            String itemName = quantity > 1 && item.namePlural != null && !item.namePlural.isEmpty() ? item.namePlural : item.name;
+            boolean machine = item.fieldUse == 3 || item.fieldUse == 4 || item.fieldUse == 6;           // pbIsMachine?
+            String meName = item.type == 6 ? "Key item get" : "Item get";                                // :108
+            String pokename = plan.pokemonName;
+            String found;
+            if ("LEFTOVERS".equals(plan.foundItem)) {
+                found = "\\me[" + meName + "]" + pokename + "找到了一些\\c[1]" + itemName + "\\c[0]!\\wtnp[30]";       // :110
+            } else if (machine) {
+                PbsData.Move move = item.machine != null && !item.machine.isEmpty() ? pbs.move(item.machine)
+                        : pokemon.runtime.pokemon.ItemUse.machineMove(item, pbs);
+                found = "\\me[" + meName + "]" + pokename + "找到了\\c[1]" + itemName + " " + (move == null ? "" : move.name)
+                        + "\\c[0]!\\wtnp[30]";                                                         // :112
+            } else if (quantity > 1) {
+                found = "\\me[" + meName + "]" + pokename + "找到了" + quantity + " \\c[1]" + itemName + "\\c[0]!\\wtnp[30]";   // :114
+            } else {
+                found = "\\me[" + meName + "]" + pokename + "找到了一个\\c[1]" + itemName + "\\c[0]!\\wtnp[30]";        // :116/:118
+            }
+            inventory.add(plan.foundItem, quantity);                                                     // :107 pbStoreItem
+            list.add(syntheticCommand(index++, 101, found));
+            String pocketName = item.pocket >= 0 && item.pocket < POCKET_NAMES.length ? POCKET_NAMES[item.pocket] : "";
+            list.add(syntheticCommand(index++, 101, "把" + itemName + " 放入了<icon=bagPocket" + item.pocket
+                    + ">\\c[1]" + pocketName + "背包\\c[0]."));                                            // :120
+            state.fieldGlobals().followerHoldItem = false;                                               // :122
+            state.fieldGlobals().timeTaken = 0;                                                          // :123
+        } else {
+            for (String message : plan.messages) {
+                list.add(syntheticCommand(index++, 101, message));
+            }
+        }
+        list.add(syntheticCommand(index, 0));
+        stack.add(new Frame(new EventProgram(list), -1));
+    }
+
+    private final ItemFindToasts itemToasts = new ItemFindToasts();
+    private KeyItemAnimation keyItem;
+    private Runnable keyItemAfter;
+
+    /** The running pbGetKeyItem animation, or null. */
+    public KeyItemAnimation keyItemAnimation() {
+        return keyItem;
+    }
+
+    /** The boxes at the right edge for items picked up before (308_ItemFindSimple_Scene). */
+    public ItemFindToasts itemToasts() {
+        return itemToasts;
+    }
+
+    /** {@code pocketNames} of the plugin (Settings:176). */
+    private static final String[] POCKET_NAMES = {
+            "", "道具", "回复道具", "精灵球", "招式学习机", "树果", "超级石", "对战道具", "重要道具", "特殊道具",
+    };
+
+    /**
+     * 309_Item_Find:62-205 pbItemBall (a ground item, {@code ball}) / pbReceiveItem (a gift): the first time an item is
+     * found the jingle and the messages play; afterwards a ground item only plays its jingle and shows the box at the
+     * right edge. The bag has no pocket limit here (Settings:187), so the "bag is full" branches never run.
+     */
+    private void giveItemWithMessages(String internalName, int quantity, boolean ground) {
+        PbsData.Item data = pbs.item(internalName);
+        String itemName = quantity > 1 && data.namePlural != null && !data.namePlural.isEmpty() ? data.namePlural : data.name;
+        boolean machine = data.fieldUse == 3 || data.fieldUse == 4 || data.fieldUse == 6;     // pbIsMachine?
+        String meName = data.type == 6 ? "Key item get" : machine && ground ? "Machine get" : "Item get";
+        String moveName = "";
+        if (machine) {
+            PbsData.Move move = data.machine != null && !data.machine.isEmpty() ? pbs.move(data.machine)
+                    : pokemon.runtime.pokemon.ItemUse.machineMove(data, pbs);
+            moveName = move == null ? "" : move.name;
+        }
+        java.util.Set<String> found = state.fieldGlobals().foundItems;
+        boolean first = !found.contains(internalName);
+        if (ground && !first) {                                                  // :168-178 seen before: jingle + box
+            if (audio != null) {
+                audio.playMe(meName, 100, 100);
+            }
+            inventory.add(internalName, quantity);
+            itemToasts.add(internalName, data.name, quantity);
+            return;
+        }
+        String verb = ground ? "你发现了" : "获得了";
+        String text;
+        if ("LEFTOVERS".equals(internalName)) {
+            text = "\\me[" + meName + "]" + verb.replace("了", "了一些") + "\\c[1]" + itemName + "\\c[0]！\\wtnp[30]";
+        } else if (machine) {
+            text = "\\me[" + meName + "]" + verb + "\\c[1]" + itemName + " " + moveName + "\\c[0]！\\wtnp[30]";
+        } else if (quantity > 1) {
+            text = "\\me[" + meName + "]" + verb + quantity + "个\\c[1]" + itemName + "\\c[0]！\\wtnp[30]";
+        } else {
+            text = "\\me[" + meName + "]" + verb + "1个\\c[1]" + itemName + "\\c[0]！\\wtnp[30]";
+        }
+        inventory.add(internalName, quantity);
+        found.add(internalName);
+        String pocketName = data.pocket >= 0 && data.pocket < POCKET_NAMES.length ? POCKET_NAMES[data.pocket] : "";
+        pendingMessages.add(ground
+                ? "你将" + itemName + "放进了<icon=bagPocket" + data.pocket + ">\\c[1]" + pocketName + "\\c[0]口袋。"
+                : "你将" + itemName + "放进了<icon=bagPocket" + data.pocket + ">\\c[1]" + pocketName + "口袋\\c[0]。");
+        showHandlerMessage(text);
+    }
+
+    /** \me[..] / \wtnp[..] of the message being shown. */
+    private String messageMe;
+    /** \se[..] opening the message, and whether its opening sound is still due (071_Messages:1145-1154). */
+    private String messageStartSe;
+    private boolean messageOpen;
+    private boolean messageSeDue;
+    private int messageAutoFrames;
+    private float messageAutoTimer;
+
+    private void noteMessageExtras(MessageText.Parsed parsed) {
+        messages.gold(parsed.gold);                                      // \g: pbDisplayGoldWindow
+        messageMe = parsed.me;
+        messageStartSe = parsed.startSe;
+        messageOpen = parsed.open;
+        messageSeDue = true;
+        messageAutoFrames = parsed.autoFrames;
+    }
+
+    private void updateMessage(float delta) {
         if (!messages.visible()) {
             interpreterState = InterpreterState.RUNNING;
             return;
         }
+        if (messages.numberMode()) {
+            updateNumberInput();
+            return;
+        }
         if (messages.choiceMode()) {
+            int before = messages.cursor();
             if (input.wasPressed(GameAction.UP)) {
                 messages.moveCursor(-1);
             } else if (input.wasPressed(GameAction.DOWN)) {
                 messages.moveCursor(1);
+            }
+            if (messages.cursor() != before) {
+                pokemon.runtime.audio.UiSounds.cursor(audio);               // 065_SpriteWindow_text:855-865 pbPlayCursorSE
             }
             if (input.wasPressed(GameAction.CONFIRM)) {
                 messages.confirm();
                 choiceResult = messages.selected();
                 interpreterState = InterpreterState.RUNNING;
             } else if (input.wasPressed(GameAction.CANCEL)) {
+                int cancelType = messages.cancelType();
                 messages.cancel();
                 if (!messages.visible()) {
-                    choiceResult = -1;
+                    // 071_Messages:1370-1377 pbShowCommands: B with cmdIfCancel > 0 answers
+                    // cmdIfCancel-1 (a Yes/No question with cancel type 2 answers "No"); the
+                    // "When Cancel" branch (403) only matches the RMXP branch value 4.
+                    choiceResult = cancelType > 0 ? cancelType - 1 : -1;
                     interpreterState = InterpreterState.RUNNING;
                 }
+            }
+            return;
+        }
+        if (messageAutoTimer > 0f) {                                        // \wtnp[n]: the page closes by itself
+            messageAutoTimer -= Math.max(0f, delta);
+            if (messageAutoTimer <= 0f) {
+                nextMessagePage();
             }
             return;
         }
@@ -671,10 +1089,71 @@ public final class EventInterpreter {
             return;
         }
         if (input.wasPressed(GameAction.CONFIRM) || input.wasPressed(GameAction.CANCEL)) {
+            pokemon.runtime.audio.UiSounds.decision(audio);                 // 071_Messages:1257 pbPlayDecisionSE if msgwindow.pausing?
             messages.confirm();
             nextMessagePage();
         }
     }
+
+    /** Window_InputNumberPokemon#update + pbChooseNumber's loop (071_Messages:761-800). */
+    private void updateNumberInput() {
+        if (input.wasRepeated(GameAction.UP)) {
+            pokemon.runtime.audio.UiSounds.cursor(audio);                   // 065_SpriteWindow_text:680 pbPlayCursorSE
+            messages.changeDigit(1);
+        } else if (input.wasRepeated(GameAction.DOWN)) {
+            pokemon.runtime.audio.UiSounds.cursor(audio);
+            messages.changeDigit(-1);
+        } else if (input.wasRepeated(GameAction.RIGHT)) {
+            if (messages.numberDigits() >= 2) {                             // :695-697
+                pokemon.runtime.audio.UiSounds.cursor(audio);
+            }
+            messages.moveDigitCursor(1);
+        } else if (input.wasRepeated(GameAction.LEFT)) {
+            if (messages.numberDigits() >= 2) {                             // :702-704
+                pokemon.runtime.audio.UiSounds.cursor(audio);
+            }
+            messages.moveDigitCursor(-1);
+        }
+        if (input.wasPressed(GameAction.CONFIRM)) {                         // :784 Input::C -> ret = number
+            pokemon.runtime.audio.UiSounds.decision(audio);                 // :789
+            numberInputResult = messages.number();
+            messages.close();
+            finishNumberInput();
+        } else if (input.wasPressed(GameAction.CANCEL)) {                   // :792 Input::B -> ret = cancelNumber
+            pokemon.runtime.audio.UiSounds.cancel(audio);                   // :793 pbPlayCancelSE
+            numberInputResult = numberInputInitial;                         // cancelNumber = the initial value
+            messages.close();
+            finishNumberInput();
+        }
+    }
+
+    private void finishNumberInput() {
+        state.variables().set(numberInputVariable, numberInputResult);      // 071_Messages:499
+        interpreterState = InterpreterState.RUNNING;
+    }
+
+    /**
+     * Input Number (103), 071_Messages:493-503: {@code ChooseNumberParams} with
+     * {@code setMaxDigits(@parameters[1])} and the variable's current value as the
+     * default, then {@code $game_variables[@parameters[0]] = pbChooseNumber(nil, params)}.
+     */
+    private void inputNumber(EventProgram program, EventCommand command) {
+        numberInputVariable = Math.max(1, intParam(command.parameters, 0, 1));
+        int digits = intParam(command.parameters, 1, 1);
+        numberInputInitial = state.variables().get(numberInputVariable);
+        int limit = 1;
+        for (int i = 0; i < Math.max(1, Math.min(9, digits)); i++) {
+            limit *= 10;
+        }
+        numberInputInitial = Math.max(0, Math.min(limit - 1, numberInputInitial));
+        messages.showNumberInput(digits, numberInputInitial);
+        program.advance();
+        interpreterState = InterpreterState.WAIT_MESSAGE;
+    }
+
+    private int numberInputVariable;
+    private int numberInputInitial;
+    private int numberInputResult;
 
     private void nextMessagePage() {
         messagePage++;
@@ -703,6 +1182,7 @@ public final class EventInterpreter {
         messageLines = parsed.lines;
         messagePage = 0;
         messageWaits = parsed.waitForInput;
+        noteMessageExtras(parsed);
         messageSpeaker = parsed.speaker;
         messageLinesPerPage = parsed.lineCount > 0 ? parsed.lineCount : MessageService.LINES_PER_PAGE;
         choicesFollow = false;
@@ -780,6 +1260,22 @@ public final class EventInterpreter {
             int from = intParam(p, 4, 0);
             int to = intParam(p, 5, from);
             operand = from + random.nextInt(Math.max(1, to - from + 1));
+        } else if (operandType == 7) {
+            // 048_Interpreter:853-861 `when 7 # other`, keyed by @parameters[4].
+            int which = intParam(p, 4, -1);
+            if (which == 0) {
+                operand = state.currentMapId();                     // :855 $game_map.map_id
+            } else if (which == 2) {
+                operand = state.trainer().money;                      // :857 $Trainer.money
+            } else if (which == 4) {
+                operand = (int) state.trainer().playSeconds;          // :858 Graphics.frame_count / 40
+            } else {
+                // :856 party size / steps are commented out in the plugin, :859-860 timer and
+                // save count have no runtime state here.
+                unsupported(command, "variable operand type 7 / " + which);
+                program.advance();
+                return;
+            }
         } else {
             unsupported(command, "variable operand type " + operandType + " (needs party / script data)");
             program.advance();
@@ -789,6 +1285,70 @@ public final class EventInterpreter {
             state.variables().set(id, applyOperation(operation, state.variables().get(id), operand));
         }
         program.advance();
+    }
+
+    /**
+     * Jump to Label (119), 048_Interpreter:785-808. The plugin scans the list
+     * from the start while {@code temp_index < @list.size-1} (the final empty
+     * command is never looked at) for a label (118) with the same name, sets
+     * {@code @index} to it and continues; a missing label just continues.
+     */
+    private void jumpToLabel(EventProgram program, EventCommand command) {
+        String labelName = stringParam(command.parameters, 0, "");           // :787
+        Array<EventCommand> list = program.commands();
+        int tempIndex = 0;                                                    // :789
+        while (true) {                                                        // :791
+            if (tempIndex >= list.size - 1) {                                 // :793
+                break;                                                        // :795 continue
+            }
+            EventCommand candidate = list.get(tempIndex);
+            if (candidate.code == 118                                         // :798
+                    && labelName.equals(stringParam(candidate.parameters, 0, null))) {   // :799
+                program.jumpTo(tempIndex);                                    // :801
+                break;                                                        // :803
+            }
+            tempIndex += 1;                                                   // :806
+        }
+        program.advance();                                                    // the interpreter's @index += 1
+    }
+
+    /**
+     * Change Gold (125), 170_PField_Field:876-880:
+     * {@code $Trainer.money += operate_value(pbParams[0], pbParams[1], pbParams[2])}
+     * with {@code PokeBattle_Trainer#money=} (185_PokeBattle_Trainer:73-75)
+     * clamping the result to 0..MAX_MONEY (000_Settings:96).
+     */
+    private void changeGold(EventProgram program, EventCommand command) {
+        JsonValue p = command.parameters;
+        int value = operateValue(intParam(p, 0, 0), intParam(p, 1, 0), intParam(p, 2, 0));
+        long money = (long) state.trainer().money + value;
+        state.trainer().money = (int) Math.max(0L, Math.min(MAX_MONEY, money));
+        program.advance();
+    }
+
+    /** 000_Settings:96 {@code MAX_MONEY}. */
+    private static final int MAX_MONEY = 999_999_999;
+
+    /** 048_Interpreter:419-432 {@code operate_value(operation, operand_type, operand)}. */
+    private int operateValue(int operation, int operandType, int operand) {
+        int value = operandType == 0 ? operand : state.variables().get(operand);   // :421-425
+        if (operation == 1) {
+            value = -value;                                                   // :427-429
+        }
+        return value;
+    }
+
+    /**
+     * Recover All (314), 170_PField_Field:898-903: only {@code pbParams[0]==0}
+     * does anything, healing every Pokemon of the party and of all PC boxes
+     * ({@code pbEachPokemon}, 204_Pokemon_Storage:377-384) with
+     * {@code PokeBattle_Pokemon#heal} (197_PokeBattle_Pokemon:769-774).
+     */
+    private void recoverAll(EventProgram program, EventCommand command) {
+        if (intParam(command.parameters, 0, 0) == 0) {                       // :899
+            state.trainer().currentStorage().eachPokemon(Storage::heal);      // :900
+        }
+        program.advance();                                                    // :902 return true
     }
 
     private void controlSelfSwitch(EventProgram program, EventCommand command) {
@@ -1024,9 +1584,49 @@ public final class EventInterpreter {
     private void executeIrStep(JsonValue ir) {
         String name = ir.getString("command", "");
         switch (name) {
+            case "TEACH_EGG_MOVES":
+                startEggMoveTutor(false);
+                break;
+            case "CHANGE_SHINY":
+                startEggMoveTutor(true);
+                break;
             case "OPEN_PC":
                 if (menuService != null) menuRequest = menuService.submit(new MenuService.Request(MenuService.Kind.STORAGE));
                 else log.warn("OPEN_PC without menu service");
+                break;
+            case "STARTER_SELECTION": {
+                // DiegoWTsStarterSelection.new(pkmn1,pkmn2,pkmn3) (333_DiegoWT:30-).
+                MenuService.Request starter = new MenuService.Request(MenuService.Kind.STARTER);
+                starter.dex = new int[3];
+                JsonValue dexes = ir.get("dex");
+                for (int i = 0; i < 3; i++) {
+                    JsonValue entry = dexes == null ? null : dexes.get(i);
+                    starter.dex[i] = entry == null ? 0 : entry.asInt();
+                }
+                if (menuService != null) menuRequest = menuService.submit(starter);
+                else log.warn("STARTER_SELECTION without a menu service");
+                break;
+            }
+            case "OPEN_MART": {
+                // pbPokemonMart(stock, speech, cantsell) (230_PScreen_Mart:807-846).
+                MenuService.Request mart = new MenuService.Request(MenuService.Kind.MART);
+                mart.items = new java.util.ArrayList<>();
+                JsonValue stock = ir.get("items");
+                if (stock != null && stock.isArray()) {
+                    for (JsonValue item = stock.child; item != null; item = item.next) {
+                        if (item.isString()) {
+                            mart.items.add(item.asString());
+                        }
+                    }
+                }
+                mart.speech = ir.has("speech") ? ir.getString("speech") : null;
+                mart.cantSell = irBoolean(ir, "cantSell", false);
+                if (menuService != null) menuRequest = menuService.submit(mart);
+                else log.warn("OPEN_MART without a menu service");
+                break;
+            }
+            case "SET_MART_PRICE": // setPrice / setSellPrice (230_PScreen_Mart:891-904)
+                state.martPrices().setPrice(ir.getString("item", ""), ir.getInt("buy", -1), ir.getInt("sell", -1));
                 break;
             case "SHOW_MAP": {
                 // pbShowMap(region, wallmap) (PScreen_RegionMap:431-437).
@@ -1047,18 +1647,30 @@ public final class EventInterpreter {
                 else log.warn("CHOOSE_TRADE without menu service");
                 break;
             }
+            case "CHOOSE_POKEMON": {
+                // pbChoosePokemon(variable, nameVariable, proc, allowIneligible) (252_PSystem_PokemonUtilities:246-266)
+                MenuService.Request request = new MenuService.Request(MenuService.Kind.CHOOSE_ABLE);
+                request.variable = irInt(ir, "variable", 0); request.nameVariable = irInt(ir, "nameVariable", 0);
+                request.ableProc = ir.getString("proc", "");
+                request.allowIneligible = irBoolean(ir, "allowIneligible", false);
+                if (menuService != null) menuRequest = menuService.submit(request);
+                else log.warn("CHOOSE_POKEMON without menu service");
+                break;
+            }
             case "START_TRADE": {
+                // pbStartTrade (227_PScreen_Trading:192-226): the Pokemon the player gets, then the trade scene
                 Object index = resolveIrValue(ir.get("index")), offered = resolveIrValue(ir.get("offered"));
                 int slot = index instanceof Number ? ((Number) index).intValue() : -1;
                 Pokemon mine = state.trainer().party.get(slot);
                 if (mine == null || pbs == null || menuService == null) break;
-                Pokemon replacement = offered instanceof Pokemon ? (Pokemon) offered : offered instanceof String && pbs.species((String) offered) != null
-                        ? new Pokemon(pbs.species((String) offered), mine.level, pbs) : null;
-                if (replacement == null) { log.warn("START_TRADE: invalid offered Pokemon"); break; }
+                String trainerName = ir.getString("trainerName", "训练家");
+                Pokemon yours = pokemon.runtime.ui.menu.TradeModel.prepare(state.trainer(), mine, offered,
+                        ir.getString("nickname", ""), trainerName, pbs, new java.util.Random());
+                if (yours == null) { log.warn("START_TRADE: invalid offered Pokemon"); break; }
                 MenuService.Request request = new MenuService.Request(MenuService.Kind.TRADE);
-                request.index = slot; request.offered = replacement;
-                request.nickname = ir.getString("nickname", replacement.name);
-                request.trainerName = ir.getString("trainerName", "训练家");
+                request.index = slot; request.offered = yours;
+                request.nickname = state.trainer().name;                    // @trader1
+                request.trainerName = trainerName;                          // @trader2
                 menuRequest = menuService.submit(request);
                 break;
             }
@@ -1095,12 +1707,42 @@ public final class EventInterpreter {
             case "SET_TEMP_SWITCH":
                 // Essentials temp switches (tsOn?/tsOff?) live for the map visit
                 // and drive the 605 arrival door pages (R6.11).
-                if (eventId < 0) {
+                // get_character(n).setTempSwitchOn(c) names another event of this map (048_Interpreter:400-412).
+                int tempSwitchEvent = ir.getInt("eventId", eventId);
+                if (tempSwitchEvent < 0) {
                     log.warn("SET_TEMP_SWITCH outside an event; skipped");
                 } else {
-                    state.tempSwitches().set(mapId, eventId, irString(ir, "channel", "A"),
+                    state.tempSwitches().set(mapId, tempSwitchEvent, irString(ir, "channel", "A"),
                             irBoolean(ir, "value", true));
                 }
+                break;
+            case "TONE_CHANGE_ALL": { // pbToneChangeAll (171_PField_Visuals:691-696)
+                float red = ir.getFloat("red", 0f);
+                float green = ir.getFloat("green", 0f);
+                float blue = ir.getFloat("blue", 0f);
+                float gray = ir.getFloat("gray", 0f);
+                int duration = ir.getInt("duration", 0);
+                if (screenEffects != null) {
+                    screenEffects.tint(red, green, blue, gray, duration);          // :692 $game_screen.start_tone_change
+                }
+                if (pictures != null) {
+                    for (PictureService.Picture picture : pictures.values()) {      // :693-695 every picture
+                        pictures.tone(picture.id, red, green, blue, gray, duration);
+                    }
+                }
+                break;
+            }
+            case "GIVE_RIBBON_PARTY": { // for i in $Trainer.pokemonParty: i.giveRibbon(:X) (197_PokeBattle_Pokemon:571-576)
+                String ribbon = ir.getString("ribbon", null);
+                for (Pokemon member : state.trainer().party.members()) {
+                    if (ribbon != null && !member.egg && !member.ribbons.contains(ribbon, false)) {
+                        member.ribbons.add(ribbon);
+                    }
+                }
+                break;
+            }
+            case "SET_WEATHER": // $game_screen.weather(type, power, duration) (019_Game_Screen:78-93)
+                state.weather().set(ir.getInt("type", 0), ir.getInt("power", 0), ir.getInt("duration", 0));
                 break;
             case "ERASE_EVENT":
                 if (mapPort == null || eventId < 0) {
@@ -1140,15 +1782,11 @@ public final class EventInterpreter {
                 // BW Get Key Item:197-201 / :174: a String item is a "fake" item
                 // (an icon animation only); pbReceiveItem runs for real PBS items.
                 boolean known = pbs != null && pbs.item(item) != null;
-                if (inventory == null) {
-                    log.warn("GIVE_KEY_ITEM " + item + " without an inventory; skipped");
-                } else if (!known) {
-                    log.warn("key item icon " + item + " is not in PBS Items; nothing added");
-                } else {
-                    inventory.add(item, amount);
-                    log.warn("received key item " + item + " x" + amount);
-                }
-                break;
+                keyItem = new KeyItemAnimation(known ? item : null, known ? null : item);
+                keyItemAfter = known && inventory != null ? () -> giveItemWithMessages(item, amount, false) : null;
+                waitTimer = keyItem.duration();
+                interpreterState = InterpreterState.WAIT_TIME;
+                return;
             }
             case "SET_BADGE": {
                 // $Trainer.badges[i] = true (PokeBattle_Trainer:7); the badge
@@ -1272,18 +1910,10 @@ public final class EventInterpreter {
                     log.warn("GIVE_POKEMON unknown species " + speciesName + "; skipped");
                     break;
                 }
-                // pbBoxesFull? (lines 69-73): the party and every box are full.
-                if (state.trainer().party.isFull()
-                        && state.trainer().currentStorage().count()
-                        >= pokemon.runtime.pokemon.Storage.BOXES * pokemon.runtime.pokemon.Storage.SLOTS) {
-                    showHandlerMessage("盒子都满了，不能接受。");
-                    return;
-                }
                 Pokemon gifted = new Pokemon(species, level, pbs);
-                boolean toParty = state.trainer().addToParty(gifted);
-                log.warn("received " + speciesName + " L" + level + (toParty ? " (party)" : " (box)"));
-                // Line 79: "{1}得到了{2}!" with the player name.
-                showHandlerMessage(state.playerName() + "得到了" + species.name + "！");
+                if (pbAddPokemon(gifted, false)) {                               // :67-83 pbAddPokemon
+                    log.warn("received " + speciesName + " L" + level);
+                }
                 return;
             }
             // ---- R8: partner trainers (PField_Field:1399-1440) ----
@@ -1329,9 +1959,12 @@ public final class EventInterpreter {
                 state.partner(null);
                 break;
             case "TOGGLE_FOLLOWING_POKEMON": {
-                // Essentials toggles $PokemonGlobal.followerToggled; the sprite
-                // itself needs the party (stage 3), so only the flag changes here.
+                // 297_Follower_Main:26-43 pbToggleFollowingPokemon: the map screen owns the follower; without one
+                // (a headless run) only the flag changes.
                 String forced = ir.getString("forced", null);
+                if (mapPort != null && mapPort.toggleFollower(forced)) {
+                    break;
+                }
                 if ("on".equalsIgnoreCase(forced)) {
                     state.followerToggled(true);
                 } else if ("off".equalsIgnoreCase(forced)) {
@@ -1339,19 +1972,46 @@ public final class EventInterpreter {
                 } else {
                     state.followerToggled(!state.followerToggled());
                 }
-                log.warn("following Pokemon " + (state.followerToggled() ? "on" : "off")
-                        + " (sprite needs the party, stage 3)");
                 break;
             }
             case "POKEMON_FOLLOW": {
-                // pbPokemonFollow makes a specific character follow the player;
-                // that is part of the follower sprite work (stage 3).
-                log.warn("POKEMON_FOLLOW recorded but the follower sprite is not rendered yet");
+                // 297_Follower_Main:48-63 pbPokemonFollow(x): event x becomes the following Pokemon.
+                int target = ir.getInt("target", 0);
+                if (target == 0) target = eventId;
+                if (mapPort == null || !mapPort.startFollowing(target)) {
+                    log.warn("POKEMON_FOLLOW " + target + ": no map screen or no able Pokemon; skipped");
+                }
+                break;
+            }
+            case "REMOVE_DEPENDENCIES":
+                if (mapPort != null) mapPort.removeDependencies(ir.getBoolean("exceptFollower", false));
+                break;
+            case "ADD_DEPENDENCY": {
+                int target = ir.getInt("event", 0);
+                if (target == 0) target = eventId;                                    // @event_id
+                if (mapPort == null || !mapPort.addDependency(target, ir.getString("name", ""), ir.getInt("commonEvent", -1))) {
+                    log.warn("ADD_DEPENDENCY " + target + " skipped");
+                }
+                break;
+            }
+            case "TALK_TO_FOLLOWER": {
+                MapPort.FollowerTalkPlan plan = mapPort == null ? null : mapPort.talkToFollower();
+                if (plan != null) {
+                    startFollowerTalk(plan);
+                }
                 break;
             }
             case "GIVE_ITEM": {
                 String item = ir.getString("item", "");
                 int amount = ir.getInt("amount", 1);
+                String mode = ir.getString("mode", "");
+                if (inventory != null && !mode.isEmpty() && pbs != null && pbs.item(item) != null && amount >= 1) {
+                    giveItemWithMessages(item, amount, "ball".equals(mode));
+                    if (interpreterState == InterpreterState.WAIT_MESSAGE) {
+                        return;                                         // the messages own the cursor now
+                    }
+                    break;
+                }
                 if (inventory == null) {
                     log.warn("GIVE_ITEM " + item + " without an inventory; skipped");
                 } else {
@@ -1381,6 +2041,7 @@ public final class EventInterpreter {
                 messageLines = parsed.lines;
                 messagePage = 0;
                 messageWaits = parsed.waitForInput;
+                noteMessageExtras(parsed);
                 messageSpeaker = parsed.speaker;
                 showMessagePage();
                 interpreterState = InterpreterState.WAIT_MESSAGE;
@@ -1632,9 +2293,7 @@ public final class EventInterpreter {
                     log.warn("PARTY_ADD of an unknown local; skipped");
                     break;
                 }
-                boolean toParty = state.trainer().addToParty(pokemon);
-                String label = pokemon.name == null ? pokemon.internalName : pokemon.name;
-                log.warn("received " + label + (toParty ? " (party)" : " (box)"));
+                pbAddPokemon(pokemon, ir.getBoolean("silent", false));          // :67-101 pbAddPokemon / pbAddPokemonSilent
                 break;
             }
             // ---- P1: party / bag / PokeCenter data handlers ----
@@ -1657,14 +2316,35 @@ public final class EventInterpreter {
                     log.warn("ADD_EGG unknown species " + speciesName + "; skipped");
                     break;
                 }
-                Pokemon egg = new Pokemon(species, 1, pbs); // EGG_LEVEL
+                Pokemon egg = new Pokemon(species, 1, pbs); // 361:5 pbNewPkmn(egg, EGG_LEVEL)
                 egg.egg = true;
-                egg.name = "神秘的蛋";
-                egg.stepsToHatch = species.stepsToHatch;
-                egg.hp = egg.maxHp();
-                boolean toParty = state.trainer().addToParty(egg);
-                log.warn("received an egg of " + speciesName
-                        + (toParty ? " (party)" : " (box)"));
+                egg.name = "神秘的蛋";                                               // 361:10
+                egg.stepsToHatch = species.stepsToHatch;                             // 361:8-11
+                egg.obtainText = ir.getString("text", "");                           // 361:12
+                egg.hp = egg.maxHp();                                                // 361:13 calcStats
+                pokemon.runtime.pokemon.TrainerState trainer = state.trainer();
+                if (trainer.party.size() < 6) {                                      // 361:14
+                    trainer.party.add(egg);                                          // 361:15
+                    showHandlerMessage(egg.name + "加入了队伍。");                     // 361:16
+                } else {
+                    pokemon.runtime.pokemon.Storage storage = trainer.currentStorage();
+                    int oldBox = storage.currentBox;                                 // 361:18
+                    int storedBox = storage.pbStoreCaught(egg);                      // 361:19
+                    if (storedBox < 0) {
+                        log.warn("ADD_EGG: the boxes are full");
+                        break;
+                    }
+                    String curboxname = storage.box(oldBox).name;                    // 361:20
+                    String boxname = storage.box(storedBox).name;                    // 361:21
+                    // 登记: pbGetStorageCreator (the PC owner's name) is not modelled, so the "someone's PC" lines are used
+                    if (storedBox != oldBox) {                                       // 361:24
+                        pendingMessages.add(egg.name + "被传送到了盒子 \"" + boxname + ".\"");   // 361:30
+                        showHandlerMessage("某人的电脑上的盒子 \"" + curboxname + "\"已经满了。");   // 361:28
+                    } else {
+                        pendingMessages.add("被存放在盒子\"" + boxname + ".\"");        // 361:36
+                        showHandlerMessage(egg.name + "被传送到了某人的电脑。");   // 361:34
+                    }
+                }
                 break;
             }
             // ---- P2: wild / trainer battles ----
@@ -1804,20 +2484,15 @@ public final class EventInterpreter {
                 break;
             }
             case "ROCK_SMASH_ENCOUNTER": {
+                // pbRockSmashRandomEncounter (179_PField_FieldMoves:604-609): rand(100)<25 -> pbEncounter(RockSmash).
                 if (battlePort == null || pbs == null) {
                     log.warn("ROCK_SMASH_ENCOUNTER without a battle runtime or PBS data; skipped");
                     break;
                 }
-                PbsData.EncounterMap map = pbs.encounterMap(mapId);
-                WildEncounters.WildEncounter encounter = map == null ? null
-                        : WildEncounters.pick(map, "RockSmash", encounterRandom);
-                if (encounter == null) {
-                    log.warn("ROCK_SMASH_ENCOUNTER: no RockSmash table on map " + mapId);
-                    break;
+                if (encounterRandom.nextInt(100) >= 25) {
+                    break;                                                    // :605
                 }
-                BattleResult smash = battlePort.wildBattle(encounter.species, encounter.level);
-                log.warn("rock smash encounter -> "
-                        + (smash == null ? "not started" : smash.outcome));
+                pbEncounter("RockSmash");
                 break;
             }
             // ---- player graphics (the intro's gender selector) ----
@@ -1853,6 +2528,88 @@ public final class EventInterpreter {
                         + " needs a runtime service that does not exist yet; skipped");
                 break;
         }
+    }
+
+    /**
+     * {@code pbEncounter(enctype)} (175_PField_Encounters:484-499): rolls a wild Pokemon of the map's table for the
+     * method and starts the battle (two when a partner walks with the player). {@code "*"} is the Sweet Scent form:
+     * the method of the place ({@code pbEncounterType}), nothing when no encounter is possible here.
+     *
+     * @return true when a battle started
+     */
+    private boolean pbEncounter(String enctype) {
+        if (battlePort == null || pbs == null) {
+            log.warn("pbEncounter " + enctype + " without a battle runtime or PBS data; skipped");
+            return false;
+        }
+        PokemonEncounters wild = new PokemonEncounters(pbs, state, encounterRandom, java.time.LocalTime::now);
+        wild.setup(state.currentMapId());
+        String method = enctype;
+        if ("*".equals(enctype)) {                                              // 179_PField_FieldMoves:840-842
+            method = wild.pbEncounterType();
+            if (method == null || !wild.isEncounterPossibleHere(state.fieldGlobals().playerTerrainTag)) {
+                return false;
+            }
+        }
+        PokemonEncounters.Encounter encounter = wild.pbEncounter(method);
+        if (encounter == null) {
+            return false;                                                       // :490 return false if !encounter1
+        }
+        BattleResult result;
+        if (state.partner() != null) {                                          // :491 $PokemonGlobal.partner
+            PokemonEncounters.Encounter second = wild.pbEncounter(method);
+            if (second == null) {
+                return false;                                                   // :494
+            }
+            result = battlePort.doubleWildBattle(encounter.species, encounter.level, second.species, second.level);
+        } else {
+            result = battlePort.wildBattle(encounter.species, encounter.level);
+        }
+        log.warn("encounter " + method + " -> " + (result == null ? "not started" : result.outcome));
+        return true;
+    }
+
+    /**
+     * 179_PField_FieldMoves {@code pbUseHiddenMove(pokemon, move)}: the move's {@code UseMove} body runs as an event of
+     * its own (messages, the banner, fades, battles), started after the menus have closed.
+     */
+    public void startHiddenMove(Pokemon pkmn, String move) {
+        Array<EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 0));
+        start(list, state.currentMapId(), -1);
+        pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
+        TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
+        HiddenMoveTask task = new HiddenMoveTask(state, pbs, mapPort, scene, this::pbEncounter, encounterRandom, audio);
+        scriptTaskResult = null;
+        holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            task.use(move, pkmn);
+            scriptTaskResult = true;
+        });
+        scriptTaskDone = result -> {
+        };
+        scriptTaskAnswer = null;
+        scriptQuestion = null;
+        scriptTask = holder[0];
+    }
+
+    /**
+     * 362_changeShiny {@code teachEggMoves}: the egg-move teacher NPC. The Ruby runs as a blocking script on a task of the
+     * running event; the event goes on when it returns.
+     */
+    private void startEggMoveTutor(boolean shiny) {
+        pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
+        TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
+        EggMoveTutor tutor = new EggMoveTutor(state, pbs, scene, new pokemon.runtime.field.ItemHandlers(pbs, state, java.time.LocalTime::now));
+        scriptTaskResult = null;
+        holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            if (shiny) tutor.changeShinyByNPC(); else tutor.teachEggMoves();
+            scriptTaskResult = true;
+        });
+        scriptTaskDone = result -> {
+        };
+        scriptTaskAnswer = null;
+        scriptQuestion = null;
+        scriptTask = holder[0];
     }
 
     /**
@@ -2002,6 +2759,21 @@ public final class EventInterpreter {
         program.advance();
     }
 
+    /**
+     * Change Picture Color Tone (234), 048_Interpreter:1331-1339: picture number
+     * {@code @parameters[0] + ($game_temp.in_battle ? 50 : 0)} (no battle here),
+     * tone {@code @parameters[1]}, duration {@code @parameters[2]}.
+     */
+    private void changePictureTone(EventProgram program, EventCommand command) {
+        JsonValue p = command.parameters;
+        JsonValue tone = p == null ? null : p.get(1);
+        if (pictures != null && tone != null && tone.isObject()) {
+            pictures.tone(intParam(p, 0, 1), tone.getFloat("red", 0f), tone.getFloat("green", 0f),
+                    tone.getFloat("blue", 0f), tone.getFloat("gray", 0f), intParam(p, 2, 0));
+        }
+        program.advance();
+    }
+
     private void movePicture(EventProgram program, EventCommand command) {
         JsonValue p = command.parameters;
         int duration = intParam(p, 1, 0);
@@ -2086,6 +2858,226 @@ public final class EventInterpreter {
             java.util.regex.Pattern.compile(
                 "pbWildBattle\\(\\s*:([A-Za-z_][A-Za-z0-9_]*)\\s*,\\s*(\\d+)\\s*\\)");
 
+    // ------------------------------------------------------------------
+    // Script conditions: a parsed Ruby expression, run on a task when an atom talks to the player
+    // ------------------------------------------------------------------
+
+    private final java.util.Map<String, ScriptCondition> conditionCache = new java.util.HashMap<>();
+    /** The interpreter instance variables of the Ruby scripts ({@code @ch_ret}, {@code @ch_cmd}). */
+    private final java.util.Map<String, Object> instanceVariables = new java.util.HashMap<>();
+    private pokemon.runtime.field.BlockingTask scriptTask;
+    private volatile Boolean scriptTaskResult;
+    private java.util.function.Consumer<Boolean> scriptTaskDone;
+    private java.util.function.Supplier<Object> scriptTaskAnswer;
+    private java.util.List<String> scriptQuestion;
+    private int scriptQuestionCancel;
+
+    private ScriptCondition parseCondition(String text) {
+        ScriptCondition cached = conditionCache.get(text);
+        if (cached != null || conditionCache.containsKey(text)) {
+            return cached;
+        }
+        ScriptCondition parsed;
+        try {
+            parsed = ScriptCondition.parse(text);
+        } catch (ScriptCondition.Unsupported error) {
+            parsed = null;
+        }
+        conditionCache.put(text, parsed);
+        return parsed;
+    }
+
+    private ConditionEnv conditionEnv(pokemon.runtime.field.FieldScene scene) {
+        return new ConditionEnv(state, pbs, () -> mapId, () -> eventId, instanceVariables, java.time.LocalTime::now, scene)
+                .withMapPort(mapPort);
+    }
+
+    private static boolean needsScreen(ScriptCondition condition) {
+        for (String call : condition.calls()) {
+            if (ConditionEnv.SCREEN_CALLS.contains(call)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Runs a condition whose atoms talk to the player on its own thread; the branch follows when it returns. */
+    private void startConditionTask(EventProgram program, ScriptCondition condition) {
+        pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
+        TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
+        ConditionEnv env = conditionEnv(scene);
+        scriptTaskResult = null;
+        holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            boolean value;
+            try {
+                value = ScriptCondition.truthy(condition.eval(env));
+            } catch (ScriptCondition.Unsupported error) {
+                log.warn("script condition atom not supported: " + error.getMessage());
+                value = false;
+            }
+            scriptTaskResult = value;
+        });
+        scriptTaskDone = result -> {
+            program.branchResult(program.indent(), result);
+            if (result) {
+                program.advance();
+            } else {
+                program.skipBlock();
+            }
+        };
+        scriptTaskAnswer = null;
+        scriptQuestion = null;
+        scriptTask = holder[0];
+    }
+
+    /** One step of the running condition task: answer the last request, run to the next one and start it. */
+    private void pumpScriptTask() {
+        while (scriptTask != null && interpreterState == InterpreterState.RUNNING) {
+            if (battlePort != null && battlePort.pending()) {
+                return;                                                         // an action started a battle: it runs first
+            }
+            if (scriptQuestion != null) {                                       // the message is done: open the choices
+                Array<String> options = new Array<>();
+                for (String option : scriptQuestion) {
+                    options.add(option);
+                }
+                choiceResult = Integer.MIN_VALUE;
+                messages.showChoices(options, scriptQuestionCancel);
+                scriptQuestion = null;
+                interpreterState = InterpreterState.WAIT_MESSAGE;
+                return;
+            }
+            if (scriptTaskAnswer != null) {
+                scriptTask.answer(scriptTaskAnswer.get());
+                scriptTaskAnswer = null;
+            }
+            if (scriptTask.resume()) {
+                java.util.function.Consumer<Boolean> done = scriptTaskDone;
+                boolean result = Boolean.TRUE.equals(scriptTaskResult);
+                scriptTask = null;
+                scriptTaskDone = null;
+                if (done != null) {
+                    done.accept(result);
+                }
+                return;
+            }
+            TaskFieldScene.Request r = (TaskFieldScene.Request) scriptTask.pending();
+            switch (r.kind) {
+                case MESSAGE:
+                    showHandlerMessage(r.text);
+                    scriptTaskAnswer = () -> null;
+                    return;
+                case CONFIRM:
+                    showHandlerQuestion(r.text, java.util.Arrays.asList("是", "否"), 2);
+                    scriptTaskAnswer = () -> choiceResult == 0;
+                    return;
+                case CHOOSE: {
+                    final int cancel = r.cancel;
+                    showHandlerQuestion(r.text, r.commands, cancel < 0 ? 100 : cancel);
+                    scriptTaskAnswer = () -> choiceResult >= 99 ? -1 : choiceResult;
+                    return;
+                }
+                case TUTOR: {
+                    MenuService.Request tutor = new MenuService.Request(MenuService.Kind.TUTOR);
+                    tutor.move = r.text;
+                    tutor.movelist = r.movelist;
+                    tutor.byMachine = r.flag;
+                    if (menuService == null) {
+                        scriptTask.answer(-1);
+                        break;
+                    }
+                    menuRequest = menuService.submit(tutor);
+                    scriptTaskAnswer = () -> tutor.result;
+                    return;
+                }
+                case RELEARN: {
+                    MenuService.Request relearn = new MenuService.Request(MenuService.Kind.RELEARN);
+                    relearn.pokemon = r.pokemon;
+                    if (menuService == null) {
+                        scriptTask.answer(false);
+                        break;
+                    }
+                    menuRequest = menuService.submit(relearn);
+                    scriptTaskAnswer = () -> relearn.result > 0;
+                    return;
+                }
+                case CHOOSE_NON_EGG: {
+                    MenuService.Request choose = new MenuService.Request(MenuService.Kind.CHOOSE_NON_EGG);
+                    if (menuService == null) {
+                        scriptTask.answer(-1);
+                        break;
+                    }
+                    menuRequest = menuService.submit(choose);
+                    scriptTaskAnswer = () -> choose.result;
+                    return;
+                }
+                case FORGET: {
+                    MenuService.Request forget = new MenuService.Request(MenuService.Kind.FORGET_MOVE);
+                    forget.pokemon = r.pokemon;
+                    forget.learnMove = r.move;
+                    if (menuService == null) {
+                        scriptTask.answer(-1);
+                        break;
+                    }
+                    menuRequest = menuService.submit(forget);
+                    scriptTaskAnswer = () -> forget.result;
+                    return;
+                }
+                case ACTION: {
+                    float seconds = r.action.get();
+                    scriptTaskAnswer = () -> null;
+                    if (seconds > 0f) {
+                        waitTimer = seconds;
+                        interpreterState = InterpreterState.WAIT_TIME;
+                        return;
+                    }
+                    break;
+                }
+                case WAIT:
+                    scriptTaskAnswer = () -> null;
+                    waitTimer = r.number / 40f;
+                    if (waitTimer > 0f) {
+                        interpreterState = InterpreterState.WAIT_TIME;
+                        return;
+                    }
+                    break;
+                case ME:
+                    if (audio != null) {
+                        audio.playMe(r.text, 100, 100);
+                    }
+                    scriptTask.answer(null);
+                    break;
+                case SE:
+                    if (audio != null) {
+                        audio.playSe(r.text, r.number, 100);
+                    }
+                    scriptTask.answer(null);
+                    break;
+                default:
+                    scriptTask.answer(null);
+                    break;
+            }
+        }
+    }
+
+    /** pbMessage followed by a command window: the text stays while the choices are open. */
+    private void showHandlerQuestion(String text, java.util.List<String> options, int cancelType) {
+        Array<String> raw = new Array<>();
+        raw.add(text);
+        MessageText.Parsed parsed = MessageText.parse(raw, state, messageColumns);
+        messageLines = parsed.lines;
+        messagePage = 0;
+        messageWaits = parsed.waitForInput;
+        noteMessageExtras(parsed);
+        messageSpeaker = parsed.speaker;
+        messageLinesPerPage = parsed.lineCount > 0 ? parsed.lineCount : MessageService.LINES_PER_PAGE;
+        choicesFollow = true;
+        showMessagePage();
+        interpreterState = InterpreterState.WAIT_MESSAGE;
+        scriptQuestion = options;
+        scriptQuestionCancel = cancelType;
+    }
+
     private void conditionalBranch(EventProgram program, EventCommand command) {
         JsonValue p = command.parameters;
         if (intParam(p, 0, -1) == 12 && p != null && p.get(1) != null) {
@@ -2104,6 +3096,11 @@ public final class EventInterpreter {
             BossBattleData.Entry boss = BossBattleData.find(script);
             if (boss != null) {
                 startBossBattleCondition(program, command, boss);
+                return;
+            }
+            ScriptCondition parsed = parseCondition(script);
+            if (parsed != null && needsScreen(parsed)) {
+                startConditionTask(program, parsed);                               // pbCut / pbRockSmash / pbStrength
                 return;
             }
         }
@@ -2464,17 +3461,25 @@ public final class EventInterpreter {
                 int id = intParam(p, 1, 0);
                 return state.switches().get(Math.max(1, id)) == (intParam(p, 2, 0) == 0);
             }
-            case 1: { // Variable: params [1, variable id, operand type, value]
-                int id = Math.max(1, intParam(p, 1, 0));
+            case 1: { // Variable: params [1, variable id, operand type, operand, comparison]
+                // 048_Interpreter:603-623.
+                int value1 = state.variables().get(Math.max(1, intParam(p, 1, 0)));    // :604
                 int operandType = intParam(p, 2, 0);
-                int value = intParam(p, 3, 0);
-                if (operandType == 1) {
-                    value = state.variables().get(Math.max(1, value));
-                } else if (operandType != 0) {
-                    unsupported(command, "variable operand type " + operandType);
-                    return false;
+                int value2 = intParam(p, 3, 0);
+                if (operandType == 0) {                                                // :605-606
+                    // value2 = @parameters[3]
+                } else {
+                    value2 = state.variables().get(Math.max(1, value2));               // :608
                 }
-                return state.variables().get(id) >= value;
+                switch (intParam(p, 4, -1)) {                                          // :610
+                    case 0: return value1 == value2;                                   // :611-612
+                    case 1: return value1 >= value2;                                   // :613-614
+                    case 2: return value1 <= value2;                                   // :615-616
+                    case 3: return value1 > value2;                                    // :617-618
+                    case 4: return value1 < value2;                                    // :619-620
+                    case 5: return value1 != value2;                                   // :621-622
+                    default: return false;                                             // result stays false
+                }
             }
             case 2: { // Self switch: params [2, channel, 0 = on / 1 = off]
                 String channel = p != null && p.get(1) != null ? p.get(1).asString() : "A";
@@ -2492,6 +3497,13 @@ public final class EventInterpreter {
                 }
                 unsupported(command, "character condition for event " + characterId);
                 return false;
+            }
+            case 7: { // Gold: params [7, amount, 0 = at least / 1 = at most] (048_Interpreter:648-653)
+                int amount = intParam(p, 1, 0);
+                if (intParam(p, 2, 0) == 0) {                                          // :649
+                    return state.trainer().money >= amount;                            // :650
+                }
+                return state.trainer().money <= amount;                                // :652
             }
             case 11: { // Button: params [11, button]
                 GameAction action = buttonAction(intParam(p, 1, 0));
@@ -2564,7 +3576,19 @@ public final class EventInterpreter {
             }
             return compare(party.group(1), size, Integer.parseInt(party.group(2)));
         }
-        unsupported(command, "script condition \"" + text + "\" (needs the script translator, R7)");
+        ScriptCondition general = parseCondition(text);
+        if (general != null) {
+            try {
+                return ScriptCondition.truthy(general.eval(conditionEnv(null)));
+            } catch (ScriptCondition.Unsupported error) {
+                unsupported(command, "script condition \"" + text + "\": " + error.getMessage());
+                return false;
+            } catch (RuntimeException error) {
+                unsupported(command, "script condition \"" + text + "\" failed: " + error);
+                return false;
+            }
+        }
+        unsupported(command, "script condition \"" + text + "\" (not parsed)");
         return false;
     }
 

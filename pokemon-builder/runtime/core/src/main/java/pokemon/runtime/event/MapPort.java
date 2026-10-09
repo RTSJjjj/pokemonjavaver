@@ -216,4 +216,129 @@ public interface MapPort {
      */
     default void togglePlateSwitches() {
     }
+
+    /** {@code pbStartSurfing} (179_PField_FieldMoves:723-732): the player jumps onto the water in front and surfs. */
+    default void startSurfing() {
+    }
+
+    /** What {@code pbTalkToFollower} makes the event do after the map side started the cry, the emote and the routes. */
+    final class FollowerTalkPlan {
+        /** {@code pbWait(n)} after the emote, in 40 fps frames. */
+        public int waitFrames;
+        /** The lines, shown one after another. */
+        public final java.util.List<String> messages = new java.util.ArrayList<>();
+        /** {@code pbPokemonFound}: the item the follower hands over (internal name), or null. */
+        public String foundItem;
+        public int foundQuantity = 1;
+        public String foundMessage;
+        /** The follower's Pokemon name, for the found-item lines. */
+        public String pokemonName;
+    }
+
+    /** {@code pbToggleFollowingPokemon(forced)} (297_Follower_Main:26-43); false when the map side does not run followers. */
+    default boolean toggleFollower(String forced) {
+        return false;
+    }
+
+    /** {@code pbPokemonFollow(eventId)} (297_Follower_Main:48-63). */
+    default boolean startFollowing(int eventId) {
+        return false;
+    }
+
+    /** {@code pbRemoveDependencies} / {@code pbRemoveDependenciesExceptFollower}. */
+    default void removeDependencies(boolean exceptFollower) {
+    }
+
+    /** {@code pbAddDependency2(eventId, name, commonEvent)} (182_PField_DependentEvents:25-27). */
+    default boolean addDependency(int eventId, String name, int commonEvent) {
+        return false;
+    }
+
+    /** {@code pbTalkToFollower} (297_Follower_Main:68-82); null when there is nothing to say. */
+    default FollowerTalkPlan talkToFollower() {
+        return null;
+    }
+
+    // ---- 179_PField_FieldMoves: the field side of the hidden moves ----
+
+    /** {@code $game_player.pbFacingEvent.name.downcase}, or null when no event is in front. */
+    default String facingEventName() {
+        return null;
+    }
+
+    /** x, y of the event {@link #facingEventName()} found, or null. */
+    default int[] facingEventPosition() {
+        return null;
+    }
+
+    /** {@code pbFacingTerrainTag}. */
+    default int facingTerrainTag() {
+        return 0;
+    }
+
+    /** {@code $game_player.terrain_tag}. */
+    default int playerTerrainTag() {
+        return 0;
+    }
+
+    /** {@code $game_map.passable?(player.x, player.y, player.direction, player)}. */
+    default boolean facingPassable() {
+        return false;
+    }
+
+    /** {@code $game_player.pbHasDependentEvents?}. */
+    default boolean hasDependentEvents() {
+        return false;
+    }
+
+    /** {@code $MapFactory.getTerrainTag(mapId, $game_player.x, $game_player.y)}. */
+    default int terrainTagOnMap(int mapId) {
+        return 0;
+    }
+
+    /**
+     * {@code pbSmashEvent(event)} (179:231-248) for the event in front: it turns left, right and up, then disappears.
+     * Returns the seconds until it is gone (the plugin's {@code pbWait(40*4/10)}).
+     */
+    default float smashFacingEvent() {
+        return 0f;
+    }
+
+    /** {@code pbHiddenMoveAnimation(pokemon)} (179:78-189): starts the banner; returns its length in seconds, 0 when there is none. */
+    default float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pokemon) {
+        return 0f;
+    }
+
+    /** {@code pbAscendWaterfall} (179:919-936): the player swims up the waterfall; returns the seconds it takes. */
+    default float ascendWaterfall() {
+        return 0f;
+    }
+
+    /** A transfer through a fade ({@code pbFadeOutIn { transfer_player(cancelVehicles) }}); {@code keepVehicles} = {@code transfer_player(false)}. */
+    default void transferThroughFade(int mapId, int x, int y, int direction, boolean keepVehicles) {
+    }
+
+    /** {@code pbSweetScent}'s red flash (179:818-839); returns its length in seconds. */
+    default float sweetScentFlash() {
+        return 0f;
+    }
+
+    /**
+     * {@code pbFlyAnimation(landing, ...)} (340_Fly_Animation): {@code departure} is the plugin's {@code landing = true}
+     * call before the fade (the player turns left, the bird's SE, the player is hidden), false the one after the arrival.
+     * Returns the seconds it takes.
+     */
+    default float flyAnimation(boolean departure) {
+        return 0f;
+    }
+
+    /** {@code $PokemonTemp.darknessSprite} exists (the map is dark). */
+    default boolean darknessActive() {
+        return false;
+    }
+
+    /** Flash's growing light circle (179:486-493); returns the seconds it takes. */
+    default float flashDarkness() {
+        return 0f;
+    }
 }
