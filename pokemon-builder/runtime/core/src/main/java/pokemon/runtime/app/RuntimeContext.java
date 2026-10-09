@@ -354,6 +354,7 @@ public final class RuntimeContext {
         if (database != null) {
             // P1: rebuilding the saved party / PC storage needs the PBS tables.
             saveManager.attachPbs(database.pbs());
+            gameState.trainer().habitats.attachPbs(database.pbs());      // the habitat list compares forms with their species
         }
         // L1: options (volumes) load once; a broken/missing file keeps defaults.
         settings = GameSettings.load(storage);

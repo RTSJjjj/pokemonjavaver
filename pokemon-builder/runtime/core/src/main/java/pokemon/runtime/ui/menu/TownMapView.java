@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import pokemon.runtime.app.RuntimeContext;
+import pokemon.runtime.audio.UiSounds;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.data.MapData;
 import pokemon.runtime.data.ProjectInfo;
@@ -28,7 +29,7 @@ public final class TownMapView {
      * the wall map mode wants it or the switch is on
      * (PScreen_RegionMap:122-134).
      */
-    private static final Object[][] REGION_MAP_EXTRAS = {
+    static final Object[][] REGION_MAP_EXTRAS = {
             { 0, 51, 16, 15, "mapHiddenBerth", false },
             { 0, 52, 20, 14, "mapHiddenFaraday", false },
     };
@@ -101,6 +102,10 @@ public final class TownMapView {
     /** PScreen_RegionMap#pbMapScene (overwrite:71-202). @return true = close */
     public boolean update(InputManager input, float delta) {
         elapsed += Math.max(0f, delta);
+        if (habitat != null) {                                            // the habitat of the tile (294 HabitatDetailScreen#pbStartScreenSingle)
+            if (habitat.update(input)) habitat = null;
+            return false;
+        }
         if (offsetX != 0f || offsetY != 0f) {
             // The cursor glides 4 px per 40 fps frame; input waits (283-290).
             float step = SCROLL_SPEED * delta * 40f;
@@ -126,6 +131,10 @@ public final class TownMapView {
             }
             return false;
         }
+        if (input.wasPressed(GameAction.F5) && context.gameState().trainer().pokedex) {   // 338_ESMM_Overwrite:170-199 / 214:370-399
+            openHabitat();
+            return false;
+        }
         int ox = (input.isDown(GameAction.LEFT) ? -1 : 0) + (input.isDown(GameAction.RIGHT) ? 1 : 0);
         int oy = (input.isDown(GameAction.UP) ? -1 : 0) + (input.isDown(GameAction.DOWN) ? 1 : 0);
         if (ox != 0 || oy != 0) {
@@ -148,6 +157,44 @@ public final class TownMapView {
             }
         }
         return false;
+    }
+
+    private HabitatDetailView habitat;
+
+    /**
+     * F5 on a tile (338_ESMM_Overwrite:170-199): the habitat of the map on that tile of the region map - the overridden one when the
+     * tile has an entry in {@code HabitatConfig::RegionOverride} and the player stands on one of its maps - or a buzzer.
+     */
+    private void openHabitat() {
+        pokemon.runtime.state.GameState state = context.gameState();
+        pokemon.runtime.pokemon.HabitatLog log = state.trainer().habitats;
+        PbsData pbs = context.pbsData();
+        int mapIndex;
+        if (playerPosition == null || playerPosition.length < 3) {
+            mapIndex = 0;                                                  // :172-173
+        } else if (model.region() >= 0 && model.region() != playerPosition[0] && model.currentRegion() != null) {
+            mapIndex = model.region();                                     // :174-175
+        } else {
+            mapIndex = playerPosition[0];
+        }
+        int[] override = pokemon.runtime.pokemon.HabitatLog.regionOverride(mapIndex, model.mapX(), model.mapY());
+        int index = -1;
+        if (override == null) {
+            index = pbs == null ? -1 : log.indexByRegionCoords(pbs, model.mapX(), model.mapY(), mapIndex, state.fieldGlobals().visitedMaps);
+        } else {
+            for (int map : override) {                                     // :183-186 the first of them that is the map the player is in
+                if (map == state.currentMapId()) {
+                    index = log.indexByMapId(map);
+                    break;
+                }
+            }
+        }
+        if (index > -1) {
+            UiSounds.decision(context.audioManager());
+            habitat = new HabitatDetailView(context, index);
+        } else {
+            UiSounds.buzzer(context.audioManager());                       // :199 pbPlayBuzzerSE
+        }
     }
 
     private static float decay(float offset, float step) {
@@ -191,6 +238,10 @@ public final class TownMapView {
     public void render(SpriteBatch batch, MenuFont font) {
         float width = ScreenMetrics.logicalWidth();
         float height = ScreenMetrics.logicalHeight();
+        if (habitat != null) {
+            habitat.render(batch, assets, font);
+            return;
+        }
         // addBackgroundOrColoredPlane (MessageConfig:715-729): mapbg covers the
         // screen; without the bitmap the plane stays black.
         Texture background = assets.graphic("Pictures", "mapbg");
@@ -258,6 +309,10 @@ public final class TownMapView {
         if (model.playerRegion() != 3) {
             font.drawCentered(batch, "[A]/[S]:切换地区",
                     width / 2f, height - TOP_TEXT_Y, main, shadow);
+        }
+        if (context.gameState().trainer().pokedex && !context.gameState().trainer().habitats.isEmpty()) {   // 214:140-142 the habitat button
+            Texture button = assets.graphic("Pictures/Habitats", "menu_button");
+            if (button != null) batch.draw(button, width - 164f, height - 2f - button.getHeight());
         }
         font.draw(batch, model.location(), 18f, height - BOTTOM_TEXT_Y, main, shadow);
         font.drawRight(batch, model.details(), width - 16f, height - BOTTOM_TEXT_Y, main, shadow);

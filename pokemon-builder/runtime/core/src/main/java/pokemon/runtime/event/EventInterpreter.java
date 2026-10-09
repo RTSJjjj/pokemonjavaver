@@ -1730,6 +1730,7 @@ public final class EventInterpreter {
                 trainer.gender = gender;
                 trainer.name = ir.getString("name", trainer.name);
                 state.playerName(trainer.name);
+                trainer.habitats.setup(pbs);                               // 294:303-307 pbTrainerName_habitat: Habitats.setup for a new trainer
                 break;
             }
             case "REMOVE_DEPENDENCY":                                      // pbRemoveDependency2(name) (182_PField_DependentEvents:34-36)

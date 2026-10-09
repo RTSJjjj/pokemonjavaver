@@ -71,6 +71,9 @@ public final class FieldGlobals {
     public int[] escapePoint = new int[0];
     /** {@code $PokemonGlobal.healingSpot} (170_PField_Field:535-537): map, x, y of the last map that had one; null = none. */
     public int[] healingSpot;
+    /** {@code $PokemonGlobal.habitatIndex} (294:773-775): the habitat the list stopped on last (-1 = nil). */
+    public int habitatIndex = -1;
+
     /** {@code $PokemonGlobal.visitedMaps} (170_PField_Field:540): the maps the player has been on. */
     public final java.util.Set<Integer> visitedMaps = new java.util.TreeSet<>();
     /** {@code $PokemonMap.blackFluteUsed}. */
@@ -102,6 +105,7 @@ public final class FieldGlobals {
         foundItems.clear();
         dependents.clear();
         visitedMaps.clear();
+        habitatIndex = -1;
         flashUsed = false;
         escapePoint = new int[0];
         healingSpot = null;

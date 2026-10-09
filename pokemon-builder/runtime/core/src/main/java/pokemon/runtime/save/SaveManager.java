@@ -140,6 +140,7 @@ public final class SaveManager {
             quests.addChild(quest);
         }
         root.addChild("quests", quests);
+        root.addChild("habitatIndex", new JsonValue(state.fieldGlobals().habitatIndex));
         root.addChild("messagePosition", new JsonValue(state.messagePosition()));
         root.addChild("messageFrame", new JsonValue(state.messageFrame()));
         root.addChild("followerToggled", new JsonValue(state.followerToggled()));
@@ -339,7 +340,66 @@ public final class SaveManager {
         }
         node.addChild("party", party);
         node.addChild("storage", storageJson(trainer.storage));
+        node.addChild("habitats", habitatsJson(trainer.habitats));
         return node;
+    }
+
+    /** {@code $Trainer.habitatData} (294): per habitat its maps, completed flag and, per kind, alert / seen / owned and the species list. */
+    private static JsonValue habitatsJson(pokemon.runtime.pokemon.HabitatLog log) {
+        JsonValue list = array();
+        for (pokemon.runtime.pokemon.HabitatLog.Habitat habitat : log.data) {
+            JsonValue node = object();
+            JsonValue maps = array();
+            for (int map : habitat.mapIds) maps.addChild(new JsonValue(map));
+            node.addChild("maps", maps);
+            node.addChild("completed", new JsonValue(habitat.completed));
+            JsonValue kinds = object();
+            for (java.util.Map.Entry<String, pokemon.runtime.pokemon.HabitatLog.Kind> entry : habitat.encounters.entrySet()) {
+                JsonValue kind = object();
+                kind.addChild("alert", new JsonValue(entry.getValue().alert));
+                kind.addChild("seen", new JsonValue(entry.getValue().seen));
+                kind.addChild("owned", new JsonValue(entry.getValue().owned));
+                JsonValue species = array();
+                for (String name : entry.getValue().list) species.addChild(new JsonValue(name));
+                kind.addChild("list", species);
+                kinds.addChild(entry.getKey(), kind);
+            }
+            node.addChild("kinds", kinds);
+            list.addChild(node);
+        }
+        return list;
+    }
+
+    private void readHabitats(JsonValue node, TrainerState trainer) {
+        pokemon.runtime.pokemon.HabitatLog log = trainer.habitats;
+        log.clear();
+        JsonValue list = node == null ? null : node.get("habitats");
+        if (list == null || !list.isArray()) {
+            if (pbs != null) log.setup(pbs);               // a save from before the habitat list: Habitats.setup builds it from what was seen / caught
+            return;
+        }
+        for (JsonValue entry = list.child; entry != null; entry = entry.next) {
+            pokemon.runtime.pokemon.HabitatLog.Habitat habitat = new pokemon.runtime.pokemon.HabitatLog.Habitat();
+            JsonValue maps = entry.get("maps");
+            habitat.mapIds = maps != null && maps.isArray() ? new int[maps.size] : new int[0];
+            int i = 0;
+            if (maps != null && maps.isArray()) for (JsonValue map = maps.child; map != null; map = map.next) habitat.mapIds[i++] = map.asInt();
+            habitat.completed = entry.getBoolean("completed", false);
+            JsonValue kinds = entry.get("kinds");
+            if (kinds != null && kinds.isObject()) {
+                for (JsonValue kindNode = kinds.child; kindNode != null; kindNode = kindNode.next) {
+                    pokemon.runtime.pokemon.HabitatLog.Kind kind = new pokemon.runtime.pokemon.HabitatLog.Kind();
+                    kind.alert = kindNode.getBoolean("alert", true);
+                    kind.seen = kindNode.getBoolean("seen", true);
+                    kind.owned = kindNode.getBoolean("owned", true);
+                    JsonValue species = kindNode.get("list");
+                    if (species != null && species.isArray()) for (JsonValue name = species.child; name != null; name = name.next) kind.list.add(name.asString());
+                    habitat.encounters.put(kindNode.name, kind);
+                }
+            }
+            log.data.add(habitat);
+        }
+        log.rebuildIndexes(pbs);
     }
 
     /**
@@ -586,6 +646,7 @@ public final class SaveManager {
         state.enterMap(mapId, map.getInt("x", state.playerX()), map.getInt("y", state.playerY()));
         state.setPlayerPosition(map.getInt("x", state.playerX()), map.getInt("y", state.playerY()),
                 map.getInt("direction", state.playerDirection()));
+        state.fieldGlobals().habitatIndex = root.getInt("habitatIndex", -1);
         state.messageOptions(root.getInt("messagePosition", 2), root.getInt("messageFrame", 0));   // $game_system text options
         // Plugin batch 1: quests + the follower flag. Both keys are optional so
         // saves written before the batch still load.
@@ -779,6 +840,7 @@ public final class SaveManager {
         if (owned != null && owned.isArray()) for (JsonValue id : owned) trainer.owned.add(id.asString());
         trainer.seen.addAll(trainer.owned);
         if (badges != null && badges.isArray()) for (JsonValue id : badges) trainer.badges.add(id.asInt());
+        readHabitats(node, trainer);
         JsonValue heal = node.get("heal");
         if (heal != null && heal.isObject()) {
             trainer.setPokemonCenter(heal.getInt("map", -1), heal.getInt("x", 0),

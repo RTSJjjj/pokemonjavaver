@@ -434,6 +434,7 @@ public final class GenderSelectorView {
         }
         context.gameState().playerName(name);
         context.gameState().trainer().name = name;
+        context.gameState().trainer().habitats.setup(context.pbsData());   // 294:303-307 pbTrainerName_habitat: Habitats.setup for a new trainer
         next(Phase.FADE_BACK, FADE_FRAMES + 1);
     }
 

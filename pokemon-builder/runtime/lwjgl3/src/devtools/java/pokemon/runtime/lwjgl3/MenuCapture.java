@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1540,6 +1540,50 @@ public final class MenuCapture extends ApplicationAdapter {
                     if (i % 3 == 0) shotMap(String.format(java.util.Locale.ROOT, "fishing-%02d", i));
                     if (i == 30 || i == 36) stepMap(GameAction.CONFIRM);
                 }
+                break;
+            }
+            case "habitat": {
+                pokemon.runtime.pokemon.HabitatLog log = state.trainer().habitats;
+                log.attachPbs(context.pbsData());
+                log.setup(context.pbsData());
+                state.trainer().pokedex = true;
+                int[] maps = {44, 343, 483, 10, 43};
+                for (int map : maps) state.fieldGlobals().visitedMaps.add(map);
+                int shown = 0;
+                for (pokemon.runtime.pokemon.HabitatLog.Entry e : log.habitatList(state.fieldGlobals().visitedMaps)) {
+                    int n = 0;
+                    for (pokemon.runtime.pokemon.HabitatLog.Kind kind : e.habitat.encounters.values()) {
+                        for (String species : new java.util.ArrayList<>(kind.list)) {
+                            if (shown % 3 == 0 || n % 2 == 0) state.trainer().setSeen(species);
+                            if (shown % 3 == 0) state.trainer().setOwned(species);
+                            n++;
+                        }
+                    }
+                    shown++;
+                }
+                overlay.openAt(pokemon.runtime.ui.menu.PauseMenuModel.Action.HABITAT);
+                idle(8);
+                renderOverlay();
+                shot("habitat-1-list");
+                tapAndRender(GameAction.DOWN, overlay);
+                idle(2);
+                renderOverlay();
+                shot("habitat-2-second");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                for (int k = 0; k < 4; k++) {
+                    idle(30);
+                    renderOverlay();
+                    shot("habitat-3-detail-" + k);
+                }
+                tapAndRender(GameAction.RIGHT, overlay);
+                idle(10);
+                renderOverlay();
+                shot("habitat-4-page2");
+                tapAndRender(GameAction.LEFT, overlay);
+                tapAndRender(GameAction.LEFT, overlay);
+                idle(10);
+                renderOverlay();
+                shot("habitat-5-area");
                 break;
             }
             case "quests": {

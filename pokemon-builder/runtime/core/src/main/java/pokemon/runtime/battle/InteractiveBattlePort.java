@@ -1646,7 +1646,7 @@ public final class InteractiveBattlePort implements BattlePort {
                 trainer.registerSeen(pkmn);                                          // :45 pbSeenForm
                 String species = pkmn.species == null ? null : pkmn.species.internalName;
                 if (species != null && !trainer.owned.contains(species)) {           // :47 hasOwned?
-                    trainer.owned.add(species);                                      // :48 setOwned
+                    trainer.setOwned(species);                                       // :48 setOwned
                     if (trainer.pokedex) {                                           // :49
                         steps.add(new CaughtStep(pkmn.name + "的数据被记录在图鉴里了。", null));   // :50
                         steps.add(new CaughtStep(null, pkmn.species));               // :51 pbShowPokedex

@@ -22,7 +22,7 @@ public final class PauseMenuModel {
         TITLE,
         /** Quit the application. */
         EXIT
-        , PARTY, BAG, POKEDEX, STORAGE, QUESTS
+        , PARTY, BAG, POKEDEX, STORAGE, QUESTS, HABITAT
     }
 
     public static final class Entry {
@@ -66,6 +66,9 @@ public final class PauseMenuModel {
             entries.add(new Entry(Action.PARTY, "宝可梦", "menuPokemon"));
         }
         entries.add(new Entry(Action.BAG, "背包", "menuBag"));
+        if (state != null && !state.trainer().habitats.habitatList(state.fieldGlobals().visitedMaps).isEmpty()) {
+            entries.add(new Entry(Action.HABITAT, "分布图鉴", "menuQuests"));          // Modular Menu:120-129: habitatData and the list are not empty
+        }
         entries.add(new Entry(Action.QUESTS, "任务", "menuQuests"));                // Modular Menu:141 :MQS (always available)
         entries.add(new Entry(Action.TRAINER, name, "menuTrainer"));
         if (!inSafari) entries.add(new Entry(Action.SAVE, "保存", "menuSave"));    // Modular Menu:176 !(pbInSafari? || pbInBugContest?)

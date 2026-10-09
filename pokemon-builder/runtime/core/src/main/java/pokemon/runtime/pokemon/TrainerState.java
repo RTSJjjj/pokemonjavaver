@@ -83,18 +83,34 @@ public final class TrainerState {
                 | (source.nextInt(256) << 24);
     }
     public Storage currentStorage() { return storageForRegion(region); }
+    /** {@code $Trainer.habitatData} and the indexes behind it (294_Boonzeet_s_Habitat_List). */
+    public final HabitatLog habitats = new HabitatLog(this);
+
     public void registerSeen(Pokemon p) {
-        if (p != null && !p.egg && p.species != null) seen.add(p.species.internalName);
+        if (p != null && !p.egg && p.species != null) setSeen(p.species.internalName);
     }
     public void registerOwned(Pokemon p) {
         registerSeen(p);
-        if (p != null && !p.egg && p.species != null) owned.add(p.species.internalName);
+        if (p != null && !p.egg && p.species != null) setOwned(p.species.internalName);
+    }
+
+    /** {@code pbSetSeen} (294:309-317): a species seen for the first time updates its habitats. */
+    public void setSeen(String species) {
+        if (seen.add(species)) {
+            habitats.updateForSpecies(species);
+        }
+    }
+
+    /** {@code PokeBattle_Trainer#setOwned} (294:289-298): owning a species updates its habitats. */
+    public void setOwned(String species) {
+        owned.add(species);
+        habitats.updateForSpecies(species);
     }
     public void reset() {
         name = "训练家"; gender = PokemonStats.MALE; money = 0;
         newId(null);                       // a new game rolls a new trainer id
         party.members().clear(); storage.clear(); regionalStorage.clear();
-        seen.clear(); owned.clear(); badges.clear(); playSeconds = 0; region = 0;
+        seen.clear(); owned.clear(); habitats.clear(); badges.clear(); playSeconds = 0; region = 0;
         pokedex = false; pokepc = false; expPot = 0; chainCatching.reset(); dayCare.reset(); java.util.Arrays.fill(hatcherEggs, null); hallOfFame.clear(); hallOfFameLastNumber = 0; mysteryGiftAccess = false;
         healMapId = -1; healX = 0; healY = 0; healDirection = 0;
     }

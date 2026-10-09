@@ -636,6 +636,8 @@ public final class PbsData {
         public String environment;
         /** MetadataHealingSpot "map,x,y" (the Pokemon Center of the region's nearest town). */
         public int[] healingSpot;
+        /** MetadataMapPosition "region,x,y" (Misc_Data:100): where the map sits on the region map; null = none. */
+        public int[] mapPosition;
         /** MetadataWeather "type,probability": the map's weather type name and its chance (percent). */
         public String weatherType;
         public int weatherProbability;
@@ -704,6 +706,7 @@ public final class PbsData {
         record.wildCaptureME = node.getString("wildCaptureME", null);
         record.environment = node.getString("environment", null);
         record.healingSpot = node.has("healingSpot") ? intArray(child(node, "healingSpot")) : null;
+        record.mapPosition = node.has("mapPosition") ? intArray(child(node, "mapPosition")) : null;
         JsonValue weather = child(node, "weather");
         if (weather != null && weather.isArray() && weather.size >= 2) {
             record.weatherType = weather.get(0).asString();
