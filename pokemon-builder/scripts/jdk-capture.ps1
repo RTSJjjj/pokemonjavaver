@@ -32,5 +32,6 @@ Compile "$root\runtime\lwjgl3\src\main\java" $lwOut ($cp + ';' + $mainOut)
 $res = "$root\runtime\core\src\main\resources"
 $full = $cp + ';' + $mainOut + ';' + $lwOut
 if (Test-Path $res) { $full += ';' + $res }
-& $java '-Dfile.encoding=UTF-8' -cp $full pokemon.runtime.lwjgl3.MenuCapture $DataRoot $OutDir $Mode
+$mainClass = if ($env:POKEMON_CAPTURE_MAIN) { $env:POKEMON_CAPTURE_MAIN } else { 'pokemon.runtime.lwjgl3.MenuCapture' }
+& $java '-Dfile.encoding=UTF-8' -cp $full $mainClass $DataRoot $OutDir $Mode
 exit $LASTEXITCODE

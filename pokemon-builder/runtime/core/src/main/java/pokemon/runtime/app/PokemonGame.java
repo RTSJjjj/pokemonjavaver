@@ -27,6 +27,9 @@ public final class PokemonGame extends Game {
     private final String dataRoot;
     private final int startMapOverride;
     private final KeyStateSource keySource;
+    /** On-screen keys of a touch build (Android); null on the desktop. */
+    private final pokemon.runtime.input.touch.TouchControls touch;
+    private com.badlogic.gdx.graphics.g2d.SpriteBatch touchBatch;
     private RuntimeContext context;
     /** Window size to restore when fullscreen is left (R11). */
     private int windowedWidth = ScreenMetrics.LOGICAL_WIDTH;
@@ -48,6 +51,17 @@ public final class PokemonGame extends Game {
      * @param keySource       desktop key state; null keeps the game headless
      */
     public PokemonGame(String dataRoot, int startMapOverride, KeyStateSource keySource) {
+        this(dataRoot, startMapOverride, keySource, null);
+    }
+
+    /**
+     * @param touch on-screen keys (a touch build); the caller wraps its key
+     *              source with {@code touch.wrap(...)} so the keys reach the
+     *              game as ordinary keys
+     */
+    public PokemonGame(String dataRoot, int startMapOverride, KeyStateSource keySource,
+                       pokemon.runtime.input.touch.TouchControls touch) {
+        this.touch = touch;
         this.dataRoot = dataRoot;
         this.startMapOverride = startMapOverride;
         this.keySource = keySource;
@@ -78,6 +92,10 @@ public final class PokemonGame extends Game {
             }
         }
 
+        if (touch != null && context.database() != null) {
+            createTouchControls();
+        }
+
         if (context.database() != null) {
             // R3/R4: the walking demo starts on the System start map unless an
             // explicit map was requested (e.g. the demo runs Map002). L1: the
@@ -96,6 +114,17 @@ public final class PokemonGame extends Game {
         }
     }
 
+    /** The key faces use the project's message font, sized from the screen height. */
+    private void createTouchControls() {
+        String name = context.database().project().runtime.messageFont;
+        java.io.File file = name == null ? null
+                : new pokemon.runtime.map.GraphicsLocator(context.database()).font(name);
+        int height = Gdx.graphics.getHeight();
+        touch.create(new pokemon.runtime.ui.menu.MenuFont(file, Math.round(height * 0.06f)),
+                new pokemon.runtime.ui.menu.MenuFont(file, Math.round(height * 0.028f)));
+        touchBatch = new com.badlogic.gdx.graphics.g2d.SpriteBatch();
+    }
+
     /** Logger wrapper so the context can log without holding a Gdx reference. */
     public void log(String message) {
         if (Gdx.app != null) {
@@ -109,6 +138,9 @@ public final class PokemonGame extends Game {
     public void render() {
         // The input manager is polled once per frame so that every system sees
         // the same frame snapshot (project3 sections 13, 14).
+        if (touch != null) {
+            touch.update();
+        }
         context.inputManager().beginFrame();
         if (getScreen() instanceof MapScreen) {
             context.gameState().trainer().playSeconds += Math.max(0, Math.min(1, Gdx.graphics.getDeltaTime()));
@@ -116,6 +148,9 @@ public final class PokemonGame extends Game {
         context.audioManager().update(Gdx.graphics.getDeltaTime()); // R6.24: BGM cue
         handleSystemKeys();
         super.render();
+        if (touch != null && touchBatch != null) {
+            touch.render(touchBatch);
+        }
         context.inputManager().endFrame();
     }
 
@@ -196,6 +231,12 @@ public final class PokemonGame extends Game {
         }
         if (getScreen() != null) {
             getScreen().dispose();
+        }
+        if (touch != null) {
+            touch.dispose();
+        }
+        if (touchBatch != null) {
+            touchBatch.dispose();
         }
         super.dispose();
     }
