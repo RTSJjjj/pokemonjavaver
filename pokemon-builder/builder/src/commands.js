@@ -20,6 +20,7 @@ import { analyzeScriptUsage, formatScriptSummary } from "../../tools/script-anal
 import { writeAuditReports } from "../../tools/report-writer/index.js";
 import { convertProject, formatConvertSummary } from "../../tools/data-converter/index.js";
 import { writeScriptIr } from "./script-compiler.js";
+import { syncBossBattles } from "./boss-battles.js";
 import {
   DEFAULT_AUDIO_OPTIONS,
   AUDIO_PRESETS,
@@ -398,6 +399,7 @@ function cmdBuildData(ctx, parsed) {
   const converted = runConvert(ctx, validated, { scan: "2/4", convert: "3/4" }, parsed.flags["no-cache"] !== true);
   if (!converted) return EXIT_ERROR;
   if (!compileScripts(ctx, "4/4")) return EXIT_ERROR;
+  if (!bossBattleStep(ctx, validated.projectPath, "4/4")) return EXIT_ERROR;
   console.log("BUILD DATA SUCCESS");
   console.log("BUILD SUCCESS");
   return EXIT_OK;
@@ -422,6 +424,25 @@ function compileScripts(ctx, step) {
     ctx.logger.error(`script compilation failed: ${error.message}`);
     return null;
   }
+}
+
+/**
+ * Boss_Battles: new `def battleXxx` in the plugin section become BossBattleData.java here (sub-step of the script
+ * step). A def the strict generator rejects, or an event calling a boss with no def, fails the build.
+ */
+function bossBattleStep(ctx, projectPath, step) {
+  ctx.logger.step(`[${step}] Boss_Battles: exporting the plugin section and generating BossBattleData.java...`);
+  const boss = syncBossBattles(ctx.builderRoot, projectPath);
+  for (const warning of boss.warnings) ctx.logger.warn("      " + warning);
+  if (!boss.ok) {
+    for (const error of boss.errors) ctx.logger.error("      " + error);
+    ctx.logger.error("boss battle generation failed");
+    return false;
+  }
+  if (!boss.skipped) {
+    ctx.logger.step(`      defs=${boss.defs} entries=${boss.entries} ${boss.changed ? "updated" : "unchanged"}`);
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -561,6 +582,7 @@ function cmdBuildPc(ctx, parsed) {
 
   const ir = compileScripts(ctx, "4/8");
   if (!ir) return EXIT_ERROR;
+  if (!bossBattleStep(ctx, validated.projectPath, "4/8")) return EXIT_ERROR;
 
   const audio = runAudioStep(ctx, parsed, "[5/8]", validated.projectPath);
   if (!audio.ok) return EXIT_ERROR;
@@ -674,6 +696,7 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
 
   const ir = compileScripts(ctx, "4/8");
   if (!ir) return EXIT_ERROR;
+  if (!bossBattleStep(ctx, validated.projectPath, "4/8")) return EXIT_ERROR;
 
   const audio = runAudioStep(ctx, parsed, "[5/8]", validated.projectPath);
   if (!audio.ok) return EXIT_ERROR;

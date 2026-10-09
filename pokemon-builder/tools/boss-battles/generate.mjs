@@ -17,12 +17,17 @@
 // not part of the exported sections, so it is reported and left out.
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const input = process.argv[2] ?? path.join(here, "../../plugin-src/ruby/319_Boss_Battles.rb");
-const output = process.argv[3] ?? path.join(here, "../../runtime/core/src/main/java/pokemon/runtime/event/BossBattleData.java");
-const lines = readFileSync(input, "utf8").split(/\r?\n/);
+
+/**
+ * Transcribes the text of section 319 into the Java source of BossBattleData.
+ * Throws an Error listing every def that does not have the shared shape.
+ * Returns { java, entries, unsupported, defCount }.
+ */
+export function generateBossBattleData(source) {
+const lines = source.split(/\r?\n/);
 
 const defs = [];
 let current = null;
@@ -116,7 +121,7 @@ for (const def of defs) {
   entries.push(entry);
   } catch (error) { failures.push(error.message); }
 }
-if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
+if (failures.length) throw new Error(failures.join("\n"));
 
 const lit = (v) => Array.isArray(v) ? `new int[] { ${v.join(", ")} }`
   : typeof v === "number" ? String(v) : JSON.stringify(v);
@@ -217,5 +222,18 @@ java += `    }
     }
 }
 `;
-writeFileSync(output, java, "utf8");
-console.log(`${entries.length} entries written to ${output}; not transcribed: ${unsupported.join(", ") || "none"}`);
+return { java, entries, unsupported, defCount: defs.length };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const input = process.argv[2] ?? path.join(here, "../../plugin-src/ruby/319_Boss_Battles.rb");
+  const output = process.argv[3] ?? path.join(here, "../../runtime/core/src/main/java/pokemon/runtime/event/BossBattleData.java");
+  try {
+    const { java, entries, unsupported } = generateBossBattleData(readFileSync(input, "utf8"));
+    writeFileSync(output, java, "utf8");
+    console.log(`${entries.length} entries written to ${output}; not transcribed: ${unsupported.join(", ") || "none"}`);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+}

@@ -3,7 +3,7 @@
 // implemented; anything else raises a descriptive error.
 //
 // Verified in Phase 3 against a real Pokemon Essentials project: every
-// Data/*.rxdata file of E:\仓库\范例\929 parses byte-exact (541 files).
+// Data/*.rxdata file of the reference project parses byte-exact (541 files).
 // The details a naive reader gets wrong (and that this reader handles):
 //   * w_long packing: 1..4 = positive multi-byte payload, 5..127 = short
 //     positive (byte - 5), 128..251 = SHORT NEGATIVE (byte - 251),

@@ -575,6 +575,7 @@ public final class RuntimeContext {
                 this::logWarning);
         eventInterpreter.attachScreenEffects(screenEffects);
         eventInterpreter.attachInventory(gameState.inventory());
+        eventInterpreter.attachRegion(() -> new pokemon.runtime.field.EvolutionWorld(this).mapRegion());
         if (database != null) {
             // P0c: the Pokemon construction IR commands need the PBS data.
             eventInterpreter.attachPbs(database.pbs());
@@ -649,6 +650,7 @@ public final class RuntimeContext {
                 this::logWarning);
         interpreter.attachScreenEffects(screenEffects);
         interpreter.attachInventory(gameState.inventory());
+        interpreter.attachRegion(() -> new pokemon.runtime.field.EvolutionWorld(this).mapRegion());
         interpreter.attachScriptIr(scriptIr);
         if (database != null) {
             interpreter.attachPbs(database.pbs());

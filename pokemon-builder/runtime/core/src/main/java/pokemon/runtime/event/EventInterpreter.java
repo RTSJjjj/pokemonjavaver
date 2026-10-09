@@ -1584,6 +1584,60 @@ public final class EventInterpreter {
     private void executeIrStep(JsonValue ir) {
         String name = ir.getString("command", "");
         switch (name) {
+            case "DAYCARE_DEPOSIT": {                                     // 181_PField_DayCare:57-70
+                state.trainer().dayCare.deposit(state.trainer(), irNumber(ir.get("index")));
+                break;
+            }
+            case "DAYCARE_WITHDRAW": {                                    // :72-83
+                state.trainer().dayCare.withdraw(state.trainer(), irNumber(ir.get("index")));
+                break;
+            }
+            case "DAYCARE_GENERATE_EGG": {                                // :187-465
+                if (pbs == null) break;
+                state.trainer().dayCare.generateEgg(state.trainer(), pbs, new java.util.Random(), new pokemon.runtime.pokemon.DayCare.World() {
+                    public int region() { return regionSupplier.getAsInt(); }
+                    public boolean hasItem(String item) { return state.inventory().has(item); }
+                    public int mapId() { return mapId; }
+                });
+                break;
+            }
+            case "DAYCARE_GET_DEPOSITED": {                               // :14-23
+                pokemon.runtime.pokemon.DayCare dayCare = state.trainer().dayCare;
+                int index = irNumber(ir.get("index"));
+                Pokemon pkmn = dayCare.get(index);
+                if (pkmn == null) break;                                  // return false
+                int nameVariable = irInt(ir, "nameVariable", -1), costVariable = irInt(ir, "costVariable", -1);
+                if (nameVariable >= 0) state.variables().setText(nameVariable, pkmn.name);
+                if (costVariable >= 0) state.variables().set(costVariable, dayCare.cost(index));
+                break;
+            }
+            case "DAYCARE_COMPAT": {                                      // :182-184
+                state.variables().set(irInt(ir, "variable", 0), state.trainer().dayCare.compat());
+                break;
+            }
+            case "DAYCARE_RESET_EGG": {                                   // $PokemonGlobal.daycareEgg=0; daycareEggSteps=0
+                state.trainer().dayCare.egg = 0;
+                state.trainer().dayCare.eggSteps = 0;
+                break;
+            }
+            case "DAYCARE_CHOOSE": {                                      // :85-109
+                String text = ir.getString("text", "");
+                int variable = irInt(ir, "variable", 0);
+                startFieldTask(scene -> {
+                    pokemon.runtime.pokemon.DayCare dayCare = state.trainer().dayCare;
+                    int count = dayCare.deposited();
+                    if (count == 0) {
+                        throw new IllegalStateException("There's no Pokémon here...");
+                    } else if (count == 1) {
+                        state.variables().set(variable, dayCare.pokemon[0] != null ? 0 : 1);
+                    } else {
+                        java.util.List<String> choices = dayCare.choices();
+                        int command = scene.pbMessage(text, choices, choices.size());
+                        state.variables().set(variable, command == 2 ? -1 : command);
+                    }
+                });
+                break;
+            }
             case "TEACH_EGG_MOVES":
                 startEggMoveTutor(false);
                 break;
@@ -2596,6 +2650,34 @@ public final class EventInterpreter {
      * 362_changeShiny {@code teachEggMoves}: the egg-move teacher NPC. The Ruby runs as a blocking script on a task of the
      * running event; the event goes on when it returns.
      */
+    private int irNumber(JsonValue value) {
+        Object resolved = resolveIrValue(value);
+        return resolved instanceof Number ? ((Number) resolved).intValue() : -1;
+    }
+
+    private java.util.function.IntSupplier regionSupplier = () -> -1;
+
+    /** {@code pbGetCurrentRegion} (253_PSystem_Utilities:840-843) for the Day Care's regional forms. */
+    public void attachRegion(java.util.function.IntSupplier supplier) {
+        regionSupplier = supplier;
+    }
+
+    /** Runs a blocking script of the running event on a task whose requests the interpreter answers. */
+    private void startFieldTask(java.util.function.Consumer<TaskFieldScene> body) {
+        pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
+        TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
+        scriptTaskResult = null;
+        holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            body.accept(scene);
+            scriptTaskResult = true;
+        });
+        scriptTaskDone = result -> {
+        };
+        scriptTaskAnswer = null;
+        scriptQuestion = null;
+        scriptTask = holder[0];
+    }
+
     private void startEggMoveTutor(boolean shiny) {
         pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
         TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));

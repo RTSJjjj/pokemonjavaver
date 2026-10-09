@@ -45,6 +45,8 @@ public final class TrainerState {
     public int expPot;
     /** 343_ChainCatching:17-31 {@code $Trainer.chainCatching}. */
     public final ChainCatching chainCatching = new ChainCatching();
+    /** {@code $PokemonGlobal.daycare} and its egg (181_PField_DayCare). */
+    public final DayCare dayCare = new DayCare();
     public double playSeconds;
     public int region;
 
@@ -85,7 +87,7 @@ public final class TrainerState {
         newId(null);                       // a new game rolls a new trainer id
         party.members().clear(); storage.clear(); regionalStorage.clear();
         seen.clear(); owned.clear(); badges.clear(); playSeconds = 0; region = 0;
-        pokedex = false; pokepc = false; expPot = 0; chainCatching.reset();
+        pokedex = false; pokepc = false; expPot = 0; chainCatching.reset(); dayCare.reset();
         healMapId = -1; healX = 0; healY = 0; healDirection = 0;
     }
 

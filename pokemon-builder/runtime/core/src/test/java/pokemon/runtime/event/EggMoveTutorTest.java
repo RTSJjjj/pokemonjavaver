@@ -38,8 +38,8 @@ class EggMoveTutorTest {
 
     @Test
     void teachesAnEggMoveForTheFee() throws Exception {
-        File root = new File("E:/仓库/范例/929/pokemon-builder/generated");
-        if (!root.isDirectory()) return;
+        File root = pokemon.runtime.map.TestData.runtimeDataRoot();
+        if (root == null) return;
         PbsData data = PbsData.parse(root);
         GameState state = new GameState();
         Pokemon torchic = new Pokemon(data.species("TORCHIC"), 5, data);
@@ -55,8 +55,8 @@ class EggMoveTutorTest {
 
     @Test
     void refusesWithoutMoney() throws Exception {
-        File root = new File("E:/仓库/范例/929/pokemon-builder/generated");
-        if (!root.isDirectory()) return;
+        File root = pokemon.runtime.map.TestData.runtimeDataRoot();
+        if (root == null) return;
         PbsData data = PbsData.parse(root);
         GameState state = new GameState();
         state.trainer().party.add(new Pokemon(data.species("TORCHIC"), 5, data));
@@ -69,8 +69,8 @@ class EggMoveTutorTest {
 
     @Test
     void changesShinyForTheFee() throws Exception {
-        File root = new File("E:/仓库/范例/929/pokemon-builder/generated");
-        if (!root.isDirectory()) return;
+        File root = pokemon.runtime.map.TestData.runtimeDataRoot();
+        if (root == null) return;
         PbsData data = PbsData.parse(root);
         GameState state = new GameState();
         Pokemon torchic = new Pokemon(data.species("TORCHIC"), 5, data);

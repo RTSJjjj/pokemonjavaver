@@ -4037,6 +4037,11 @@ public final class MapScreen extends ScreenAdapter {
      * player step as the grass rustle (the project's onStepTaken hook).
      */
     private void stepEggs() {
+        if (context.pbsData() != null) {                                      // 181_PField_DayCare:471-519 onStepTaken
+            gameState.trainer().dayCare.onStep(context.pbsData(), encounterRandom,
+                    gameState.inventory().has("OVALCHARM"), gameState.switches().get(199),
+                    j -> gameState.trainer().badges.contains(j));
+        }
         if (gameState.trainer().party.eggCount() == 0) {
             return;
         }

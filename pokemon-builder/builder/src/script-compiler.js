@@ -400,6 +400,24 @@ export const HANDLERS = {
       throw new Error("Unsupported pbChoosePokemon call");
     return { command: "CHOOSE_POKEMON", variable: args[0], nameVariable: args[1], proc: "relearnable", allowIneligible: args[3] === true };
   },
+  /** pbChooseNonEggPokemon(variable, nameVariable) (252_PSystem_PokemonUtilities:269-271). */
+  pbChooseNonEggPokemon(args) {
+    if (!Number.isInteger(args[0]) || args[0] < 1 || !Number.isInteger(args[1]) || args[1] < 1)
+      throw new Error("pbChooseNonEggPokemon requires variable ids");
+    return { command: "CHOOSE_POKEMON", variable: args[0], nameVariable: args[1], proc: "nonegg", allowIneligible: false };
+  },
+  // ---- 181_PField_DayCare ----
+  pbDayCareDeposit(args) { return { command: "DAYCARE_DEPOSIT", index: dayCareIndex(args[0]) }; },
+  pbDayCareWithdraw(args) { return { command: "DAYCARE_WITHDRAW", index: dayCareIndex(args[0]) }; },
+  pbDayCareGenerateEgg() { return { command: "DAYCARE_GENERATE_EGG" }; },
+  pbDayCareGetDeposited(args) {
+    return { command: "DAYCARE_GET_DEPOSITED", index: dayCareIndex(args[0]), nameVariable: args[1], costVariable: args[2] };
+  },
+  pbDayCareGetCompatibility(args) { return { command: "DAYCARE_COMPAT", variable: args[0] }; },
+  pbDayCareChoose(args) {
+    if (typeof args[0] !== "string" || !Number.isInteger(args[1])) throw new Error("pbDayCareChoose requires a text and a variable");
+    return { command: "DAYCARE_CHOOSE", text: args[0], variable: args[1] };
+  },
   pbChoosePokemonForTrade(args) {
     if (!Number.isInteger(args[0]) || args[0] < 1 || !Number.isInteger(args[1]) || args[1] < 1 || typeof args[2] !== "string")
       throw new Error("Trade selection requires variable ids and a species");
@@ -801,7 +819,8 @@ const DOMAIN_APIS = new Set([
   "pbBerryPlant", "pbPickBerry", "pbStoreItem", "pbGetKeyItem", "pbDeleteItem",
   "pbPokeCenterPC", "teachEggMoves", "pbChangeShinyByNPC", "pbShowMap", "pbSetPokemonCenter",
   "pbToggleFollowingPokemon", "pbRegisterPartner", "pbDeregisterPartner",
-  "pbSet", "push", "myAddEgg", "pbCrystalWarp",
+  "pbSet", "push", "myAddEgg", "pbChooseNonEggPokemon", "pbDayCareDeposit", "pbDayCareWithdraw", "pbDayCareGenerateEgg",
+  "pbDayCareGetDeposited", "pbDayCareGetCompatibility", "pbDayCareChoose", "pbCrystalWarp",
 ]);
 
 /**
@@ -1026,6 +1045,14 @@ function compileGlueStatements(statements, locals, block) {
  * Compiles one block.
  * @returns {{id, source, category, status, ir?, apis, reason?}}
  */
+/** A Day Care slot: a number, or {@code pbGet(n)} (a game variable). */
+function dayCareIndex(arg) {
+  if (Number.isInteger(arg)) return arg;
+  const variable = arg && arg.script ? /^pbGet\(\s*(\d+)\s*\)$/.exec(arg.script) : null;
+  if (variable) return { variable: Number(variable[1]) };
+  throw new Error("Unsupported Day Care index");
+}
+
 export function compileBlock(block) {
   const name = block.calls && block.calls[0] ? block.calls[0].name : (block.apis && block.apis[0]) || null;
   const entry = {
@@ -1043,6 +1070,13 @@ export function compileBlock(block) {
   };
   const source = (block.rubySource || "").trim();
 
+  if (/^\$PokemonGlobal\.daycareEgg\s*=\s*0\s+\$PokemonGlobal\.daycareEggSteps\s*=\s*0$/.test(source)) {
+    return { ...entry, status: "TRANSLATED", ir: { command: "DAYCARE_RESET_EGG" } };   // 181_PField_DayCare:55-56
+  }
+  if (/^pbDayCareGenerateEgg\s+\$PokemonGlobal\.daycareEgg\s*=\s*0\s+\$PokemonGlobal\.daycareEggSteps\s*=\s*0$/.test(source)) {
+    return { ...entry, status: "TRANSLATED",
+      ir: { command: "SEQUENCE", steps: [{ command: "DAYCARE_GENERATE_EGG" }, { command: "DAYCARE_RESET_EGG" }] } };
+  }
   if (block.category === "SIMPLE_EXPRESSION") {
     if (SIMPLE_CONDITION.test(source)) {
       return { ...entry, status: "TRANSLATED", ir: { command: "CONDITION", expression: source } };

@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class PBEvolutionTest {
 
     private static PbsData data() throws Exception {
-        File root = new File("E:/仓库/范例/929/pokemon-builder/generated");
-        return root.isDirectory() ? PbsData.parse(root) : null;
+        File root = pokemon.runtime.map.TestData.runtimeDataRoot();
+        return root != null ? PbsData.parse(root) : null;
     }
 
     @Test

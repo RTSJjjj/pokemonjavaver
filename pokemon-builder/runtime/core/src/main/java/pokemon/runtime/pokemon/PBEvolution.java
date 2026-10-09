@@ -452,6 +452,23 @@ public final class PBEvolution {
     }
 
     /**
+     * {@code pbGetBabySpecies(species, item1, item2)} (:159-175) with the incense check (:165-167): the prevolution is taken
+     * when its species needs no incense or a parent holds it.
+     */
+    public static PbsData.Species babySpecies(PbsData data, PbsData.Species species, String item1, String item2) {
+        PbsData.Species ret = species;
+        PbsData.Species previous = previousOf(data, species);
+        if (previous != null) {
+            String incense = previous.incense;                                                    // :166 SpeciesIncense
+            boolean none = incense == null || incense.isEmpty();
+            if (none || incense.equalsIgnoreCase(item1) || incense.equalsIgnoreCase(item2)) {
+                ret = previous;                                                                   // :167
+            }
+        }
+        return ret != species ? babySpecies(data, ret, item1, item2) : ret;                       // :173
+    }
+
+    /**
      * {@code pbGetMinimumLevel(species)} (:177-190): the level at which the species can first appear, derived from the
      * prevolution's method.
      */

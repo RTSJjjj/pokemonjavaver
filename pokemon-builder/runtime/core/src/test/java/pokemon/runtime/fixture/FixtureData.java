@@ -29,7 +29,6 @@ public final class FixtureData {
                 "../../tests/fixture-project/generated",
                 "../tests/fixture-project/generated",
                 "tests/fixture-project/generated",
-                "E:/仓库/范例/929/pokemon-builder/tests/fixture-project/generated",
         };
         for (String candidate : candidates) {
             File file = new File(candidate);

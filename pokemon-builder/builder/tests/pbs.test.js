@@ -28,6 +28,8 @@ import {
   parseTypes,
   parseMoves,
 } from "../../tools/data-converter/pbs.js";
+import { fileURLToPath } from "node:url";
+const REFERENCE_PROJECT = process.env.RMXP_PROJECT || fileURLToPath(new URL("../../../", import.meta.url));
 
 test("INI sections keep headers, keys and comments out", () => {
   const sections = parseIniSections(`
@@ -285,11 +287,11 @@ test("the nature table is the 25 standard natures", () => {
 });
 
 test("the real reference project PBS parses when it is available", (t) => {
-  if (!existsSync("E:/仓库/范例/929/PBS/pokemon.txt")) {
+  if (!existsSync(path.join(REFERENCE_PROJECT, "PBS", "pokemon.txt"))) {
     t.skip("reference project not available in this environment");
     return;
   }
-  const { counts, output } = buildPbsIr("E:/仓库/范例/929");
+  const { counts, output } = buildPbsIr(REFERENCE_PROJECT);
   // Floors, not exact counts: the game author adds species/forms over time.
   assert.ok(counts.species >= 1000, "species floor: " + counts.species);
   assert.ok(counts.forms >= 500, "forms floor: " + counts.forms);

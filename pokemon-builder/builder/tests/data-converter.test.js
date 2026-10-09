@@ -22,6 +22,8 @@ import {
 import { array, bool, dump, hash, int, nilValue, object, str } from "./marshal-writer.js";
 import { userdef } from "./marshal-writer.js";
 import { makeProject, snapshotProject, scratch } from "./fixtures.js";
+import { fileURLToPath } from "node:url";
+const REFERENCE_PROJECT = process.env.RMXP_PROJECT || fileURLToPath(new URL("../../../", import.meta.url));
 
 const converterDir = path.resolve(import.meta.dirname, "..", "..", "tools", "data-converter");
 
@@ -426,7 +428,7 @@ test("reports malformed event scripts instead of dropping them", (t) => {
 });
 
 test("converts the real reference project when it is available", (t) => {
-  const candidate = "E:/仓库/范例/929/Data/Map001.rxdata";
+  const candidate = path.join(REFERENCE_PROJECT, "Data", "Map001.rxdata");
   if (!existsSync(candidate)) {
     t.skip("reference project not available in this environment");
     return;

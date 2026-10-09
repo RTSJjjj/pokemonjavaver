@@ -720,6 +720,17 @@ public final class Pokemon {
         hp = Math.max(0, Math.min(maxHp(), maxHp() - (oldMax - hp)));
     }
 
+    /** {@code abilityIndex} (197:219-221): the slot set by {@code setAbility}, else the personal id's low bit. */
+    public int abilityIndex() {
+        int slot = abilitySlot();
+        return slot >= 0 ? slot : (personalID & 1);
+    }
+
+    /** {@code setAbility(value)} (197:255-257): 0/1 natural, 2 hidden. */
+    public void setAbilitySlot(int slot) {
+        ability = abilityForSlot(slot);
+    }
+
     /** The ability slot of the current ability: 0/1 natural, 2 hidden, -1 when it is none of the species' own. */
     private int abilitySlot() {
         if (ability == null) {

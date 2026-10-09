@@ -244,3 +244,9 @@ node --test builder/tests/*.test.js                          (构建器，在 po
 - 队伍菜单“昵称”（210:1438-1448，原来是空实现）现在可用。
 - `myAddEgg`（361）补上了原文的消息：“{1}加入了队伍。”、盒子满/传送到电脑的各句、obtainText。
 - 登记：`pbApplyBattlerMetricsToSprite` 与昵称界面的宝可梦图标未画；“Huh?”消息画在宿主画面之上，实际宿主是否可见取决于暂停菜单的底图；`pbGetStorageCreator` 未建模；`PartyView` 摘要的“蛋孵化日期/地点”备注仍用简化版（212:564-575 未接）。未实机验证。
+
+## 日托（181_PField_DayCare，map-100 培育屋阿姨、map-038 培育屋大叔）
+- 状态：`pokemon/DayCare`（`$PokemonGlobal.daycare[2]`、等级、`daycareEgg/daycareEggSteps`），挂在 `TrainerState.dayCare`，已存档。逻辑逐段转译：`pbDayCareDeposited/GetCost/EggGenerated?/Deposit（寄放后治疗）/Withdraw/Choose 的选项文案/IsDitto/CompatibleGender/GetCompat`，`pbDayCareGenerateEgg`（宝可梦种判定含各进化版回退、形态继承含阿罗拉/迦勒尔/洗翠及三个原种御三家与卡比兽的地区规则、招式继承含蛋招式与电球、个体值继承含力量系道具与红线、性格/特性/球种继承、闪耀符，宝可梦病毒）。每步：256 步一次产蛋判定（圆形护符 40/80/88）、寄放的宝可梦每步 +1 经验并学会升级招式（等级限制开关 199 时按徽章上限）。
+- 事件：编译器新增 `pbDayCareDeposit/Withdraw/GenerateEgg/GetDeposited/GetCompatibility/Choose`、`pbChooseNonEggPokemon`（→ `CHOOSE_POKEMON`，`nonegg`）与 `$PokemonGlobal.daycareEgg=0; daycareEggSteps=0`；条件原子 `Kernel.pbEggGenerated?/pbDayCareDeposited`、`pbDayCareGetLevelGain`。`pbDayCareGetDeposited(-1,3,-1)` 按 Ruby 的 `-1` 取第二格（只寄放一只时第二格为空，名字变量不更新）——与原文一致。
+- `pbGetBabySpecies` 新增带道具（`SpeciesIncense`）版本（`PBEvolution.babySpecies(pbs, species, item1, item2)`）。
+- 登记：蛋/亲代的 `language`（Masuda 法的语言差异 +5 次重抽）未建模，只有闪耀符 +2；形态的兼容蛋组/蛋招式取物种的；黑暗宝可梦未建模；`pbGetStorageCreator` 同孵蛋。未实机验证。

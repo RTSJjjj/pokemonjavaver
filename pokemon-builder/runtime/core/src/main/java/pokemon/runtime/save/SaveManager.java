@@ -222,6 +222,20 @@ public final class SaveManager {
         chain.addChild("shinyRetries", new JsonValue(trainer.chainCatching.shinyRetries));
         chain.addChild("ivGuaranteed", new JsonValue(trainer.chainCatching.ivGuaranteed));
         node.addChild("chain", chain);
+        JsonValue daycare = object();
+        daycare.addChild("egg", new JsonValue(trainer.dayCare.egg));
+        daycare.addChild("eggSteps", new JsonValue(trainer.dayCare.eggSteps));
+        JsonValue deposited = array();
+        for (int i = 0; i < 2; i++) {
+            if (trainer.dayCare.pokemon[i] == null) continue;
+            JsonValue entry = object();
+            entry.addChild("slot", new JsonValue(i));
+            entry.addChild("level", new JsonValue(trainer.dayCare.level[i]));
+            entry.addChild("pokemon", pokemonJson(trainer.dayCare.pokemon[i]));
+            deposited.addChild(entry);
+        }
+        daycare.addChild("deposited", deposited);
+        node.addChild("daycare", daycare);
         JsonValue seen = array(), owned = array(), badges = array();
         for (String id : trainer.seen) seen.addChild(new JsonValue(id));
         for (String id : trainer.owned) owned.addChild(new JsonValue(id));
@@ -582,6 +596,22 @@ public final class SaveManager {
             trainer.chainCatching.chainTimes = chain.getInt("times", 0);
             trainer.chainCatching.shinyRetries = chain.getInt("shinyRetries", 0);
             trainer.chainCatching.ivGuaranteed = chain.getInt("ivGuaranteed", 0);
+        }
+        JsonValue daycare = node.get("daycare");
+        if (daycare != null && daycare.isObject()) {
+            trainer.dayCare.egg = daycare.getInt("egg", 0);
+            trainer.dayCare.eggSteps = daycare.getInt("eggSteps", 0);
+            JsonValue deposited = daycare.get("deposited");
+            if (deposited != null && deposited.isArray()) {
+                for (JsonValue entry = deposited.child; entry != null; entry = entry.next) {
+                    int slot = entry.getInt("slot", 0);
+                    Pokemon kept = readPokemon(entry.get("pokemon"));
+                    if (kept != null && slot >= 0 && slot < 2) {
+                        trainer.dayCare.pokemon[slot] = kept;
+                        trainer.dayCare.level[slot] = entry.getInt("level", kept.level);
+                    }
+                }
+            }
         }
         JsonValue seen = node.get("seen"), owned = node.get("owned"), badges = node.get("badges");
         if (seen != null && seen.isArray()) for (JsonValue id : seen) trainer.seen.add(id.asString());

@@ -28,6 +28,7 @@ import {
   UNKNOWN,
 } from "../../tools/script-analyzer/index.js";
 import { array, dump, hash, int, nilValue, object, str, deflateText } from "./marshal-writer.js";
+const REFERENCE_PROJECT = process.env.RMXP_PROJECT || fileURLToPath(new URL("../../../", import.meta.url));
 
 const utf8 = (text) => Buffer.from(text, "utf8").toString("latin1");
 const analyzerDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "tools", "script-analyzer");
@@ -353,7 +354,7 @@ test("analyzeScriptUsage fails when no script section can be read", () => {
 });
 
 test("analyzes the real reference project when it is available", (t) => {
-  const candidate = "E:/仓库/范例/929/Data/Map001.rxdata";
+  const candidate = path.join(REFERENCE_PROJECT, "Data", "Map001.rxdata");
   if (!existsSync(candidate)) {
     t.skip("reference project not available in this environment");
     return;

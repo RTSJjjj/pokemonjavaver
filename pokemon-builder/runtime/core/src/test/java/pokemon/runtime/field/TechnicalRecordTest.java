@@ -35,8 +35,8 @@ class TechnicalRecordTest {
 
     @Test
     void aRecordIsUsedUpAndRemembered() throws Exception {
-        File root = new File("E:/仓库/范例/929/pokemon-builder/generated");
-        if (!root.isDirectory()) return;
+        File root = pokemon.runtime.map.TestData.runtimeDataRoot();
+        if (root == null) return;
         PbsData data = PbsData.parse(root);
         GameState state = new GameState();
         ItemHandlers handlers = new ItemHandlers(data, state, java.time.LocalTime::now);

@@ -87,3 +87,12 @@ docs/unsupported-scripts.md
 - `runtime/core/.../ScriptIrExecutionTest`：IR 命令的真实执行（含等待、门控）。
 - 重建：`builder.bat build-data <project>` 会重写 `generated/scripts` 并立即重编译 IR
   （数据重建不会孤立 IR）。
+
+## 7. Boss_Battles（流水线步骤）
+
+`build-data` / `build-pc` / `build-android*` 在脚本编译（第 4 步）之后自动执行 `builder/src/boss-battles.js`：
+从工程 `Scripts.rxdata` 取出 `Boss_Battles` 段 → 导出到 `plugin-src/ruby/<段号>_Boss_Battles.rb` →
+`tools/boss-battles/generate.mjs` 重新生成 `event/BossBattleData.java`（内容无变化则不写）。
+在该段新增同格式的 `def battleXxx` 即可，不需要手动导出/生成。失败条件（均使构建失败并带位置）：
+`def` 含生成器不认识的语句；事件调用了段内没有 `def` 的 `battleXxx`；调用了未转写的 `battleBoss`。
+工程没有该段时跳过。测试：`builder/tests/boss-battles.test.js`。

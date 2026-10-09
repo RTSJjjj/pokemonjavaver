@@ -9,6 +9,8 @@ import os from "node:os";
 
 import { scanProject, classifyDataFile, readScriptsSection, formatScanSummary } from "../../tools/scanner/index.js";
 import { array, dump, hash, int, object, str, deflateText } from "./marshal-writer.js";
+import { fileURLToPath } from "node:url";
+const REFERENCE_PROJECT = process.env.RMXP_PROJECT || fileURLToPath(new URL("../../../", import.meta.url));
 
 const utf8 = (text) => Buffer.from(text, "utf8").toString("latin1");
 
@@ -187,7 +189,7 @@ test("readScriptsSection marks uncompressed but readable payloads", () => {
 });
 
 test("scans the real reference project when it is available", (t) => {
-  const candidate = "E:/仓库/范例/929/Data/Map001.rxdata";
+  const candidate = path.join(REFERENCE_PROJECT, "Data", "Map001.rxdata");
   if (!existsSync(candidate)) {
     t.skip("reference project not available in this environment");
     return;

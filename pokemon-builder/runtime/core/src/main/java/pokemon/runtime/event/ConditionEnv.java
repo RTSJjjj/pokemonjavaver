@@ -111,6 +111,8 @@ final class ConditionEnv implements ScriptCondition.Env {
 
     private Object callOn(String receiver, String method, List<Object> args) {
         switch (receiver) {
+            case "Kernel":
+                return function(method, args);                                  // Kernel.pbEggGenerated? ...
             case "$game_switches":
                 return state.switches().get(Math.max(1, toInt(args.get(0))));
             case "$game_variables":
@@ -313,6 +315,18 @@ final class ConditionEnv implements ScriptCondition.Env {
                 boolean byMachine = args.size() > 2 && ScriptCondition.truthy(args.get(2));
                 int ret = scene.pbMoveTutorChoose(String.valueOf(args.get(0)), movelist, byMachine);
                 return ret >= 0 ? (Object) ret : Boolean.FALSE;                 // `return ret if ret`: the index (0 is true in Ruby)
+            }
+            case "pbEggGenerated?":                                             // 181_PField_DayCare:44-47
+                return state.trainer().dayCare.eggGenerated();
+            case "pbDayCareDeposited":                                          // :5-11
+                return state.trainer().dayCare.deposited();
+            case "pbDayCareGetLevelGain": {                                     // :26-33
+                pokemon.runtime.pokemon.DayCare dayCare = state.trainer().dayCare;
+                Pokemon pkmn = dayCare.get(toInt(args.get(0)));
+                if (pkmn == null) return false;
+                state.variables().setText(toInt(args.get(1)), pkmn.name);       // $game_variables[nameVariable] = pkmn.name
+                state.variables().set(toInt(args.get(2)), pkmn.level - dayCare.level[Math.floorMod(toInt(args.get(0)), 2)]);
+                return true;
             }
             case "pbHasRelearnableMove?":                                       // 228_PScreen_MoveRelearner:8-10
                 return pokemon.runtime.pokemon.MoveRelearner.hasRelearnableMove(

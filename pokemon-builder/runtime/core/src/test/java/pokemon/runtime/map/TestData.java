@@ -25,8 +25,7 @@ public final class TestData {
                 return file;
             }
         }
-        String[] candidates = { "../../generated", "../generated", "generated",
-                "E:/仓库/范例/929/pokemon-builder/generated" };
+        String[] candidates = { "../../generated", "../generated", "generated" };
         for (String candidate : candidates) {
             File file = new File(candidate);
             if (new File(file, "project.json").isFile()) {
