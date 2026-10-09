@@ -101,6 +101,32 @@ class EventInterpreterTest {
     // ------------------------------------------------------------------
 
     @Test
+    @DisplayName("Change Text Options (104) sets the system message position and frame: middle, no window (048:556-567)")
+    void changeTextOptions() {
+        interpreter.start(program(
+                cmd(0, 104, 0, array(1, 1)),
+                cmd(1, 101, 0, array("第一章"))), 1, 5);
+        interpreter.update(0f);
+        assertEquals(1, state.messagePosition());
+        assertEquals(1, state.messageFrame());
+        assertEquals("", messages.skin());                  // opacity 0: no window, the white text of a nil skin
+        assertEquals(1, messages.position());              // 1 = the middle of the screen
+        press(GameAction.CONFIRM);
+        interpreter.start(program(
+                cmd(0, 104, 0, array(2, 0)),
+                cmd(1, 101, 0, array("再见"))), 1, 5);
+        interpreter.update(0f);
+        assertNull(messages.skin());
+        assertEquals(0, messages.position());              // 0 = the bottom
+        press(GameAction.CONFIRM);
+        interpreter.start(program(
+                cmd(0, 104, 0, array(0, 0)),
+                cmd(1, 101, 0, array("\\wm上面"))), 1, 5);
+        interpreter.update(0f);
+        assertEquals(1, messages.position());              // \wm beats the system position
+    }
+
+    @Test
     @DisplayName("Show Text waits for confirm and pages two lines at a time (R6.31)")
     void textPaging() {
         interpreter.start(program(

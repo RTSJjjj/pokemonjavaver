@@ -157,6 +157,7 @@ public final class EventInterpreter {
     /** R6.31: the current message's window size (\l[n]) and skin (\w[skin]). */
     private int messageLinesPerPage = MessageService.LINES_PER_PAGE;
     private String messageSkin;
+    private boolean messagePositionSet;
     private int messagePosition;
     /** R6.31: a 102 immediately after the text keeps the page on screen. */
     private boolean choicesFollow;
@@ -238,6 +239,7 @@ public final class EventInterpreter {
         messageLinesPerPage = MessageService.LINES_PER_PAGE;
         messageSkin = null;
         messagePosition = 0;
+        messagePositionSet = false;
         choicesFollow = false;
         choiceResult = Integer.MIN_VALUE;
         waitTimer = 0f;
@@ -552,7 +554,13 @@ public final class EventInterpreter {
         }
         switch (command.code) {
             case 0:
-            case 104: // Change Text Options: cosmetics only in R6.
+            case 104: {                                                            // 048_Interpreter:556-567 command_104
+                JsonValue position = command.parameter(0);
+                JsonValue frame = command.parameter(1);
+                state.messageOptions(position == null ? 2 : position.asInt(), frame == null ? 0 : frame.asInt());
+                program.advance();
+                break;
+            }
             case 108: // Comment
             case 401: // Text line already consumed by the 101 handler.
             case 412: // Branch end
@@ -878,7 +886,11 @@ public final class EventInterpreter {
             messageAutoTimer = messageAutoFrames / 40f;
             pageWaits = false;
         }
-        messages.showLines(page, messageSpeaker, pageWaits, messageLinesPerPage, messageSkin, messagePosition);
+        // $game_system.message_frame != 0 -> msgwindow.opacity = 0 (062_MessageConfig:198-202): no window, white text, like \w[]
+        String skin = state.messageFrame() != 0 ? "" : messageSkin;
+        // pbRepositionMessageWindow (:187-197): the system position (0 top, 1 middle, 2 bottom) unless a \wd/\wm/\wu chose
+        int position = messagePositionSet ? messagePosition : state.messagePosition() == 0 ? 2 : state.messagePosition() == 1 ? 1 : 0;
+        messages.showLines(page, messageSpeaker, pageWaits, messageLinesPerPage, skin, position);
     }
 
     /**
@@ -1091,6 +1103,8 @@ public final class EventInterpreter {
         messageOpen = parsed.open;
         messageSeDue = true;
         messageAutoFrames = parsed.autoFrames;
+        messagePosition = parsed.position;
+        messagePositionSet = parsed.positionSet;
     }
 
     private void updateMessage(float delta) {

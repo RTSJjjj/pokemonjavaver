@@ -140,6 +140,8 @@ public final class SaveManager {
             quests.addChild(quest);
         }
         root.addChild("quests", quests);
+        root.addChild("messagePosition", new JsonValue(state.messagePosition()));
+        root.addChild("messageFrame", new JsonValue(state.messageFrame()));
         root.addChild("followerToggled", new JsonValue(state.followerToggled()));
         root.addChild("strengthUsed", new JsonValue(state.pokemonMapStrengthUsed()));
         root.addChild("bridge", new JsonValue(state.bridge()));
@@ -584,6 +586,7 @@ public final class SaveManager {
         state.enterMap(mapId, map.getInt("x", state.playerX()), map.getInt("y", state.playerY()));
         state.setPlayerPosition(map.getInt("x", state.playerX()), map.getInt("y", state.playerY()),
                 map.getInt("direction", state.playerDirection()));
+        state.messageOptions(root.getInt("messagePosition", 2), root.getInt("messageFrame", 0));   // $game_system text options
         // Plugin batch 1: quests + the follower flag. Both keys are optional so
         // saves written before the batch still load.
         state.quests().clear();

@@ -240,6 +240,24 @@ public final class GameState {
         this.flyArrival = value;
     }
 
+    /** {@code $game_system.message_position} (020_Game_System:17,38): 0 top, 1 middle, 2 bottom; set by Change Text Options (104). */
+    private int messagePosition = 2;
+    /** {@code $game_system.message_frame} (:18,39): 0 the window skin, anything else no window (062_MessageConfig:198-202). */
+    private int messageFrame;
+
+    public int messagePosition() {
+        return messagePosition;
+    }
+
+    public int messageFrame() {
+        return messageFrame;
+    }
+
+    public void messageOptions(int position, int frame) {
+        this.messagePosition = Math.max(0, Math.min(2, position));
+        this.messageFrame = frame;
+    }
+
     /** The species of the bird of the next arrival ({@code pbFlyAnimation(false, nil, :EONFLUTE, species)}), or null for the usual one. */
     private String flyArrivalBird;
 

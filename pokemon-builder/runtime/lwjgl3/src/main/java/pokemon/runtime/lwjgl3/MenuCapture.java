@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1490,6 +1490,25 @@ public final class MenuCapture extends ApplicationAdapter {
                 for (int i = 0; i < 200; i++) advanceMap(1f / 40f, 1);
                 shotMap("nexus-3-arrived");
                 System.out.println("nexus: map=" + context.gameState().currentMapId());
+                break;
+            }
+            case "chapter": {                                          // map 37 event 40 page 0: the chapter cards (<ac>\l[2] texts)
+                mapScreen = new MapScreen(context, 37, 14, 10, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                pokemon.runtime.data.MapData md = context.database().map(37);
+                for (pokemon.runtime.data.MapData.EventData ev : md.events) {
+                    if (ev.id == 40) context.eventInterpreter().start(ev.pages.get(0).commands, 37, 40);
+                }
+                int shots = 0;
+                for (int i = 0; i < 400 && shots < 12; i++) {
+                    advanceMap(1f / 40f, 1);
+                    if (context.messageService().visible() && i % 6 == 0) {
+                        System.out.println("message lines=" + context.messageService().lines().size + " " + context.messageService().lines());
+                        shotMap(String.format(java.util.Locale.ROOT, "chapter-%02d", shots++));
+                        stepMap(GameAction.CONFIRM);
+                    }
+                }
                 break;
             }
             case "ropes": {

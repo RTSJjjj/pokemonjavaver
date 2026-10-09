@@ -76,6 +76,8 @@ public final class MessageText {
         public int lineCount;
         /** {@code \wd} (default) 0 = bottom, {@code \wm} 1 = middle of the screen, {@code \wu} 2 = top. */
         public int position;
+        /** True when the text itself chose the position ({@code \wd} {@code \wm} {@code \wu}); else {@code $game_system.message_position} rules. */
+        public boolean positionSet;
         /** {@code \me[name]}: a jingle played when the message appears (071_Messages), null = none. */
         public String me;
         /**
@@ -133,6 +135,7 @@ public final class MessageText {
             while (where.find()) {
                 char code = Character.toLowerCase(where.group(1).charAt(0));
                 parsed.position = code == 'm' ? 1 : code == 'u' ? 2 : 0;
+                parsed.positionSet = true;
             }
             if (OPEN.matcher(raw).find()) {
                 parsed.open = true;
@@ -153,6 +156,11 @@ public final class MessageText {
                 parsed.lineCount = Math.max(parsed.lineCount, Integer.parseInt(lines.group(1)));
             }
             String cleaned = clean(raw, state, playerName);
+            if (i < rawLines.size - 1 && cleaned.endsWith("\n")) {
+                // 071_Messages:508-560 joins the Show Text lines into one text, so a \n that ends a line is the only break
+                // before the next one: map 37 event 40 "...第二章\N" + "- 影宿初现 -" is two lines, not three.
+                cleaned = cleaned.substring(0, cleaned.length() - 1);
+            }
             // RMXP uses a literal \n inside a line as a line break; clean()
             // already turned it into a real newline.
             String[] parts = cleaned.split("\\n", -1);

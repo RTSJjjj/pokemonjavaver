@@ -1135,7 +1135,12 @@ public final class MapScreen extends ScreenAdapter {
         renderHiddenMove();
         renderSignpost();
         renderKeyItem();
-        boolean blackBackdrop = context.screenEffects().fade() >= 250f;
+        // A script tone (223) tints the map viewport only, never the windows above it (the chapter cards of map 37 write white
+        // text on a toned-black screen), so the message window is drawn after the overlay then too.
+        ScreenEffects toneEffects = context.screenEffects();
+        boolean scriptTone = toneEffects.toneFromScript()
+                && (toneEffects.toneRed() < 0f || toneEffects.toneGreen() < 0f || toneEffects.toneBlue() < 0f);
+        boolean blackBackdrop = toneEffects.fade() >= 250f || scriptTone;
         if (!blackBackdrop) {
             renderMessageWindow();
         }

@@ -29,6 +29,18 @@ class MessageTextTest {
     }
 
     @Test
+    @DisplayName("a \\N ending a Show Text line is the only break before the next line (map 37 event 40)")
+    void trailingBreakBeforeAContinuationLine() {
+        MessageText.Parsed parsed = MessageText.parse(lines("<ac>\\l[2]【风鸣】：第二章\\N","- 影宿初现，暗潮低语 -"), state());
+        assertEquals(2, parsed.lines.size);
+        assertEquals("<ac>【风鸣】：第二章", parsed.lines.get(0));
+        assertEquals("- 影宿初现，暗潮低语 -", parsed.lines.get(1));
+        assertEquals(2, parsed.lineCount);
+        MessageText.Parsed single = MessageText.parse(lines("<ac>\\l[2]第一章\\n- 完 -"), state());
+        assertEquals(2, single.lines.size);
+    }
+
+    @Test
     @DisplayName("colours and centring survive the clean-up; other tags go")
     void keepsDrawableStyling() {
         MessageText.Parsed parsed = MessageText.parse(lines(
