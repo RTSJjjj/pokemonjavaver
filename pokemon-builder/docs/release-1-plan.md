@@ -15,6 +15,7 @@
 | 3 | **关键道具使用**（已实现，待实机：`ESCAPEROPE`/`INFINITEROPE`（并修了洞口出口点从未设置）、`LANTERN`、`TOWNMAP`、`EONFLUTE`、`ETHEREALNEXUS`；背包里用）：`TOWNMAP`（打开地区地图）、`LANTERN`、`INFINITEROPE`（带确认的逃脱绳）、`EONFLUTE`、`ETHEREALNEXUS` | 189_PItem_ItemEffects 的 `UseFromBag`/`UseInField` | 中 | 背包里使用有原文效果；“这里不能使用”只在原文条件下出现 |
 | 4 | **快速捕捉**（已实现，待实机：按 Z/Shift = `Input::A`；选球界面 L/R 翻 5 个，大师球有确认）：战斗指令菜单按 A（`Input::A`），弹出捕捉球选择界面，直接扔球（狩猎战斗、训练家战斗、Boss、`disablePokeBalls`、开关 196 时不可用） | 355_ES_s_Fast_Catching（168 行）、156_Scene_Commands:64-76 | 小 | 野外战斗按 A 列出背包里有的精灵球并扔出；无球时说“没有可供捕捉的精灵球。”；上述不可用情形下按键无反应 |
 | 4b | **ES 战斗信息 / 招式信息**：指令菜单按 F5 弹出战场信息（`pbBattleInfo`），招式菜单按 F5 弹出所选招式的详情（`pbMoveInfo`）；触控端对应 R 键（战斗里）。狩猎区不可用（`pbInSafari?`） | 353_ES_s_Battle_Info_Display（632 行）、354_ES_s_Move_Info_Display（214 行）、156_Scene_Commands:60-63、:149-151 | 中 | 战斗里按 F5/R 出现与原插件一致的信息界面，取消返回战斗菜单；截图核对 |
+| 4c | **分布图鉴**（暂停菜单项 `:HABITAT`“分布图鉴”，目前整个功能都没有）：分布列表界面（按地图列出该区域的野生宝可梦：草丛、冲浪、钓鱼、洞穴等类型，已遇见/已捕获状态）、区域详情界面、完成区域的徽章（“需要重新查看才记为完成”）、小地图（地区地图）里按区域打开详情（338_ESMM_Overwrite:174-186）、玩家数据 `habitatData` / `habitatMapIndexes` / `habitatPokeIndexes`（存档字段）、遇见/捕获时的更新钩子 `Habitats.updateHabitatsForSpecies`（`pbSetSeen` / 捕获 / 孵蛋 / 交换）、`Habitats.checkMapHabitat`（NPC 判定“全部遇见/全部捕获”的事件会用）。菜单项条件：`$Trainer.habitatData` 非空且 `Habitats.getHabitatList` 非空，位置在“背包”之后、“宝可装置”之前（288_Modular_Menu:119-130，图标 `menuQuests`） | 294_Boonzeet_s_Habitat_List（1497 行）、288_Modular_Menu:119-130、338_004_ESMM_Overwrite:174-186、084_Misc_Data / 094_PBHabitats | 大 | 暂停菜单出现“分布图鉴”；列表与详情界面和原插件一致（截图核对）；遇见/捕获宝可梦后相应区域的状态更新；存档读写保留进度；`checkMapHabitat` 事件判定可用 |
 | 5 | **（暂缓）旧版存档转移**：转换器已做在分支 `feature/legacy-transfer`，develop 上 NPC 只提示“由于引擎更新，宝可梦传送已经暂时关闭”。原计划：`transportPokemon("0vej")` / `("shadowvow")`。读 `save/GameOld.rxdata`（Ruby Marshal）。**先决定取舍**：做，或第一版先从地图 93 的事件里去掉这两个选项 | 350_Pokemon_Transporter（308 行） | 中/小 | 做：能从旧存档转入宝可梦且不可重复转入；去掉：事件里不再有该选项 |
 | 6 | **自动存档**：每 200 步存到当前存档位（禁用地图 1、119、426；滑行中不计步） | 378_001_MSF_AutoSave、379/380/381 | 小 | 走满 200 步后存档位被更新，禁用地图不计步 |
 | 7 | **天气渲染**：雨/雪/沙暴/阳光等，地图元数据天气 + 事件设置天气 | 172_PField_Weather、098_PBWeather、Game_Screen | 中 | 21 张带天气的地图和事件设置的天气有画面，换图/切换时正确开关 |
@@ -22,7 +23,7 @@
 | 9 | **快捷菜单与背包“登记”**（触控端必须：地图上 R 键 = F5 呼出） | 221_PScreen_ReadyMenu（327 行）、`pbUseKeyItem` | 小 | 背包可登记道具，F5 呼出快捷菜单并使用 |
 | 10 | **邮件**（可选，先确认地图 103/110 里邮件道具的实际用途） | 193_PItem_Mail | 小 | 能给宝可梦带邮件/读邮件 |
 
-1–4、4b 与 9 是必须（9 排在 P1 之后）；5 先做取舍；6、7 建议；8、10 可放到第一版之后（在发布说明里写明）。下面的 P1–P5 也是第一版必须。
+1–4、4b、4c 与 9 是必须（9 排在 P1 之后）；5 先做取舍；6、7 建议；8、10 可放到第一版之后（在发布说明里写明）。下面的 P1–P5 也是第一版必须。
 
 ## 发布平台与保护（第一版必须）
 
