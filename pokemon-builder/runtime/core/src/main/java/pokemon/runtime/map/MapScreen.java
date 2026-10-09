@@ -694,6 +694,17 @@ public final class MapScreen extends ScreenAdapter {
             }
 
             @Override
+            public String eventName(int eventId) {
+                pokemon.runtime.data.MapData.EventData event = eventById(eventId);
+                return event == null ? null : event.name;
+            }
+
+            @Override
+            public float smashEvent(int eventId) {
+                return MapScreen.this.smashEvent(eventById(eventId));
+            }
+
+            @Override
             public float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pokemon) {
                 return MapScreen.this.hiddenMoveAnimation(pokemon);
             }
@@ -2142,8 +2153,24 @@ public final class MapScreen extends ScreenAdapter {
     /** {@code pbSmashEvent}'s erase (179:236-247): events waiting to disappear, [event id, seconds left]. */
     private final java.util.List<float[]> scheduledErase = new java.util.ArrayList<>();
 
+    private pokemon.runtime.data.MapData.EventData eventById(int eventId) {
+        if (mapData == null) {
+            return null;
+        }
+        for (pokemon.runtime.data.MapData.EventData event : mapData.events) {
+            if (event.id == eventId) {
+                return event;
+            }
+        }
+        return null;
+    }
+
     private float smashFacingEvent() {
-        pokemon.runtime.data.MapData.EventData event = findFacingEvent();
+        return smashEvent(findFacingEvent());
+    }
+
+    /** {@code pbSmashEvent(event)} (179:231-248) without the sound: the shake route, then the erase 0.4 s later. */
+    private float smashEvent(pokemon.runtime.data.MapData.EventData event) {
         if (event == null || eventCharacters == null) {
             return 0f;
         }

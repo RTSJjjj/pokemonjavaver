@@ -3987,15 +3987,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     /**
-     * The player-side position of the Pokemon that gains exp ({@code pbFindBattler(idxParty)}, :220). A single battle's
-     * bar is always the first one; a double battle's Pokemon that is not on the field has no bar.
+     * The player-side position of the Pokemon that gains exp ({@code pbFindBattler(idxParty)}, :220), -1 for a party member
+     * that is not on the field: it gets no bar and no level change on the box of the one that fights (Exp All / Exp Share).
      */
     private int fieldSlotOf(Pokemon pokemon) {
         for (int idx = 0; idx < battlerCount(); idx += 2) {
             Battler b = battler(idx);
             if (b != null && b.pokemon == pokemon) return idx;
         }
-        return doubles() ? -1 : 0;
+        return -1;                                              // pbFindBattler(idxParty) is nil for a party member that is not on the field
     }
 
     /** Clears the played awards and leaves the settlement. */

@@ -37,6 +37,8 @@ class EventInterpreterTest {
     private ScreenEffects effects;
     private ScriptIr scriptIr;
     private final List<String> erased = new ArrayList<>();
+    private final List<String> smashed = new ArrayList<>();
+    private float smashWait;
     private final List<String> mapEnvironment = new ArrayList<>();
     private final Map<Integer, Array<EventCommand>> commonEvents = new HashMap<>();
 
@@ -49,6 +51,8 @@ class EventInterpreterTest {
         effects = new ScreenEffects();
         scriptIr = ScriptIr.empty();
         erased.clear();
+        smashed.clear();
+        smashWait = 0f;
         mapEnvironment.clear();
         input = new InputManager();
         warnings.clear();
@@ -75,6 +79,18 @@ class EventInterpreterTest {
             @Override
             public void eraseEvent(int eventId) {
                 erased.add(String.valueOf(eventId));
+            }
+
+            @Override
+            public String eventName(int eventId) {
+                return "Tree";
+            }
+
+            @Override
+            public float smashEvent(int eventId) {
+                smashed.add(String.valueOf(eventId));
+                erased.add(String.valueOf(eventId));
+                return smashWait;                                   // the screen's shake route is on its way; 0 erases at once
             }
 
             @Override
@@ -504,6 +520,23 @@ class EventInterpreterTest {
         assertTrue(state.selfSwitches().get(2, 5, "B"));
         assertEquals(List.of("5"), erased);
         assertEquals(InterpreterState.FINISHED, interpreter.state());
+    }
+
+    @Test
+    @DisplayName("pbSmashThisEvent smashes the event and waits for the shake before the script goes on (179:231-248)")
+    void smashThisEventWaits() {
+        smashWait = 0.4f;
+        EventCommand smash = cmd(0, 355, 0, array("pbSmashThisEvent"));
+        smash.scriptBlockId = "map2/event5/page1/cmd0";
+        scriptIr.put("map2/event5/page1/cmd0", new com.badlogic.gdx.utils.JsonReader().parse("{\"command\":\"ERASE_EVENT\"}"));
+        interpreter.start(program(smash, cmd(1, 121, 0, array(1, 1, 0))), 2, 5);
+        interpreter.update(0f);
+        assertEquals(List.of("5"), smashed);
+        assertEquals(InterpreterState.WAIT_TIME, interpreter.state());
+        assertFalse(state.switches().get(1));
+        interpreter.update(0.5f);
+        interpreter.update(0f);
+        assertTrue(state.switches().get(1));
     }
 
     @Test

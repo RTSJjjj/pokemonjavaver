@@ -2261,7 +2261,18 @@ public final class EventInterpreter {
                 if (mapPort == null || eventId < 0) {
                     log.warn("ERASE_EVENT without an event or map port; skipped");
                 } else {
-                    mapPort.eraseEvent(eventId);
+                    // pbSmashThisEvent = pbSmashEvent(get_character(0)) (170_PField_Field:786-790, 179_PField_FieldMoves:231-248):
+                    // the Cut / Rock Smash sound of a tree / rock, the shake, then 0.4 s before the event is gone.
+                    String eventName = mapPort.eventName(eventId);
+                    String smashSe = "tree".equalsIgnoreCase(eventName) ? "Cut" : "rock".equalsIgnoreCase(eventName) ? "Rock Smash" : null;
+                    if (smashSe != null && audio != null) {
+                        audio.playSe(smashSe, 80, 100);                                     // :233-234 pbSEPlay("Cut",80)
+                    }
+                    float smashWait = mapPort.smashEvent(eventId);
+                    if (smashWait > 0f) {
+                        waitTimer = smashWait;
+                        interpreterState = InterpreterState.WAIT_TIME;
+                    }
                 }
                 break;
             // ---- plugin batch 1: quests, key items, following Pokemon ----

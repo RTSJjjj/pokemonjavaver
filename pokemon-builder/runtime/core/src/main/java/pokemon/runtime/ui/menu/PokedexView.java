@@ -165,9 +165,8 @@ public final class PokedexView {
         float tw = bg.getWidth();
         float th = bg.getHeight();
         float px = scroll % tw;
-        float py = scroll % th;
         for (float x = -px; x < w; x += tw) {
-            for (float y = -py; y < h; y += th) {
+            for (float y = h - th; y > -th; y -= th) {                   // ScrollingSprite scrolls along x only (y stays put, top aligned)
                 b.draw(bg, x, y, tw, th);
             }
         }

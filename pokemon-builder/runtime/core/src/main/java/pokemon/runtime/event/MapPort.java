@@ -339,6 +339,21 @@ public interface MapPort {
         return 0f;
     }
 
+    /** The name of an event of this map ({@code get_character(id).name}), or null. */
+    default String eventName(int eventId) {
+        return null;
+    }
+
+    /**
+     * {@code pbSmashEvent(event)} (179:231-248) for an event by id (the {@code pbSmashThisEvent} of a tree / rock): it turns
+     * left, right and up, then disappears. Returns the seconds until it is gone (:245 {@code pbWait(40*4/10)}). The default
+     * erases it at once.
+     */
+    default float smashEvent(int eventId) {
+        eraseEvent(eventId);
+        return 0f;
+    }
+
     /** {@code pbHiddenMoveAnimation(pokemon)} (179:78-189): starts the banner; returns its length in seconds, 0 when there is none. */
     default float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pokemon) {
         return 0f;

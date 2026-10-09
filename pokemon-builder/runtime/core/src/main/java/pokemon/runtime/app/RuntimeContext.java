@@ -567,6 +567,20 @@ public final class RuntimeContext {
             }
 
             @Override
+            public String eventName(int eventId) {
+                return screenPort == null ? null : screenPort.eventName(eventId);
+            }
+
+            @Override
+            public float smashEvent(int eventId) {
+                if (screenPort == null) {
+                    eraseEvent(eventId);
+                    return 0f;
+                }
+                return screenPort.smashEvent(eventId);
+            }
+
+            @Override
             public float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pokemon) {
                 return screenPort == null ? 0f : screenPort.hiddenMoveAnimation(pokemon);
             }
