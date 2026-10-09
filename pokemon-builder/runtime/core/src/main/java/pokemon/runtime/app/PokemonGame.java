@@ -147,9 +147,14 @@ public final class PokemonGame extends Game {
         }
         context.audioManager().update(Gdx.graphics.getDeltaTime()); // R6.24: BGM cue
         handleSystemKeys();
-        super.render();
+        // Game#render, with the frame time scaled by the speed-up (346_Speed_Up).
+        if (getScreen() != null) {
+            getScreen().render(GameSpeed.scale(Gdx.graphics.getDeltaTime()));
+        }
         if (touch != null && touchBatch != null) {
             touch.render(touchBatch);
+        } else {
+            renderSpeedLabel();
         }
         context.inputManager().endFrame();
     }
@@ -166,6 +171,7 @@ public final class PokemonGame extends Game {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
             toggleFullscreen();
         }
+        handleSpeedKeys();
         if ((context.battlePort() != null && context.battlePort().pending()) || context.menuService().pending() != null) return;
         // The pause menu's party screen owns F5 (Input::F5 = 寄存系统).
         boolean pauseMenuOpen = getScreen() instanceof pokemon.runtime.map.MapScreen
@@ -177,6 +183,62 @@ public final class PokemonGame extends Game {
             loadQuick();
         }
     }
+
+    /**
+     * 346_Speed_Up:16-34 (Windows only, like the plugin): Alt = next speed,
+     * Ctrl+Alt = back to 1x. The touch build has its own speed key.
+     */
+    private void handleSpeedKeys() {
+        if (touch != null || Gdx.app.getType() != com.badlogic.gdx.Application.ApplicationType.Desktop) {
+            return;
+        }
+        boolean alt = Gdx.input.isKeyJustPressed(Input.Keys.ALT_LEFT) || Gdx.input.isKeyJustPressed(Input.Keys.ALT_RIGHT);
+        if (!alt) {
+            return;
+        }
+        if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) {
+            GameSpeed.reset();
+        } else {
+            GameSpeed.cycle();
+        }
+    }
+
+    /** 346_Speed_Up:30-37: "N×" at the top right of the game picture (small font, white on black, opacity 224). */
+    private void renderSpeedLabel() {
+        String label = GameSpeed.label();
+        if (label == null || context.database() == null) {
+            return;
+        }
+        int width = Gdx.graphics.getWidth(), height = Gdx.graphics.getHeight();
+        float scale = Math.min(width / (float) ScreenMetrics.logicalWidth(), height / (float) ScreenMetrics.logicalHeight());
+        int size = Math.max(8, Math.round(25f * scale));          // pbSetSmallFont
+        if (speedFont == null || speedFontSize != size) {
+            String name = context.database().project().runtime.messageFont;
+            java.io.File file = name == null ? null
+                    : new pokemon.runtime.map.GraphicsLocator(context.database()).font(name);
+            if (speedFont != null) {
+                speedFont.dispose();
+            }
+            speedFont = new pokemon.runtime.ui.menu.MenuFont(file, size);
+            speedFontSize = size;
+        }
+        if (speedBatch == null) {
+            speedBatch = new com.badlogic.gdx.graphics.g2d.SpriteBatch();
+        }
+        Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
+        com.badlogic.gdx.graphics.OrthographicCamera camera = new com.badlogic.gdx.graphics.OrthographicCamera();
+        camera.setToOrtho(false, width, height);
+        speedBatch.setProjectionMatrix(camera.combined);
+        float right = (width + ScreenMetrics.logicalWidth() * scale) / 2f;       // right edge of the game picture
+        speedBatch.begin();
+        speedFont.drawRight(speedBatch, label, right, height, new com.badlogic.gdx.graphics.Color(1f, 1f, 1f, 224f / 255f),
+                new com.badlogic.gdx.graphics.Color(0f, 0f, 0f, 224f / 255f));
+        speedBatch.end();
+    }
+
+    private pokemon.runtime.ui.menu.MenuFont speedFont;
+    private int speedFontSize;
+    private com.badlogic.gdx.graphics.g2d.SpriteBatch speedBatch;
 
     private void toggleFullscreen() {
         if (Gdx.graphics == null) {
@@ -237,6 +299,12 @@ public final class PokemonGame extends Game {
         }
         if (touchBatch != null) {
             touchBatch.dispose();
+        }
+        if (speedBatch != null) {
+            speedBatch.dispose();
+        }
+        if (speedFont != null) {
+            speedFont.dispose();
         }
         super.dispose();
     }

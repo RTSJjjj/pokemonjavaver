@@ -3154,7 +3154,7 @@ public final class MapScreen extends ScreenAdapter {
         if (signpost == null || messageWindow == null) {
             return;
         }
-        signpostClock += Gdx.graphics.getDeltaTime();
+        signpostClock += pokemon.runtime.app.GameSpeed.scale(Gdx.graphics.getDeltaTime());
         while (signpostClock >= 1f / 40f && !signpost.finished()) {
             signpostClock -= 1f / 40f;
             signpost.tick();

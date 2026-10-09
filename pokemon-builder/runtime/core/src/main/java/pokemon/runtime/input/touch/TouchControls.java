@@ -3,6 +3,7 @@ package pokemon.runtime.input.touch;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import pokemon.runtime.app.GameSpeed;
 import pokemon.runtime.input.KeyStateSource;
 import pokemon.runtime.ui.menu.MenuFont;
 
@@ -54,13 +55,7 @@ public final class TouchControls {
         }
         width = w;
         height = h;
-        List<TouchButton> all = TouchLayout.create(w, h, scale);
-        buttons = new ArrayList<>();
-        for (TouchButton button : all) {
-            if (!TouchLayout.SPEED.equals(button.id)) {      // the speed key arrives with the speed-up work (P5)
-                buttons.add(button);
-            }
-        }
+        buttons = TouchLayout.create(w, h, scale);
         pad = new TouchPad(buttons, h * 0.012f);
     }
 
@@ -75,7 +70,20 @@ public final class TouchControls {
             }
         }
         pad.update(active, xs, ys);
+        // The speed key (346_Speed_Up) is not a game key: a press steps to the next speed.
+        boolean speedDown = pad.isDown(TouchLayout.SPEED);
+        if (speedDown && !speedWasDown) {
+            GameSpeed.cycle();
+        }
+        speedWasDown = speedDown;
+        for (TouchButton button : buttons) {
+            if (TouchLayout.SPEED.equals(button.id)) {
+                button.label = GameSpeed.multiplier() + "×";
+            }
+        }
     }
+
+    private boolean speedWasDown;
 
     /** Draws the keys over the whole window (after the game has drawn). */
     public void render(SpriteBatch batch) {
