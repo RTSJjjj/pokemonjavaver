@@ -69,10 +69,11 @@ final class AiCalc {
     }
 
     static boolean has(BattleMove move, char flag) {
-        return move.flags() != null && move.flags().indexOf(flag) >= 0;
+        return move != null && move.flags() != null && move.flags().indexOf(flag) >= 0;
     }
 
     static boolean oneOf(BattleMove move, String... codes) {
+        if (move == null) return false;                          // a blank move slot / an unknown move matches nothing
         String f = move.function();
         for (String c : codes) {
             if (c.equals(f)) return true;
@@ -81,6 +82,7 @@ final class AiCalc {
     }
 
     static boolean named(BattleMove move, String... names) {
+        if (move == null) return false;                          // firstNamed(...) / moveByName(...) answer null when the move is not there
         String n = move.internalName();
         for (String c : names) {
             if (c.equals(n)) return true;
