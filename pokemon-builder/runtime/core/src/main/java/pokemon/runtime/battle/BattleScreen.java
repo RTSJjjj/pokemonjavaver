@@ -2558,6 +2558,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             "CHERISHBALL", "FASTBALL", "LEVELBALL", "LUREBALL", "HEAVYBALL", "LOVEBALL", "FRIENDBALL", "MOONBALL", "SPORTBALL",
             "DREAMBALL", "BEASTBALL", "PETBALL", "WILDERNESSBALL"};
     private pokemon.runtime.ui.menu.FastCatchView fastCatch;
+    private pokemon.runtime.ui.menu.BattleInfoView battleInfo;
+    private pokemon.runtime.ui.menu.MoveInfoView moveInfo;
     /** {@code @battle.esfc_ball_index}: the ball the last quick catch of this battle stopped on. */
     private int fastCatchIndex;
 
@@ -4396,6 +4398,36 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
 
+        // ---- 353 / 354 ES battle info and move info: F5 (R on a touch screen) opens them, F5 / B close them ----
+        if (battleInfo != null) {
+            if (battleInfo.update(input)) {
+                battleInfo = null;
+                if (page == 0 && doubles() && actioned.size() > 1) {
+                    backToPreviousBattler();                           // 156_Scene_Commands:62-63 breaks out with -1: "go back" (Battle_Phase_Command:248-254)
+                }
+            }
+            return;
+        }
+        if (moveInfo != null) {
+            if (moveInfo.update(input)) moveInfo = null;
+            return;
+        }
+        boolean infoKey = input.wasPressed(GameAction.F5)
+                || (context.touchBuild() && input.wasPressed(GameAction.SHOULDER_RIGHT));
+        if (infoKey && page == 0 && !session.safari && fastCatch == null) {      // 156_Scene_Commands:60-63 pbBattleInfo(@battle)
+            battleInfo = new pokemon.runtime.ui.menu.BattleInfoView(context, session.battle,
+                    context.gameState().trainer().gender == pokemon.runtime.pokemon.PokemonStats.FEMALE);
+            return;
+        }
+        if (infoKey && page == 1 && fastCatch == null) {                         // 156_Scene_Commands:149-151 pbMoveInfo(battler, battler.moves[cw.index])
+            BattleMove picked = fighter() == null ? null : fighter().moveSlot(cursor.index());
+            if (picked != null) {
+                moveInfo = new pokemon.runtime.ui.menu.MoveInfoView(context, session.battle, fighter(), picked,
+                        context.gameState().trainer().gender == pokemon.runtime.pokemon.PokemonStats.FEMALE);
+            }
+            return;
+        }
+
         // ---- 355_ES_s_Fast_Catching: the Poke Ball picker, opened by Input::A on the command menu (156_Scene_Commands:64-76) ----
         if (fastCatch != null) {
             updateFastCatch(input);
@@ -4596,6 +4628,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
             if (fastCatch != null && stage == Stage.BATTLE) {
                 fastCatch.render(batch, assets, font, skin, smallFont);
+            }
+            if (battleInfo != null && stage == Stage.BATTLE) {
+                battleInfo.render(batch, assets, smallFont);
+            }
+            if (moveInfo != null && stage == Stage.BATTLE) {
+                moveInfo.render(batch, assets, smallFont);
             }
             // pbShowCommands's command window (PokeBattle_Scene:202-237).
             if (choiceOptions != null) {

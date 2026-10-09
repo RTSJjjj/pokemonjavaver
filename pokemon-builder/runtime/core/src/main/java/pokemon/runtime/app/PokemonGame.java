@@ -92,6 +92,7 @@ public final class PokemonGame extends Game {
             }
         }
 
+        context.touchBuild(touch != null);
         if (touch != null && context.database() != null) {
             createTouchControls();
         }

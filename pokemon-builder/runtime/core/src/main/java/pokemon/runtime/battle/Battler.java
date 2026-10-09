@@ -243,6 +243,44 @@ public final class Battler {
         return value;
     }
 
+    /**
+     * {@code pbSpeed} (109_PokeBattle_Battler:250-279) in full: the stage, the ability and item speed handlers, Tailwind, Swamp,
+     * paralysis (not with Quick Feet) and the badge boost. 登记: the turn order still uses {@link #speed()} (stage and paralysis
+     * only); this one is what the battle info screen shows ({@code pbRoughStat}). Swamp is not modelled.
+     *
+     * @param numBadges {@code @battle.pbPlayer.numbadges}, for the boost of the player's Pokemon in an internal battle
+     */
+    public int pbSpeed(int numBadges) {
+        if (fainted()) {
+            return 1;                                                            // :251
+        }
+        int[] mul = {2, 2, 2, 2, 2, 2, 2, 3, 4, 5, 6, 7, 8};                      // :252-253
+        int[] div = {8, 7, 6, 5, 4, 3, 2, 2, 2, 2, 2, 2, 2};
+        int stage = stages[2] + 6;                                               // :254
+        long base = (long) baseSpeed() * mul[stage] / div[stage];                // :255 (Ruby integer division)
+        float speedMult = 1.0f;                                                  // :256
+        if (abilityActive()) {
+            speedMult = BattleHandlers.triggerSpeedCalcAbility(ability, this, speedMult);   // :258-260
+        }
+        if (itemActive()) {
+            speedMult = BattleHandlers.triggerSpeedCalcItem(item, this, speedMult);         // :262-264
+        }
+        if (pbOwnSide().effects.intVal(PBEffects.Side.Tailwind) > 0) {
+            speedMult *= 2;                                                      // :266
+        }
+        if (hasStatus("PARALYSIS") && !hasActiveAbility("QUICKFEET")) {          // :269-271
+            speedMult /= Battle.NEWEST_BATTLE_MECHANICS ? 2 : 4;
+        }
+        if (battle != null && battle.internalBattle && pbOwnedByPlayer() && numBadges >= NUM_BADGES_BOOST_SPEED) {
+            speedMult *= 1.1f;                                                   // :273-276
+        }
+        return Math.max(Math.round(base * speedMult), 1);                         // :278
+    }
+
+    /** 000_Settings:124-128. */
+    public static final int NUM_BADGES_BOOST_ATTACK = 1, NUM_BADGES_BOOST_DEFENSE = 5, NUM_BADGES_BOOST_SPATK = 7,
+            NUM_BADGES_BOOST_SPDEF = 7, NUM_BADGES_BOOST_SPEED = 3;
+
     public int spAtk() {
         return spAtk(false);
     }

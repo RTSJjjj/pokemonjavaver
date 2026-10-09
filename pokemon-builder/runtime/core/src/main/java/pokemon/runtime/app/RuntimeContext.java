@@ -177,6 +177,17 @@ public final class RuntimeContext {
         return gameState;
     }
 
+    private boolean touchBuild;
+
+    /** True on a touch build (Android): the on-screen R key stands in for F5 in battle (the battle / move info screens). */
+    public boolean touchBuild() {
+        return touchBuild;
+    }
+
+    public void touchBuild(boolean value) {
+        this.touchBuild = value;
+    }
+
     private pokemon.runtime.ui.menu.MenuAssets sharedAssets;
     private final java.util.Map<String, pokemon.runtime.ui.menu.MenuFont> sharedFonts = new java.util.HashMap<>();
 

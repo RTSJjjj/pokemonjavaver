@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1609,6 +1609,34 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 60f, 30);
                     shotMap("fastcatch-throw" + i);
                 }
+                break;
+            case "battleinfo":
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().wildBattle("BULBASAUR", 5);
+                renderMap();
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 2400);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 1200);
+                stepMap(GameAction.F5);                      // 156_Scene_Commands:60-63 pbBattleInfo
+                advanceMap(1f / 60f, 90);
+                shotMap("battleinfo-1");
+                stepMap(GameAction.UP);                      // the foe
+                advanceMap(1f / 60f, 60);
+                shotMap("battleinfo-2");
+                stepMap(GameAction.F5);                      // back to the command menu
+                advanceMap(1f / 60f, 6);
+                stepMap(GameAction.CONFIRM);                 // Fight
+                advanceMap(1f / 60f, 12);
+                stepMap(GameAction.F5);                      // 156_Scene_Commands:149-151 pbMoveInfo
+                advanceMap(1f / 60f, 90);
+                shotMap("moveinfo-1");
+                stepMap(GameAction.F5);
+                advanceMap(1f / 60f, 6);
+                stepMap(GameAction.RIGHT);
+                stepMap(GameAction.F5);
+                advanceMap(1f / 60f, 90);
+                shotMap("moveinfo-2");
                 break;
             case "headnames":
                 context.settings().headtopname = 3;
