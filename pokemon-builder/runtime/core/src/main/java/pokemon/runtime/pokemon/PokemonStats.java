@@ -25,6 +25,9 @@ public final class PokemonStats {
 
     /** HP = (2*base + IV + EV/4) * level / 100 + level + 10. */
     public static int maxHp(int baseHp, int iv, int ev, int level) {
+        if (baseHp == 1) {
+            return 1;                                                  // 197_PokeBattle_Pokemon:858 calcHP: Shedinja
+        }
         return (int) (((2L * baseHp + iv + ev / 4) * level) / 100) + level + 10;
     }
 

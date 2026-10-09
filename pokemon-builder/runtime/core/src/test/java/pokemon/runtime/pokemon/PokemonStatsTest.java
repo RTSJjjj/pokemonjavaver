@@ -16,6 +16,8 @@ class PokemonStatsTest {
     void statFormulas() {
         // (2*45 + 31 + 0) * 50 / 100 + 50 + 10 = 120
         assertEquals(120, PokemonStats.maxHp(45, 31, 0, 50));
+        // calcHP (197_PokeBattle_Pokemon:858): a base HP of 1 (Shedinja) is always 1
+        assertEquals(1, PokemonStats.maxHp(1, 31, 252, 100));
         // (2*49 + 31 + 0) * 50 / 100 + 5 = 69
         assertEquals(69, PokemonStats.stat(49, 31, 0, 50, 1f));
         // EVs quarter into the formula: (2*99 + 0 + 63) * 100 / 100 + 5 = 266

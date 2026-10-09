@@ -82,6 +82,17 @@ public final class LegacyProbe {
 
     /** null when the saved {@code @totalhp/@attack/@defense/@speed/@spatk/@spdef} equal what the runtime derives for the Pokémon. */
     private static String statMismatch(RObject raw, Pokemon p) {
+        int[] saved = p.ivs.clone();
+        List<Object> maxed = RubyMarshal.list(raw.get("ivMaxed"));          // Hyper Training: calcIV (197:711-716) uses 31 for those
+        if (maxed != null) for (int i = 0; i < 6 && i < maxed.size(); i++) if (Boolean.TRUE.equals(maxed.get(i))) p.ivs[i] = 31;
+        try {
+            return statMismatch0(raw, p);
+        } finally {
+            p.ivs = saved;
+        }
+    }
+
+    private static String statMismatch0(RObject raw, Pokemon p) {
         String[] names = {"totalhp", "attack", "defense", "speed", "spatk", "spdef"};
         int[] derived = {p.maxHp(), p.attack(), p.defense(), p.speed(), p.spAtk(), p.spDef()};
         StringBuilder sb = null;
