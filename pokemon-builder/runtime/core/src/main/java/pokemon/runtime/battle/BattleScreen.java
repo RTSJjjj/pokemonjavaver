@@ -2131,7 +2131,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 for (Battle.HitEvent hit : event.hits) holdHp(hit.idxBattler, hit.oldHp);
             } else if (event.kind == Battle.RoundEvent.Kind.HP_CHANGE) {
                 holdHp(event.idxBattler, event.oldHp);
-            } else if (event.kind == Battle.RoundEvent.Kind.TRANSFORM_SPRITE) {
+            } else if (event.kind == Battle.RoundEvent.Kind.TRANSFORM_SPRITE || event.kind == Battle.RoundEvent.Kind.CHANGE_LOOK) {
                 Battler changed = session.battle.battlerAt(event.idxBattler);          // the sprite keeps the old picture until the mosaic plays
                 if (changed != null && event.oldLook != null && !heldLook.containsKey(changed)) {
                     heldLook.put(changed, event.oldLook);
@@ -3125,6 +3125,16 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case TRANSFORM_SPRITE:
                 beginTransformSprite(event);
                 return;
+            case CHANGE_LOOK: {
+                // @scene.pbChangePokemon(battler, pokemon) + pbRefreshOne: the sprite's picture changes at once (Illusion broken)
+                Battler changed = session.battle.battlerAt(event.idxBattler);
+                if (changed != null) {
+                    heldLook.remove(changed);
+                    changePokemon(event.idxBattler, changed);
+                }
+                resumeRound();
+                return;
+            }
             case SWAP_SPRITES:
                 // @scene.pbSwapBattlerSprites(idxA,idxB) (PokeBattle_Battle:601)
                 swapBattlerSprites(event.idxBattler, event.oldHp);
@@ -5032,7 +5042,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         font.draw(batch, boxName, baseX + 24f - nameOffset, h - (topY + 12f), NAME_BASE, NAME_SHADOW);
         // PokeBattle_SceneElements:223-229: the ♂♀ carries the gender colour
         // (both sides; genderless species draw nothing).
-        int gender = b.pokemon.displayGender();
+        int gender = b.displayGender();                                          // :224 @battler.displayGender: the Illusion's
         if (gender == PokemonStats.MALE) {
             font.draw(batch, "\u2642", baseX + 1f, h - (topY + 12f), MALE_BASE, NAME_SHADOW);
         } else if (gender == PokemonStats.FEMALE) {
@@ -5096,7 +5106,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // ---- the rest of imagePos, blitted by pbDrawImagePositions (:276) ----
         Pokemon iconPkmn = b.pokemon;
         // Draw shiny icon (:244-253); the padding differs per side.
-        if (iconPkmn.shiny) {
+        Pokemon shinyPkmn = b.displayPokemon();                      // :245 @battler.shiny?: the Illusion's
+        if (shinyPkmn.shiny) {
             int shinyX = foe ? 6 : 10;
             int shinyY = foe ? -32 : -26;
             drawImg(batch, "Pictures", iconPkmn.superShiny ? "superShiny" : "shiny",
@@ -5190,15 +5201,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     /**
      * {@code @battler.owned?} (PokeBattle_Battler:205-208): only a wild battle
      * shows the "already registered" icon, and only once the player owns the
-     * species. {@code displaySpecies} (:189-192) is the Illusion-aware species;
-     * this runtime has no Illusion, so it is the real one.
+     * species. {@code displaySpecies} (:189-192) is the Illusion-aware species.
      */
     private boolean registered(Battler b) {
-        if (trainerBattle || b.pokemon == null || b.pokemon.species == null
-                || b.pokemon.species.internalName == null) {
+        if (trainerBattle || b.pokemon == null || b.displaySpecies() == null
+                || b.displaySpecies().internalName == null) {
             return false;                                          // :206
         }
-        return context.gameState().trainer().owned.contains(b.pokemon.species.internalName);   // :207
+        return context.gameState().trainer().owned.contains(b.displaySpecies().internalName);   // :207
     }
 
     private static float expFraction(Pokemon p) {

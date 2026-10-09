@@ -641,8 +641,9 @@ final class AbilitiesOnHit {
             if (!target.effects.truthy(PBEffects.Battler.Illusion)) {          // :1606
                 return;
             }
+            pokemon.runtime.pokemon.Pokemon shownBefore = target.visiblePokemon();
             target.effects.set(PBEffects.Battler.Illusion, null);              // :1607 = nil
-            // 登记: BattleHandlers_Abilities:1608 battle.scene.pbChangePokemon(target,target.pokemon)（场景未建模）
+            target.queueLookChange(shownBefore);                               // :1608 battle.scene.pbChangePokemon(target,target.pokemon)
             battle.display(target.pbThis() + "的幻象被识破了！");                // :1609
             battle.pbSetSeen(target);                                          // :1610
         });

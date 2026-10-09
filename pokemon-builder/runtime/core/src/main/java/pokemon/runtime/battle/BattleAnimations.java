@@ -537,10 +537,8 @@ final class BattleAnimations {
                 if (battler == null) {
                     continue;
                 }
-                // :103 pkmn = @battle.battlers[b[0]].effects[PBEffects::Illusion] || b[1].
-                // The runtime has no ability/effect system yet (the Zoroark
-                // Illusion effect is part of that gap), so b[1] - the battler's
-                // own Pokemon - is what the plugin uses here too.
+                // :103 pkmn = @battle.battlers[b[0]].effects[PBEffects::Illusion] || b[1]: the sprite takes
+                // Battler#visiblePokemon (the Illusion when it is up, else the Pokemon itself).
                 scene.changePokemon(idxBattler, battler);            // :104-105
                 Entry entry = new Entry();
                 int idxTrainer = scene.ownerIndex(idxBattler) + 1;   // :108/:112
@@ -964,7 +962,7 @@ final class BattleAnimations {
             // Play cry
             int delay = 10;                                                       // :670
             Pokemon pkmn = batSprite.battler == null
-                    ? null : batSprite.battler.pokemon;                           // batSprite.pkmn (:671)
+                    ? null : batSprite.battler.visiblePokemon();                  // batSprite.pkmn (:671): the Illusion / Transform picture
             String cry = scene().cryFile(pkmn);                                   // :671
             if (cry != null) {                                                    // :672
                 battler.setSE(0, scene().cryFile(pkmn), null, 75);                // :673 75 is pitch

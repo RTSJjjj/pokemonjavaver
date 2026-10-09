@@ -409,13 +409,17 @@ public final class Battle {
             if (b != null) b.pbUpdateParticipants();
         }
         // Battler_Initialize:74 pbInitEffects(false) for every battler that has just taken a slot.
-        for (Battler battler : playerParty) {
+        // Indexed loops: initEffects (Illusion's pbLastInTeam, the ability checks) walks these same parties, and libGDX's
+        // Array iterators cannot be nested.
+        for (int i = 0; i < playerParty.size; i++) {
+            Battler battler = playerParty.get(i);
             if (battler.index >= 0 && !battler.effectsInitialized) {
                 battler.effectsInitialized = true;
                 battler.initEffects(false);
             }
         }
-        for (Battler battler : foeParty) {
+        for (int i = 0; i < foeParty.size; i++) {
+            Battler battler = foeParty.get(i);
             if (battler.index >= 0 && !battler.effectsInitialized) {
                 battler.effectsInitialized = true;
                 battler.initEffects(false);
@@ -1070,6 +1074,7 @@ public final class Battle {
      * the {@link HeadlessScene} answering its prompts (there is no UI here).
      */
     public BattleResult run(int maxTurns) {
+        pbSetUpIllusions();
         while (turns < maxTurns) {
             BattleResult result = result();
             if (result != null) {
@@ -1219,6 +1224,8 @@ public final class Battle {
              * pixelates and takes the picture of {@link #oldLook}'s successor; {@code oldLook} is what it shows until the event plays.
              */
             TRANSFORM_SPRITE,
+            /** {@code @scene.pbChangePokemon(battler, pokemon)} + {@code pbRefreshOne}: the sprite changes at once ({@link #oldLook} is what it showed). */
+            CHANGE_LOOK,
             /** {@code @scene.pbSwapBattlerSprites(idxA,idxB)} (PokeBattle_Scene:266-279): {@code idxBattler}, the other index in {@code oldHp}. */
             SWAP_SPRITES,
             /**
@@ -1352,6 +1359,11 @@ public final class Battle {
         public Pokemon oldLook;
         static RoundEvent transformSprite(int idxBattler, Pokemon oldLook) {
             RoundEvent event = new RoundEvent(Kind.TRANSFORM_SPRITE, null, false, null, idxBattler, -1, -1, false, false);
+            event.oldLook = oldLook;
+            return event;
+        }
+        static RoundEvent changeLook(int idxBattler, Pokemon oldLook) {
+            RoundEvent event = new RoundEvent(Kind.CHANGE_LOOK, null, false, null, idxBattler, -1, -1, false, false);
             event.oldLook = oldLook;
             return event;
         }
@@ -1888,6 +1900,31 @@ public final class Battle {
 
     /** {@code @internalBattle} (PokeBattle_Battle:61, initialised true at :138). */
     public boolean internalBattle = true;
+
+    private boolean illusionsSet;
+
+    /** True once the parties are complete and the battlers' Illusions have been decided ({@link #pbSetUpIllusions()}). */
+    boolean illusionsReady() {
+        return illusionsSet;
+    }
+
+    /**
+     * Battler_Initialize:214-219 for the battlers already on the field: the plugin initialises a battler when it takes its position,
+     * with both parties complete, while this runtime adds the Pokemon one by one - so the first battlers' Illusions are decided here,
+     * once, when the battle starts. Later switch-ins decide theirs in {@code initEffects}.
+     */
+    public void pbSetUpIllusions() {
+        if (illusionsSet) {
+            return;
+        }
+        illusionsSet = true;
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler battler = battlerAt(idx);
+            if (battler != null) {
+                battler.initIllusion();
+            }
+        }
+    }
 
     /** {@code @battle.pbPlayer.numbadges}: the player's badges, which boost Speed (and the other stats) of the player's Pokemon. */
     public int numBadges;

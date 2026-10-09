@@ -137,9 +137,43 @@ public final class Battler {
         return hp <= 0;
     }
 
+    /** {@code name} (109_PokeBattle_Battler:166-169): the Illusion's name while it is up. */
     public String name() {
-        return pokemon.name != null && !pokemon.name.isEmpty()
-                ? pokemon.name : pokemon.species.name;
+        Pokemon shown = displayPokemon();
+        return shown.name != null && !shown.name.isEmpty()
+                ? shown.name : shown.species.name;
+    }
+
+    /** {@code @effects[PBEffects::Illusion]}: the party member this battler looks like, or null. */
+    public Pokemon illusion() {
+        Object value = effects.raw(PBEffects.Battler.Illusion);
+        return value instanceof Pokemon ? (Pokemon) value : null;
+    }
+
+    /** {@code displayPokemon} (109:172-175): the Illusion, else the Pokemon itself. */
+    public Pokemon displayPokemon() {
+        Pokemon illusion = illusion();
+        return illusion != null ? illusion : pokemon;
+    }
+
+    /** {@code displaySpecies} (:177-180). */
+    public PbsData.Species displaySpecies() {
+        return displayPokemon().species;
+    }
+
+    /** {@code displayGender} (:182-185). */
+    public int displayGender() {
+        return displayPokemon().effectiveGender();
+    }
+
+    /** {@code displayForm} (:187-190). */
+    public int displayForm() {
+        return displayPokemon().formIndex();
+    }
+
+    /** {@code shiny?} (:192-195): the Illusion's while it is up. */
+    public boolean displayShiny() {
+        return displayPokemon().shiny;
     }
 
     /**
@@ -373,7 +407,7 @@ public final class Battler {
             for (Pokemon.MoveSlot original : transformOriginalMoves) pokemon.moves.add(original);
             transformOriginalMoves = null;
         }
-        displayPokemon = null;                                   // and the sprite is its own again
+        transformLook = null;                                    // and the sprite is its own again
     }
 
     /** The moves the Pokemon really knows while a Transform has replaced them (null = not transformed). */
@@ -383,11 +417,11 @@ public final class Battler {
      * The Pokemon whose picture the sprite shows while this battler is transformed ({@code pbChangePokemon(user,target.pokemon)},
      * Move_Effects_000-07F:2386 / BattleHandlers_Abilities:2614); null = its own.
      */
-    public Pokemon displayPokemon;
+    public Pokemon transformLook;
 
-    /** The Pokemon the battler looks like on the field. */
+    /** The Pokemon the battler's sprite shows: its Transform target, else the Illusion, else itself. */
     public Pokemon visiblePokemon() {
-        return displayPokemon != null ? displayPokemon : pokemon;
+        return transformLook != null ? transformLook : displayPokemon();
     }
 
     /**
@@ -430,9 +464,29 @@ public final class Battler {
         effects.set(PBEffects.Battler.Disable, 0);                                       // :440-441
         effects.set(PBEffects.Battler.DisableMove, 0);
         effects.set(PBEffects.Battler.WeightChange, target.effects.raw(PBEffects.Battler.WeightChange));   // :442
-        displayPokemon = target.pokemon.copy();                                          // the sprite (scene.pbRefreshOne, :443)
+        transformLook = target.pokemon.copy();                                           // the sprite (scene.pbRefreshOne, :443)
         battle.display(pbThis() + "变成了" + target.pbThis(true) + "！");                 // :444
         pbOnAbilityChanged(oldAbil);                                                     // :445
+    }
+
+    /**
+     * {@code Battler_Initialize:214-219}: with Illusion the battler takes the look of the last able Pokemon of its team (when that is
+     * not itself).
+     */
+    public void initIllusion() {
+        if (battle == null || !hasActiveAbility("ILLUSION")) {                          // :214
+            return;
+        }
+        int idxLastParty = BattleSwitchAction.pbLastInTeam(battle, index);              // :215
+        Array<Battler> party = battle.partyOf(index);
+        if (idxLastParty >= 0 && idxLastParty != pokemonIndex && idxLastParty < party.size) {   // :216
+            effects.set(PBEffects.Battler.Illusion, party.get(idxLastParty).pokemon);   // :217-218 @battle.pbParty(@index)[idxLastParty]
+        }
+    }
+
+    /** {@code @scene.pbChangePokemon(self,@pokemon)} (Battler_AbilityAndItem:136, BattleHandlers_Abilities:1608): the sprite takes its new picture, in the round's order. */
+    public void queueLookChange(Pokemon shownBefore) {
+        battle.roundEvents.add(Battle.RoundEvent.changeLook(index, shownBefore));
     }
 
     /** {@code @scene.pbChangePokemonTransform(user, target.pokemon)} (345_Transform_Mosaic): the sprite's mosaic change, in the round's order. */
@@ -918,13 +972,8 @@ public final class Battler {
         effects.set(PBEffects.Battler.HelpingHand, false);             // :211
         effects.set(PBEffects.Battler.HyperBeam, 0);                   // :212
         effects.set(PBEffects.Battler.Illusion, (Object) null);        // :213 @effects[Illusion] = nil
-        // :214-219 —— 幻觉：需要 @battle.pbLastInTeam(:216) 与 @battle.pbParty(:218)
-        // 登记: Battler_Initialize:214-219 依赖 Battle#pbLastInTeam / #pbParty（Battle 未暴露，
-        //       本批不许改 Battle.java）→ 照 Ruby 的 if 形状保留分支，但不写 Illusion。
-        if (hasActiveAbility("ILLUSION")) {                            // :214
-            // idxLastParty = @battle.pbLastInTeam(@index)             // :215
-            // if idxLastParty != @pokemonIndex                        // :216
-            //   @effects[Illusion] = @battle.pbParty(@index)[idxLastParty]   // :217-218
+        if (battle != null && battle.illusionsReady()) {               // the parties are complete (see Battle#pbSetUpIllusions)
+            initIllusion();                                            // :214-219
         }
         effects.set(PBEffects.Battler.Imprison, false);                // :220
         effects.set(PBEffects.Battler.Instruct, false);                // :221
@@ -1924,12 +1973,12 @@ public final class Battler {
     /** {@code pbOnAbilityChanged} (Battler_AbilityAndItem:132-147)。 */
     public void pbOnAbilityChanged(String oldAbil) {
         if (effects.truthy(PBEffects.Battler.Illusion) && "ILLUSION".equals(oldAbil)) { // :133
+            Pokemon shownBefore = visiblePokemon();
             effects.set(PBEffects.Battler.Illusion, (Object) null);      // :134
             if (!effects.truthy(PBEffects.Battler.Transform)) {          // :135
-                // 登记: Battler_AbilityAndItem:136 @battle.scene.pbChangePokemon(self,@pokemon)
-                //       依赖 PokeBattle_Scene（本批未建模）→ 空实现
+                queueLookChange(shownBefore);                            // :136 @battle.scene.pbChangePokemon(self,@pokemon)
                 display(pbThis() + "的" + abilityName() + "消失了！");    // :137
-                // 登记: Battler_AbilityAndItem:138 @battle.pbSetSeen(self) 依赖图鉴/存档
+                battle.pbSetSeen(this);                                  // :138
             }
         }
         if (unstoppableAbility(null)) {                                  // :141

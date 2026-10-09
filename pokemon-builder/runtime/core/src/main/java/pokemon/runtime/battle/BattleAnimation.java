@@ -242,7 +242,7 @@ abstract class BattleAnimation {
         if (sprite == null || sprite.battler == null || sprite.battler.pokemon == null) {
             return;                                              // :597
         }
-        String cry = scene().cryFile(sprite.battler.pokemon);     // :598
+        String cry = scene().cryFile(sprite.battler.visiblePokemon());     // :598 pbCryFile(@pkmn): the Illusion's / Transform's cry
         if (cry != null && scene().sePlayer() != null) {          // :599
             scene().sePlayer().playSe(cry, 100, 100);             // pbSEPlay defaults (Audio_Play:200)
         }

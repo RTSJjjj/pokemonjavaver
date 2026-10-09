@@ -216,9 +216,9 @@ public final class BattleInfoView {
             Pokemon pkmn = battler.pokemon;
             PbsData.Species iconSpecies = displaySpecies(battler);
             if (!(battler.effects.raw(PBEffects.Battler.Illusion) instanceof Pokemon)
-                    && battler.effects.truthy(PBEffects.Battler.Transform) && battler.displayPokemon != null
-                    && battler.displayPokemon.species != null) {
-                iconSpecies = battler.displayPokemon.species;                  // :107-108 pkmn.species = TransformSpecies
+                    && battler.effects.truthy(PBEffects.Battler.Transform) && battler.transformLook != null
+                    && battler.transformLook.species != null) {
+                iconSpecies = battler.transformLook.species;                   // :107-108 pkmn.species = TransformSpecies
             }
             boolean itemShown = switch197() || (owned(battler) && battle.wildBattle());
             boolean hasItemIcon = itemShown && pkmn != null && pkmn.item != null && !pkmn.item.isEmpty();

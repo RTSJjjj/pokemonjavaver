@@ -421,6 +421,7 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             if (size != null) battle.setBattleMode(size);                            // :96
             if (!safari || trainer.party.firstAble() != null) battle.pbEnsureParticipants();   // Battle_StartAndEnd:301 (PokeBattle_SafariZone has none)
+            battle.pbSetUpIllusions();                                               // Battler_Initialize:214-219 with the parties complete
             if (safari) {                                                            // 160_PokeBattle_SafariZone:431-435
                 Pokemon wild = teams.get(0).first();
                 int rareness = wild.species == null ? 0 : wild.species.rareness;
