@@ -10,6 +10,12 @@ import com.badlogic.gdx.utils.ObjectIntMap;
 public final class Inventory {
 
     private final ObjectIntMap<String> counts = new ObjectIntMap<>();
+    private final BagMemory memory = new BagMemory();
+
+    /** The pocket and cursor the field bag was left on (saved with the game). */
+    public BagMemory bagMemory() {
+        return memory;
+    }
 
     /** Adds items (negative removes); returns the new amount, never below zero. */
     public int add(String item, int amount) {

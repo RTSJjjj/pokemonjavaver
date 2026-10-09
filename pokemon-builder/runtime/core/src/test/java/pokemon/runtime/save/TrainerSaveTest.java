@@ -22,6 +22,32 @@ import static org.junit.jupiter.api.Assertions.*;
 class TrainerSaveTest {
 
     @Test
+    @DisplayName("an old save's gifted Pokemon (id 0, no OT) becomes the player's, a foreign one stays foreign")
+    void claimsGiftedPokemon(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        SaveManager saves = new SaveManager();
+        saves.attachPbs(data);
+        GameState original = new GameState();
+        original.enterMap(3, 2, 2);
+        original.trainer().name = "小明";
+        original.trainer().id = 4242;
+        Pokemon gifted = new Pokemon(data.species("BULBASAUR"), 5, data);       // trainer id 0, no OT: what an event gift used to be
+        Pokemon traded = new Pokemon(data.species("BULBASAUR"), 5, data);
+        traded.setTrainerID(99999);
+        traded.originalTrainer = "他人";
+        original.trainer().party.add(gifted);
+        original.trainer().party.add(traded);
+
+        GameState restored = new GameState();
+        assertTrue(saves.fromJson(saves.toJson(original), restored));
+        Pokemon mine = restored.trainer().party.get(0);
+        assertEquals(4242, mine.trainerID);
+        assertEquals("小明", mine.originalTrainer);
+        assertEquals(99999, restored.trainer().party.get(1).trainerID);
+        assertEquals("他人", restored.trainer().party.get(1).originalTrainer);
+    }
+
+    @Test
     @DisplayName("P1: party, PC storage, money and the heal point survive a round trip")
     void roundTrip(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
@@ -69,6 +95,8 @@ class TrainerSaveTest {
         original.fieldGlobals().safari.begin(28, 4, 5, 8, 30);
         original.fieldGlobals().safari.steps = 1234;
         original.fieldGlobals().startTime = 1700000000L;
+        original.inventory().bagMemory().lastPocket = 4;
+        original.inventory().bagMemory().choice(4, 7);
 
         String json = saves.toJson(original);
         GameState restored = new GameState();
@@ -79,6 +107,8 @@ class TrainerSaveTest {
         assertEquals(1234, restored.fieldGlobals().safari.steps);
         assertEquals(30, restored.fieldGlobals().safari.ballcount);
         assertEquals(1700000000L, restored.fieldGlobals().startTime);
+        assertEquals(4, restored.inventory().bagMemory().lastPocket);
+        assertEquals(7, restored.inventory().bagMemory().choice(4));
         assertEquals(3, restored.trainer().hallOfFameLastNumber);
         assertEquals(1, restored.trainer().hallOfFame.size());
         assertEquals("BULBASAUR", restored.trainer().hallOfFame.get(0).get(0).species.internalName);

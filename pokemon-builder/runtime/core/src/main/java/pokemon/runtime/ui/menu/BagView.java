@@ -103,6 +103,7 @@ public final class BagView {
     public void chooseItem(java.util.function.Predicate<String> filter) {
         battleUse = null;
         holdTarget = null;
+        model.useMemory(context.gameState().inventory().bagMemory().copy());   // pbChooseItemScreen restores the bag's memory afterwards
         model.chooseFilter(filter);
         model.cursor.select(0);
         itemPick = true;
@@ -119,6 +120,7 @@ public final class BagView {
     public void pickFromBag() {
         battleUse = null;
         holdTarget = null;
+        model.useMemory(context.gameState().inventory().bagMemory().copy());
         model.chooseFilter(null);
         model.cursor.select(0);
         itemPick = true;
@@ -169,6 +171,12 @@ public final class BagView {
         step = Step.ITEMS;
         notice = "";
         model.battleOnly(true);
+        model.reload();                                       // Scene_Commands:239-243 + 305_BW_Bag:197: the battle bag's own pocket and cursor
+    }
+
+    /** The memory this bag opens on (the battle bag keeps its own for the whole battle). */
+    public void useMemory(pokemon.runtime.state.BagMemory memory) {
+        model.useMemory(memory);
     }
 
     public boolean update(InputManager input) {
@@ -203,6 +211,7 @@ public final class BagView {
             if (model.pocket() != pocketBefore) {
                 pokemon.runtime.audio.UiSounds.named(context.audioManager(), "BW2BagSound");   // 305_BW_Bag:463/487
             }
+            model.remember();                                                                 // :429 @bag.setChoice(pocket, index)
         }
         if (!input.wasPressed(GameAction.CONFIRM)) return false;
         switch (step) {

@@ -329,18 +329,6 @@ public final class MapScreen extends ScreenAdapter {
             messageWindow = new MessageWindow(context.messageService(),
                     locator.font(messageFontName), textures, locator);
             messageWindow.money = () -> context.gameState().trainer().money;
-            java.util.List<String> names = new java.util.ArrayList<>();
-            pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
-            if (pbs != null) {
-                for (pokemon.runtime.pokemon.PbsData.Item item : pbs.items.values()) {
-                    names.add(item.name);
-                    names.add(item.namePlural);
-                }
-                for (pokemon.runtime.pokemon.PbsData.Move move : pbs.moves.values()) {
-                    names.add(move.name);
-                }
-            }
-            messageWindow.warmUp(names);   // glyphs, skins and icons before the first message
         }
         pauseMenu = new PauseMenuOverlay(context, locator);
         pauseMenu.host(new PauseMenuOverlay.Host() {
@@ -3095,12 +3083,12 @@ public final class MapScreen extends ScreenAdapter {
             batch.setColor(0f, 0f, 0f, 64 / 255f);                                 // :25 Color.new(0, 0, 0, 64)
             batch.draw(pixel, left, bottom, pokemon.runtime.event.ItemFindToasts.WIDTH, pokemon.runtime.event.ItemFindToasts.HEIGHT);
             batch.setColor(1f, 1f, 1f, 1f);
-            Texture icon = itemToastIcon(toast.item);
+            Texture icon = cachedToastIcon(toast.item);
             if (icon != null) {                                                    // :30-33 icon at (x+14, y+14), zoom 0.5
                 batch.draw(icon, left + 14f - 12f, bottom + 14f - 12f, 24f, 24f);
             }
             messageWindow.drawToastText(batch, toast.name, left + 28f, bottom + 28f - 3f, false);
-            messageWindow.drawToastText(batch, "×" + toast.qty, screenRight - 2f, bottom + 28f - 3f, true);
+            messageWindow.drawToastText(batch, toast.qtyText, screenRight - 2f, bottom + 28f - 3f, true);
         }
         batch.end();
     }
@@ -3256,6 +3244,18 @@ public final class MapScreen extends ScreenAdapter {
         return file == null ? null : textures.load("icons:" + name, file);
     }
 
+    /** Icon lookups touch the disk (File.isFile / listFiles), so each item is resolved once, not every frame. */
+    private final java.util.HashMap<String, Texture> toastIcons = new java.util.HashMap<>();
+
+    private Texture cachedToastIcon(String item) {
+        if (toastIcons.containsKey(item)) {
+            return toastIcons.get(item);
+        }
+        Texture icon = itemToastIcon(item);
+        toastIcons.put(item, icon);
+        return icon;
+    }
+
     private Texture itemToastIcon(String item) {
         String name = pokemon.runtime.ui.menu.ItemIcons.name(context.pbsData(), item,
                 candidate -> locator != null && locator.find("Icons", candidate + ".png") != null);
@@ -3270,6 +3270,7 @@ public final class MapScreen extends ScreenAdapter {
         if (messageWindow == null || interpreter == null || !interpreter.messages().visible()) {
             return;
         }
+        warmUpMessagesOnFirstItem();
         messageWindow.prepare(); // skin / cursor textures outside the batch
         messageWindow.textSpeed = context.settings().textspeed;
         batch.setProjectionMatrix(camera.combined);
@@ -4389,6 +4390,25 @@ public final class MapScreen extends ScreenAdapter {
         if (camera != null) {
             camera.update();
         }
+    }
+
+    /** The first item ever received asks for the one-off glyph/skin/icon preload; later pickups find everything ready. */
+    private void warmUpMessagesOnFirstItem() {
+        if (interpreter == null || !interpreter.consumeMessageWarmUpRequest()) {
+            return;
+        }
+        java.util.List<String> names = new java.util.ArrayList<>();
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        if (pbs != null) {
+            for (pokemon.runtime.pokemon.PbsData.Item item : pbs.items.values()) {
+                names.add(item.name);
+                names.add(item.namePlural);
+            }
+            for (pokemon.runtime.pokemon.PbsData.Move move : pbs.moves.values()) {
+                names.add(move.name);
+            }
+        }
+        messageWindow.warmUp(names);
     }
 
     @Override

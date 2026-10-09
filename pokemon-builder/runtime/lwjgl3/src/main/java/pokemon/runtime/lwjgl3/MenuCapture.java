@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1444,6 +1444,13 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "headnames":
+                context.settings().headtopname = 3;
+                mapScreen = new MapScreen(context, 3, 18, 14, 8);
+                context.game().setScreen(mapScreen);
+                for (int i = 0; i < 6; i++) { renderMap(); }
+                shotMap("headnames");
+                break;
             case "mining":
                 request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.MINIGAME);
                 request.wanted = "mining";

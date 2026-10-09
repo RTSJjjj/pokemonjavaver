@@ -692,8 +692,7 @@ public final class PartyView {
             if (fSummary >= 0 && command == fSummary) {        // :1415
                 pbSummary(pkmnid, () -> pbSetHelpText(party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。"), next);   // :1416-1418
             } else if (fPokedex >= 0 && command == fPokedex) { // :1420 查看图鉴
-                pokedexInfo(pkmn);                             // :1421-1427
-                next.run();
+                pokedexInfo(pkmn, next);                       // :1421-1427
             } else if (fSwitch >= 0 && command == fSwitch) {   // :1430
                 pbSetHelpText("移动到哪里？");                 // :1431
                 final int oldpkmnid = pkmnid;                  // :1432
@@ -872,10 +871,25 @@ public final class PartyView {
         return hpGain;
     }
 
-    /** :1420-1427 查看图鉴 — 登记: PokemonPokedexInfo_Scene.pbStartSceneSingle 未接，空实现。 */
-    private void pokedexInfo(Pokemon pkmn) {
-        // pbUpdateLastSeenForm(pkmn); pbFadeOutIn { PokemonPokedexInfoScreen.pbStartSceneSingle(pkmn.species) }
-        // dorefresh = true
+    private DexEntryView dexView;
+    private Runnable dexDone;
+
+    /**
+     * :1420-1427 查看图鉴: {@code PokemonPokedexInfoScreen#pbStartSceneSingle(pkmn.species)} - the species' own entry page
+     * (the BW Pokedex entry of 330_PokedexEntry_BW_Style) without the list around it, then {@code dorefresh = true}.
+     * 登记: {@code pbUpdateLastSeenForm(pkmn)} and the {@code pbFadeOutIn} fade are not modelled.
+     */
+    private void pokedexInfo(Pokemon pkmn, Runnable next) {
+        if (pkmn.species == null) {
+            next.run();
+            return;
+        }
+        dexView = new DexEntryView(context, java.util.Collections.singletonList(pkmn.species), 0);
+        context.audioManager().playCry(pkmn.species.id);                     // pbPlayCrySpecies on open
+        dexDone = () -> {
+            pbHardRefresh();                                                 // :1427 dorefresh = true
+            next.run();
+        };
     }
 
     private TextEntryView nameEntry;
@@ -1628,6 +1642,16 @@ public final class PartyView {
             }
             return finishedNow();
         }
+        if (dexView != null) {
+            if (dexView.update(input)) {
+                dexView = null;
+                Runnable then = dexDone;
+                dexDone = null;
+                mode = Mode.CHOOSE;
+                if (then != null) then.run();
+            }
+            return finishedNow();
+        }
         if (relearnView != null) {
             if (relearnView.update(input)) {
                 relearnView = null;
@@ -1742,6 +1766,10 @@ public final class PartyView {
         }
         if (nameEntry != null) {
             nameEntry.render(b, a, f, skin);
+            return;
+        }
+        if (dexView != null) {
+            dexView.render(b, a, f, smallFont);
             return;
         }
         if (relearnView != null && !relearnView.hostVisible()) {

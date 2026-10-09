@@ -52,8 +52,14 @@ public final class MessageWindow implements Disposable {
     private final ObjectMap<String, Texture> ui = new ObjectMap<>();
     private final ObjectMap<String, Boolean> missingUi = new ObjectMap<>();
 
-    /** Incremental fonts keep generating glyphs, so the generator must live on. */
-    private FreeTypeFontGenerator generator;
+    /**
+     * Incremental fonts keep generating glyphs, so the generator must live on. One font per process (per font file):
+     * every MapScreen shares it, so glyphs generated once are never generated again.
+     */
+    private static String sharedFontPath;
+    private static FreeTypeFontGenerator sharedGenerator;
+    private static BitmapFont sharedFont;
+    private static boolean glyphsWarmed;
     private BitmapFont font;
     private boolean ready;
     /** Last measured line width (GlyphLayout is reused by BitmapFont#draw). */
@@ -75,19 +81,26 @@ public final class MessageWindow implements Disposable {
             Gdx.app.error("MessageWindow", "message font not found; the window stays hidden");
             return;
         }
-        generator = new FreeTypeFontGenerator(Gdx.files.absolute(fontFile.getAbsolutePath()));
-        try {
-            FreeTypeFontParameter parameter = new FreeTypeFontParameter();
-            parameter.size = FONT_SIZE;
-            parameter.incremental = true; // CJK glyphs are added on demand
-            parameter.minFilter = Texture.TextureFilter.Nearest;
-            parameter.magFilter = Texture.TextureFilter.Nearest;
-            font = generator.generateFont(parameter);
-        } catch (RuntimeException error) {
-            generator.dispose();
-            generator = null;
-            throw error;
+        String path = fontFile.getAbsolutePath();
+        if (sharedFont == null || !path.equals(sharedFontPath)) {
+            releaseSharedFont();
+            FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.absolute(path));
+            try {
+                FreeTypeFontParameter parameter = new FreeTypeFontParameter();
+                parameter.size = FONT_SIZE;
+                parameter.incremental = true; // CJK glyphs are added on demand
+                parameter.minFilter = Texture.TextureFilter.Nearest;
+                parameter.magFilter = Texture.TextureFilter.Nearest;
+                sharedFont = generator.generateFont(parameter);
+            } catch (RuntimeException error) {
+                generator.dispose();
+                throw error;
+            }
+            sharedGenerator = generator;
+            sharedFontPath = path;
+            glyphsWarmed = false;
         }
+        font = sharedFont;
         ready = true;
     }
 
@@ -109,6 +122,25 @@ public final class MessageWindow implements Disposable {
         if (!ready) {
             return;
         }
+        if (!glyphsWarmed) {
+            glyphsWarmed = true;
+            warmGlyphs(extraTexts);
+        }
+        skin(DEFAULT_SKIN);
+        skin(CHOICE_SKIN);
+        ui("pause", "Pictures/pause.png");
+        ui("selarrow", "Pictures/selarrow.png");
+        for (int pocket = 1; pocket <= 9; pocket++) {
+            iconTexture("bagPocket" + pocket);
+        }
+    }
+
+    /** True until the process-wide glyph warm-up has run. */
+    public static boolean needsWarmUp() {
+        return !glyphsWarmed;
+    }
+
+    private void warmGlyphs(Iterable<String> extraTexts) {
         java.util.LinkedHashSet<Integer> codes = new java.util.LinkedHashSet<>();
         addCodePoints(codes, COMMON_TEXT);
         if (extraTexts != null) {
@@ -126,13 +158,6 @@ public final class MessageWindow implements Disposable {
         }
         if (all.length() > 0) {
             layout.setText(font, all);
-        }
-        skin(DEFAULT_SKIN);
-        skin(CHOICE_SKIN);
-        ui("pause", "Pictures/pause.png");
-        ui("selarrow", "Pictures/selarrow.png");
-        for (int pocket = 1; pocket <= 9; pocket++) {
-            iconTexture("bagPocket" + pocket);
         }
     }
 
@@ -211,8 +236,11 @@ public final class MessageWindow implements Disposable {
         if (!ready) {
             return;
         }
-        layout.setText(font, text);
-        float left = right ? x - layout.width : x;
+        float left = x;
+        if (right) {                                  // only right-aligned text needs its width
+            layout.setText(font, text);
+            left = x - layout.width;
+        }
         font.setColor(64 / 255f, 64 / 255f, 64 / 255f, 1f);
         font.draw(batch, text, left + 1f, y - 1f);
         font.setColor(248 / 255f, 248 / 255f, 248 / 255f, 1f);
@@ -774,11 +802,20 @@ public final class MessageWindow implements Disposable {
         if (underlineTexture != null) {
             underlineTexture.dispose();
         }
-        if (font != null) {
-            font.dispose();
+        font = null;                                        // the shared font outlives the screen; see releaseSharedFont
+    }
+
+    /** Frees the process-wide font (application exit). */
+    public static void releaseSharedFont() {
+        if (sharedFont != null) {
+            sharedFont.dispose();
+            sharedFont = null;
         }
-        if (generator != null) {
-            generator.dispose();
+        if (sharedGenerator != null) {
+            sharedGenerator.dispose();
+            sharedGenerator = null;
         }
+        sharedFontPath = null;
+        glyphsWarmed = false;
     }
 }

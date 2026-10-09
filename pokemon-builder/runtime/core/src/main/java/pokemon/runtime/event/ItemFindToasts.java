@@ -20,6 +20,8 @@ public final class ItemFindToasts {
         public final int qty;
         /** :11 {@code @y = 192 - count * @height}, in RGSS screen coordinates (y down). */
         public final int y;
+        /** "×qty", built once (drawn every frame). */
+        public final String qtyText;
         float age;
 
         Toast(String item, String name, int qty, int y) {
@@ -27,6 +29,7 @@ public final class ItemFindToasts {
             this.name = name;
             this.qty = qty;
             this.y = y;
+            this.qtyText = "×" + qty;
         }
     }
 

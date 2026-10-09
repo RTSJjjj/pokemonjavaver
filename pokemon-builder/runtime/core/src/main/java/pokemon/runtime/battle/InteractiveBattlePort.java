@@ -105,7 +105,7 @@ public final class InteractiveBattlePort implements BattlePort {
             if (opponent == null) return null;
             Array<Pokemon> foes = new Array<>();
             for (PbsData.TrainerPokemon member : opponent.party) {
-                Pokemon p = factory().trainerPokemon(member, data.get()); if (p != null) foes.add(p);
+                Pokemon p = factory().trainerPokemon(opponent, member, data.get()); if (p != null) foes.add(p);
             }
             teams.add(foes);
         }

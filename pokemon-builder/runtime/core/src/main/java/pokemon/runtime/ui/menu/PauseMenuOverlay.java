@@ -467,6 +467,7 @@ public final class PauseMenuOverlay implements Disposable {
         splashMessage = SplashMessages.sample(splashRandom);
         open = true;
         sub = Sub.MAIN;
+        fade = Fade.NONE;
         MenuSe.open(context.audioManager());
     }
 
@@ -479,11 +480,67 @@ public final class PauseMenuOverlay implements Disposable {
     public void close() {
         if (request != null && !request.done) request.complete(-1, "");
         request = null;
+        fade = Fade.NONE;
         open = false;
+    }
+
+    // ---- pbFadeOutIn around every menu entry (288_Modular_Menu:42-250, 062_MessageConfig:542-569) ----
+
+    private enum Fade { NONE, OUT, IN }
+
+    /** {@code numFrames = (40*0.4).floor} and {@code alphaDiff = (255.0/numFrames).ceil}. */
+    private static final int FADE_FRAMES = 16;
+    private static final int FADE_STEP = 16;
+    private Fade fade = Fade.NONE;
+    private int fadeFrame;
+    private Sub fadeTo = Sub.MAIN;
+    private final MenuClock fadeClock = new MenuClock();
+
+    /** The entries that run inside {@code pbFadeOutIn(99999) { ... }}: the pause menu to a screen and back. */
+    private static boolean fadedEntry(Sub from, Sub to) {
+        Sub other = from == Sub.MAIN ? to : to == Sub.MAIN ? from : null;
+        if (other == null) {
+            return false;
+        }
+        switch (other) {
+            case SAVE: case LOAD: case OPTIONS: case TRAINER: case PARTY: case BAG: case POKEDEX: case STORAGE:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /** Per frame while open; the map screen freezes the world around this. */
     public void update(float delta) {
+        if (!open) {
+            return;
+        }
+        if (fade != Fade.NONE) {
+            panoramaOffset -= PANORAMA_SPEED * delta;
+            fadeFrame += fadeClock.advance();
+            if (fadeFrame > FADE_FRAMES) {                      // for j in 0..numFrames
+                if (fade == Fade.OUT) {
+                    sub = fadeTo;                                // the block runs behind the black screen
+                    fade = Fade.IN;
+                    fadeFrame = 0;
+                } else {
+                    fade = Fade.NONE;
+                }
+            }
+            return;
+        }
+        Sub before = sub;
+        updateInner(delta);
+        if (open && request == null && sub != before && fadedEntry(before, sub)) {
+            fadeTo = sub;
+            sub = before;                                        // keep showing the screen that is being left
+            fade = Fade.OUT;
+            fadeFrame = 0;
+            fadeClock.advance();
+        }
+    }
+
+    private void updateInner(float delta) {
         if (!open) {
             return;
         }
@@ -780,6 +837,19 @@ public final class PauseMenuOverlay implements Disposable {
 
     /** Draws the menu over the frozen map (batch in logical screen space). */
     public void render(SpriteBatch batch) {
+        renderInner(batch);
+        if (!open || fade == Fade.NONE) {
+            return;
+        }
+        int frame = Math.min(FADE_FRAMES, fadeFrame);
+        int alpha = fade == Fade.OUT ? Math.min(255, frame * FADE_STEP) : Math.max(0, (FADE_FRAMES - frame) * FADE_STEP);
+        if (alpha > 0) {
+            MenuPanel.fill(batch, assets, 0f, 0f, ScreenMetrics.logicalWidth(), ScreenMetrics.logicalHeight(),
+                    0f, 0f, 0f, alpha / 255f);
+        }
+    }
+
+    private void renderInner(SpriteBatch batch) {
         if (!open) {
             return;
         }

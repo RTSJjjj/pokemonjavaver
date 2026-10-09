@@ -164,6 +164,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     /** {@code @lastCmd} / {@code @lastMove} (Scene_Commands:30/94). */
     private final int[] lastCmd = new int[6];
     private final int[] lastMove = new int[6];
+    /** Scene_Commands:239-243 {@code @bagLastPocket} / {@code @bagChoices}: the battle bag's pocket and cursor, kept for the battle. */
+    private pokemon.runtime.state.BagMemory bagMemory;
     /** The target menu (Scene_Commands:419-474): {@code texts}, {@code mode} (0 one target, 1 all with text) and {@code cw.index}. */
     private String[] targetTexts;
     private int targetMode;
@@ -1654,6 +1656,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     sendOut.dispose();
                     sendOut = null;
                 }
+                if (switchIdxBattler >= 0 && switchIdxBattler < lastMove.length) {
+                    lastMove[switchIdxBattler] = 0;                   // :328 @scene.pbResetMoveIndex(b[0])
+                }
                 message = null;
                 // :325-331 @peer.pbOnEnteringBattle / pbResetMoveIndex / pbSetSeen /
                 // @usedInBattle have no counterpart here; the send-out sequence
@@ -2628,6 +2633,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // pbItemMenu -> the real BW Bag (PokemonBag_Scene, battle=true).
         if (next == 2) {
             if (bagView == null) bagView = new BagView(context);
+            if (bagMemory == null) bagMemory = context.gameState().inventory().bagMemory().copy();   // Scene_Commands:239-243 @bagLastPocket/@bagChoices start as the bag's
+            bagView.useMemory(bagMemory);
             bagView.battleMode((id, target) -> { bagItem = id; bagTarget = target; });
             bagView.battleItemHost(this::openItemParty);
             itemParty = null;
@@ -4449,6 +4456,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 return;
             }
             if (session.chooseMove(pick)) {
+                lastMove[actingIndex()] = pick;                                    // Scene_Commands:174 @lastMove[idxBattler] = cw.index
                 queueSessionEvents();
             } else {
                 refuseMove();

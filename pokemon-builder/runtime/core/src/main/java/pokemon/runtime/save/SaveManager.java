@@ -118,6 +118,14 @@ public final class SaveManager {
             items.addChild(entry.key, new JsonValue(entry.value));
         }
         root.addChild("items", items);
+        JsonValue bagMemory = object();                                                   // 195_PItem_Bag:5/:18 lastpocket, @choices
+        bagMemory.addChild("lastPocket", new JsonValue(state.inventory().bagMemory().lastPocket));
+        JsonValue bagChoices = array();
+        for (int choice : state.inventory().bagMemory().choices()) {
+            bagChoices.addChild(new JsonValue(choice));
+        }
+        bagMemory.addChild("choices", bagChoices);
+        root.addChild("bagMemory", bagMemory);
         JsonValue quests = array();
         for (pokemon.runtime.state.QuestLog.Entry entry : state.quests().entries()) {
             JsonValue quest = object();
@@ -550,6 +558,21 @@ public final class SaveManager {
             }
         }
 
+        pokemon.runtime.state.BagMemory memory = state.inventory().bagMemory();            // optional: older saves start at pocket 1
+        memory.lastPocket = 1;
+        for (int i = 0; i < pokemon.runtime.state.BagMemory.POCKETS; i++) memory.choice(i, 0);
+        JsonValue bagMemoryJson = root.get("bagMemory");
+        if (bagMemoryJson != null && bagMemoryJson.isObject()) {
+            memory.lastPocket = Math.max(1, Math.min(pokemon.runtime.state.BagMemory.POCKETS - 1, bagMemoryJson.getInt("lastPocket", 1)));
+            JsonValue choices = bagMemoryJson.get("choices");
+            if (choices != null && choices.isArray()) {
+                int i = 0;
+                for (JsonValue c = choices.child; c != null && i < pokemon.runtime.state.BagMemory.POCKETS; c = c.next, i++) {
+                    memory.choice(i, c.asInt());
+                }
+            }
+        }
+
         state.playerName(root.getString("playerName", state.playerName()));
         // Older saves predate the selector and used the male graphic (id 0);
         // a new game never loads, so it still starts blank (-1).
@@ -752,6 +775,7 @@ public final class SaveManager {
                 Pokemon pokemon = readPokemon(entry);
                 if (pokemon != null) {
                     trainer.party.add(pokemon);
+                    claimUnowned(pokemon, trainer);
                     trainer.registerOwned(pokemon);
                 }
             }
@@ -763,6 +787,20 @@ public final class SaveManager {
             try { id = Integer.parseInt(region.name); } catch (NumberFormatException invalid) { continue; }
             if (id <= 0) continue;
             readStorage(region, trainer.storageForRegion(id), trainer);
+        }
+    }
+
+    /**
+     * Saves written before every given Pokemon went through {@code pbNewPkmn}: an event gift / starter had trainer id 0 and
+     * no OT, so the party menu hid 昵称 ({@code $Trainer.id==pkmn.trainerID}, 210_PScreen_Party:1334). Such a Pokemon was the
+     * player's own (a traded one always carries a foreign id), so it takes the player's id and name, as {@code pbNewPkmn}
+     * would have given it.
+     */
+    private static void claimUnowned(Pokemon pokemon, TrainerState trainer) {
+        if (pokemon.trainerID == 0 && (pokemon.originalTrainer == null || pokemon.originalTrainer.isEmpty())) {
+            pokemon.setTrainerID(trainer.id);                         // :941-943 player.id / player.name / player.gender
+            pokemon.originalTrainer = trainer.name;
+            pokemon.otGender = trainer.gender;
         }
     }
 
@@ -782,7 +820,8 @@ public final class SaveManager {
                     Pokemon pokemon = readPokemon(entry);
                     if (pokemon != null && slot < Storage.SLOTS) {
                         storage.box(boxIndex).set(slot++, pokemon);
-                        trainer.registerOwned(pokemon);
+                        claimUnowned(pokemon, trainer);
+                    trainer.registerOwned(pokemon);
                     }
                 }
             }
@@ -809,6 +848,7 @@ public final class SaveManager {
                 int slot = slotNode.getInt("slot", -1);
                 if (pokemon != null && slot >= 0 && slot < Storage.SLOTS) {
                     box.set(slot, pokemon);
+                    claimUnowned(pokemon, trainer);
                     trainer.registerOwned(pokemon);
                 }
             }

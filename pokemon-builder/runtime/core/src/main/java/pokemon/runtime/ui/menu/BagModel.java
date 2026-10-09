@@ -25,7 +25,45 @@ public final class BagModel {
     public final MenuListModel cursor = new MenuListModel(9);
     private final List<String> items = new ArrayList<>();
 
-    public BagModel(Inventory inventory, PbsData data) { this.inventory = inventory; this.data = data; refresh(); }
+    /** {@code PokemonBag#lastpocket / @choices}: the field bag's own, or the battle's (Scene_Commands:239-243). */
+    private pokemon.runtime.state.BagMemory memory;
+
+    public BagModel(Inventory inventory, PbsData data) {
+        this.inventory = inventory;
+        this.data = data;
+        this.memory = inventory.bagMemory();
+        reload();
+    }
+
+    /** Switches to another memory (the battle bag's) and opens on it. */
+    public void useMemory(pokemon.runtime.state.BagMemory value) {
+        memory = value;
+        reload();
+    }
+
+    /**
+     * Pbstartscene's start position (305_BW_Bag:160-197): the last pocket and
+     * {@code getChoice(pocket)}; a battle bag whose last pocket lists no usable
+     * item moves to the first pocket that does (:180-190).
+     */
+    public void reload() {
+        pocket = Math.max(1, Math.min(POCKETS.length - 1, memory.lastPocket));
+        refresh();
+        if (battleOnly && items.isEmpty()) {
+            for (int i = 1; i < POCKETS.length; i++) {
+                pocket = i;
+                refresh();
+                if (!items.isEmpty()) break;
+            }
+        }
+        memory.lastPocket = pocket;                            // :192 @bag.lastpocket = lastpocket
+        cursor.select(memory.choice(pocket));                  // :197 @bag.getChoice(lastpocket)
+    }
+
+    /** {@code @bag.setChoice(pocket, index)} (:429): called whenever the cursor may have moved. */
+    public void remember() {
+        memory.choice(pocket, cursor.index());
+    }
 
     /** Cycles only the real pockets 1..9 (pbChooseItem's LEFT/RIGHT). */
     public void changePocket(int delta) {
@@ -36,8 +74,9 @@ public final class BagModel {
             if (pocket >= POCKETS.length) pocket = 1;
             // 305_BW_Bag:446-455 while choosing with a filter, pockets without a matching item are skipped
         } while (chooseFilter != null && pocket != start && filteredCount(pocket) == 0);
-        cursor.select(0);
+        memory.lastPocket = pocket;                            // :459 @bag.lastpocket = itemwindow.pocket
         refresh();
+        cursor.select(memory.choice(pocket));                  // :33 self.index = @bag.getChoice(@pocket)
     }
 
     /** The items of {@code pocketNumber} the choose filter accepts (305_BW_Bag:393-401 {@code @filterlist[i].length}). */

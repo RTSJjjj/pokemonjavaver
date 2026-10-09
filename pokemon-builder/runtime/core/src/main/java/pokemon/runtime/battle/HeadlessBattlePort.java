@@ -5,6 +5,7 @@ import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.pokemon.TrainerState;
+import pokemon.runtime.pokemon.WildGenerator;
 
 import java.util.Random;
 import java.util.function.Supplier;
@@ -74,7 +75,7 @@ public final class HeadlessBattlePort implements BattlePort {
         }
         Array<Pokemon> foes = new Array<>();
         for (PbsData.TrainerPokemon member : trainerData.party) {
-            Pokemon built = trainerPokemon(member, data);
+            Pokemon built = trainerPokemon(trainerData, member, data);
             if (built != null) {
                 foes.add(built);
             }
@@ -162,35 +163,28 @@ public final class HeadlessBattlePort implements BattlePort {
         this.fatefulEncounter = value;
     }
 
-    /** Trainer party member from trainers.txt. */
+    /** Trainer party member from trainers.txt, without its trainer (no trainer type: the neutral defaults). */
     public Pokemon trainerPokemon(PbsData.TrainerPokemon member, PbsData data) {
+        return trainerPokemon(null, member, data);
+    }
+
+    /**
+     * {@code pbLoadTrainer}'s party loop (186_PTrainer_NPCTrainers:80-127): a Pokemon from {@code pbNewPkmn} (random
+     * personal id) whose fields trainers.txt leaves out take the plugin's defaults - ability index 0, the trainer's
+     * gender, nature {@code (species + trainertype) % 25}, IVs {@code min(level/2, 31)}, EVs {@code min(level*3/2, 85)}.
+     */
+    public Pokemon trainerPokemon(PbsData.TrainerData trainerData, PbsData.TrainerPokemon member, PbsData data) {
         PbsData.Species species = data.species(member.species);
         if (species == null) {
             return null;
         }
-        Pokemon pokemon = new Pokemon(species, Math.max(1, member.level), data);
-        if (member.ivs != null && member.ivs.length == 6) {
-            pokemon.ivs = member.ivs.clone();
-        }
-        if (member.evs != null && member.evs.length == 6) {
-            pokemon.evs = member.evs.clone();
-        }
-        if (member.nature != null) {
-            PbsData.Nature nature = data.nature(member.nature);
-            if (nature != null) {
-                pokemon.nature = nature;
-            }
-        }
-        applyAbility(pokemon, member.ability, species);
-        if (member.item != null) {
+        int level = Math.max(1, member.level);
+        Pokemon pokemon = WildGenerator.pbNewPkmn(data, species, level, null, 0, random);   // :83 pbNewPkmn(species,level,opponent,false)
+        PbsData.TrainerType type = trainerData == null || trainerData.type == null ? null : data.trainerTypes.get(trainerData.type);
+        if (member.item != null) {                                                          // :88
             pokemon.item = member.item;
         }
-        if (member.gender != null) {
-            pokemon.gender = "female".equalsIgnoreCase(member.gender)
-                    ? PokemonStats.FEMALE : PokemonStats.MALE;
-        }
-        pokemon.shiny = member.shiny;
-        if (member.moves.size > 0) {
+        if (member.moves.size > 0) {                                                        // :89-95 pbLearnMove each, else resetMoves
             pokemon.moves.clear();
             for (String moveName : member.moves) {
                 PbsData.Move move = data.move(moveName);
@@ -198,9 +192,48 @@ public final class HeadlessBattlePort implements BattlePort {
                     pokemon.moves.add(new Pokemon.MoveSlot(move));
                 }
             }
+        } else {
+            pokemon.resetMoves(data);
         }
-        pokemon.hp = pokemon.maxHp();
+        applyAbility(pokemon, member.ability == null ? "0" : member.ability, species);      // :96 setAbility(poke[TPABILITY] || 0)
+        if (member.gender != null) {                                                        // :97-98 setGender
+            pokemon.gender = "female".equalsIgnoreCase(member.gender) ? PokemonStats.FEMALE : PokemonStats.MALE;
+        } else {
+            pokemon.gender = trainerIsFemale(type) ? PokemonStats.FEMALE : PokemonStats.MALE;
+        }
+        pokemon.shiny = member.shiny;                                                       // :99 makeShiny / makeNotShiny
+        PbsData.Nature nature = member.nature == null ? null : data.nature(member.nature);  // :100-101 setNature
+        if (nature == null && data.natures.size > 0) {
+            int trainerTypeId = type == null ? 0 : type.id;
+            nature = data.natures.get(Math.floorMod(species.id + trainerTypeId, 25) % data.natures.size);
+        }
+        if (nature != null) {
+            pokemon.nature = nature;
+        }
+        pokemon.ivs = new int[6];                                                           // :102-113
+        pokemon.evs = new int[6];
+        for (int i = 0; i < 6; i++) {
+            if (member.ivs != null && member.ivs.length > 0) {
+                pokemon.ivs[i] = i < member.ivs.length ? member.ivs[i] : member.ivs[0];
+            } else {
+                pokemon.ivs[i] = Math.min(level / 2, 31);
+            }
+            if (member.evs != null && member.evs.length > 0) {
+                pokemon.evs[i] = i < member.evs.length ? member.evs[i] : member.evs[0];
+            } else {
+                pokemon.evs[i] = Math.min(level * 3 / 2, 510 / 6);
+            }
+        }
+        if (member.happiness >= 0) {                                                        // :114
+            pokemon.happiness = member.happiness;
+        }
+        pokemon.hp = pokemon.maxHp();                                                       // :125 calcStats
         return pokemon;
+    }
+
+    /** {@code opponent.female?} (185_PokeBattle_Trainer:107-116): the trainer type's gender column says Female. */
+    private static boolean trainerIsFemale(PbsData.TrainerType type) {
+        return type != null && type.fields != null && type.fields.size > 2 && "Female".equalsIgnoreCase(type.fields.get(2));
     }
 
     private static void applyAbility(Pokemon pokemon, String ability, PbsData.Species species) {

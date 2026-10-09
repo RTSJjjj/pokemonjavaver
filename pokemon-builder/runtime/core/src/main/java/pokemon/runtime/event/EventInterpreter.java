@@ -308,7 +308,7 @@ public final class EventInterpreter {
             log.warn("starter dex number " + request.dex[slot - 1] + " is unknown; nothing given");
             return;
         }
-        Pokemon starter = new Pokemon(species, STARTER_LEVEL, pbs);         // :412 pbGenPkmn(..., STARTERL)
+        Pokemon starter = newPkmn(species, STARTER_LEVEL);         // :412 pbGenPkmn(..., STARTERL)
         starter.ivs = new int[] {31, 31, 31, 31, 31, 31};                    // :413
         applyAbility(starter, 2);                                           // :414
         starter.hp = starter.maxHp();                                       // :415 calcStats
@@ -977,6 +977,16 @@ public final class EventInterpreter {
     }
 
     private final ItemFindToasts itemToasts = new ItemFindToasts();
+    /** Set by the first item received in this process; the map screen then preloads the message glyphs once. */
+    private static boolean messageWarmUpRequested;
+    private static boolean itemMessagesSeen;
+
+    /** True once, for the first item received (the UI layer runs the one-off message preload). */
+    public boolean consumeMessageWarmUpRequest() {
+        boolean requested = messageWarmUpRequested;
+        messageWarmUpRequested = false;
+        return requested;
+    }
     private KeyItemAnimation keyItem;
     private Runnable keyItemAfter;
 
@@ -1006,6 +1016,10 @@ public final class EventInterpreter {
 
     /** {@code say}: a script task's message path; null = the interpreter's message window. */
     private void giveItemWithMessages(String internalName, int quantity, boolean ground, java.util.function.Consumer<String> say) {
+        if (!itemMessagesSeen) {
+            itemMessagesSeen = true;
+            messageWarmUpRequested = true;
+        }
         PbsData.Item data = pbs.item(internalName);
         String itemName = quantity > 1 && data.namePlural != null && !data.namePlural.isEmpty() ? data.namePlural : data.name;
         boolean machine = data.fieldUse == 3 || data.fieldUse == 4 || data.fieldUse == 6;     // pbIsMachine?
@@ -2355,7 +2369,7 @@ public final class EventInterpreter {
                     log.warn("GIVE_POKEMON unknown species " + speciesName + "; skipped");
                     break;
                 }
-                Pokemon gifted = new Pokemon(species, level, pbs);
+                Pokemon gifted = newPkmn(species, level);                             // pbNewPkmn
                 if (pbAddPokemon(gifted, false)) {                               // :67-83 pbAddPokemon
                     log.warn("received " + speciesName + " L" + level);
                 }
@@ -2711,7 +2725,7 @@ public final class EventInterpreter {
                     setLocal(local, null);
                     break;
                 }
-                setLocal(local, new Pokemon(species, level, pbs));
+                setLocal(local, newPkmn(species, level));
                 break;
             }
             case "POKEMON_CALL": {
@@ -2761,7 +2775,7 @@ public final class EventInterpreter {
                     log.warn("ADD_EGG unknown species " + speciesName + "; skipped");
                     break;
                 }
-                Pokemon egg = new Pokemon(species, 1, pbs); // 361:5 pbNewPkmn(egg, EGG_LEVEL)
+                Pokemon egg = newPkmn(species, 1); // 361:5 pbNewPkmn(egg, EGG_LEVEL)
                 egg.egg = true;
                 egg.name = "神秘的蛋";                                               // 361:10
                 egg.stepsToHatch = species.stepsToHatch;                             // 361:8-11
@@ -3828,7 +3842,7 @@ public final class EventInterpreter {
         rules.record(size + "v1", null);                                          // setBattleRule(sprintf("%dv1",size))
         rules.record("canlose", null);
         rules.record("noexp", null);
-        Pokemon pkmn = new Pokemon(species, boss.level, pbs);                     // pkmn = pbGenPkmn(:SPECIES, level)
+        Pokemon pkmn = newPkmn(species, boss.level);                     // pkmn = pbGenPkmn(:SPECIES, level)
         for (BossBattleData.Op op : boss.ops) {
             applyBossOp(pkmn, op);
         }
@@ -4785,6 +4799,15 @@ public final class EventInterpreter {
         }
     }
 
+    /**
+     * {@code pbNewPkmn(species, level)} (197_PokeBattle_Pokemon:1007-1011 = {@code PokeBattle_Pokemon.new}, :909-964): a random
+     * personal id (nature, gender, ability slot, shininess), random IVs and the player as the owner.
+     */
+    private Pokemon newPkmn(PbsData.Species species, int level) {
+        return pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, level, state.trainer(),
+                state.currentMapId(), random);
+    }
+
     /** BossRewards.pokemon_reward:333-344: a pool Pokemon in the seal ball. */
     private void addBossPokemon(BossRewardsData.PoolEntry entry, int level) {
         if (pbs == null) {
@@ -4796,7 +4819,7 @@ public final class EventInterpreter {
             log.warn("boss reward unknown species " + entry.species + "; skipped");
             return;
         }
-        Pokemon pokemon = new Pokemon(species, level, pbs);
+        Pokemon pokemon = newPkmn(species, level);
         pokemon.ballused = 26;                  // "封印球" (Boss_reward:336)
         if (entry.form > 0) {
             applyForm(pokemon, entry.form);
