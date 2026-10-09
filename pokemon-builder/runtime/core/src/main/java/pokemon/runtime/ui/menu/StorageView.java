@@ -319,6 +319,21 @@ public final class StorageView {
         this(context, 0);
     }
 
+    private boolean chooseEgg;
+    private int[] eggChoice;
+
+    /** {@code PokemonStorageScreen#pbChooseEggToHatch} (306_B2W2_PC:2273-2316): the box screen of the Egg Hatcher. */
+    public static StorageView chooseEggToHatch(RuntimeContext context) {
+        StorageView view = new StorageView(context, 1, false);
+        view.chooseEgg = true;
+        return view;
+    }
+
+    /** {@code pbChooseEggToHatch}'s return value: {@code [box, slot]} or null. */
+    public int[] eggChoice() {
+        return eggChoice;
+    }
+
     /** {@code PokemonStorageScreen#pbStartScreen(command)}: 0 整理 / 1 取出 / 2 存放 / 3 仅打开关闭。 */
     public StorageView(RuntimeContext context, int command) {
         this(context, command, false);
@@ -1449,6 +1464,10 @@ public final class StorageView {
         screenH = ScreenMetrics.logicalHeight();
         screenW = ScreenMetrics.logicalWidth();
         sceneStartBox();                                         // :1630/:1712/:1774/:1827
+        if (chooseEgg) {
+            eggChooseLoop();                                     // 306:2273 pbChooseEggToHatch
+            return;
+        }
         switch (command) {
             case 0: organiseLoop(); break;                       // ORGANISE
             case 1: withdrawLoop(); break;                       // WITHDRAW
@@ -1542,6 +1561,53 @@ public final class StorageView {
                     }
                 });
             }
+        });
+    }
+
+    /** 306_B2W2_PC:2273-2316 pbChooseEggToHatch: choose a Pokemon egg of the boxes. */
+    private void eggChooseLoop() {
+        pbSelectBox(selected -> {                                // :2278
+            if (selected != null && selected[0] == -3) {         // :2279 Close box
+                pbConfirm("要退出寄放系统吗？", yes -> {          // :2280
+                    if (yes) {
+                        playSe("PC close", 100);                 // :2281
+                        sceneCloseBox();                         // :2315 pbCloseBox
+                    } else {
+                        eggChooseLoop();                         // :2284 next
+                    }
+                });
+                return;
+            }
+            if (selected == null) {                              // :2286
+                pbConfirm("要继续操作盒子吗？", yes -> {          // :2287
+                    if (yes) eggChooseLoop(); else sceneCloseBox();
+                });
+                return;
+            }
+            if (selected[0] == -4) {                             // :2289 Box name
+                pbBoxCommands(this::eggChooseLoop);              // :2290
+                return;
+            }
+            Pokemon pokemon = selected[0] < 0 ? null : storage.get(selected[0], selected[1]);   // :2292
+            if (pokemon == null) {                               // :2293
+                eggChooseLoop();
+                return;
+            }
+            if (!pokemon.egg) {                                  // :2294
+                pbDisplay("这不是一颗宝可梦蛋。", this::eggChooseLoop);   // :2295-2296
+                return;
+            }
+            pbShowCommands(intl("已选择{1}。", pokemon.name),     // :2298-2304
+                    java.util.Arrays.asList("选择", "概况", "取消"), 0, cmd -> {
+                if (cmd == 0) {                                  // :2306 Select
+                    eggChoice = selected;                        // :2308 retval = selected
+                    sceneCloseBox();
+                } else if (cmd == 1) {
+                    pbSummary(selected, null, this::eggChooseLoop);   // :2311
+                } else {
+                    eggChooseLoop();
+                }
+            });
         });
     }
 
@@ -2435,7 +2501,7 @@ public final class StorageView {
             }
         }
         int status = -1;                                         // :1513
-        if (p.pokerus == 1) status = 8;                          // :1514
+        if (p.pokerusStage() == 1) status = 8;                          // :1514
         if (p.status != null && !p.status.isEmpty()) {           // :1515
             switch (p.status) {
                 case "SLEEP": status = 0; break;

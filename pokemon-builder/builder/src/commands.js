@@ -36,6 +36,7 @@ import {
   desktopArtifacts,
   fileSizeLabel,
   missingArtifacts,
+  mountAsciiDrive,
   runGradleTasks,
 } from "./gradle.js";
 import { runtimeDataSummary, validateRuntimeData } from "./runtime-data.js";
@@ -471,7 +472,9 @@ function invokeGradle(ctx, tasks, extras = {}) {
       "Gradle wrapper not found: " + result.executable + " (is the runtime/ checkout present?)",
     );
   } else if (result.mountFailed) {
-    ctx.logger.error("cannot create an ASCII subst drive for the Gradle build");
+    ctx.logger.error("cannot create an ASCII subst drive for the Gradle build"
+      + (mountAsciiDrive.lastError ? " (" + mountAsciiDrive.lastError + ")" : "")
+      + "; move the project to a path with only ASCII characters to skip the subst drive");
   }
   return result;
 }

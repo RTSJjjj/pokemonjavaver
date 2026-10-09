@@ -2230,7 +2230,7 @@ public final class PartyView {
         if (p == null) return -1;
         // :583-586: pokerus 8, then status-1 overrides it, then fainted 7 overrides both.
         int status = -1;
-        if (p.pokerus == 1) status = 8;                        // :584
+        if (p.pokerusStage() == 1) status = 8;                        // :584
         if (p.status != null && !p.status.isEmpty()) {         // :585
             switch (p.status) {
                 case "SLEEP": status = 0; break;

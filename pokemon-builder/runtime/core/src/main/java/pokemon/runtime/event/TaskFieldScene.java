@@ -7,7 +7,7 @@ import java.util.function.Function;
 
 /** The {@link FieldScene} of a field script running on a {@code BlockingTask}: each call is a request for the interpreter. */
 final class TaskFieldScene implements FieldScene {
-    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME }
+    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM }
 
     static final class Request {
         final Kind kind;
@@ -20,6 +20,7 @@ final class TaskFieldScene implements FieldScene {
         java.util.function.Supplier<Float> action;
         pokemon.runtime.pokemon.Pokemon pokemon;
         pokemon.runtime.pokemon.PbsData.Move move;
+        java.util.function.Predicate<String> filter;
 
         Request(Kind kind) {
             this.kind = kind;
@@ -44,6 +45,16 @@ final class TaskFieldScene implements FieldScene {
         Request r = new Request(Kind.CONFIRM);
         r.text = text;
         return Boolean.TRUE.equals(caller.apply(r));
+    }
+
+    /** {@code pbMessage(text, commands, cmdIfCancel, skin, defaultCmd)}. */
+    public int pbMessage(String text, List<String> commands, int cmdIfCancel, int defaultCmd) {
+        Request r = new Request(Kind.CHOOSE);
+        r.text = text;
+        r.commands = commands;
+        r.cancel = cmdIfCancel;
+        r.number = defaultCmd;
+        return (Integer) caller.apply(r);
     }
 
     @Override
@@ -100,6 +111,14 @@ final class TaskFieldScene implements FieldScene {
         Request r = new Request(Kind.WAIT);
         r.number = frames;
         caller.apply(r);
+    }
+
+    @Override
+    public String pbChooseItem(java.util.function.Predicate<String> filter) {
+        Request r = new Request(Kind.CHOOSE_ITEM);
+        r.filter = filter;
+        Object answer = caller.apply(r);
+        return answer == null || answer.toString().isEmpty() ? null : answer.toString();
     }
 
     @Override

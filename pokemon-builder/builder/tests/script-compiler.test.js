@@ -158,7 +158,7 @@ test("handler batch 2: cry pair / pbExclaim / boulder / floating plates (R6.30)"
 
   // A cry block that then needs the Pokemon runtime stays handler-required.
   const domain = compileBlock(essentials("pbCryFile",
-      'cry = pbCryFile(1001)\npbSEPlay(cry) if cry\npbCrystalWarp'));
+      'cry = pbCryFile(1001)\npbSEPlay(cry) if cry\npbGenPkmn(:A,5)'));
   assert.equal(domain.status, "JAVA_HANDLER_REQUIRED");
   assert.match(domain.reason, /stage 3/);
 });
@@ -738,4 +738,63 @@ test("the Hall of Fame ribbon loop is one pbGiveRibbonToParty (197_PokeBattle_Po
 test("the Move Relearner's party choice has its own IR", () => {
   assert.deepEqual(compileBlock(essentials("pbChoosePokemon", "pbChoosePokemon(1,3,proc{|p|\n pbHasRelearnableMove?(p)\n},true)\n")).ir,
     { command: "CHOOSE_POKEMON", variable: 1, nameVariable: 3, proc: "relearnable", allowIneligible: true });
+});
+
+test("the Effort ribbon giver (map-025) compiles to its two ribbon commands", () => {
+  const lead = 'poke=$Trainer.firstPokemon\npoke.giveRibbon(:EFFORT)\n';
+  assert.deepEqual(compileBlock({ id: "a", category: "ESSENTIALS_API", apis: [], calls: [], rubySource: lead }).ir,
+    { command: "GIVE_RIBBON_FIRST", ribbon: "EFFORT" });
+  const status = 'p=$Trainer.firstPokemon\nev=0\nfor i in 0...6\n  ev+=p.ev[i]\nend\nmaxed=(ev>=255) ? 1 : 0\nmaxed=2 if p.hasRibbon?(:EFFORT)\npbSet(1,p.name)\npbSet(2,maxed)\n';
+  assert.deepEqual(compileBlock({ id: "b", category: "ESSENTIALS_API", apis: [], calls: [], rubySource: status }).ir,
+    { command: "EV_RIBBON_STATUS", ribbon: "EFFORT" });
+});
+
+test("pbHallOfFameEntry compiles to the Hall of Fame scene", () => {
+  assert.deepEqual(compileBlock({ id: "h", category: "ESSENTIALS_API", apis: ["pbHallOfFameEntry"], calls: [{ name: "pbHallOfFameEntry" }], rubySource: "pbHallOfFameEntry\n" }).ir,
+    { command: "HALL_OF_FAME_ENTRY" });
+});
+
+test("the travel-menu dialect (@ch_cmd / pbMessage_ex) compiles to menu steps", () => {
+  const block = (rubySource) => ({ id: "m", category: "ESSENTIALS_API", apis: [], calls: [], rubySource });
+  assert.deepEqual(compileBlock({ ...block('@ch_cmd=["铃兰市","取消"]\n'), category: "SIMPLE_EXPRESSION" }).ir,
+    { command: "CH_CMD_SET", values: ["铃兰市", "取消"] });
+  assert.deepEqual(compileBlock(block('@ch_cmd.insert(1,"雾绒镇")\n')).ir, { command: "CH_CMD_INSERT", index: 1, value: "雾绒镇" });
+  const sequence = compileBlock(block('@ch_cmd=[]\nif !pbGetSelfSwitch(9,"A")\n @ch_cmd.push("转移旧版存档")\nend\n@ch_cmd.push("取消")\ns="现在可以"+\n"\\n当前存档"\n@ch_ret=pbMessage_ex(s,@ch_cmd,-1)\n')).ir;
+  assert.equal(sequence.command, "SEQUENCE");
+  assert.deepEqual(sequence.steps[1], { command: "IF_SCRIPT", condition: '!pbGetSelfSwitch(9,"A")',
+    steps: [{ command: "CH_CMD_PUSH", value: "转移旧版存档" }] });
+  assert.deepEqual(sequence.steps[3], { command: "CH_MESSAGE_EX", text: "现在可以\n当前存档", cancel: -1 });
+});
+
+test("single-purpose NPC scripts: lifts, Deoxys' forms, flags, coins, names", () => {
+  const block = (rubySource) => ({ id: "s", category: "ESSENTIALS_API", apis: [], calls: [], rubySource });
+  const lift = compileBlock(block('numfloors=2\ncur=numfloors-pbGet(10)\npbSet(11,pbMessage(\n   _I("要前往哪一层？"),\n   [_I("-1F"),_I("1F"),_I("离开")],\n   numfloors+1,nil,cur))\nt=pbGet(11)\npbSet(11,numfloors-t)\n')).ir;
+  assert.deepEqual(lift, { command: "ELEVATOR", floors: 2, text: "要前往哪一层？", choices: ["-1F", "1F", "离开"], currentVariable: 10, resultVariable: 11 });
+  assert.deepEqual(compileBlock(block('for pkmn in $Trainer.pokemonParty\n  if isConst?(pkmn.species,PBSpecies,\n              :DEOXYS)\n    pkmn.form=3\n    pbSet(1,pkmn.name)\n    break\n  end\nend\n')).ir,
+    { command: "PARTY_FORM_CHANGE", species: "DEOXYS", form: 3, nameVariable: 1 });
+  assert.deepEqual(compileBlock(block("$PokemonGlobal.runningShoes=true\n")).ir, { command: "SET_GLOBAL_FLAG", flag: "runningShoes", value: true });
+  assert.deepEqual(compileBlock(block("$PokemonGlobal.coins+=5000\n")).ir, { command: "CHANGE_COINS", sign: 1, amount: 5000 });
+  assert.deepEqual(compileBlock(block("$PokemonGlobal.coins-=pbGet(2)\n")).ir, { command: "CHANGE_COINS", sign: -1, amount: { variable: 2 } });
+  assert.deepEqual(compileBlock(block('pbChangePlayer(0)\npbTrainerName("沐桐")\n')).ir,
+    { command: "SEQUENCE", steps: [{ command: "CHANGE_PLAYER", playerId: 0 }, { command: "TRAINER_NAME", name: "沐桐" }] });
+  assert.deepEqual(compileBlock(block("pbUnlockDex(4)\n")).ir, { command: "UNLOCK_DEX", dex: 4 });
+  const mart = compileBlock(block("$battle_item = [:FLAMEORB,:TOXICORB,\n:CHOICEBAND]\n$battle_item.push(:MAGICCLOAK)\npbPokemonMart($battle_item)\n")).ir;
+  assert.deepEqual(mart, { command: "OPEN_MART", items: ["FLAMEORB", "TOXICORB", "CHOICEBAND", "MAGICCLOAK"] });
+  const joined = compileBlock(block("$PokemonBag.pbDeleteItem\\\n(:MEGARING)\n"));
+  assert.equal(joined.status, compileBlock(block("$PokemonBag.pbDeleteItem(:MEGARING)\n")).status, "a call split by a trailing backslash is read as one call");
+});
+
+test("Game Corner scripts: prize vendors, lottery, event time, the slot machine", () => {
+  const block = (rubySource) => ({ id: "g", category: "ESSENTIALS_API", apis: [], calls: [], rubySource });
+  const prizes = compileBlock(block("item=[:SMOKEBALL,:MIRACLESEED,\n      :YELLOWFLUTE,0][pbGet(1)]\nprice=[800,1000,1600,0\n      ][pbGet(1)]\nif item && item!=0\n  item=getID(PBItems,item)\nend\npbSet(1,item)\npbSet(2,price)\npbSet(3,PBItems.getName(item))\n")).ir;
+  assert.deepEqual(prizes, { command: "PRIZE_LOOKUP", kind: "item", items: ["SMOKEBALL", "MIRACLESEED", "YELLOWFLUTE", "0"], prices: [800, 1000, 1600, 0] });
+  const pets = compileBlock(block("item=[:SMEARGLE,0][pbGet(1)]\nprice=[180,\n       0][pbGet(1)]\nlv=[9,0][pbGet(1)]\nif item && item!=0\n  item=getID(PBSpecies,item)\nend\npbSet(1,item); pbSet(2,price)\npbSet(3,PBSpecies.getName(item))\npbSet(4,lv)\n")).ir;
+  assert.deepEqual(pets, { command: "PRIZE_LOOKUP", kind: "species", items: ["SMEARGLE", "0"], prices: [180, 0], levels: [9, 0] });
+  assert.deepEqual(compileBlock(block("pbSetEventTime\n")).ir, { command: "EVENT_TIME", others: [] });
+  assert.deepEqual(compileBlock(block("setVariable(:MASTERBALL)\n")).ir, { command: "EVENT_SET_VARIABLE", value: "MASTERBALL" });
+  assert.deepEqual(compileBlock(block("pbSetLotteryNumber(1)\n")).ir, { command: "LOTTERY_NUMBER", variable: 1 });
+  assert.deepEqual(compileBlock(block("pbLottery(pbGet(1),2,3,4)\n")).ir,
+    { command: "LOTTERY", number: { variable: 1 }, nameVariable: 2, positionVariable: 3, matchedVariable: 4 });
+  assert.deepEqual(compileBlock(block("pbSlotMachine\n")).ir, { command: "SLOT_MACHINE", difficulty: 1 });
+  assert.deepEqual(compileBlock(block("$scene = Scene_Credits.new\n")).ir, { command: "CREDITS" });
 });

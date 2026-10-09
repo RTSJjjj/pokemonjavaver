@@ -208,7 +208,7 @@ class PokemonScriptTest {
         interpreter.update(0f);
         Pokemon pokemon = state.trainer().first();
         assertNotNull(pokemon);
-        assertTrue(pokemon.ribbons.contains("EFFORT", false));
+        assertTrue(pokemon.hasRibbon("EFFORT"));
     }
 
     private static boolean hasMove(Pokemon pokemon, String internalName) {

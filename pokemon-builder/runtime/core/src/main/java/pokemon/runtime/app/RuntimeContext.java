@@ -482,6 +482,13 @@ public final class RuntimeContext {
             }
 
             @Override
+            public void removeDependency(String name) {
+                if (screenPort != null) {
+                    screenPort.removeDependency(name);
+                }
+            }
+
+            @Override
             public boolean addDependency(int eventId, String name, int commonEvent) {
                 return screenPort != null && screenPort.addDependency(eventId, name, commonEvent);
             }
@@ -540,6 +547,12 @@ public final class RuntimeContext {
             @Override
             public float ascendWaterfall() {
                 return screenPort == null ? 0f : screenPort.ascendWaterfall();
+            }
+
+            @Override
+            public String mapName(int mapId) {
+                pokemon.runtime.data.MapData map = database == null ? null : database.map(mapId);
+                return map == null || map.name == null ? "" : map.name;
             }
 
             @Override

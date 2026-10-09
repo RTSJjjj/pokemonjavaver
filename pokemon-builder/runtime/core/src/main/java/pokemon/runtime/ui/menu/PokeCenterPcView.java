@@ -27,7 +27,7 @@ import java.util.function.Predicate;
  *
  * <p>登记: ①{@code PokemonPCList.registerPC} 在原文还登记了 PurifyChamberPC
  * (PScreen_PurifyChamber:267，shouldShow? = $PokemonGlobal.seenPurifyChamber) 和 HallOfFamePC
- * (PScreen_HallOfFame:517，hallOfFameLastNumber>0)，这两个子系统没有建模，不显示；
+ * (PScreen_HallOfFame:517，hallOfFameLastNumber>0)，净化室没有建模，不显示；冠军殿堂已建模（`hallOfFameLastNumber>0` 时显示）；
  * 但 {@code callCommand} 的 {@code cmd>=@@pclist.length} 仍按 4 台电脑计(:242)；
  * ②{@code $PokemonGlobal.seenStorageCreator}/{@code pbGetStorageCreator} 未建模，
  * StorageSystemPC 的名字走 {@code 精灵寄存系统} 分支；③「整理道具」(PCItemStorage 及 Withdraw/Toss/
@@ -38,7 +38,7 @@ public final class PokeCenterPcView {
     private static final int ROW = 32;
     private static final int BORDER = 32;
 
-    private enum Mode { MESSAGE, HELPMENU, STORAGE, ITEMSTORAGE, DEPOSIT, IDLE }
+    private enum Mode { MESSAGE, HELPMENU, STORAGE, ITEMSTORAGE, DEPOSIT, HALL, IDLE }
 
     private final RuntimeContext context;
     private final TrainerState trainer;
@@ -47,6 +47,8 @@ public final class PokeCenterPcView {
     private Mode mode = Mode.IDLE;
     private boolean finished;
     private StorageView storageView;
+    private HallOfFameView hallView;
+    private Runnable hallDone;
     private Runnable storageDone;
     private ItemStorageView itemStorageView;
     private BagView depositBag;
@@ -63,10 +65,23 @@ public final class PokeCenterPcView {
     private IntConsumer helpDone;
 
     public PokeCenterPcView(RuntimeContext context) {
+        this(context, false);
+    }
+
+    /** @param trainerOnly {@code pbTrainerPC} (PScreen_PC:205-209): straight to the player's own PC. */
+    public PokeCenterPcView(RuntimeContext context, boolean trainerOnly) {
         this.context = context;
         this.trainer = context.gameState().trainer();
         this.pbMessage = new PbMessage(context);
-        pbPokeCenterPC();
+        if (trainerOnly) {
+            pbMessage(intl("\\se[PC open]{1}打开了电脑", trainer.name), () ->           // :206
+                    trainerPcMenu(0, () -> {                                           // :207 pbTrainerPCMenu
+                        playSe("PC close");                                            // :208
+                        finished = true;
+                    }));
+        } else {
+            pbPokeCenterPC();
+        }
     }
 
     public void itemHost(java.util.function.BiConsumer<Predicate<String>, Consumer<String>> host) {
@@ -105,6 +120,9 @@ public final class PokeCenterPcView {
         List<String> commands = new ArrayList<>();
         commands.add(storageSystemName());                       // StorageSystemPC#name (shouldShow? = true)
         commands.add(intl("{1}的电脑", trainer.name));           // TrainerPC#name (shouldShow? = true)
+        if (trainer.hallOfFameLastNumber > 0) {                  // PScreen_HallOfFame:517 HallOfFamePC#shouldShow?
+            commands.add("冠军殿堂");                               // :521 name
+        }
         commands.add("关闭电脑");                                // :237
         return commands;
     }
@@ -130,6 +148,17 @@ public final class PokeCenterPcView {
         if (i == cmd) {
             trainerPcAccess(() -> done.accept(true));
             return;
+        }
+        if (trainer.hallOfFameLastNumber > 0) {                  // PurifyChamberPC does not show; HallOfFamePC (shouldShow?)
+            i += 1;
+            if (i == cmd) {
+                pbMessage("\\se[PC access]进入了冠军殿堂。", () -> {          // PScreen_HallOfFame:525 access
+                    hallView = HallOfFameView.pc(context);       // :526 pbHallOfFamePC
+                    hallDone = () -> done.accept(true);
+                    mode = Mode.HALL;
+                });
+                return;
+            }
         }
         done.accept(false);                                      // :252
     }
@@ -343,6 +372,16 @@ public final class PokeCenterPcView {
             }
             return finished;
         }
+        if (mode == Mode.HALL) {
+            if (hallView != null && hallView.update(input)) {
+                hallView = null;
+                Runnable then = hallDone;
+                hallDone = null;
+                mode = Mode.IDLE;
+                if (then != null) then.run();
+            }
+            return finished;
+        }
         if (mode == Mode.ITEMSTORAGE || mode == Mode.DEPOSIT) {
             boolean closed = mode == Mode.ITEMSTORAGE ? itemStorageView.update(input) : depositBag.update(input);
             if (closed) {
@@ -368,6 +407,10 @@ public final class PokeCenterPcView {
         screenH = h;
         if (mode == Mode.STORAGE && storageView != null) {
             storageView.render(b, a, f, skin, speech, smallFont);
+            return;
+        }
+        if (mode == Mode.HALL && hallView != null) {
+            hallView.render(b, a, f, skin);
             return;
         }
         if (mode == Mode.ITEMSTORAGE && itemStorageView != null) {

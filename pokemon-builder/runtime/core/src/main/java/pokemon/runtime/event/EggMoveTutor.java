@@ -33,6 +33,10 @@ final class EggMoveTutor {
     }
 
     /** The scene {@code pbLearnMove} (188_PItem_Items:779-821) talks to: its messages and the forget screen. */
+    ItemScene itemSceneFor() {
+        return itemScene();
+    }
+
     private ItemScene itemScene() {
         return new ItemScene() {
             public void pbStartScene(String helpText, String[] annotations) { }

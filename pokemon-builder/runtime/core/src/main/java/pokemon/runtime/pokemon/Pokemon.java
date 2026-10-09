@@ -549,6 +549,101 @@ public final class Pokemon {
         return species == null ? new Array<>() : species.moves;
     }
 
+    // ------------------------------------------------------------------
+    // Pokerus (197_PokeBattle_Pokemon:355-390): @pokerus = days left (low nibble) | strain << 4
+    // ------------------------------------------------------------------
+
+    /** {@code pokerusStrain} (:356-358). */
+    public int pokerusStrain() {
+        return pokerus / 16;
+    }
+
+    /** {@code pokerusStage} (:360-365): 0 not infected, 1 infected, 2 cured. */
+    public int pokerusStage() {
+        if (pokerus == 0) return 0;
+        if (pokerus > 0 && (pokerus % 16) == 0) return 2;
+        return 1;
+    }
+
+    /** {@code givePokerus(strain=0)} (:367-374). */
+    public void givePokerus(int strain, java.util.Random random) {
+        if (pokerusStage() == 2) return;                                      // can't re-infect a cured Pokemon
+        if (strain <= 0 || strain >= 16) strain = 1 + random.nextInt(15);
+        int time = 1 + (strain % 4);
+        pokerus = time;
+        pokerus |= strain << 4;
+    }
+
+    /** {@code lowerPokerusCount} (:385-388). */
+    public void lowerPokerusCount() {
+        if (pokerusStage() != 1) return;
+        pokerus -= 1;
+    }
+
+    // ------------------------------------------------------------------
+    // Ribbons (197_PokeBattle_Pokemon:548-615). {@link #ribbons} keeps the ids of PBRibbons as text.
+    // ------------------------------------------------------------------
+
+    /** {@code ribbonCount} (:557-560). */
+    public int ribbonCount() {
+        return ribbons.size;
+    }
+
+    /** {@code hasRibbon?(ribbon)} (:562-568). */
+    public boolean hasRibbon(String ribbon) {
+        int id = Ribbons.idOf(ribbon);
+        return id != 0 && ribbons.contains(String.valueOf(id), false);
+    }
+
+    /** {@code giveRibbon(ribbon)} (:570-576). */
+    public void giveRibbon(String ribbon) {
+        int id = Ribbons.idOf(ribbon);
+        if (id == 0) return;
+        String key = String.valueOf(id);
+        if (!ribbons.contains(key, false)) ribbons.add(key);
+    }
+
+    /**
+     * {@code upgradeRibbon(*arg)} (:578-597): replaces the first ribbon of the chain the Pokemon has with the next one;
+     * when it has none of them and not the last, it is given the first.
+     *
+     * @return the ribbon id now held, or 0
+     */
+    public int upgradeRibbon(String... arg) {
+        for (int i = 0; i < arg.length - 1; i++) {
+            for (int j = 0; j < ribbons.size; j++) {
+                int thisribbon = Ribbons.idOf(arg[i]);
+                if (Ribbons.idOf(ribbons.get(j)) == thisribbon) {
+                    int nextribbon = Ribbons.idOf(arg[i + 1]);
+                    ribbons.set(j, String.valueOf(nextribbon));
+                    return nextribbon;
+                }
+            }
+        }
+        if (arg.length > 0 && !hasRibbon(arg[arg.length - 1])) {
+            int firstribbon = Ribbons.idOf(arg[0]);
+            giveRibbon(arg[0]);
+            return firstribbon;
+        }
+        return 0;
+    }
+
+    /** {@code takeRibbon(ribbon)} (:599-610). */
+    public void takeRibbon(String ribbon) {
+        int id = Ribbons.idOf(ribbon);
+        if (id == 0) return;
+        for (int i = 0; i < ribbons.size; i++) {
+            if (Ribbons.idOf(ribbons.get(i)) != id) continue;
+            ribbons.removeIndex(i);
+            return;                                                           // :606-607 the first match only
+        }
+    }
+
+    /** {@code clearAllRibbons} (:612-615). */
+    public void clearAllRibbons() {
+        ribbons.clear();
+    }
+
     public void recordFirstMoves() {
         firstMoves.clear();
         for (MoveSlot slot : moves) {

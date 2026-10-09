@@ -325,12 +325,22 @@ public final class EventInterpreter {
      * @return false when party and boxes are full
      */
     private boolean pbAddPokemon(Pokemon pkmn, boolean silent) {
+        return pbAddPokemon(pkmn, silent, null);
+    }
+
+    /** {@code say}: a script task's own message path (the lines are shown there); null = the interpreter's message window. */
+    private boolean pbAddPokemon(Pokemon pkmn, boolean silent, java.util.function.Consumer<String> say) {
         pokemon.runtime.pokemon.TrainerState trainer = state.trainer();
         boolean boxesFull = trainer.party.isFull() && trainer.currentStorage().full();                  // :4-6 pbBoxesFull?
         if (boxesFull) {
             if (!silent) {
-                pendingMessages.add("盒子都满了，不能接受！");                                          // :71
-                showHandlerMessage("There's no more room for Pokémon!");                                // :70
+                if (say != null) {
+                    say.accept("There's no more room for Pokémon!");                                    // :70
+                    say.accept("盒子都满了，不能接受！");                                                   // :71
+                } else {
+                    pendingMessages.add("盒子都满了，不能接受！");                                          // :71
+                    showHandlerMessage("There's no more room for Pokémon!");                                // :70
+                }
             }
             return false;
         }
@@ -359,6 +369,10 @@ public final class EventInterpreter {
                 }
             }
         }
+        if (say != null) {
+            for (String line : lines) say.accept(line);
+            return true;
+        }
         for (int i = 1; i < lines.size(); i++) {
             pendingMessages.add(lines.get(i));
         }
@@ -379,6 +393,8 @@ public final class EventInterpreter {
             if (menuRequest.kind == MenuService.Kind.CHOOSE_TRADE || menuRequest.kind == MenuService.Kind.CHOOSE_ABLE) {
                 if (menuRequest.variable > 0) state.variables().set(menuRequest.variable, menuRequest.result);
                 if (menuRequest.nameVariable > 0) state.variables().setText(menuRequest.nameVariable, menuRequest.text);
+            } else if (menuRequest.kind == MenuService.Kind.CHOOSE_ITEM && menuRequest.variable > 0) {
+                state.variables().set(menuRequest.variable, Math.max(0, menuRequest.result));   // pbChooseFossil: the item id, 0 = none
             } else if (menuRequest.kind == MenuService.Kind.CHOOSE_ITEM && berry != null) {
                 berry.itemChosen(menuRequest); // pbChooseItemScreen result
             } else if (menuRequest.kind == MenuService.Kind.STARTER && menuRequest.result > 0) {
@@ -441,11 +457,13 @@ public final class EventInterpreter {
                             ? battleDecision(finished) == pending.requiredDecision   // return decision==N
                             : finished != null && finished.won();
                 }
-                pending.program.branchResult(pending.program.indent(), won);
-                if (won) {
-                    pending.program.advance();
-                } else {
-                    pending.program.skipBlock();
+                if (pending.program != null) {                                   // a statement (no branch) has no program
+                    pending.program.branchResult(pending.program.indent(), won);
+                    if (won) {
+                        pending.program.advance();
+                    } else {
+                        pending.program.skipBlock();
+                    }
                 }
             }
             if (repeatFrames.size > 0) {
@@ -983,6 +1001,11 @@ public final class EventInterpreter {
      * right edge. The bag has no pocket limit here (Settings:187), so the "bag is full" branches never run.
      */
     private void giveItemWithMessages(String internalName, int quantity, boolean ground) {
+        giveItemWithMessages(internalName, quantity, ground, null);
+    }
+
+    /** {@code say}: a script task's message path; null = the interpreter's message window. */
+    private void giveItemWithMessages(String internalName, int quantity, boolean ground, java.util.function.Consumer<String> say) {
         PbsData.Item data = pbs.item(internalName);
         String itemName = quantity > 1 && data.namePlural != null && !data.namePlural.isEmpty() ? data.namePlural : data.name;
         boolean machine = data.fieldUse == 3 || data.fieldUse == 4 || data.fieldUse == 6;     // pbIsMachine?
@@ -1017,9 +1040,15 @@ public final class EventInterpreter {
         inventory.add(internalName, quantity);
         found.add(internalName);
         String pocketName = data.pocket >= 0 && data.pocket < POCKET_NAMES.length ? POCKET_NAMES[data.pocket] : "";
-        pendingMessages.add(ground
+        String pocketLine = ground
                 ? "你将" + itemName + "放进了<icon=bagPocket" + data.pocket + ">\\c[1]" + pocketName + "\\c[0]口袋。"
-                : "你将" + itemName + "放进了<icon=bagPocket" + data.pocket + ">\\c[1]" + pocketName + "口袋\\c[0]。");
+                : "你将" + itemName + "放进了<icon=bagPocket" + data.pocket + ">\\c[1]" + pocketName + "口袋\\c[0]。";
+        if (say != null) {
+            say.accept(text);
+            say.accept(pocketLine);
+            return;
+        }
+        pendingMessages.add(pocketLine);
         showHandlerMessage(text);
     }
 
@@ -1584,6 +1613,328 @@ public final class EventInterpreter {
     private void executeIrStep(JsonValue ir) {
         String name = ir.getString("command", "");
         switch (name) {
+            case "ELEVATOR": {                                             // the lifts: pbSet(11, numfloors - pbMessage(..., numfloors+1, nil, cur))
+                int floors = ir.getInt("floors", 0);
+                int cur = floors - state.variables().get(ir.getInt("currentVariable", 10));   // cur=numfloors-pbGet(10)
+                String text = ir.getString("text", "");
+                java.util.List<String> choices = new java.util.ArrayList<>();
+                JsonValue list = ir.get("choices");
+                if (list != null && list.isArray()) {
+                    for (JsonValue v = list.child; v != null; v = v.next) choices.add(v.asString());
+                }
+                int resultVariable = ir.getInt("resultVariable", 11);
+                startFieldTask(scene -> {
+                    int picked = scene.pbMessage(text, choices, floors + 1, cur);
+                    state.variables().set(resultVariable, floors - picked);       // t=pbGet(11); pbSet(11, numfloors-t)
+                });
+                break;
+            }
+            case "PARTY_FORM_CHANGE": {                                    // for pkmn in $Trainer.pokemonParty: Deoxys' form (map-152)
+                String species = ir.getString("species", "");
+                int form = ir.getInt("form", 0);
+                for (Pokemon member : state.trainer().party.members()) {
+                    if (member == null || member.egg || member.species == null || !species.equals(member.species.internalName)) continue;
+                    member.setForm(pbs, form);                                    // pkmn.form=N
+                    int nameVariable = ir.getInt("nameVariable", 0);
+                    if (nameVariable > 0) state.variables().setText(nameVariable, member.name);
+                    break;
+                }
+                break;
+            }
+            case "SET_GLOBAL_FLAG": {
+                boolean value = ir.getBoolean("value", true);
+                String flag = ir.getString("flag", "");
+                if ("runningShoes".equals(flag)) state.fieldGlobals().runningShoes = value;       // $PokemonGlobal.runningShoes
+                else if ("mysteryGiftAccess".equals(flag)) state.trainer().mysteryGiftAccess = value;   // $Trainer.mysterygiftaccess
+                else log.warn("SET_GLOBAL_FLAG " + flag + " is unknown; skipped");
+                break;
+            }
+            case "CHANGE_COINS": {                                         // $PokemonGlobal.coins += / -= n
+                Object amount = resolveIrValue(ir.get("amount"));
+                int n = amount instanceof Number ? ((Number) amount).intValue() : 0;
+                state.fieldGlobals().coins += ir.getInt("sign", 1) * n;
+                break;
+            }
+            case "TRAINER_NAME": {                                         // pbTrainerName(name) (253_PSystem_Utilities:700-): a fresh trainer with that name
+                pokemon.runtime.pokemon.TrainerState trainer = state.trainer();
+                int gender = trainer.gender;
+                trainer.reset();
+                trainer.gender = gender;
+                trainer.name = ir.getString("name", trainer.name);
+                state.playerName(trainer.name);
+                break;
+            }
+            case "REMOVE_DEPENDENCY":                                      // pbRemoveDependency2(name) (182_PField_DependentEvents:34-36)
+                if (mapPort != null) mapPort.removeDependency(ir.getString("name", ""));
+                break;
+            case "UNLOCK_DEX": {                                           // pbUnlockDex(dex=-1) (253_PSystem_Utilities:928-934)
+                java.util.List<Boolean> unlocked = state.fieldGlobals().pokedexUnlocked;
+                while (unlocked.size() < Math.max(1, regionalDexCount() + 1)) unlocked.add(unlocked.isEmpty());   // @pokedexUnlocked[i] = (i==0)
+                int index = ir.getInt("dex", -1);
+                if (index < 0 || index > unlocked.size() - 1) index = unlocked.size() - 1;
+                unlocked.set(index, true);
+                break;
+            }
+            case "CH_CMD_SET": {                                           // @ch_cmd=["a","b"]
+                java.util.List<String> values = new java.util.ArrayList<>();
+                JsonValue list = ir.get("values");
+                if (list != null && list.isArray()) {
+                    for (JsonValue v = list.child; v != null; v = v.next) values.add(v.asString());
+                }
+                instanceVariables.put("@ch_cmd", values);
+                break;
+            }
+            case "CH_CMD_PUSH": {                                          // @ch_cmd.push("x")
+                chCommands().add(ir.getString("value", ""));
+                break;
+            }
+            case "CH_CMD_INSERT": {                                        // @ch_cmd.insert(n, "x")
+                java.util.List<String> list = chCommands();
+                int at = Math.max(0, Math.min(ir.getInt("index", 0), list.size()));
+                list.add(at, ir.getString("value", ""));
+                break;
+            }
+            case "CH_MESSAGE_EX": {                                        // @ch_ret = pbMessage_ex(text, @ch_cmd, cancel) (071_Messages:1339-1341)
+                String text = ir.getString("text", "");
+                int cancel = ir.getInt("cancel", 0);
+                java.util.List<String> commands = new java.util.ArrayList<>(chCommands());
+                startFieldTask(scene -> {
+                    int picked = scene.pbMessage(text, commands, cancel);
+                    // `commands[pbMessage(..)]`: a negative index counts from the end of the list
+                    instanceVariables.put("@ch_ret", commands.isEmpty() ? null : commands.get(Math.floorMod(picked, commands.size())));
+                });
+                break;
+            }
+            case "IF_SCRIPT": {                                            // if <condition> ... end around the menu statements
+                ScriptCondition condition = parseCondition(ir.getString("condition", ""));
+                JsonValue steps = ir.get("steps");
+                boolean value;
+                try {
+                    value = condition != null && ScriptCondition.truthy(condition.eval(conditionEnv(null)));
+                } catch (ScriptCondition.Unsupported error) {
+                    log.warn("IF_SCRIPT atom not supported: " + error.getMessage());
+                    value = false;
+                }
+                if (value && steps != null && steps.isArray() && steps.size > 0) {
+                    setLocal("__if", 0);
+                    repeatFrames.add(new RepeatFrame(steps, "__if", 0, 0));
+                }
+                break;
+            }
+            case "CRYSTAL_WARP": case "MR_HYPER": case "CHANGE_BALLS": case "RESURRECTION2": case "GIVE_ALL_MEMORIES": {
+                startPluginScript(ir.getString("command", ""));
+                break;
+            }
+            case "EVENT_TIME": {                                           // pbSetEventTime(*others) (170_PField_Field:815-825)
+                long now = System.currentTimeMillis() / 1000L;
+                java.util.List<Integer> targets = new java.util.ArrayList<>();
+                targets.add(eventId);
+                JsonValue others = ir.get("others");
+                if (others != null && others.isArray()) {
+                    for (JsonValue v = others.child; v != null; v = v.next) targets.add(v.asInt());
+                }
+                for (int target : targets) {
+                    if (target < 0) continue;
+                    state.selfSwitches().set(mapId, target, "A", true);        // pbSetSelfSwitch(event, "A", true)
+                    state.eventVars().set(mapId, target, new int[] {(int) now});   // eventvars[[map, event]] = time
+                }
+                break;
+            }
+            case "EVENT_SET_VARIABLE": {                                   // setVariable(:SYMBOL) / setVariable(id, value) (:836-844)
+                if (ir.has("value") && !ir.has("variable")) {
+                    if (eventId >= 0) state.eventVars().setText(mapId, eventId, ir.getString("value", ""));
+                } else {
+                    Object value = resolveIrValue(ir.get("value"));
+                    state.variables().set(ir.getInt("variable", 0), value instanceof Number ? ((Number) value).intValue() : 0);
+                }
+                break;
+            }
+            case "LOTTERY_NUMBER": {                                       // pbSetLotteryNumber(variable=1) (238_PMinigame_Lottery:5-12)
+                java.time.LocalDate today = java.time.LocalDate.now();
+                long hash = today.getDayOfMonth() + ((long) today.getMonthValue() << 5) + ((long) today.getYear() << 9);
+                int lottery = new java.util.Random(hash).nextInt(65536);       // srand(hash); rand(65536) (registered: Java's generator, not Ruby's)
+                state.variables().setText(ir.getInt("variable", 1), String.format("%05d", lottery));
+                break;
+            }
+            case "LOTTERY": {                                              // pbLottery(winnum, nameVar, positionVar, matchedVar) (238:14-54)
+                Object winArg = resolveIrValue(ir.get("number"));
+                int winnum = 0;
+                try {
+                    winnum = Integer.parseInt(String.valueOf(winArg).trim());
+                } catch (NumberFormatException ignored) {
+                    // winnum.to_i of a non-number is 0
+                }
+                String winpoke = null;
+                int winpos = 0;
+                int winmatched = 0;
+                for (int pass = 0; pass < 2; pass++) {                         // the party, then every box (pbEachPokemon)
+                    java.util.List<Pokemon> list = new java.util.ArrayList<>();
+                    if (pass == 0) {
+                        for (Pokemon member : state.trainer().party.members()) list.add(member);
+                    } else {
+                        state.trainer().storage.eachPokemon(list::add);
+                    }
+                    for (Pokemon p : list) {
+                        int thismatched = 0;
+                        int id = p.publicID & 0xFFFF;
+                        for (int j = 0; j < 5; j++) {
+                            int pow = (int) Math.pow(10, j);
+                            if ((id / pow) % 10 == (winnum / pow) % 10) thismatched++; else break;
+                        }
+                        if (thismatched > winmatched) {
+                            winpoke = p.name;
+                            winpos = pass == 0 ? 1 : 2;                       // 1 party, 2 storage
+                            winmatched = thismatched;
+                        }
+                    }
+                }
+                state.variables().setText(ir.getInt("nameVariable", 2), winpoke == null ? "" : winpoke);
+                state.variables().set(ir.getInt("positionVariable", 3), winpos);
+                state.variables().set(ir.getInt("matchedVariable", 4), winmatched);
+                break;
+            }
+            case "BOSS_BATTLE": {                                          // `battleXxx` as a plain statement: the def runs, its result is dropped
+                BossBattleData.Entry boss = BossBattleData.find(ir.getString("name", ""));
+                if (boss == null) {
+                    log.warn("BOSS_BATTLE " + ir.getString("name", "") + " has no Boss_Battles def; skipped");
+                } else {
+                    startBossBattleCondition(null, null, boss);
+                }
+                break;
+            }
+            case "GENERATE_EGG": {                                         // pbGenerateEgg(:SPECIES, text="") (323_Egg_Hatcher:259)
+                pbGenerateEgg(ir.getString("species", ""), ir.getString("text", ""));
+                break;
+            }
+            case "PARTY_OT_SHINY": {                                       // map-205: each_index, next if ot != name; otgender; makeShiny; makeSuperShiny
+                String ot = ir.getString("ot", "");
+                for (Pokemon member : state.trainer().party.members()) {
+                    if (member == null || !ot.equals(member.originalTrainer)) continue;
+                    member.otGender = ir.getInt("otgender", 0);
+                    member.shiny = true;
+                    member.superShiny = true;
+                }
+                break;
+            }
+            case "MYSTERY_GIFT": {                                         // id=pbNextMysteryGiftID; pbReceiveMysteryGift(id) (231_PScreen_MysteryGift:361-377)
+                // 登记: $Trainer.mysterygift (the downloaded gifts) is not modelled, so no unclaimed gift exists: id 0, nothing found
+                showHandlerMessage("找不到ID为0的无主神秘礼物。");
+                break;
+            }
+            case "PRIZE_LOOKUP": {                                         // map-326 prize vendors: item=[...][pbGet(1)] ; price=[...][pbGet(1)] ...
+                int choice = state.variables().get(1);
+                JsonValue names = ir.get("items"), prices = ir.get("prices"), levels = ir.get("levels");
+                String prizeName = names != null && choice >= 0 && choice < names.size ? names.get(choice).asString() : "0";
+                boolean species = "species".equals(ir.getString("kind", "item"));
+                int id = 0;
+                String shown = "";
+                if (!"0".equals(prizeName) && pbs != null) {                       // `if item && item!=0: item = getID(...)`
+                    if (species) {
+                        PbsData.Species data = pbs.species(prizeName);
+                        if (data != null) { id = data.id; shown = data.name; }
+                    } else {
+                        PbsData.Item data = pbs.item(prizeName);
+                        if (data != null) { id = data.id; shown = data.name; }
+                    }
+                }
+                state.variables().set(1, id);                                  // pbSet(1, item)
+                state.variables().set(2, prices != null && choice >= 0 && choice < prices.size ? prices.get(choice).asInt() : 0);   // pbSet(2, price)
+                state.variables().setText(3, shown);                           // pbSet(3, PBItems/PBSpecies.getName(item))
+                if (levels != null) {
+                    state.variables().set(4, choice >= 0 && choice < levels.size ? levels.get(choice).asInt() : 0);   // pbSet(4, lv)
+                }
+                break;
+            }
+            case "GIVE_ITEM_VAR": {                                        // pbReceiveItem(pbGet(n))
+                String item = itemById(state.variables().get(ir.getInt("variable", 1)));
+                if (item != null && inventory != null && pbs != null && pbs.item(item) != null) {
+                    giveItemWithMessages(item, 1, false);
+                    if (interpreterState == InterpreterState.WAIT_MESSAGE) {
+                        return;
+                    }
+                }
+                break;
+            }
+            case "CHOOSE_FOSSIL": {                                        // pbChooseFossil(var) (188_PItem_Items:1112-1119)
+                MenuService.Request fossil = new MenuService.Request(MenuService.Kind.CHOOSE_ITEM);
+                PbsData data = pbs;
+                fossil.filter = item -> data != null && data.item(item) != null && data.item(item).type == 8;   // pbIsFossil?
+                fossil.variable = Math.max(1, ir.getInt("variable", 1));
+                if (menuService != null) menuRequest = menuService.submit(fossil);
+                else log.warn("CHOOSE_FOSSIL without a menu service");
+                break;
+            }
+            case "DELETE_ITEM_VAR": {                                      // $PokemonBag.pbDeleteItem(pbGet(n))
+                String item = itemById(state.variables().get(ir.getInt("variable", 0)));
+                if (item != null) state.inventory().remove(item, 1);
+                break;
+            }
+            case "ITEM_NAME_VAR": {                                        // pbSet(t, PBItems.getName(pbGet(n)))
+                String item = itemById(state.variables().get(ir.getInt("variable", 0)));
+                PbsData.Item data = item == null || pbs == null ? null : pbs.item(item);
+                state.variables().setText(ir.getInt("target", 0), data == null || data.name == null ? "" : data.name);
+                break;
+            }
+            case "SPECIES_NAME_VAR": {                                     // pbSet(t, PBSpecies.getName(pbGet(n)))
+                PbsData.Species species = speciesById(state.variables().get(ir.getInt("variable", 0)));
+                state.variables().setText(ir.getInt("target", 0), species == null ? "" : species.name);
+                break;
+            }
+            case "CONVERT_ITEM_TO_POKEMON": {                              // pbConvertItemToPokemon(variable, array) (253_PSystem_Utilities:1048-1056)
+                int variable = ir.getInt("variable", 0);
+                String item = itemById(state.variables().get(variable));
+                state.variables().set(variable, 0);
+                JsonValue pairs = ir.get("pairs");
+                if (pairs != null && pairs.isArray()) {
+                    for (JsonValue pair = pairs.child; pair != null; pair = pair.next) {
+                        if (item == null || !item.equals(pair.get(0).asString())) continue;
+                        PbsData.Species species = pbs == null ? null : pbs.species(pair.get(1).asString());
+                        if (species != null) state.variables().set(variable, species.id);
+                        break;
+                    }
+                }
+                break;
+            }
+            case "SLOT_MACHINE": {                                         // pbSlotMachine(difficulty) (236_PMinigame_SlotMachine:384-402)
+                int coins = state.fieldGlobals().coins;
+                if (pbs != null && pbs.item("COINCASE") != null && !state.inventory().has("COINCASE")) {
+                    showHandlerMessage("这是老虎机。");
+                } else if (coins == 0) {
+                    showHandlerMessage("没有代币了！");
+                } else if (coins == ConditionEnv.MAX_COINS) {
+                    showHandlerMessage("代币盒装满了！");
+                } else {
+                    MenuService.Request slots = new MenuService.Request(MenuService.Kind.SLOT_MACHINE);
+                    slots.index = ir.getInt("difficulty", 1);
+                    if (menuService != null) menuRequest = menuService.submit(slots);
+                    else log.warn("SLOT_MACHINE without a menu service");
+                }
+                break;
+            }
+            case "TRAINER_PC": {                                           // pbTrainerPC (PScreen_PC:205-209)
+                MenuService.Request pc = new MenuService.Request(MenuService.Kind.TRAINER_PC);
+                if (menuService != null) menuRequest = menuService.submit(pc);
+                else log.warn("TRAINER_PC without a menu service");
+                break;
+            }
+            case "TRAINER_CARD_BADGES": {                                  // pbStartBadgeScreen (300_B2W2_Trainer_Card:1084)
+                MenuService.Request card = new MenuService.Request(MenuService.Kind.TRAINER_CARD_BADGES);
+                if (menuService != null) menuRequest = menuService.submit(card);
+                else log.warn("TRAINER_CARD_BADGES without a menu service");
+                break;
+            }
+            case "CREDITS": {                                              // $scene = Scene_Credits.new (080_Scene_Credits)
+                MenuService.Request credits = new MenuService.Request(MenuService.Kind.CREDITS);
+                if (menuService != null) menuRequest = menuService.submit(credits);
+                else log.warn("CREDITS without a menu service");
+                break;
+            }
+            case "HALL_OF_FAME_ENTRY": {                                   // pbHallOfFameEntry (232_PScreen_HallOfFame:524-528)
+                MenuService.Request hall = new MenuService.Request(MenuService.Kind.HALL_OF_FAME);
+                if (menuService != null) menuRequest = menuService.submit(hall);
+                else log.warn("HALL_OF_FAME_ENTRY without a menu service");
+                break;
+            }
             case "DAYCARE_DEPOSIT": {                                     // 181_PField_DayCare:57-70
                 state.trainer().dayCare.deposit(state.trainer(), irNumber(ir.get("index")));
                 break;
@@ -1789,10 +2140,26 @@ public final class EventInterpreter {
             case "GIVE_RIBBON_PARTY": { // for i in $Trainer.pokemonParty: i.giveRibbon(:X) (197_PokeBattle_Pokemon:571-576)
                 String ribbon = ir.getString("ribbon", null);
                 for (Pokemon member : state.trainer().party.members()) {
-                    if (ribbon != null && !member.egg && !member.ribbons.contains(ribbon, false)) {
-                        member.ribbons.add(ribbon);
+                    if (ribbon != null && !member.egg) {
+                        member.giveRibbon(ribbon);
                     }
                 }
+                break;
+            }
+            case "GIVE_RIBBON_FIRST": {   // poke=$Trainer.firstPokemon; poke.giveRibbon(:X)
+                Pokemon first = state.trainer().first();
+                if (first != null) first.giveRibbon(ir.getString("ribbon", ""));
+                break;
+            }
+            case "EV_RIBBON_STATUS": {    // map-025 Effort ribbon giver (the lead's total EVs and whether it has the ribbon)
+                Pokemon first = state.trainer().first();
+                if (first == null) break;
+                int ev = 0;
+                for (int i = 0; i < 6; i++) ev += first.evs[i];
+                int maxed = ev >= 255 ? 1 : 0;
+                if (first.hasRibbon(ir.getString("ribbon", ""))) maxed = 2;
+                state.variables().setText(1, first.name);
+                state.variables().set(2, maxed);
                 break;
             }
             case "SET_WEATHER": // $game_screen.weather(type, power, duration) (019_Game_Screen:78-93)
@@ -2655,6 +3022,21 @@ public final class EventInterpreter {
         return resolved instanceof Number ? ((Number) resolved).intValue() : -1;
     }
 
+    /**
+     * 189_PItem_ItemEffects:162-188: the repel ran out and the bag holds another one: ask, pick it in the bag and use it
+     * ({@code pbUseItem}: a handler that answers 3 consumes the item).
+     */
+    public void startRepelRenewal() {
+        startFieldTask(scene -> {
+            pokemon.runtime.field.ItemHandlers handlers = new pokemon.runtime.field.ItemHandlers(pbs, state, java.time.LocalTime::now);
+            if (!scene.pbConfirmMessage("使用的喷雾剂失去效果了！\n想再用一个吗？")) return;     // :172
+            String item = scene.pbChooseItem(i -> "REPEL".equals(i) || "SUPERREPEL".equals(i) || "MAXREPEL".equals(i));   // :175-181
+            if (item == null) return;                                                          // :183 pbUseItem if ret>0
+            int ret = handlers.useInField(item, new EggMoveTutor(state, pbs, scene, handlers).itemSceneFor());   // :916-923
+            if (ret == 3 || ret == 4) state.inventory().remove(item, 1);                       // 188:922-923
+        });
+    }
+
     private java.util.function.IntSupplier regionSupplier = () -> -1;
 
     /** {@code pbGetCurrentRegion} (253_PSystem_Utilities:840-843) for the Day Care's regional forms. */
@@ -2676,6 +3058,157 @@ public final class EventInterpreter {
         scriptTaskAnswer = null;
         scriptQuestion = null;
         scriptTask = holder[0];
+    }
+
+    /** The internal name of the item with that id, or null ({@code getID}'s inverse). */
+    private String itemById(int id) {
+        if (pbs == null || id <= 0) return null;
+        for (PbsData.Item item : pbs.items.values()) {
+            if (item.id == id) return item.internalName;
+        }
+        return null;
+    }
+
+    private PbsData.Species speciesById(int id) {
+        if (pbs == null || id <= 0) return null;
+        for (String name : pbs.speciesById.values()) {
+            PbsData.Species species = pbs.species(name);
+            if (species != null && species.id == id) return species;
+        }
+        return null;
+    }
+
+    /** {@code pbLoadRegionalDexes.length}: the regional Dex lists of the PBS. */
+    private int regionalDexCount() {
+        int count = 0;
+        if (pbs != null) {
+            for (String name : pbs.speciesById.values()) {
+                PbsData.Species species = pbs.species(name);
+                if (species != null && species.regionalNumbers != null) count = Math.max(count, species.regionalNumbers.length);
+            }
+        }
+        return count;
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.List<String> chCommands() {
+        Object value = instanceVariables.get("@ch_cmd");
+        if (!(value instanceof java.util.List)) {
+            value = new java.util.ArrayList<String>();
+            instanceVariables.put("@ch_cmd", value);
+        }
+        return (java.util.List<String>) value;
+    }
+
+    /** 252_PSystem_PokemonUtilities:17-49 {@code pbStorePokemon}: the party, or a box with the plugin's lines. */
+    private void pbStorePokemon(Pokemon pkmn, java.util.function.Consumer<String> say) {
+        pokemon.runtime.pokemon.TrainerState trainer = state.trainer();
+        if (trainer.party.size() == 6 && trainer.currentStorage().full()) {                           // :4-6 pbBoxesFull?
+            say.accept("没有存放宝可梦的空间了！\u0001");                                              // :19
+            say.accept("盒子都满了，无法接收宝可梦！");                                                 // :20
+            return;
+        }
+        pkmn.recordFirstMoves();                                                                       // :22
+        if (trainer.party.size() < 6) {                                                                // :23
+            trainer.party.add(pkmn);                                                                   // :24
+            return;
+        }
+        pokemon.runtime.pokemon.Storage storage = trainer.currentStorage();
+        int oldBox = storage.currentBox;                                                               // :27
+        int storedBox = storage.pbStoreCaught(pkmn);                                                   // :28
+        String current = storage.box(oldBox).name;                                                     // :29
+        String stored = storage.box(storedBox).name;                                                   // :30
+        if (storedBox != oldBox) {                                                                     // :33
+            say.accept("寄存系统中的箱子\"" + current + "\"已经满了！\u0001");                             // :37
+            say.accept(pkmn.name + "被送到了箱子\"" + stored + "。\"");                                   // :39
+        } else {
+            say.accept(pkmn.name + "被送到了某人的电脑中。\u0001");                                       // :44
+            say.accept("它被存放在了箱子\"" + stored + "中。\"");                                         // :46
+        }
+    }
+
+    /** 323_Egg_Hatcher:228-257 {@code takeEgg(egg, index)}: where the newborn goes, then the slot is emptied. */
+    private void takeEgg(TaskFieldScene scene, Pokemon egg, int index) {
+        pokemon.runtime.pokemon.TrainerState trainer = state.trainer();
+        boolean sel = scene.pbConfirmMessage("要将新出生的宝可梦放进队伍吗？");                              // :229
+        if (sel) {
+            if (trainer.party.size() == 6) scene.pbMessage("您的队伍满了！\u0001");                        // :231
+            pbStorePokemon(egg, scene::pbMessage);                                                     // :232
+        } else {
+            if (trainer.party.size() == 6 && trainer.currentStorage().full()) {                        // :234 pbBoxesFull?
+                scene.pbMessage("队伍没有更多的空间了！\u0001");                                          // :235
+                scene.pbMessage("宝可梦盒子已满，不能再接受了！");                                          // :236
+                return;                                                                                // the egg stays in its slot
+            }
+            pokemon.runtime.pokemon.Storage storage = trainer.currentStorage();
+            int oldBox = storage.currentBox;                                                           // :239
+            int storedBox = storage.pbStoreCaught(egg);                                                // :240
+            String curboxname = storage.box(oldBox).name;                                              // :241
+            String boxname = storage.box(storedBox).name;                                              // :242
+            if (storedBox != oldBox) {                                                                 // :245
+                scene.pbMessage("盒子 \"" + curboxname + "\" 已满。\u0001");                           // :249
+                scene.pbMessage(egg.name + " 被转移到了盒子 \"" + boxname + "\"。");                     // :251
+            } else {
+                scene.pbMessage(egg.name + " 被转移到了盒子 \"" + boxname + "\"。");                     // :253
+            }
+        }
+        trainer.hatcherEggs[index] = null;                                                             // :256
+    }
+
+    /** The hatched egg of a hatcher slot has been shown: say where it goes. */
+    public void startTakeEgg(Pokemon egg, int slot) {
+        Array<EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 0));
+        start(list, state.currentMapId(), -1);
+        startFieldTask(scene -> takeEgg(scene, egg, slot));
+    }
+
+    /**
+     * 323_Egg_Hatcher:259-302 {@code pbGenerateEgg(pokemon, text="")}: with the Egg Hatcher the egg may go into it.
+     * 登记: the first branch of the plugin ({@code PokeBattle_Pokemon.new(.., EGGINITIALLEVEL, ..)}) names an undefined
+     * constant and always falls into the {@code rescue} branch, which is what runs here.
+     */
+    private void pbGenerateEgg(String speciesName, String text) {
+        PbsData.Species species = pbs == null ? null : pbs.species(speciesName);
+        if (species == null || state.trainer() == null) return;
+        Pokemon egg = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, pokemon.runtime.pokemon.DayCare.EGG_LEVEL,
+                state.trainer(), mapId, new java.util.Random());                                      // :284 pbNewPkmn(species, EGG_LEVEL)
+        egg.egg = true;
+        egg.name = "Egg";                                                                              // :288
+        egg.stepsToHatch = species.stepsToHatch;                                                       // :289-290
+        egg.obtainText = text;                                                                         // :291
+        egg.hp = egg.maxHp();                                                                          // :292 calcStats
+        boolean hatcherOwned = pbs.item("EGGHATCHER") == null || state.inventory().has("EGGHATCHER");   // :296
+        startFieldTask(scene -> {
+            if (hatcherOwned || state.switches().get(50)) {                                            // :296 EGGHATCHER_SWITCH
+                if (scene.pbConfirmMessage("您想将蛋添加到孵化器中吗？")) {                                  // :297
+                    boolean added = false;
+                    for (int i = 0; i < state.trainer().hatcherEggs.length && !added; i++) {           // :305-311 addEgg
+                        if (state.trainer().hatcherEggs[i] == null) {
+                            state.trainer().hatcherEggs[i] = egg;
+                            added = true;
+                        }
+                    }
+                    if (added) return;                                                                 // :299 return true
+                    scene.pbMessage("孵化器已满。");                                                     // :313
+                }
+            }
+            pbStorePokemon(egg, scene::pbMessage);                                                     // :300
+        });
+    }
+
+    /** The project's NPC scripts of {@link PluginScripts}. */
+    private void startPluginScript(String command) {
+        startFieldTask(scene -> {
+            PluginScripts scripts = new PluginScripts(state, pbs, scene, mapPort);
+            switch (command) {
+                case "CRYSTAL_WARP": scripts.pbCrystalWarp(); break;
+                case "MR_HYPER": scripts.pbMrHyper(); break;
+                case "CHANGE_BALLS": scripts.changeBalls(); break;
+                case "RESURRECTION2": scripts.resurrection2(new java.util.Random(), pkmn -> pbAddPokemon(pkmn, false)); break;
+                default: scripts.pbGiveAllMemories(); break;
+            }
+        });
     }
 
     private void startEggMoveTutor(boolean shiny) {
@@ -2953,6 +3486,7 @@ public final class EventInterpreter {
     private java.util.function.Supplier<Object> scriptTaskAnswer;
     private java.util.List<String> scriptQuestion;
     private int scriptQuestionCancel;
+    private int scriptQuestionDefault;
 
     private ScriptCondition parseCondition(String text) {
         ScriptCondition cached = conditionCache.get(text);
@@ -2971,7 +3505,12 @@ public final class EventInterpreter {
 
     private ConditionEnv conditionEnv(pokemon.runtime.field.FieldScene scene) {
         return new ConditionEnv(state, pbs, () -> mapId, () -> eventId, instanceVariables, java.time.LocalTime::now, scene)
-                .withMapPort(mapPort);
+                .withMapPort(mapPort).withPokemonAdder((pkmn, say) -> pbAddPokemon(pkmn, false, say))
+                .withItemReceiver((item, say) -> {
+                    if (pbs == null || inventory == null || pbs.item(item) == null) return false;
+                    giveItemWithMessages(item, 1, false, say);                   // pbReceiveItem (309_Item_Find)
+                    return true;
+                });
     }
 
     private static boolean needsScreen(ScriptCondition condition) {
@@ -3024,7 +3563,8 @@ public final class EventInterpreter {
                     options.add(option);
                 }
                 choiceResult = Integer.MIN_VALUE;
-                messages.showChoices(options, scriptQuestionCancel);
+                messages.showChoices(options, scriptQuestionCancel, scriptQuestionDefault);
+                scriptQuestionDefault = 0;
                 scriptQuestion = null;
                 interpreterState = InterpreterState.WAIT_MESSAGE;
                 return;
@@ -3055,6 +3595,7 @@ public final class EventInterpreter {
                     return;
                 case CHOOSE: {
                     final int cancel = r.cancel;
+                    scriptQuestionDefault = r.number;
                     showHandlerQuestion(r.text, r.commands, cancel < 0 ? 100 : cancel);
                     scriptTaskAnswer = () -> choiceResult >= 99 ? -1 : choiceResult;
                     return;
@@ -3123,6 +3664,17 @@ public final class EventInterpreter {
                         return;
                     }
                     break;
+                case CHOOSE_ITEM: {
+                    MenuService.Request choose = new MenuService.Request(MenuService.Kind.CHOOSE_ITEM);
+                    choose.filter = r.filter;
+                    if (menuService == null) {
+                        scriptTask.answer(null);
+                        break;
+                    }
+                    menuRequest = menuService.submit(choose);
+                    scriptTaskAnswer = () -> choose.text;
+                    return;
+                }
                 case ME:
                     if (audio != null) {
                         audio.playMe(r.text, 100, 100);
@@ -3224,9 +3776,11 @@ public final class EventInterpreter {
      */
     private void startBossBattleCondition(EventProgram program, EventCommand command, BossBattleData.Entry boss) {
         if (battlePort == null || pbs == null) {
-            unsupported(command, boss.name + " without a battle runtime or PBS data");
-            program.branchResult(program.indent(), false);
-            program.skipBlock();
+            if (program != null) {
+                unsupported(command, boss.name + " without a battle runtime or PBS data");
+                program.branchResult(program.indent(), false);
+                program.skipBlock();
+            }
             return;
         }
         if (boss.lazyDogSkip && state.switches().get(197)) {                      // 319:6 if $game_switches[197]
@@ -3236,9 +3790,11 @@ public final class EventInterpreter {
         }
         PbsData.Species species = pbs.species(boss.species);
         if (species == null) {
-            unsupported(command, boss.name + ": unknown species " + boss.species);
-            program.branchResult(program.indent(), false);
-            program.skipBlock();
+            if (program != null) {
+                unsupported(command, boss.name + ": unknown species " + boss.species);
+                program.branchResult(program.indent(), false);
+                program.skipBlock();
+            }
             return;
         }
         if (doubleRefusalFirst()) return;                                         // PField_Battles:88-93 inside pbPrepareBattle
@@ -4025,8 +4581,8 @@ public final class EventInterpreter {
                 break;
             case "giveRibbon": {
                 String ribbon = asName(first);
-                if (ribbon != null && !pokemon.ribbons.contains(ribbon, false)) {
-                    pokemon.ribbons.add(ribbon);
+                if (ribbon != null) {
+                    pokemon.giveRibbon(ribbon);
                 }
                 break;
             }

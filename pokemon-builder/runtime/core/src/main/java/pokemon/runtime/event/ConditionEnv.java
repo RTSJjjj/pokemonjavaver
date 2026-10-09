@@ -33,6 +33,21 @@ final class ConditionEnv implements ScriptCondition.Env {
     private final pokemon.runtime.field.FieldMoves fieldMoves;
     private MapPort mapPort;
 
+    private java.util.function.BiPredicate<Pokemon, java.util.function.Consumer<String>> pokemonAdder;
+    private java.util.function.BiPredicate<String, java.util.function.Consumer<String>> itemReceiver;
+
+    /** {@code pbReceiveItem(item)} (309_Item_Find): the interpreter's item messages, said through the script task. */
+    ConditionEnv withItemReceiver(java.util.function.BiPredicate<String, java.util.function.Consumer<String>> receiver) {
+        this.itemReceiver = receiver;
+        return this;
+    }
+
+    /** {@code pbAddPokemon(pkmn)} (252_PSystem_PokemonUtilities:67-83): the interpreter's party / box / message flow. */
+    ConditionEnv withPokemonAdder(java.util.function.BiPredicate<Pokemon, java.util.function.Consumer<String>> adder) {
+        this.pokemonAdder = adder;
+        return this;
+    }
+
     ConditionEnv withMapPort(MapPort port) {
         this.mapPort = port;
         return this;
@@ -222,7 +237,7 @@ final class ConditionEnv implements ScriptCondition.Env {
     /** The atoms that talk to the player run on a task with a screen. */
     static final java.util.Set<String> SCREEN_CALLS = new java.util.HashSet<>(
             java.util.Arrays.asList("pbCut", "pbRockSmash", "pbStrength", "pbMoveTutorChoose", "pbSurf", "pbWaterfall", "pbDive",
-                    "pbSurfacing", "pbRelearnMoveScreen"));
+                    "pbSurfacing", "pbRelearnMoveScreen", "pbAddToParty", "pbAddPokemon", "pbReceiveItem"));
 
     private boolean needScene(String name) {
         if (scene == null) {
@@ -279,7 +294,7 @@ final class ConditionEnv implements ScriptCondition.Env {
             case "pbPokerus?":                                                  // 170_PField_Field:195-201
                 if (state.switches().get(SEEN_POKERUS_SWITCH)) return false;
                 for (Pokemon p : state.trainer().party.members()) {
-                    if (p.pokerus == 1) return true;
+                    if (p.pokerusStage() == 1) return true;
                 }
                 return false;
             case "pbHasSpecies?": {                                             // 252_PSystem_PokemonUtilities:342-348
@@ -315,6 +330,52 @@ final class ConditionEnv implements ScriptCondition.Env {
                 boolean byMachine = args.size() > 2 && ScriptCondition.truthy(args.get(2));
                 int ret = scene.pbMoveTutorChoose(String.valueOf(args.get(0)), movelist, byMachine);
                 return ret >= 0 ? (Object) ret : Boolean.FALSE;                 // `return ret if ret`: the index (0 is true in Ruby)
+            }
+            case "getVariable": {                                               // 170_PField_Field:827-835
+                if (args.isEmpty()) {
+                    String text = state.eventVars().getText(mapId.getAsInt(), eventId.getAsInt());
+                    return text == null ? ScriptCondition.NIL : text;
+                }
+                return state.variables().get(Math.max(1, toInt(args.get(0))));
+            }
+            case "pbReceiveItem": {                                             // 309_Item_Find: the item messages, then the bag
+                needScene(name);
+                String item = args.isEmpty() ? null : String.valueOf(args.get(0));
+                return item != null && itemReceiver != null && itemReceiver.test(item, scene::pbMessage);
+            }
+            case "pbAddPokemon": {                                              // 252_PSystem_PokemonUtilities:67-83 with a species id and a level
+                needScene(name);
+                if (pbs == null || pokemonAdder == null) return false;
+                int id = toInt(args.get(0));
+                pokemon.runtime.pokemon.PbsData.Species species = null;
+                for (String speciesName : pbs.speciesById.values()) {
+                    pokemon.runtime.pokemon.PbsData.Species candidate = pbs.species(speciesName);
+                    if (candidate != null && candidate.id == id) species = candidate;
+                }
+                if (species == null) return false;
+                int level = args.size() > 1 ? toInt(args.get(1)) : 5;
+                Pokemon pkmn = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, level, state.trainer(),
+                        mapId.getAsInt(), new java.util.Random());                                       // pbNewPkmn
+                return pokemonAdder.test(pkmn, scene::pbMessage);
+            }
+            case "pbAddToParty": {                                              // 252_PSystem_PokemonUtilities:108-119
+                needScene(name);
+                if (pbs == null || state.trainer().party.size() >= 6) return false;                      // :109
+                int id = toInt(args.get(0));
+                pokemon.runtime.pokemon.PbsData.Species species = null;
+                for (String speciesName : pbs.speciesById.values()) {
+                    pokemon.runtime.pokemon.PbsData.Species candidate = pbs.species(speciesName);
+                    if (candidate != null && candidate.id == id) species = candidate;
+                }
+                if (species == null) return false;                                                       // :109 !pokemon
+                int level = args.size() > 1 ? toInt(args.get(1)) : 5;
+                Pokemon pkmn = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, level, state.trainer(),
+                        mapId.getAsInt(), new java.util.Random());                                       // :112 pbNewPkmn
+                scene.pbMessage(state.trainer().name + "得到了" + species.name + "!\\me[Pkmn get]\\wtnp[80]\u0001");   // :115
+                state.trainer().registerOwned(pkmn);                                                     // pbNicknameAndStore: seen / owned (pbNickname is commented out)
+                pkmn.recordFirstMoves();                                                                 // pbStorePokemon:19
+                state.trainer().party.add(pkmn);                                                         // :20-21
+                return true;
             }
             case "pbEggGenerated?":                                             // 181_PField_DayCare:44-47
                 return state.trainer().dayCare.eggGenerated();

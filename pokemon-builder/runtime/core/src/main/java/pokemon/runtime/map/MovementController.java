@@ -22,6 +22,8 @@ public final class MovementController {
     public int runStyle;
     /** 026_Game_Player_Visuals:56-66: the move speed level of the vehicle (5 cycling, 4 surfing), 0 = none. */
     public int vehicleSpeedLevel;
+    /** 026_Game_Player_Visuals:22-31 {@code pbCanRun?}: the running shoes were given and nothing forbids running here. */
+    public boolean runAllowed = true;
 
     /**
      * @param input     frame input snapshot
@@ -35,9 +37,9 @@ public final class MovementController {
             if (input.wasPressed(GameAction.RUN)) {
                 runToggle = !runToggle;
             }
-            character.running(runToggle);
+            character.running(runToggle && runAllowed);
         } else {
-            character.running(input.isDown(GameAction.RUN));
+            character.running(input.isDown(GameAction.RUN) && runAllowed);
         }
         if (vehicleSpeedLevel > 0 && !character.isMoving()) {
             character.moveSpeed(vehicleSpeedLevel);

@@ -3700,6 +3700,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     stepExpGain();
                     return;
                 }
+                if (award.announce != null) {                                // :51 the Exp All's line, once, paused
+                    String line = award.announce;
+                    award.announce = null;
+                    showExpMessage(line);
+                    return;
+                }
                 expPhase = ExpPhase.SEGMENTS;
                 expSegmentIndex = 0;
                 expMoveIndex = 0;
@@ -3708,9 +3714,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 // Lines 193-197 (the outsider wording differs). The line lingers
                 // while the bar fills, so it is a brief message and the bar
                 // starts in the same beat.
-                showExpBriefMessage(award.outsider
-                        ? award.pokemon.name + "获得了得到增幅的" + award.expGained + "点经验值！"
-                        : award.pokemon.name + "获得了" + award.expGained + "点经验值！");
+                if (award.showMessage) {                                     // :195 showMessages (false for the Exp All's others)
+                    showExpBriefMessage(award.outsider
+                            ? award.pokemon.name + "获得了得到增幅的" + award.expGained + "点经验值！"
+                            : award.pokemon.name + "获得了" + award.expGained + "点经验值！");
+                }
                 stepExpGain();
                 return;
             }

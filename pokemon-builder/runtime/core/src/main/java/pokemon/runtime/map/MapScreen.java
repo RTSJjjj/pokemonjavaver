@@ -577,6 +577,15 @@ public final class MapScreen extends ScreenAdapter {
             }
 
             @Override
+            public void removeDependency(String name) {
+                if (followers == null) {
+                    return;
+                }
+                followers.removeByName(name);
+                rebindEntities();
+            }
+
+            @Override
             public boolean addDependency(int eventId, String name, int commonEvent) {
                 if (followers == null || followers.addEvent(eventId, name, commonEvent) == null) {
                     return false;
@@ -835,6 +844,7 @@ public final class MapScreen extends ScreenAdapter {
                 return;
             }
         }
+        pokerusDailyCheck();
         startQueuedHatch();
         if (pauseMenu != null && !pauseMenu.isOpen() && context.menuService().pending() != null) {
             capturePauseMap();
@@ -1415,6 +1425,8 @@ public final class MapScreen extends ScreenAdapter {
             vehicleMusic(old, key);
         }
         movement.vehicleSpeedLevel = key == 1 ? 5 : key == 2 ? 4 : 0;       // 026_Game_Player_Visuals:59-62
+        movement.runAllowed = g.runningShoes && !g.diving && !g.surfing && !g.bicycle     // :28-31 pbCanRun?
+                && !pokemon.runtime.field.PBTerrain.onlyWalk(g.playerTerrainTag);
         if (endSurfPending && !player.isJumping()) {                        // 025_Game_Player:341-346
             endSurfPending = false;
             surfJump = null;
@@ -4042,6 +4054,7 @@ public final class MapScreen extends ScreenAdapter {
                     gameState.inventory().has("OVALCHARM"), gameState.switches().get(199),
                     j -> gameState.trainer().badges.contains(j));
         }
+        stepHatcherEggs();                                                    // 323_Egg_Hatcher:316-340 onStepTaken
         if (gameState.trainer().party.eggCount() == 0) {
             return;
         }
@@ -4057,7 +4070,62 @@ public final class MapScreen extends ScreenAdapter {
     /** The eggs that reached zero, hatched one after the other ({@code pbHatchAnimation} blocks the game). */
     private final java.util.ArrayDeque<pokemon.runtime.pokemon.Pokemon> hatchQueue = new java.util.ArrayDeque<>();
 
+    /** 170_PField_Field:180-191 {@code Events.onMapUpdate}: once a day every Pokemon of the party loses a day of Pokerus. */
+    private void pokerusDailyCheck() {
+        long today = java.time.LocalDate.now().toEpochDay();
+        pokemon.runtime.state.FieldGlobals globals = gameState.fieldGlobals();
+        if (globals.pokerusDay == today) {
+            return;
+        }
+        for (pokemon.runtime.pokemon.Pokemon pkmn : gameState.trainer().party.members()) {
+            if (pkmn != null && !pkmn.egg) {                                  // $Trainer.pokemonParty
+                pkmn.lowerPokerusCount();
+            }
+        }
+        globals.pokerusDay = today;
+    }
+
+    /** The eggs in the Egg Hatcher lose a step, and one more with Flame Body / Magma Armor in the party (323:316-340). */
+    private void stepHatcherEggs() {
+        pokemon.runtime.pokemon.TrainerState trainer = gameState.trainer();
+        for (int i = 0; i < trainer.hatcherEggs.length; i++) {
+            pokemon.runtime.pokemon.Pokemon egg = trainer.hatcherEggs[i];
+            if (egg == null || egg.stepsToHatch <= 0) continue;               // :325 next if egg == nil / eggsteps > 0
+            egg.stepsToHatch -= 1;
+            for (pokemon.runtime.pokemon.Pokemon x : trainer.party.members()) {   // :328 $Trainer.pokemonParty
+                if (x == null || x.egg) continue;
+                if ("FLAMEBODY".equals(x.ability) || "MAGMAARMOR".equals(x.ability)) {
+                    egg.stepsToHatch -= 1;
+                    break;
+                }
+            }
+            if (egg.stepsToHatch <= 0) {                                      // :337
+                egg.stepsToHatch = 0;
+                egg.egg = false;
+                pokemon.runtime.pokemon.EggHatching.pbHatch(egg, trainer, gameState.currentMapId(),
+                        System.currentTimeMillis() / 1000L);                   // :339 pbHatch(egg)
+                hatchQueue.add(egg);
+                hatcherSlots.put(egg, i);                                     // then takeEgg(egg, i)
+            }
+        }
+    }
+
+    private final java.util.IdentityHashMap<pokemon.runtime.pokemon.Pokemon, Integer> hatcherSlots = new java.util.IdentityHashMap<>();
+    private pokemon.runtime.event.MenuService.Request hatchRequest;
+    private pokemon.runtime.pokemon.Pokemon hatchPokemon;
+
     private void startQueuedHatch() {
+        if (hatchRequest != null) {
+            if (!hatchRequest.done) {
+                return;
+            }
+            hatchRequest = null;
+            Integer slot = hatcherSlots.remove(hatchPokemon);
+            if (slot != null && interpreter != null) {                        // the Egg Hatcher's egg: takeEgg(egg, slot)
+                interpreter.startTakeEgg(hatchPokemon, slot);
+                return;
+            }
+        }
         if (hatchQueue.isEmpty() || context.menuService().pending() != null
                 || (interpreter != null && interpreter.running())) {
             return;
@@ -4065,6 +4133,8 @@ public final class MapScreen extends ScreenAdapter {
         pokemon.runtime.event.MenuService.Request request =
                 new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.HATCH);
         request.pokemon = hatchQueue.poll();
+        hatchPokemon = request.pokemon;
+        hatchRequest = request;
         context.menuService().submit(request);
     }
 
@@ -4126,6 +4196,13 @@ public final class MapScreen extends ScreenAdapter {
     /** Shows the step's messages, then starts its wild battle. */
     private void applyStepResult(FieldSteps.Result result) {
         if (result.isEmpty()) {
+            return;
+        }
+        if (result.repelRenewal) {
+            interpreter.startRepelRenewal();
+            if (!result.wild.isEmpty()) {
+                deferredWild = result.wild;
+            }
             return;
         }
         if (!result.messages.isEmpty()) {

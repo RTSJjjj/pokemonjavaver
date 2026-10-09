@@ -21,6 +21,16 @@ public final class FieldGlobals {
     public int stepcount;
     /** {@code $PokemonGlobal.happinessSteps}: steps toward the next walking happiness roll. */
     public int happinessSteps;
+    /** {@code $PokemonGlobal.runningShoes} (173_PField_Metadata:12, :74): the player may run once an event gave the shoes. */
+    public boolean runningShoes;
+    /** {@code $PokemonGlobal.creditsPlayed} (173_PField_Metadata:27, :89): the credits can be skipped once they were seen. */
+    public boolean creditsPlayed;
+    /** {@code $PokemonGlobal.startTime} (epoch seconds; 0 = not set yet), shown on the trainer card. */
+    public long startTime;
+    /** {@code $PokemonGlobal.pokedexUnlocked} (173:92-99): which Dex lists are unlocked; the first one is unlocked at the start. */
+    public final java.util.List<Boolean> pokedexUnlocked = new java.util.ArrayList<>();
+    /** {@code $PokemonGlobal.pokerusTime} as an epoch day ({@code Long.MIN_VALUE} = nil): the day Pokerus last counted down. */
+    public long pokerusDay = Long.MIN_VALUE;
     /** {@code $PokemonGlobal.coins}: the Game Corner coins. */
     public int coins;
     /** {@code $PokemonGlobal.pcItemStorage}: null until the PC's item storage is first opened (:19-21). */
@@ -69,6 +79,10 @@ public final class FieldGlobals {
         infRepel = false;
         stepcount = 0;
         happinessSteps = 0;
+        runningShoes = false;
+        creditsPlayed = false;
+        pokedexUnlocked.clear();
+        pokerusDay = Long.MIN_VALUE;
         coins = 0;
         pcItemStorage = null;
         foundItems.clear();

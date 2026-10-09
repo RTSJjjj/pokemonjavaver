@@ -62,7 +62,7 @@ class ScriptIrExecutionTest {
             interpreter.update(0);
         }
         assertEquals(1, mon.ribbons.size);
-        assertEquals("CHAMPION", mon.ribbons.get(0));
+        assertTrue(mon.hasRibbon("CHAMPION"));
         assertEquals(0, egg.ribbons.size);
     }
 

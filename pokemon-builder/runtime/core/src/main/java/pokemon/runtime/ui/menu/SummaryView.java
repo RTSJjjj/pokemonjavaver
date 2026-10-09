@@ -534,7 +534,7 @@ public final class SummaryView {
         if (status >= 0 && statuses != null) {
             drawImg(b, statuses, h, 476 + 64, 88, 44, 16, 0, status * 16);
         }
-        if (p.pokerus == 2) {
+        if (p.pokerusStage() == 2) {
             Texture cured = a.graphic("Pictures/Summary", "icon_pokerus");
             if (cured != null) {
                 drawImg(b, cured, h, 376, 305);
@@ -1029,13 +1029,8 @@ public final class SummaryView {
     }
 
     private static Integer ribbonId(String ribbon) {
-        if (ribbon == null) return null;
-        try {
-            int value = Integer.parseInt(ribbon.trim());
-            return value > 0 ? value : null;
-        } catch (NumberFormatException error) {
-            return null;
-        }
+        int id = Ribbons.idOf(ribbon);
+        return id > 0 ? id : null;
     }
 
     private static String displayName(Pokemon p) {

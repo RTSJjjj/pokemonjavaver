@@ -14,6 +14,16 @@ public final class MenuService {
         RELEARN,
         /** {@code pbHatchAnimation(pokemon)} (225_PScreen_EggHatching:182-189). */
         HATCH,
+        /** {@code pbHallOfFameEntry} (232_PScreen_HallOfFame:524-528). */
+        HALL_OF_FAME,
+        /** {@code $scene = Scene_Credits.new} (080_Scene_Credits). */
+        CREDITS,
+        /** {@code pbTrainerPC} (PScreen_PC:205-209). */
+        TRAINER_PC,
+        /** {@code PokemonTrainerCardScreen#pbStartBadgeScreen} (300_B2W2_Trainer_Card:1084-1096). */
+        TRAINER_CARD_BADGES,
+        /** {@code pbSlotMachine(difficulty)} (236_PMinigame_SlotMachine:384-402); {@code index} is the difficulty. */
+        SLOT_MACHINE,
         /** {@code pbForgetMove(pkmn, move)}: the summary screen's forget mode (188_PItem_Items:823-830). */
         FORGET_MOVE }
     public static final class Request {

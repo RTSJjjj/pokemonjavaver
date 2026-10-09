@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -271,6 +271,12 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && "items".equals(args[2])) {
                 captureItems();      // roadmap stage 5: items used from the bag on the party screen
+                Gdx.app.exit();
+                return;
+            }
+            if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
+                    || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]))) {
+                captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
             }
@@ -1384,6 +1390,126 @@ public final class MenuCapture extends ApplicationAdapter {
     }
 
     /** Roadmap stage 8.4: DiegoWTsStarterSelection.new(152,255,728), from the fade-in to the confirmed choice. */
+    /** The screens of stage 8 (egg hatching, relearner, Hall of Fame) and stage 12 (credits, slot machine). */
+    private void captureScenes(String mode) {
+        pokemon.runtime.state.GameState state = context.gameState();
+        pokemon.runtime.event.MenuService.Request request;
+        switch (mode) {
+            case "slots":
+                state.fieldGlobals().coins = 50;
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.SLOT_MACHINE);
+                request.index = 1;
+                overlay.openRequest(request);
+                idle(40);
+                renderOverlay();
+                shot("slots-1-insert");
+                for (int i = 0; i < 3; i++) {
+                    tapAndRender(GameAction.DOWN, overlay);
+                    idle(2);
+                }
+                renderOverlay();
+                shot("slots-2-three-coins");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(30);
+                renderOverlay();
+                shot("slots-3-spinning");
+                for (int i = 0; i < 3; i++) {
+                    tapAndRender(GameAction.CONFIRM, overlay);
+                    idle(12);
+                }
+                idle(60);
+                renderOverlay();
+                shot("slots-4-stopped");
+                idle(200);
+                renderOverlay();
+                shot("slots-5-after");
+                break;
+            case "credits":
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.CREDITS);
+                overlay.openRequest(request);
+                idle(60);
+                renderOverlay();
+                shot("credits-1-start");
+                idle(400);
+                renderOverlay();
+                shot("credits-2-scrolling");
+                idle(1500);
+                renderOverlay();
+                shot("credits-3-later");
+                break;
+            case "hall":
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.HALL_OF_FAME);
+                overlay.openRequest(request);
+                idle(20);
+                renderOverlay();
+                shot("hall-1-start");
+                for (int i = 0; i < 6; i++) {
+                    idle(150);
+                    renderOverlay();
+                    shot("hall-" + (i + 2) + "-step");
+                }
+                break;
+            case "hatcher":
+                for (int i = 0; i < 3; i++) {
+                    pokemon.runtime.pokemon.Pokemon egg = new pokemon.runtime.pokemon.Pokemon(state.trainer().party.get(0).species, 1, context.pbsData());
+                    egg.egg = true;
+                    egg.stepsToHatch = new int[] {12000, 2000, 900}[i];
+                    state.trainer().hatcherEggs[i] = egg;
+                }
+                overlay.openHatcher();
+                idle(40);
+                renderOverlay();
+                shot("hatcher-1-first");
+                tapAndRender(GameAction.RIGHT, overlay);
+                idle(10);
+                renderOverlay();
+                shot("hatcher-2-second");
+                tapAndRender(GameAction.RIGHT, overlay);
+                idle(10);
+                renderOverlay();
+                shot("hatcher-3-third");
+                tapAndRender(GameAction.DOWN, overlay);
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(20);
+                renderOverlay();
+                shot("hatcher-4-empty-slot");
+                break;
+            case "hatch":
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.HATCH);
+                request.pokemon = state.trainer().party.get(0);
+                overlay.openRequest(request);
+                idle(30);
+                renderOverlay();
+                shot("hatch-1-huh");
+                idle(60);
+                tapAndRender(GameAction.CONFIRM, overlay);     // the "Huh?" page
+                tapAndRender(GameAction.CONFIRM, overlay);
+                for (int i = 0; i < 12; i++) {
+                    idle(i < 4 ? 50 : 70);
+                    renderOverlay();
+                    shot("hatch-" + (i + 2) + "-step");
+                }
+                break;
+            default:
+                pokemon.runtime.pokemon.Pokemon lead = state.trainer().party.get(0);
+                lead.level = 40;
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.RELEARN);
+                request.pokemon = lead;
+                overlay.openRequest(request);
+                idle(60);
+                renderOverlay();
+                shot("relearn-1-list");
+                tapAndRender(GameAction.DOWN, overlay);
+                renderOverlay();
+                shot("relearn-2-down");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(30);
+                renderOverlay();
+                shot("relearn-3-confirm");
+                break;
+        }
+    }
+
     private void captureStarter() {
         pokemon.runtime.event.MenuService.Request request =
                 new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.STARTER);

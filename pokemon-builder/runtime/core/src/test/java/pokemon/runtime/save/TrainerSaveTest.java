@@ -43,7 +43,7 @@ class TrainerSaveTest {
         lead.shiny = true;
         lead.originalTrainer = "阿辽";
         lead.battleRank = 7;
-        lead.ribbons.add("EFFORT");
+        lead.giveRibbon("EFFORT");
         lead.hp = 1;
         lead.status = "POISON";
         original.trainer().party.add(lead);
@@ -52,9 +52,31 @@ class TrainerSaveTest {
         boxed.egg = true;
         original.trainer().storage.store(boxed);
 
+        // the Hall of Fame, the Day Care and the Pokerus / first-moves fields
+        lead.givePokerus(5, new java.util.Random(1));
+        lead.firstMoves.add("TACKLE");
+        lead.trMoves.add("GROWL");
+        original.trainer().hallOfFame.add(new java.util.ArrayList<>(java.util.List.of(lead.copy())));
+        original.trainer().hallOfFameLastNumber = 3;
+        Pokemon kept = new Pokemon(data.species("BULBASAUR"), 7, data);
+        original.trainer().dayCare.pokemon[1] = kept;
+        original.trainer().dayCare.level[1] = 7;
+        original.trainer().dayCare.egg = 1;
+        original.trainer().dayCare.eggSteps = 33;
+
         String json = saves.toJson(original);
         GameState restored = new GameState();
         assertTrue(saves.fromJson(json, restored), () -> "rejected: " + json);
+        assertEquals(3, restored.trainer().hallOfFameLastNumber);
+        assertEquals(1, restored.trainer().hallOfFame.size());
+        assertEquals("BULBASAUR", restored.trainer().hallOfFame.get(0).get(0).species.internalName);
+        assertNull(restored.trainer().dayCare.pokemon[0]);
+        assertEquals(7, restored.trainer().dayCare.level[1]);
+        assertEquals(1, restored.trainer().dayCare.egg);
+        assertEquals(33, restored.trainer().dayCare.eggSteps);
+        assertEquals(1, restored.trainer().party.get(0).pokerusStage());
+        assertEquals("TACKLE", restored.trainer().party.get(0).firstMoves.get(0));
+        assertEquals("GROWL", restored.trainer().party.get(0).trMoves.get(0));
 
         assertEquals("小明", restored.trainer().name);
         assertEquals(4321, restored.trainer().money);
@@ -77,7 +99,7 @@ class TrainerSaveTest {
         assertTrue(reloaded.shiny);
         assertEquals("阿辽", reloaded.originalTrainer);
         assertEquals(7, reloaded.battleRank);
-        assertTrue(reloaded.ribbons.contains("EFFORT", false), "ribbons survive the save");
+        assertTrue(reloaded.hasRibbon("EFFORT"), "ribbons survive the save");
         assertEquals(1, reloaded.hp);
         assertEquals("POISON", reloaded.status);
 

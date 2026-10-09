@@ -41,14 +41,32 @@ public final class TrainerView {
     private final TrainerState trainer;
     private final GameDatabase database;
 
+    private int phase;          // 0 idle, 1 moveUp, 2 effectBadges, 3 effectFront, 4 moveDown
+    private int step;
+    private float blackY = ScreenMetrics.logicalHeight();
+    private int blackOpacity = 255;
     private int scene;         // 0 = front, 1 = badges
     private float bgX;
     private float bgY;
 
+    private final boolean badgesOnly;
+
     public TrainerView(GameDatabase database, GameState state) {
+        this(database, state, false);
+    }
+
+    /**
+     * @param badgesOnly 300_B2W2_Trainer_Card:1084-1096 {@code pbStartBadgeScreen}: opens on the badge page, and C / B closes.
+     */
+    public TrainerView(GameDatabase database, GameState state, boolean badgesOnly) {
         this.database = database;
         this.state = state;
         this.trainer = state == null ? new TrainerState() : state.trainer();
+        this.badgesOnly = badgesOnly;
+        this.scene = badgesOnly ? 1 : 0;
+        if (state != null && state.fieldGlobals().startTime == 0L) {
+            state.fieldGlobals().startTime = System.currentTimeMillis() / 1000L;     // :838 startTime = pbGetTimeNow if !startTime
+        }
     }
 
     public Result update(InputManager input, AudioManager audio) {
@@ -57,9 +75,22 @@ public final class TrainerView {
         bgY -= 1.4f;
         if (bgX <= -64f) bgX = 0f;
         if (bgY <= -64f) bgY = 0f;
+        if (badgesOnly) {
+            if (input.wasPressed(GameAction.CONFIRM) || input.wasPressed(GameAction.CANCEL)) {
+                audio.playSe("BW2Cancel", 100, 100);                   // :1089-1090
+                return Result.BACK;
+            }
+            return Result.NONE;
+        }
+        if (phase != 0) {                                              // the page change runs without input
+            stepTransition();
+            return Result.NONE;
+        }
         if (input.wasPressed(GameAction.CONFIRM)) {
             audio.playSe("BW2MenuChoose", 100, 100);                   // 300_B2W2_Trainer_Card:1044/1050
-            scene = scene == 0 ? 1 : 0;
+            phase = scene == 0 ? 1 : 3;                                // moveUpEffect / effectFront
+            step = 0;
+            return Result.NONE;
         }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
             audio.playSe("BW2Cancel", 100, 100);                       // :1060
@@ -68,7 +99,42 @@ public final class TrainerView {
         return Result.NONE;
     }
 
+    /**
+     * :1004-1040: front to badges is moveUpEffect (the black slides up 46 px a frame), the redraw, effectBadges (10 frames,
+     * opacity -25); back is effectFront (10 frames, opacity +25), the redraw, moveDownEffect (slides down).
+     */
+    private void stepTransition() {
+        switch (phase) {
+            case 1:
+                blackY = Math.max(0f, blackY - 46f);
+                if (blackY == 0f) { scene = 1; phase = 2; step = 0; }
+                break;
+            case 2:
+                blackOpacity = Math.max(0, blackOpacity - 25);
+                if (++step >= 10) phase = 0;
+                break;
+            case 3:
+                blackOpacity = Math.min(255, blackOpacity + 25);
+                if (++step >= 10) { scene = 0; phase = 4; }
+                break;
+            default:
+                blackY = Math.min(ScreenMetrics.logicalHeight(), blackY + 46f);
+                if (blackY >= ScreenMetrics.logicalHeight()) { phase = 0; blackOpacity = 255; }
+                break;
+        }
+    }
+
     public void render(SpriteBatch batch, MenuAssets assets, MenuFont font, WindowSkin skin) {
+        renderPage(batch, assets, font, skin);
+        float h = ScreenMetrics.logicalHeight();
+        if (blackY < h && blackOpacity > 0) {                          // @sprites["blacktran"]
+            batch.setColor(0f, 0f, 0f, blackOpacity / 255f);
+            batch.draw(assets.pixel(), 0f, 0f, ScreenMetrics.logicalWidth(), h - blackY);
+            batch.setColor(Color.WHITE);
+        }
+    }
+
+    private void renderPage(SpriteBatch batch, MenuAssets assets, MenuFont font, WindowSkin skin) {
         float w = ScreenMetrics.logicalWidth();
         float h = ScreenMetrics.logicalHeight();
         if (scene == 0) {
@@ -80,7 +146,9 @@ public final class TrainerView {
 
     private void drawFront(SpriteBatch b, MenuAssets a, MenuFont f, float w, float h) {
         drawBg(b, a, "trainercardbg", w, h);
-        Texture card = a.graphic("Pictures/TrainerCard", trainer.gender == 1 ? "trainercard1" : "trainercard0");
+        boolean king = state != null && state.switches().get(200);               // :738 $game_switches[200]
+        Texture card = a.graphic("Pictures/TrainerCard", king ? "trainercard king"
+                : trainer.gender == 1 ? "trainercard1" : "trainercard0");
         if (card != null) {
             b.draw(card, 40f + 64f, h - 32f - card.getHeight(), card.getWidth(), card.getHeight());
         }
@@ -166,8 +234,7 @@ public final class TrainerView {
     }
 
     private String publicId() {
-        // $Trainer.publicID($Trainer.id); this runtime has no trainer id yet.
-        return "00000";
+        return String.format("%05d", trainer.publicID());                       // :866
     }
 
     private String playTime() {
@@ -176,8 +243,9 @@ public final class TrainerView {
     }
 
     private String startTime() {
-        // $PokemonGlobal.startTime (not modelled): show the current date.
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        return now.getYear() + "年" + now.getMonthValue() + "月" + now.getDayOfMonth() + "日";
+        long start = state == null ? 0L : state.fieldGlobals().startTime;
+        java.time.LocalDateTime local = java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochSecond(
+                start == 0L ? System.currentTimeMillis() / 1000L : start), java.time.ZoneId.systemDefault());
+        return local.getYear() + "年" + local.getMonthValue() + "月" + local.getDayOfMonth() + "日";   // :886 {年}年{pbGetAbbrevMonthName}{日}日
     }
 }

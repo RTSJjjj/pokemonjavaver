@@ -10,6 +10,25 @@ public final class Ribbons {
     private Ribbons() {
     }
 
+    /** The constants of {@code module PBRibbons} (095_PBRibbons:1-80) in id order; id = index + 1. */
+    private static final String[] CONSTANTS = {"HOENNCOOL","HOENNCOOLSUPER","HOENNCOOLHYPER","HOENNCOOLMASTER","HOENNBEAUTY","HOENNBEAUTYSUPER","HOENNBEAUTYHYPER","HOENNBEAUTYMASTER","HOENNCUTE","HOENNCUTESUPER","HOENNCUTEHYPER","HOENNCUTEMASTER","HOENNSMART","HOENNSMARTSUPER","HOENNSMARTHYPER","HOENNSMARTMASTER","HOENNTOUGH","HOENNTOUGHSUPER","HOENNTOUGHHYPER","HOENNTOUGHMASTER","SINNOHCOOL","SINNOHCOOLSUPER","SINNOHCOOLHYPER","SINNOHCOOLMASTER","SINNOHBEAUTY","SINNOHBEAUTYSUPER","SINNOHBEAUTYHYPER","SINNOHBEAUTYMASTER","SINNOHCUTE","SINNOHCUTESUPER","SINNOHCUTEHYPER","SINNOHCUTEMASTER","SINNOHSMART","SINNOHSMARTSUPER","SINNOHSMARTHYPER","SINNOHSMARTMASTER","SINNOHTOUGH","SINNOHTOUGHSUPER","SINNOHTOUGHHYPER","SINNOHTOUGHMASTER","WINNING","VICTORY","ABILITY","GREATABILITY","DOUBLEABILITY","MULTIABILITY","PAIRABILITY","WORLDABILITY","CHAMPION","SINNOHCHAMP","RECORD","EVENT","LEGEND","GORGEOUS","ROYAL","GORGEOUSROYAL","ALERT","SHOCK","DOWNCAST","CARELESS","RELAX","SNOOZE","SMILE","FOOTPRINT","ARTIST","EFFORT","BIRTHDAY","SPECIAL","CLASSIC","PREMIER","SOUVENIR","WISHING","NATIONAL","COUNTRY","BATTLECHAMPION","REGIONALCHAMPION","EARTH","WORLD","NATIONALCHAMPION","WORLDCHAMPION"};
+
+    /** {@code getID(PBRibbons, ribbon)}: an id, a number given as text, or a constant name ({@code CHAMPION}); 0 when unknown. */
+    public static int idOf(String ribbon) {
+        if (ribbon == null) return 0;
+        String text = ribbon.trim();
+        try {
+            int value = Integer.parseInt(text);
+            return value >= 1 && value <= count() ? value : 0;
+        } catch (NumberFormatException ignored) {
+            // a constant name
+        }
+        for (int i = 0; i < CONSTANTS.length; i++) {
+            if (CONSTANTS[i].equalsIgnoreCase(text)) return i + 1;
+        }
+        return 0;
+    }
+
     public static int count() {
         return 80;
     }

@@ -41,6 +41,11 @@ public interface FieldScene {
         return -1;
     }
 
+    /** {@code pbChooseItemScreen(proc)}: the internal name of the item picked in the bag, or null. */
+    default String pbChooseItem(java.util.function.Predicate<String> filter) {
+        return null;
+    }
+
     /** {@code pbMEPlay(name)}. */
     default void pbMEPlay(String name) {
     }

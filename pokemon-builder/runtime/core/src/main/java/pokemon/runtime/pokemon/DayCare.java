@@ -498,8 +498,7 @@ public final class DayCare {
         egg.egg = true;
         egg.stepsToHatch = babyspecies.stepsToHatch;                                    // :523-524
         if (rand.nextInt(65536) < POKERUS_CHANCE) {                                     // :526
-            int strain = 1 + rand.nextInt(15);
-            egg.pokerus = (1 + (strain % 4)) | (strain << 4);
+            egg.givePokerus(0, rand);
         }
         trainer.party.add(egg);                                                         // :528
         return egg;

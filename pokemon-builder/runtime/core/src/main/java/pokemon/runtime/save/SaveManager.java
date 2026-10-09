@@ -100,6 +100,17 @@ public final class SaveManager {
             eventVarsJson.addChild(entry);
         }
         root.addChild("eventVars", eventVarsJson);
+        JsonValue eventTexts = array();
+        for (long key : state.eventVars().textKeys()) {
+            int textMap = pokemon.runtime.state.GameEventVars.mapIdOf(key);
+            int textEvent = pokemon.runtime.state.GameEventVars.eventIdOf(key);
+            JsonValue entry = object();
+            entry.addChild("map", new JsonValue(textMap));
+            entry.addChild("event", new JsonValue(textEvent));
+            entry.addChild("text", new JsonValue(state.eventVars().getText(textMap, textEvent)));
+            eventTexts.addChild(entry);
+        }
+        root.addChild("eventTexts", eventTexts);
 
         JsonValue items = object();
         for (ObjectIntMap.Entry<String> entry : state.inventory().counts()) {
@@ -128,7 +139,16 @@ public final class SaveManager {
         globals.addChild("infRepel", new JsonValue(state.fieldGlobals().infRepel));
         globals.addChild("stepcount", new JsonValue(state.fieldGlobals().stepcount));
         globals.addChild("happinessSteps", new JsonValue(state.fieldGlobals().happinessSteps));
+        if (state.fieldGlobals().pokerusDay != Long.MIN_VALUE) {
+            globals.addChild("pokerusDay", new JsonValue(state.fieldGlobals().pokerusDay));
+        }
         globals.addChild("coins", new JsonValue(state.fieldGlobals().coins));
+        globals.addChild("runningShoes", new JsonValue(state.fieldGlobals().runningShoes));
+        globals.addChild("creditsPlayed", new JsonValue(state.fieldGlobals().creditsPlayed));
+        globals.addChild("startTime", new JsonValue(state.fieldGlobals().startTime));
+        JsonValue unlocked = array();
+        for (Boolean flag : state.fieldGlobals().pokedexUnlocked) unlocked.addChild(new JsonValue(Boolean.TRUE.equals(flag)));
+        globals.addChild("pokedexUnlocked", unlocked);
         JsonValue found = array();
         for (String item : state.fieldGlobals().foundItems) {
             found.addChild(new JsonValue(item));
@@ -213,6 +233,7 @@ public final class SaveManager {
         node.addChild("playSeconds", new JsonValue(trainer.playSeconds));
         node.addChild("pokedex", new JsonValue(trainer.pokedex));
         node.addChild("pokepc", new JsonValue(trainer.pokepc));
+        node.addChild("mysteryGiftAccess", new JsonValue(trainer.mysteryGiftAccess));
         node.addChild("expPot", new JsonValue(trainer.expPot));
         JsonValue chain = new JsonValue(JsonValue.ValueType.object);
         if (trainer.chainCatching.species != null) {
@@ -236,6 +257,27 @@ public final class SaveManager {
         }
         daycare.addChild("deposited", deposited);
         node.addChild("daycare", daycare);
+        JsonValue hatcher = array();
+        for (int i = 0; i < trainer.hatcherEggs.length; i++) {
+            if (trainer.hatcherEggs[i] == null) continue;
+            JsonValue entry = object();
+            entry.addChild("slot", new JsonValue(i));
+            entry.addChild("pokemon", pokemonJson(trainer.hatcherEggs[i]));
+            hatcher.addChild(entry);
+        }
+        node.addChild("hatcherEggs", hatcher);
+        if (trainer.hallOfFameLastNumber > 0 || !trainer.hallOfFame.isEmpty()) {
+            JsonValue hall = object();
+            hall.addChild("lastNumber", new JsonValue(trainer.hallOfFameLastNumber));
+            JsonValue entries = array();
+            for (java.util.List<Pokemon> entry : trainer.hallOfFame) {
+                JsonValue team = array();
+                for (Pokemon member : entry) team.addChild(pokemonJson(member));
+                entries.addChild(team);
+            }
+            hall.addChild("entries", entries);
+            node.addChild("hallOfFame", hall);
+        }
         JsonValue seen = array(), owned = array(), badges = array();
         for (String id : trainer.seen) seen.addChild(new JsonValue(id));
         for (String id : trainer.owned) owned.addChild(new JsonValue(id));
@@ -470,6 +512,13 @@ public final class SaveManager {
             }
         }
 
+        JsonValue eventTextsJson = root.get("eventTexts");
+        if (eventTextsJson != null && eventTextsJson.isArray()) {
+            for (JsonValue entry = eventTextsJson.child; entry != null; entry = entry.next) {
+                state.eventVars().setText(entry.getInt("map", 0), entry.getInt("event", 0), entry.getString("text", ""));
+            }
+        }
+
         state.inventory().clear();
         JsonValue items = root.get("items");
         if (items != null && items.isObject()) {
@@ -521,6 +570,18 @@ public final class SaveManager {
             state.fieldGlobals().infRepel = globals.getBoolean("infRepel", false);
             state.fieldGlobals().stepcount = globals.getInt("stepcount", 0);
             state.fieldGlobals().happinessSteps = globals.getInt("happinessSteps", 0);
+            // a save from before the flag existed: the player could always run, so the shoes count as given
+            state.fieldGlobals().runningShoes = globals.getBoolean("runningShoes", true);
+            state.fieldGlobals().creditsPlayed = globals.getBoolean("creditsPlayed", false);
+            state.fieldGlobals().startTime = globals.getLong("startTime", 0L);
+            state.fieldGlobals().pokedexUnlocked.clear();
+            JsonValue unlockedDexes = globals.get("pokedexUnlocked");
+            if (unlockedDexes != null && unlockedDexes.isArray()) {
+                for (JsonValue entry = unlockedDexes.child; entry != null; entry = entry.next) {
+                    state.fieldGlobals().pokedexUnlocked.add(entry.asBoolean());
+                }
+            }
+            state.fieldGlobals().pokerusDay = globals.getLong("pokerusDay", Long.MIN_VALUE);
             state.fieldGlobals().coins = globals.getInt("coins", 0);
             state.fieldGlobals().foundItems.clear();
             JsonValue found = globals.get("foundItems");
@@ -588,6 +649,7 @@ public final class SaveManager {
         trainer.playSeconds = Math.max(0, node.getDouble("playSeconds", 0));
         trainer.pokedex = node.getBoolean("pokedex", false);
         trainer.pokepc = node.getBoolean("pokepc", false);
+        trainer.mysteryGiftAccess = node.getBoolean("mysteryGiftAccess", false);
         trainer.expPot = Math.max(0, node.getInt("expPot", 0));
         trainer.chainCatching.reset();
         JsonValue chain = node.get("chain");
@@ -596,6 +658,29 @@ public final class SaveManager {
             trainer.chainCatching.chainTimes = chain.getInt("times", 0);
             trainer.chainCatching.shinyRetries = chain.getInt("shinyRetries", 0);
             trainer.chainCatching.ivGuaranteed = chain.getInt("ivGuaranteed", 0);
+        }
+        JsonValue hall = node.get("hallOfFame");
+        if (hall != null && hall.isObject()) {
+            trainer.hallOfFameLastNumber = hall.getInt("lastNumber", 0);
+            JsonValue entries = hall.get("entries");
+            if (entries != null && entries.isArray()) {
+                for (JsonValue team = entries.child; team != null; team = team.next) {
+                    java.util.List<Pokemon> members = new java.util.ArrayList<>();
+                    for (JsonValue member = team.child; member != null; member = member.next) {
+                        Pokemon kept = readPokemon(member);
+                        if (kept != null) members.add(kept);
+                    }
+                    trainer.hallOfFame.add(members);
+                }
+            }
+        }
+        JsonValue hatcherEggs = node.get("hatcherEggs");
+        if (hatcherEggs != null && hatcherEggs.isArray()) {
+            for (JsonValue entry = hatcherEggs.child; entry != null; entry = entry.next) {
+                int slot = entry.getInt("slot", -1);
+                Pokemon egg = readPokemon(entry.get("pokemon"));
+                if (egg != null && slot >= 0 && slot < trainer.hatcherEggs.length) trainer.hatcherEggs[slot] = egg;
+            }
         }
         JsonValue daycare = node.get("daycare");
         if (daycare != null && daycare.isObject()) {
@@ -752,7 +837,7 @@ public final class SaveManager {
         JsonValue ribbons = node.get("ribbons");
         if (ribbons != null && ribbons.isArray()) {
             for (JsonValue entry = ribbons.child; entry != null; entry = entry.next) {
-                pokemon.ribbons.add(entry.asString());
+                pokemon.giveRibbon(entry.asString());          // older saves hold the constant names
             }
         }
         JsonValue firstMoves = node.get("firstMoves");

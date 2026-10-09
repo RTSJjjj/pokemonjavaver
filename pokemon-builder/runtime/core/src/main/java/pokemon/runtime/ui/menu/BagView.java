@@ -77,6 +77,13 @@ public final class BagView {
     }
 
     /** The host opens the party screen and runs the handler on it ({@code pbFadeOutIn { PokemonParty_Scene ... }}). */
+    private Runnable hatcherHost;
+
+    /** 323_Egg_Hatcher {@code ItemHandlers::UseFromBag.add(:EGGHATCHER)}: opens the hatcher screen. */
+    public void hatcherHost(Runnable host) {
+        this.hatcherHost = host;
+    }
+
     public void useHost(java.util.function.Consumer<java.util.function.Consumer<ItemScene>> host) {
         this.useHost = host;
     }
@@ -455,6 +462,10 @@ public final class BagView {
                 final String used = item;
                 useHost.accept(scene -> handlers.pbUseItemOnParty(used, useType, scene));   // :872-916
             }
+            return;
+        }
+        if (item.equals("EGGHATCHER") && hatcherHost != null) {     // 323:245-249 pbFadeOutIn { openHatcher }; next 1
+            hatcherHost.run();
             return;
         }
         if (item.equals("SACREDASH") && useHost != null) {     // UseInField :SACREDASH opens the party screen from the bag

@@ -35,7 +35,7 @@ public final class PauseMenuOverlay implements Disposable {
         LOAD,
         OPTIONS,
         TRAINER
-        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, SETUP, MAP, MART, STARTER
+        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, SLOTS, HATCHER, SETUP, MAP, MART, STARTER
     }
 
     private static final float ROW_HEIGHT = 56f;
@@ -73,6 +73,11 @@ public final class PauseMenuOverlay implements Disposable {
     private SummaryView forgetView;
     private RelearnerView relearnView;
     private HatchSceneView hatchView;
+    private HallOfFameView hallView;
+    private CreditsView creditsView;
+    private SlotMachineView slotView;
+    private HatcherView hatcherView;
+    private Sub hatcherReturnSub = Sub.MAIN;
     private GenderSelectorView genderView;
     private TownMapView townMapView;
     private Texture snapshot;
@@ -87,9 +92,22 @@ public final class PauseMenuOverlay implements Disposable {
         return itemHandlers;
     }
 
+    /** Opens the Egg Hatcher on top of the map (the screenshots of MenuCapture). */
+    public void openHatcher() {
+        open();
+        hatcherView = new HatcherView(context);
+        hatcherReturnSub = Sub.MAIN;
+        sub = Sub.HATCHER;
+    }
+
     private BagView newBagView() {
         BagView view = new BagView(context);
         view.useHost(this::openPartyForItem);
+        view.hatcherHost(() -> {
+            hatcherView = new HatcherView(context);                           // openHatcher
+            hatcherReturnSub = sub;
+            sub = Sub.HATCHER;
+        });
         view.endScreen(this::close);
         return view;
     }
@@ -221,6 +239,12 @@ public final class PauseMenuOverlay implements Disposable {
             pcView.bagHost(this::openBagForHold);
             sub = Sub.PC;
         }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.TRAINER_PC) {
+            pcView = new PokeCenterPcView(context, true);                         // pbTrainerPC
+            pcView.itemHost(this::openBagForStorageItem);
+            pcView.bagHost(this::openBagForHold);
+            sub = Sub.PC;
+        }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.GENDER) { genderView = new GenderSelectorView(context, value); sub = Sub.SETUP; }
         // pbChooseItemScreen(filter): the bag is only there to pick one item.
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.CHOOSE_ITEM) {
@@ -265,6 +289,22 @@ public final class PauseMenuOverlay implements Disposable {
             partyView = PartyView.forItem(context, scene -> chooseAble(value, scene), null);
             partyReturnSub = null;
             sub = Sub.PARTY;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.SLOT_MACHINE) {
+            slotView = new SlotMachineView(context, value.index);                 // SlotMachineScene
+            sub = Sub.SLOTS;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.TRAINER_CARD_BADGES) {
+            trainerView = new TrainerView(database, context.gameState(), true);   // pbStartBadgeScreen
+            sub = Sub.TRAINER_BADGES;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.CREDITS) {
+            creditsView = new CreditsView(context);                               // $scene = Scene_Credits.new
+            sub = Sub.CREDITS;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.HALL_OF_FAME) {
+            hallView = HallOfFameView.entry(context);                             // pbHallOfFameEntry
+            sub = Sub.HALL;
         }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.HATCH) {
             hatchView = new HatchSceneView(context, value.pokemon);               // pbHatchAnimation
@@ -533,6 +573,40 @@ public final class PauseMenuOverlay implements Disposable {
                     back();
                 }
                 break;
+            case HATCHER:
+                if (hatcherView.update(input)) {
+                    hatcherView = null;
+                    sub = hatcherReturnSub;
+                }
+                break;
+            case SLOTS:
+                if (slotView.update(input)) {
+                    request.complete(1, "");
+                    slotView = null;
+                    back();
+                }
+                break;
+            case TRAINER_BADGES:
+                if (trainerView.update(input, context.audioManager()) == TrainerView.Result.BACK) {
+                    request.complete(1, "");
+                    trainerView = null;
+                    back();
+                }
+                break;
+            case CREDITS:
+                if (creditsView.update(input)) {
+                    request.complete(1, "");
+                    creditsView = null;
+                    back();
+                }
+                break;
+            case HALL:
+                if (hallView.update(input)) {
+                    request.complete(1, "");
+                    hallView = null;
+                    back();
+                }
+                break;
             case HATCH:
                 if (hatchView.update(input)) {
                     request.complete(1, "");
@@ -712,6 +786,11 @@ public final class PauseMenuOverlay implements Disposable {
             case PC: pcView.render(batch, assets, font, skin, speech, detailFont); break;
             case MART: martView.render(batch, assets, font, skin, speech, detailFont); break;
             case STARTER: starterView.render(batch, assets, font, skin, speech, detailFont); break;
+            case HATCHER: hatcherView.render(batch, assets, font, skin, speech, detailFont); break;
+            case SLOTS: slotView.render(batch, assets, font, skin); break;
+            case TRAINER_BADGES: trainerView.render(batch, assets, font, skin); break;
+            case CREDITS: creditsView.render(batch, assets, font, skin); break;
+            case HALL: hallView.render(batch, assets, font, skin); break;
             case HATCH: hatchView.render(batch, assets, font, skin); break;
             case RELEARN: relearnView.render(batch, assets, font, skin); break;
             case FORGET: forgetView.render(batch, assets, font, skin); break;

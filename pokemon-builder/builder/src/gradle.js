@@ -26,45 +26,58 @@ export function needsAsciiDrive(builderRoot, platform = process.platform) {
   return platform === "win32" && !isAscii(builderRoot);
 }
 
+const DRIVE_LETTERS = ["Y", "Z", "W", "V", "X", "U", "T", "S", "R", "Q", "P", "O", "N", "M", "L", "K", "J", "I", "H"];
+
+/** Every free drive letter of the tried set, in order. */
+export function freeDrives(options = {}) {
+  const exists = options.exists || existsSync;
+  return DRIVE_LETTERS.filter((letter) => !exists(letter + ":\\"));
+}
+
 /** First free drive letter of the tried set, or null. */
 export function findFreeDrive(options = {}) {
-  const exists = options.exists || existsSync;
-  for (const letter of ["Y", "Z", "W", "V"]) {
-    if (!exists(letter + ":\\")) return letter;
-  }
-  return null;
+  return freeDrives(options)[0] || null;
 }
 
 /**
  * Substs `builderRoot` to a free drive so every path inside the build is
- * ASCII. Returns `{ letter, root, unmount() }` or null when no drive could be
- * mounted.
+ * ASCII. Tries the free letters in turn (a letter can look free yet refuse the
+ * subst). Returns `{ letter, root, unmount() }` or null when no drive could be
+ * mounted; `mountAsciiDrive.lastError` then holds what `subst` said.
  */
 export function mountAsciiDrive(builderRoot, options = {}) {
   const spawn = options.spawn || spawnSync;
-  const letter = options.letter || findFreeDrive(options);
-  if (!letter) return null;
-  let result;
-  try {
-    result = spawn("subst", [letter + ":", builderRoot], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-  } catch (error) {
-    return null;
+  const letters = options.letter ? [options.letter] : freeDrives(options);
+  mountAsciiDrive.lastError = letters.length ? "" : "no free drive letter among " + DRIVE_LETTERS.join("");
+  for (const letter of letters) {
+    let result;
+    try {
+      result = spawn("subst", [letter + ":", builderRoot], {
+        encoding: "utf8",
+        windowsHide: true,
+      });
+    } catch (error) {
+      mountAsciiDrive.lastError = String(error.message || error);
+      continue;
+    }
+    if (!result || result.error || result.status !== 0) {
+      mountAsciiDrive.lastError = result && result.error ? String(result.error.message || result.error)
+        : String((result && (result.stderr || result.stdout)) || "subst failed").trim();
+      continue;
+    }
+    return {
+      letter,
+      root: letter + ":",
+      unmount() {
+        try {
+          spawn("subst", [letter + ":", "/d"], { encoding: "utf8", windowsHide: true });
+        } catch (error) {
+          // best effort: a leftover subst drive is harmless
+        }
+      },
+    };
   }
-  if (!result || result.error || result.status !== 0) return null;
-  return {
-    letter,
-    root: letter + ":",
-    unmount() {
-      try {
-        spawn("subst", [letter + ":", "/d"], { encoding: "utf8", windowsHide: true });
-      } catch (error) {
-        // best effort: a leftover subst drive is harmless
-      }
-    },
-  };
+  return null;
 }
 
 /** The runtime's Gradle wrapper inside the builder checkout. */

@@ -19,10 +19,11 @@ import java.util.Random;
  * <p>The screen owns everything that is drawn or played; this class changes the state and answers what the screen
  * has to do next: the wild Pokemon to battle and the messages to show.</p>
  *
- * <p>登记: ①the poison damage handler (:274-312), the Day Care / Pokerus / Shadow Pokemon / Follower / auto-save step
- * handlers and the Alcremie spin tracker are separate roadmap items; ②when a repel runs out while another is in the
- * bag the plugin asks whether to use one (189_PItem_ItemEffects:170-186): that needs item use (roadmap stage 5), so
- * only the "effect wore off" message is shown for now; ③safari zone and follower auto-toggle are not part of the game.</p>
+ * <p>登记: ①the poison damage handler (:274-312) is off in this project ({@code POISON_IN_FIELD = false}, Settings:65) and
+ * is not ported; the Day Care and Pokerus step handlers live in {@code DayCare} / {@code MapScreen}; the Shadow Pokemon /
+ * Follower / auto-save step handlers and the Alcremie spin tracker are separate roadmap items; ②when a repel runs out while
+ * another is in the bag, {@link Result#repelRenewal} asks the screen to run the plugin's question (189:166-186);
+ * ③safari zone and follower auto-toggle are not part of the game.</p>
  */
 public final class FieldSteps {
     /** 169_PBTerrain: Ice = 12, TallGrass = 10. */
@@ -35,9 +36,11 @@ public final class FieldSteps {
         public final List<PokemonEncounters.Encounter> wild = new ArrayList<>();
         /** Messages to show, in order ({@code pbMessage}). */
         public final List<String> messages = new ArrayList<>();
+        /** The repel ran out and the bag holds another: the player is asked whether to use one (189:166-186). */
+        public boolean repelRenewal;
 
         public boolean isEmpty() {
-            return wild.isEmpty() && messages.isEmpty();
+            return wild.isEmpty() && messages.isEmpty() && !repelRenewal;
         }
     }
 
@@ -134,7 +137,11 @@ public final class FieldSteps {
             if (g.repel <= 0) {                                              // :166
                 // :167-186 with a spare repel in the bag the plugin asks to use one (登记, see the class comment);
                 // without one (:187) it only says the effect wore off.
-                result.messages.add("使用的喷雾剂失去效果了！");
+                if (state.inventory().has("REPEL") || state.inventory().has("SUPERREPEL") || state.inventory().has("MAXREPEL")) {
+                    result.repelRenewal = true;                              // :167-186 asks to use another one
+                } else {
+                    result.messages.add("使用的喷雾剂失去效果了！");            // :187-188
+                }
             }
         }
     }

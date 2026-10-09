@@ -87,11 +87,16 @@ public final class MessageService {
      * @param cancelType 0 = cancel is ignored, 1 = cancel allowed, 2 = cancel branch
      */
     public void showChoices(Array<String> options, int cancelType) {
+        showChoices(options, cancelType, 0);
+    }
+
+    /** {@code pbMessage(text, commands, cmdIfCancel, skin, defaultCmd)}: the cursor starts on {@code defaultCmd}. */
+    public void showChoices(Array<String> options, int cancelType, int defaultCmd) {
         choices.clear();
         choices.addAll(options);
         this.cancelType = cancelType;
         selected = -1;
-        cursor = 0;
+        cursor = Math.max(0, Math.min(defaultCmd, options.size - 1));
         visible = true;
         waiting = true;
         choiceMode = true;

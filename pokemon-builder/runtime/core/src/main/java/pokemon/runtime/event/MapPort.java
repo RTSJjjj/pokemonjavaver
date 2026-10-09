@@ -249,6 +249,10 @@ public interface MapPort {
     default void removeDependencies(boolean exceptFollower) {
     }
 
+    /** {@code pbRemoveDependency2(eventName)} (182_PField_DependentEvents:34-36). */
+    default void removeDependency(String name) {
+    }
+
     /** {@code pbAddDependency2(eventId, name, commonEvent)} (182_PField_DependentEvents:25-27). */
     default boolean addDependency(int eventId, String name, int commonEvent) {
         return false;
@@ -315,6 +319,11 @@ public interface MapPort {
     }
 
     /** A transfer through a fade ({@code pbFadeOutIn { transfer_player(cancelVehicles) }}); {@code keepVehicles} = {@code transfer_player(false)}. */
+    /** {@code pbGetMessage(MessageTypes::MapNames, mapId)}: the name of a map. */
+    default String mapName(int mapId) {
+        return "";
+    }
+
     default void transferThroughFade(int mapId, int x, int y, int direction, boolean keepVehicles) {
     }
 

@@ -319,6 +319,9 @@ public final class InteractiveBattlePort implements BattlePort {
             battle.trainerBattle = trainerBattle;
             if (trainerBattle && trainerData != null) for (String it : trainerData.items) battle.foeItems.add(it);   // @items (PField_Battles:pbTrainerBattleCore items)
             battle.playerName = trainer.name;
+            battle.playerTrainerId = trainer.id;                          // pbPlayer.id (Battle_ExpAndMoveLearning:146)
+            battle.expAllOn = inventory != null && inventory.has("EXPALL");        // :13
+            battle.expCharmOn = inventory != null && inventory.has("EXPCHARM");    // :164
             battle.expGain = expGain;       // PField_Battles:105
             battle.levelLockOn = levelLockOn;
             battle.leaguePass = leaguePass;
@@ -961,28 +964,31 @@ public final class InteractiveBattlePort implements BattlePort {
         }
 
         /**
-         * Battle_ExpAndMoveLearning:298-307 (per participant) and :58-61 (the
-         * aggregated line): the exp pot grows by max(1, gain/8), capped at
-         * {@code EXP_POT_MAX} (Settings:28), and the line is only shown when the
-         * player actually holds an EXPPOT.
+         * The exp pot of Battle_ExpAndMoveLearning: a gain the level lock (or level 200) turned into pot exp is credited
+         * whatever the bag holds (:166-186, max(1, exp/8), no cap); with an EXPPOT in the bag every gain also feeds the pot
+         * by max(1, gain/8), capped at {@code EXP_POT_MAX} (:298-307, Settings:28); the line of :58-61 is shown only when
+         * the player holds an EXPPOT and the pot grew.
          */
         private void applyExpPot() {
             expPotMessage = null;
             PbsData pbsData = data.get();
-            if (inventory == null || pbsData == null || pbsData.item("EXPPOT") == null
-                    || inventory.count("EXPPOT") <= 0) {
-                return;
-            }
+            boolean holdsPot = inventory != null && pbsData != null && pbsData.item("EXPPOT") != null
+                    && inventory.count("EXPPOT") > 0;
             int before = Math.max(0, trainer.expPot);
             for (Battle.ExpAward award : battle.lastExpAwards) {
-                int add = award.potGain > 0 ? award.potGain : Math.max(1, award.expGained / 8);
-                if (trainer.expPot + add > EXP_POT_MAX) {
-                    add = EXP_POT_MAX - trainer.expPot;
+                if (award.potGain > 0) {
+                    trainer.expPot = Math.max(0, trainer.expPot) + award.potGain;      // :172 / :181 no cap
                 }
-                trainer.expPot = Math.max(0, trainer.expPot + add);
+                if (award.expGained > 0 && holdsPot) {
+                    int add = Math.max(1, award.expGained / 8);                        // :299
+                    if (trainer.expPot + add > EXP_POT_MAX) {
+                        add = EXP_POT_MAX - trainer.expPot;
+                    }
+                    trainer.expPot = Math.max(0, trainer.expPot + add);
+                }
             }
             int gained = trainer.expPot - before;
-            if (gained > 0) {
+            if (holdsPot && gained > 0) {
                 expPotMessage = "经验储罐累积的经验值增加了" + gained + "点。";
             }
         }

@@ -250,3 +250,57 @@ node --test builder/tests/*.test.js                          (构建器，在 po
 - 事件：编译器新增 `pbDayCareDeposit/Withdraw/GenerateEgg/GetDeposited/GetCompatibility/Choose`、`pbChooseNonEggPokemon`（→ `CHOOSE_POKEMON`，`nonegg`）与 `$PokemonGlobal.daycareEgg=0; daycareEggSteps=0`；条件原子 `Kernel.pbEggGenerated?/pbDayCareDeposited`、`pbDayCareGetLevelGain`。`pbDayCareGetDeposited(-1,3,-1)` 按 Ruby 的 `-1` 取第二格（只寄放一只时第二格为空，名字变量不更新）——与原文一致。
 - `pbGetBabySpecies` 新增带道具（`SpeciesIncense`）版本（`PBEvolution.babySpecies(pbs, species, item1, item2)`）。
 - 登记：蛋/亲代的 `language`（Masuda 法的语言差异 +5 次重抽）未建模，只有闪耀符 +2；形态的兼容蛋组/蛋招式取物种的；黑暗宝可梦未建模；`pbGetStorageCreator` 同孵蛋。未实机验证。
+
+## 缎带（095_PBRibbons、197_PokeBattle_Pokemon:548-615）
+- `Ribbons.idOf`：80 个常量名（`CHAMPION`=49 …）↔ id；名称/说明表与 095 逐条核对一致（脚本比对 80/80）。`Pokemon.ribbons` 现在存 id 文本，方法照抄：`ribbonCount/hasRibbon?/giveRibbon/upgradeRibbon/takeRibbon/clearAllRibbons`。
+- **修复**：名人堂事件（`GIVE_RIBBON_PARTY`）原来把常量名 `CHAMPION` 直接存进列表，摘要页按数字解析，所以缎带页一直是空的；现在存 id，旧存档里的名字读档时转成 id。
+- map-025 努力缎带事件：两个脚本块（`firstPokemon.giveRibbon`、努力值总和/是否已有缎带 → 变量 1、2）原来编译不了，加了精确匹配的 IR `GIVE_RIBBON_FIRST`、`EV_RIBBON_STATUS`。
+- 测试：`RibbonsTest`，构建器测试一条。登记：黑暗宝可梦的 NATIONAL 缎带（200:23）未建模；缎带列表的摘要页绘制沿用已有实现，未实机复核。
+
+## 走路效果 / 宝可梦病毒（170_PField_Field:180-191、262-312，131_Battle_StartAndEnd:514-527，132_Battle_ExpAndMoveLearning:68-96，189_PItem_ItemEffects:162-188）
+- 已有：每 128 步亲密度（`FieldSteps.walkingHappiness`）、喷雾剂倒数（冰面不减）。
+- **新增**：①`Pokemon.pokerusStage/Strain/givePokerus/lowerPokerusCount`（`pokerus` = 剩余天数低 4 位 | 株 << 4）；队伍格/摘要/PC 的“病毒”图标和 `pbPokerus?` 之前把 `pokerus==1` 当感染，是错的（感染阶段是 1，但数值不是 1），已改成按阶段。②每天一次队伍（非蛋）病毒天数 -1（`pokerusTime` 以日期存档，`MapScreen.pokerusDailyCheck`）。③战斗结束后感染个体传给队伍中前后相邻、未感染的个体（各 1/3）。④**战斗努力值**：`Battle.pbGainEVsOne`（对方种族的努力点、道具修正（学习装置/力量系）、病毒 ×2、总上限 510/单项 252）——之前战斗完全不加努力值。⑤喷雾剂失效时背包里还有喷雾剂：问“想再用一个吗？”→ 背包选择 → 使用（`startRepelRenewal`）。
+- 登记：野外中毒扣血（Settings `POISON_IN_FIELD = false`，本项目关闭）没做；`pbGainEVsOne` 的第二次道具查询用对战者的 `initialItem` 代替 `@initialItems[0][idxParty]`。
+- 经验分配已在下一节补全。
+
+## 战斗经验分配（132_Battle_ExpAndMoveLearning:5-66、98-308）补全
+- `Battle.awardParticipants` / `awardExperience` 改为 `pbGainExp` / `pbGainExpOne` 的逐行转译：参战者计数（`numPartic`）、**学习装置**（持有或开战时持有 EXPSHARE 的队员，`expShare`）、**全员经验**（背包有 EXPALL：其余能战斗的队员各得 `a/2`，且各自加努力值；只在第一个未参战者前显示一次“其他宝可梦也获得了经验。”，这些队员没有“获得了X点经验值”那句），经验公式的三种分支（有学习装置/参战/全员经验）、训练家战 ×1.5、`exp/5` 与等级调整、参战或持学习装置 +1。
+- 修正的偏差：①“外来”判定原来比较 OT 名字，现在比较训练家 ID（`Battle.playerTrainerId`）；②幸运蛋等**持有物修正**（`triggerExpGainModifierItem`，先看持有物再看开战时的物品，且最终 `exp = i if i>=0` 覆盖亲密度/超级异色/经验护符的加成）之前没接；③**经验护符**（EXPCHARM，背包）×1.5 之前没接；④200 级的宝可梦不加经验而转成经验储罐经验（`max(1,exp/8)`）；⑤经验储罐：等级锁/200 级转入的储罐经验无论背包有没有储罐都计入且不封顶，背包有 EXPPOT 时每次获得的经验再按 `max(1,gain/8)` 计入并封顶 `EXP_POT_MAX`，提示句只在有储罐且数值增加时出现；⑥学招式列表用形态自己的 `getMoveList`。
+- 画面：`ExpAward.showMessage/announce`，`BattleScreen` 的经验阶段跳过无消息者的经验句、显示全员经验提示句；未上场队员本来就按“没有战斗者”处理（无经验条）。
+- 登记：`language`（外来宝可梦 1.7 倍）未建模；`SPLIT_EXP_BETWEEN_GAINERS` 为 false 的分支外的式子没转。测试：`BattleTest` 增加全员经验与学习装置两条。未实机验证。
+
+## 名人堂（232_PScreen_HallOfFame，map-119/185/506 的 `pbHallOfFameEntry`，电脑“冠军殿堂”）
+- 数据：`TrainerState.hallOfFame`（每次记录一队，上限 50，最旧的丢弃）、`hallOfFameLastNumber`，已存档；`saveHallEntry` 克隆整个队伍（含蛋，`ALLOWEGGS`）。
+- 画面 `ui/menu/HallOfFameView`：入场模式（`pbStartSceneEntry`：BGM “Hall of Fame”、`hallfamebg` 背景与 `hallfamebars`、宝可梦按 `x/ypointformula` 的位置从屏外以每刻 32 像素逐只滑入，每只叫声 + 名字/图鉴号/等级/ID 文字 + 128 刻停留，其余半透明；最后一只后“欢迎进入荣耀殿堂！”（按变量 100 / 开关 197、42 写难度行）、训练家图（Boy1/Girl1）滑入、左上数据框（姓名/IDNo./时间/图鉴 owned/seen）与按开关 44、45 决定的称号消息、渐黑 257 刻、BGM 渐隐）；电脑模式（`pbStartScenePC`：C 看更旧的一期、左右切宝可梦、B 退出，顶部“冠军殿堂No.”）。
+- 接线：编译器 `pbHallOfFameEntry` → IR `HALL_OF_FAME_ENTRY` → `MenuService.Kind.HALL_OF_FAME`；`PokeCenterPcView` 在 `hallOfFameLastNumber>0` 时多出“冠军殿堂”一项（“进入了冠军殿堂。”），列表顺序与 `PokemonPCList` 一致。
+- 登记：宝可梦图是静止的前视图（无帧动画、无战斗图偏移）；数据框是系统框窗口 + 两列文字；时间用训练家游玩时间（原文读 `Graphics.frame_count/40`）；`MPM/intro_*` 图片按存在的文件取。事件里“记录名人堂”在“发放冠军缎带”之前，所以记录的队伍里没有刚发的冠军缎带（与原文顺序一致）。未实机验证。
+
+## 事件脚本补全（项目自定义 NPC 脚本与零散脚本；覆盖率 5305 → 5381 / 5441，98.2% → 99%）
+- 自定义 NPC：`pbCrystalWarp`（360，12 处：选岛、淡出传送）、`pbMrHyper`（359，个体值特训）、`changeBalls`（365，换球）、`resurrection2`（351，化石拼接复活，`WildGenerator.pbNewPkmn` 做新宝可梦）、`pbGiveAllMemories`（373）——`event/PluginScripts`，在阻塞任务上逐行转译，对话与选择经 `TaskFieldScene`。`MapPort.mapName` 提供地图名。
+- **旅行菜单方言**（约 40 块，之前全部不能用）：`@ch_cmd=[…]` / `.push` / `.insert`、`str="…"+"…"`、`@ch_ret=pbMessage_ex(str,@ch_cmd[,n])`（071:1339-1341，负下标取最后一项）、`if … end`（`IF_SCRIPT`）——map-19/93/177/199/212/319 的传送 NPC；`MessageService.showChoices` 支持默认选中项。
+- 单用途脚本：四处电梯（`ELEVATOR`，`pbMessage(.., numfloors+1, nil, cur)`）、地图-152 的 Deoxys 形态切换、`$PokemonGlobal.runningShoes=true`、`$Trainer.mysterygiftaccess=true`、游戏币 `coins±=`、`pbChangePlayer+pbTrainerName`（重建训练家）、`pbRemoveDependency2+pbDeregisterPartner`、`$battle_item` 商店、`pbUnlockDex(n)`（`FieldGlobals.pokedexUnlocked` 存档；图鉴界面尚未按它分表，阶段 3.3）、行尾反斜杠续行的调用。
+- **跑步鞋**：`$PokemonGlobal.runningShoes` 现在真正控制跑步（`pbCanRun?`：有鞋、不在冲浪/潜水/骑车、不在高草/冰面）；新游戏默认没有，旧存档（没有这个字段）按已有鞋处理。
+- **片尾字幕** `ui/menu/CreditsView`（080_Scene_Credits）：五张背景每 9 秒换一张，文字按 32 像素行高从下往上滚（每刻 2 像素），`<s>` 分栏居中对齐，描边（0,0,128）+ 阴影 + 白字，BGM Credits，结束或（看过之后）按确认退出，字幕文本为资源 `credits.txt`（逐字取自插件的 CREDIT）。登记：插件列表的致谢（`{INSERTS_PLUGIN_CREDITS_DO_NOT_REMOVE}`）无来源，省略；`pbMEStop` 无对应。
+- 后续补充见下一节。
+
+## 游戏厅与其余脚本补全（覆盖率 5381 → 5428 / 5441，99.8%）
+- **老虎机** `ui/menu/SlotMachineView`（236_PMinigame_SlotMachine，24 处）：三个转轮（按难度的图案池洗牌、每刻滚 16 像素、停轮时的滑动 `SLIPPING`）、押注 1/2/3 枚对应 1/3/5 条线、五条线的组合和赔率（含 777 彩色/红/蓝、三个重玩）、赢/输动画（3 秒/2 秒）、逐枚派彩（C 一次付清）、代币上限 99999；`pbSlotMachine` 的三种提示（没有代币盒/没有代币/代币满）在解释器里照原文。用 `MenuCapture slots` 截图核对了画面。
+- **抽奖** `pbSetLotteryNumber/pbLottery`（238）：按日期取号（登记：用 Java 的随机数发生器，不是 Ruby 的 srand 序列，所以同一天的号码与原游戏不同）、对队伍和所有盒子里宝可梦的 ID 逐位匹配；`pbSetEventTime`、`setVariable(:物品)`（背包满时奖品记在事件上，第二页 `getVariable()` 取回）与 `pbReceiveItem` 条件原子；`GameEventVars` 增加文本槽并存档。
+- **奖品兑换处**：行号选择 → 物品/宝可梦、价格、等级（`PRIZE_LOOKUP`），扣代币并给物品（`GIVE_ITEM_VAR`），条件原子 `pbAddPokemon(id, level)`、`pbAddToParty`。
+- **化石复活**（map-128）：`pbChooseFossil`（背包选化石）、物品 ID→名字、化石→宝可梦换算、`pbAddToParty`。`pbTrainerPC`（直接开自己的电脑）。
+- `MenuCapture` 新增 `slots / hall / credits / hatch / relearn` 截图模式（`scripts/jdk-capture.ps1 <generated> <outDir> <mode>`）。
+- 仍未做（11 块）：狩猎区 `pbSafariState`（3）、`pbMiningGame`、`pbVoltorbFlip`、`pbBuyTriads/pbSellTriads`（卡牌，1320 行）、训练家卡徽章页、神秘礼物、`pbGenerateEgg`（接蛋孵化器）、map-205 的队伍循环、两个 Boss 脚本（`battleOverlordflos`、`battleIronJugulis`）。
+
+## 蛋孵化器（323_Egg_Hatcher，map-108 送的道具 EGGHATCHER）与零散收尾（覆盖率 99.9%，5431 / 5441）
+- `ui/menu/HatcherView`：六个格子（hatcherbg 背景、蛋图标按剩余步数以 20/15/10/5 刻换帧、步数数字、选中框）、右侧“蛋的状态”四档文案、方向键移动（SE Choose）、空格子按 C → “队伍/盒子/取消”→ 队伍界面选蛋（非蛋提示“选择的宝可梦不是一颗蛋。”）或寄存系统选蛋（`StorageView.chooseEggToHatch` = `pbChooseEggToHatch`，306:2273-2316：选择/概况/取消、“这不是一颗宝可梦蛋。”），B 退出；背包里使用 EGGHATCHER 打开（`BagView.hatcherHost`）。
+- 走路：孵化器里的蛋每步 -1（队伍有火焰之躯/熔岩铠甲再 -1），到 0 先走 `pbHatch` 孵化画面，再 `takeEgg`（“要将新出生的宝可梦放进队伍吗？”、队伍满/盒子满/转移到盒子的各句，盒子满时蛋留在格子里），`TrainerState.hatcherEggs` 已存档。`pbGenerateEgg`（map-058 的波加曼）：有孵化器道具时问“您想将蛋添加到孵化器中吗？”，孵化器满则放队伍/盒子（`pbStorePokemon` 的各句）。
+- 另：map-205 的“按 OT 改为女性 OT + 异色 + 超级异色”队伍循环、神秘礼物员（`$Trainer.mysterygift` 未建模，找不到礼物时的提示句）。
+- 仍未做（8 块）：狩猎区（3）、卡牌买卖（2，1320 行）、Voltorb Flip（626 行）、挖矿（622 行）、训练家卡徽章页、两个 Boss 脚本。
+
+## 训练家卡补全（300_B2W2_Trainer_Card）
+
+- `TrainerView`：国王卡（开关 200）、真实 ID（`publicID`）、起始时间（`FieldGlobals.startTime`，首次打开时记为现在，存档保存）。
+- `pbStartBadgeScreen`（地图 12 事件 69）：新 IR `TRAINER_CARD_BADGES` → `MenuService.Kind.TRAINER_CARD_BADGES` → 直接打开徽章页，C / B 关闭。
+- 登记：馆主信息面板（`pbShowLeaderInfo`，只能用鼠标点击触发）、页面切换的黑幕滑动、`TrainerSpriteBW`、`$PokemonGlobal.trainerRecording` 未建模。
+- 脚本覆盖 5434/5441；Java 测试 1084 通过、0 失败（2 个中止为既有的 ffmpeg 用例）。
+- 训练家卡：页面切换的黑幕滑动/淡入淡出已做；馆主立绘仅用于鼠标信息面板，未做。

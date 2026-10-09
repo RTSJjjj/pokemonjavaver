@@ -386,6 +386,28 @@ export const HANDLERS = {
     return { command: "GENDER_SELECTOR" };
   },
   pbPokeCenterPC() { return { command: "OPEN_PC" }; },
+  /** pbTrainerPC (224_PScreen_PC:205-209). */
+  /** pbSlotMachine(difficulty=1) (236_PMinigame_SlotMachine:384-402). */
+  pbSlotMachine(args) { return { command: "SLOT_MACHINE", difficulty: args.length > 0 ? args[0] : 1 }; },
+  /** pbSetEventTime(*others) (170_PField_Field:815-825): this event's self switch A and its time. */
+  /** pbGenerateEgg(:SPECIES, text="") (323_Egg_Hatcher:259-302; alias pbAddEgg / pbGenEgg). */
+  pbGenerateEgg(args) { return { command: "GENERATE_EGG", species: args[0], text: args.length > 1 ? args[1] : "" }; },
+  pbSetEventTime(args) { return { command: "EVENT_TIME", others: args.filter((x) => Number.isInteger(x)) }; },
+  /** setVariable(:SYMBOL) / setVariable(id, value) (170_PField_Field:836-844). */
+  setVariable(args) {
+    if (args.length === 1 && typeof args[0] === "string") return { command: "EVENT_SET_VARIABLE", value: args[0] };
+    if (args.length === 2 && Number.isInteger(args[0])) return { command: "EVENT_SET_VARIABLE", variable: args[0], value: args[1] };
+    throw new Error("Unsupported setVariable call");
+  },
+  /** pbSetLotteryNumber(variable=1) (238_PMinigame_Lottery:5-12). */
+  pbSetLotteryNumber(args) { return { command: "LOTTERY_NUMBER", variable: args.length > 0 ? args[0] : 1 }; },
+  /** pbLottery(winnum, nameVar=2, positionVar=3, matchedVar=4) (238_PMinigame_Lottery:14-54). */
+  pbLottery(args) {
+    const variable = (arg) => (arg && arg.script ? { variable: Number(/^pbGet\(\s*(\d+)\s*\)$/.exec(arg.script)[1]) } : arg);
+    return { command: "LOTTERY", number: variable(args[0]), nameVariable: args.length > 1 ? args[1] : 2,
+      positionVariable: args.length > 2 ? args[2] : 3, matchedVariable: args.length > 3 ? args[3] : 4 };
+  },
+  pbTrainerPC() { return { command: "TRAINER_PC" }; },
   /** 362_changeShiny teachEggMoves: the egg-move teacher NPC. */
   teachEggMoves() { return { command: "TEACH_EGG_MOVES" }; },
   /** 362_changeShiny pbChangeShinyByNPC: the shiny-colour NPC. */
@@ -409,6 +431,18 @@ export const HANDLERS = {
   // ---- 181_PField_DayCare ----
   pbDayCareDeposit(args) { return { command: "DAYCARE_DEPOSIT", index: dayCareIndex(args[0]) }; },
   pbDayCareWithdraw(args) { return { command: "DAYCARE_WITHDRAW", index: dayCareIndex(args[0]) }; },
+  /** 232_PScreen_HallOfFame pbHallOfFameEntry: records the party and plays the Hall of Fame scene. */
+  /** pbUnlockDex(dex=-1) (253_PSystem_Utilities:928-934). */
+  /** pbChooseFossil(var=0) (188_PItem_Items:1112-1119): the fossil picked in the bag goes to the variable as an item id. */
+  pbChooseFossil(args) { return { command: "CHOOSE_FOSSIL", variable: args.length > 0 ? args[0] : 0 }; },
+  pbUnlockDex(args) { return { command: "UNLOCK_DEX", dex: args.length > 0 ? args[0] : -1 }; },
+  pbHallOfFameEntry() { return { command: "HALL_OF_FAME_ENTRY" }; },
+  // ---- the project's own NPC scripts (360, 359, 365, 351, 373)
+  pbCrystalWarp() { return { command: "CRYSTAL_WARP" }; },
+  pbMrHyper() { return { command: "MR_HYPER" }; },
+  changeBalls() { return { command: "CHANGE_BALLS" }; },
+  resurrection2() { return { command: "RESURRECTION2" }; },
+  pbGiveAllMemories() { return { command: "GIVE_ALL_MEMORIES" }; },
   pbDayCareGenerateEgg() { return { command: "DAYCARE_GENERATE_EGG" }; },
   pbDayCareGetDeposited(args) {
     return { command: "DAYCARE_GET_DEPOSITED", index: dayCareIndex(args[0]), nameVariable: args[1], costVariable: args[2] };
@@ -817,9 +851,9 @@ const DOMAIN_APIS = new Set([
   "pbTrainerBattle", "pbDoubleTrainerBattle", "pbTripleTrainerBattle", "pbWildBattle", "pbFreeWildBattle", "pbTrainerIntro",
   "setBattleRule", "pbStartTrade",
   "pbBerryPlant", "pbPickBerry", "pbStoreItem", "pbGetKeyItem", "pbDeleteItem",
-  "pbPokeCenterPC", "teachEggMoves", "pbChangeShinyByNPC", "pbShowMap", "pbSetPokemonCenter",
+  "pbPokeCenterPC", "pbTrainerPC", "pbSlotMachine", "pbGenerateEgg", "pbSetEventTime", "setVariable", "pbSetLotteryNumber", "pbLottery", "teachEggMoves", "pbChangeShinyByNPC", "pbShowMap", "pbSetPokemonCenter",
   "pbToggleFollowingPokemon", "pbRegisterPartner", "pbDeregisterPartner",
-  "pbSet", "push", "myAddEgg", "pbChooseNonEggPokemon", "pbDayCareDeposit", "pbDayCareWithdraw", "pbDayCareGenerateEgg",
+  "pbSet", "push", "myAddEgg", "pbHallOfFameEntry", "pbChooseNonEggPokemon", "pbDayCareDeposit", "pbDayCareWithdraw", "pbDayCareGenerateEgg",
   "pbDayCareGetDeposited", "pbDayCareGetCompatibility", "pbDayCareChoose", "pbCrystalWarp",
 ]);
 
@@ -1041,6 +1075,217 @@ function compileGlueStatements(statements, locals, block) {
   return steps;
 }
 
+
+// ---------------------------------------------------------------------------
+// The travel-menu dialect of the NPC scripts: `@ch_cmd=["a"]`, `@ch_cmd.push("b")`, `@ch_cmd.insert(1,"c")`,
+// `str="..."`, `@ch_ret=pbMessage_ex(str,@ch_cmd[,n])` (071_Messages:1339-1341) and a plain `if cond ... end` around them.
+// ---------------------------------------------------------------------------
+
+/** A Ruby double-quoted string literal (with its escapes), or null. */
+function rubyString(text) {
+  const match = /^"((?:[^"\\]|\\.)*)"$/.exec(text.trim());
+  if (!match) return null;
+  return match[1].replace(/\\(.)/g, (all, ch) => (ch === "n" ? "\n" : ch === "t" ? "\t" : ch));
+}
+
+/** `"a"+"b"` joined, or a single literal; null when it is anything else. */
+function rubyStringExpression(text) {
+  const parts = [];
+  let inQuote = false;
+  let current = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      current += ch;
+      if (ch === "\\") {
+        current += text[++i];
+        continue;
+      }
+      if (ch === '"') inQuote = false;
+      continue;
+    }
+    if (ch === '"') {
+      inQuote = true;
+      current += ch;
+      continue;
+    }
+    if (ch === "+") {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    if (/\s/.test(ch)) continue;
+    current += ch;
+  }
+  parts.push(current);
+  let out = "";
+  for (const part of parts) {
+    const literal = rubyString(part);
+    if (literal === null) return null;
+    out += literal;
+  }
+  return out;
+}
+
+/** The statements of a block, with a trailing `+` joining the next line (a string cut over two lines). */
+function choiceStatements(source) {
+  const lines = source.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    while (line.endsWith("+") && i + 1 < lines.length) line += lines[++i];
+    out.push(line);
+  }
+  return out;
+}
+
+function compileChoiceSteps(statements, strings) {
+  const steps = [];
+  for (let i = 0; i < statements.length; i++) {
+    const text = statements[i];
+    let m;
+    if ((m = /^@ch_cmd\s*=\s*\[(.*)\]$/.exec(text))) {
+      const values = [];
+      if (m[1].trim() !== "") {
+        for (const item of splitArguments(m[1])) {
+          const value = rubyString(item);
+          if (value === null) return null;
+          values.push(value);
+        }
+      }
+      steps.push({ command: "CH_CMD_SET", values });
+    } else if ((m = /^@ch_cmd\.push\((.*)\)$/.exec(text))) {
+      const value = rubyString(m[1]);
+      if (value === null) return null;
+      steps.push({ command: "CH_CMD_PUSH", value });
+    } else if ((m = /^@ch_cmd\.insert\(\s*(\d+)\s*,(.*)\)$/.exec(text))) {
+      const value = rubyString(m[2]);
+      if (value === null) return null;
+      steps.push({ command: "CH_CMD_INSERT", index: Number(m[1]), value });
+    } else if ((m = /^([a-z_]\w*)\s*=\s*(".*)$/.exec(text))) {
+      const value = rubyStringExpression(m[2]);
+      if (value === null) return null;
+      strings.set(m[1], value);
+    } else if ((m = /^@ch_ret\s*=\s*pbMessage_ex\(\s*([a-z_]\w*|".*?")\s*,\s*@ch_cmd\s*(?:,\s*(-?\d+)\s*)?\)$/.exec(text))) {
+      const message = strings.has(m[1]) ? strings.get(m[1]) : rubyString(m[1]);
+      if (message === null || message === undefined) return null;
+      steps.push({ command: "CH_MESSAGE_EX", text: message, cancel: m[2] === undefined ? 0 : Number(m[2]) });
+    } else if ((m = /^if\s+(.+)$/.exec(text))) {
+      let depth = 1;
+      let end = i + 1;
+      for (; end < statements.length; end++) {
+        if (/^if\b/.test(statements[end])) depth++;
+        else if (statements[end] === "end") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      if (end >= statements.length) return null;
+      const body = compileChoiceSteps(statements.slice(i + 1, end), strings);
+      if (body === null || body.length === 0) return null;
+      steps.push({ command: "IF_SCRIPT", condition: m[1].trim(), steps: body });
+      i = end;
+    } else {
+      return null;
+    }
+  }
+  return steps;
+}
+
+/** The travel-menu scripts as one IR (a lone step or a SEQUENCE), or null when the block is not that dialect. */
+function compileChoiceDialect(source) {
+  if (!/@ch_cmd|@ch_ret/.test(source)) return null;
+  const steps = compileChoiceSteps(choiceStatements(source), new Map());
+  if (steps === null || steps.length === 0) return null;
+  return steps.length === 1 ? steps[0] : { command: "SEQUENCE", steps };
+}
+
+// ---------------------------------------------------------------------------
+// Single-purpose NPC scripts the flat HANDLERS table cannot express (each matched whole, whitespace-insensitively).
+// ---------------------------------------------------------------------------
+
+/** The `_I("...")` / "..." literals of a Ruby array body. */
+function rubyStringList(body) {
+  const out = [];
+  const pattern = /(?:_I\()?"((?:[^"\\]|\\.)*)"\)?/g;
+  let m;
+  while ((m = pattern.exec(body)) !== null) out.push(m[1].replace(/\\(.)/g, (all, ch) => (ch === "n" ? "\n" : ch)));
+  return out;
+}
+
+function compileSmallScripts(source) {
+  const compact = source.replace(/\s+/g, " ").trim();
+  let m;
+  // the lifts: numfloors, the player's floor (variable 10), the floor chosen (variable 11 = numfloors - choice)
+  if ((m = /^numfloors=(\d+) cur=numfloors-pbGet\(10\) pbSet\(11,pbMessage\( _I\("([^"]*)"\), \[(.*?)\], numfloors\+1,nil,cur\)\) t=pbGet\(11\) pbSet\(11,numfloors-t\)$/.exec(compact))) {
+    return { command: "ELEVATOR", floors: Number(m[1]), text: m[2], choices: rubyStringList(m[3]), currentVariable: 10, resultVariable: 11 };
+  }
+  // Deoxys' forms (map-152): the first Deoxys of the party takes the form and its name goes to variable 1
+  if ((m = /^for pkmn in \$Trainer\.pokemonParty if isConst\?\(pkmn\.species,PBSpecies, :(\w+)\) pkmn\.form=(\d+) pbSet\(1,pkmn\.name\) break end end$/.exec(compact))) {
+    return { command: "PARTY_FORM_CHANGE", species: m[1], form: Number(m[2]), nameVariable: 1 };
+  }
+  // map-012 event 69 (300_B2W2_Trainer_Card:1084 pbStartBadgeScreen): the badge box
+  if (/^scene = PokemonTrainerCard_Scene\.new screen = PokemonTrainerCardScreen\.new\(scene\) pbFadeOutIn\(99999\) \{ screen\.pbStartBadgeScreen \}$/.test(compact)) return { command: "TRAINER_CARD_BADGES" };
+  if (/^\$scene = Scene_Credits\.new$/.test(compact)) return { command: "CREDITS" };   // 080_Scene_Credits
+  if ((m = /^\$PokemonGlobal\.runningShoes=(true|false)$/.exec(compact))) {
+    return { command: "SET_GLOBAL_FLAG", flag: "runningShoes", value: m[1] === "true" };
+  }
+  if ((m = /^\$Trainer\.mysterygiftaccess=(true|false)$/.exec(compact))) {
+    return { command: "SET_GLOBAL_FLAG", flag: "mysteryGiftAccess", value: m[1] === "true" };
+  }
+  if ((m = /^\$PokemonGlobal\.coins([+-])=(\d+|pbGet\((\d+)\))$/.exec(compact))) {
+    const amount = m[3] !== undefined ? { variable: Number(m[3]) } : Number(m[2]);
+    return { command: "CHANGE_COINS", sign: m[1] === "+" ? 1 : -1, amount };
+  }
+  if ((m = /^pbChangePlayer\((\d+)\) pbTrainerName\("([^"]*)"\)$/.exec(compact))) {
+    return { command: "SEQUENCE", steps: [{ command: "CHANGE_PLAYER", playerId: Number(m[1]) }, { command: "TRAINER_NAME", name: m[2] }] };
+  }
+  if ((m = /^pbRemoveDependency2\("([^"]*)"\) pbDeregisterPartner$/.exec(compact))) {
+    return { command: "SEQUENCE", steps: [{ command: "REMOVE_DEPENDENCY", name: m[1] }, { command: "DEREGISTER_PARTNER" }] };
+  }
+  // the Game Corner prize vendors (map-326): the chosen row (variable 1) picks an item / species, its price and level
+  if ((m = /^item=\[(.*?)\]\[pbGet\(1\)\] price=\[(.*?)\]\[pbGet\(1\)\] (?:lv=\[(.*?)\]\[pbGet\(1\)\] )?if item && item!=0 item=getID\((PBItems|PBSpecies),item\) end pbSet\(1,item\);? pbSet\(2,price\) pbSet\(3,(?:PBItems|PBSpecies)\.getName\(item\)\)(?: pbSet\(4,lv\))?$/.exec(compact))) {
+    const names = m[1].split(",").map((x) => x.trim().replace(/^:/, ""));
+    const prices = m[2].split(",").map((x) => Number(x.trim()));
+    const command = { command: "PRIZE_LOOKUP", kind: m[4] === "PBSpecies" ? "species" : "item", items: names, prices };
+    if (m[3] !== undefined) command.levels = m[3].split(",").map((x) => Number(x.trim()));
+    return command;
+  }
+  if ((m = /^\$PokemonGlobal\.coins-=pbGet\((\d+)\) pbReceiveItem\(pbGet\((\d+)\)\)$/.exec(compact))) {
+    return { command: "SEQUENCE", steps: [{ command: "CHANGE_COINS", sign: -1, amount: { variable: Number(m[1]) } },
+      { command: "GIVE_ITEM_VAR", variable: Number(m[2]) }] };
+  }
+  // map-205: the Pokemon whose OT is a given name are made female-OT, shiny and super shiny (the party loop)
+  if ((m = /^\$Trainer\.party\.each_index do \|i\| next if \$Trainer\.party\[i\]\.ot != "([^"]*)" \$Trainer\.party\[i\]\.otgender = (\d+) \$Trainer\.party\[i\]\.makeShiny \$Trainer\.party\[i\]\.makeSuperShiny end$/.exec(compact))) {
+    return { command: "PARTY_OT_SHINY", ot: m[1], otgender: Number(m[2]) };
+  }
+  // 231_PScreen_MysteryGift:361-: no gift can be stored here, so the deliveryman finds none
+  if (/^id=pbNextMysteryGiftID pbReceiveMysteryGift\(id\)$/.test(compact)) return { command: "MYSTERY_GIFT" };
+  // a Boss_Battles def called as a plain statement (319_Boss_Battles): the battle runs, its result is dropped
+  if ((m = /^(battle[A-Z]\w*)$/.exec(compact))) return { command: "BOSS_BATTLE", name: m[1] };
+  // the fossil lady (map-128): variable 9 holds an item id, then the species id it becomes
+  if ((m = /^\$PokemonBag\.pbDeleteItem\(pbGet\((\d+)\)\) pbSet\((\d+),PBItems\.getName\(pbGet\(\1\)\)\)$/.exec(compact))) {
+    return { command: "SEQUENCE", steps: [{ command: "DELETE_ITEM_VAR", variable: Number(m[1]) },
+      { command: "ITEM_NAME_VAR", variable: Number(m[1]), target: Number(m[2]) }] };
+  }
+  if ((m = /^pbSet\((\d+),PBSpecies\.getName\(pbGet\((\d+)\)\)\)$/.exec(compact))) {
+    return { command: "SPECIES_NAME_VAR", variable: Number(m[2]), target: Number(m[1]) };
+  }
+  if ((m = /^arr = \[(.*)\] pbConvertItemToPokemon\((\d+),arr\)$/.exec(compact))) {
+    const names = [...m[1].matchAll(/:(\w+)/g)].map((x) => x[1]);
+    const pairs = [];
+    for (let i = 0; i + 1 < names.length; i += 2) pairs.push([names[i], names[i + 1]]);
+    return { command: "CONVERT_ITEM_TO_POKEMON", variable: Number(m[2]), pairs };
+  }
+  // a mart whose stock is built in a global first (map-500)
+  if ((m = /^\$battle_item = \[(.*?)\] \$battle_item\.push\(:(\w+)\) pbPokemonMart\(\$battle_item\)$/.exec(compact))) {
+    const items = [...m[1].matchAll(/:(\w+)/g)].map((x) => x[1]);
+    items.push(m[2]);
+    return { command: "OPEN_MART", items };
+  }
+  return null;
+}
+
 /**
  * Compiles one block.
  * @returns {{id, source, category, status, ir?, apis, reason?}}
@@ -1053,7 +1298,8 @@ function dayCareIndex(arg) {
   throw new Error("Unsupported Day Care index");
 }
 
-export function compileBlock(block) {
+export function compileBlock(rawBlock) {
+  const block = /\\\r?\n/.test(rawBlock.rubySource || "") ? { ...rawBlock, rubySource: rawBlock.rubySource.replace(/\\\r?\n\s*/g, "") } : rawBlock;
   const name = block.calls && block.calls[0] ? block.calls[0].name : (block.apis && block.apis[0]) || null;
   const entry = {
     id: block.id,
@@ -1077,6 +1323,16 @@ export function compileBlock(block) {
     return { ...entry, status: "TRANSLATED",
       ir: { command: "SEQUENCE", steps: [{ command: "DAYCARE_GENERATE_EGG" }, { command: "DAYCARE_RESET_EGG" }] } };
   }
+  const small = compileSmallScripts(source);
+  if (small) return { ...entry, status: "TRANSLATED", ir: small };
+  const choice = compileChoiceDialect(source);
+  if (choice) return { ...entry, status: "TRANSLATED", ir: choice };
+  // map-025 Effort ribbon giver (197_PokeBattle_Pokemon:557-576)
+  const compact = source.replace(/\s+/g, " ");
+  const first = /^poke=\$Trainer\.firstPokemon poke\.giveRibbon\(:(\w+)\)$/.exec(compact);
+  if (first) return { ...entry, status: "TRANSLATED", ir: { command: "GIVE_RIBBON_FIRST", ribbon: first[1] } };
+  const status = /^p=\$Trainer\.firstPokemon ev=0 for i in 0\.\.\.6 ev\+=p\.ev\[i\] end maxed=\(ev>=255\) \? 1 : 0 maxed=2 if p\.hasRibbon\?\(:(\w+)\) pbSet\(1,p\.name\) pbSet\(2,maxed\)$/.exec(compact);
+  if (status) return { ...entry, status: "TRANSLATED", ir: { command: "EV_RIBBON_STATUS", ribbon: status[1] } };
   if (block.category === "SIMPLE_EXPRESSION") {
     if (SIMPLE_CONDITION.test(source)) {
       return { ...entry, status: "TRANSLATED", ir: { command: "CONDITION", expression: source } };

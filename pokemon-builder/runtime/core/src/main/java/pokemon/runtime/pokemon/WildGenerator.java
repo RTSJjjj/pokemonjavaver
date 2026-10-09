@@ -149,6 +149,44 @@ public final class WildGenerator {
     }
 
     /**
+     * {@code pbNewPkmn(species, level)} = {@code PokeBattle_Pokemon.new(species, level, $Trainer)} (PokeBattle_Pokemon:
+     * 909-964) with its lazy derivations from the personal id: ability, nature, shininess. The Pokemon belongs to the player
+     * (trainer id, OT) and was met on {@code mapId}.
+     */
+    public static Pokemon pbNewPkmn(PbsData data, PbsData.Species species, int level, TrainerState trainer, int mapId,
+                                    Random random) {
+        if (data == null || species == null) {
+            return null;
+        }
+        Random source = random == null ? new Random() : random;
+        Pokemon pokemon = new Pokemon(species, level, data);
+        pokemon.personalID = Pokemon.newPersonalID(source);              // :919-922
+        pokemon.ivs = new int[6];                                        // :925-931
+        for (int i = 0; i < pokemon.ivs.length; i++) {
+            pokemon.ivs[i] = source.nextInt(IV_STAT_LIMIT + 1);
+        }
+        pokemon.evs = new int[6];
+        pokemon.ballused = 0;                                            // :939
+        if (trainer != null) {                                           // :941-945
+            pokemon.setTrainerID(trainer.id);
+            pokemon.originalTrainer = trainer.name;
+            pokemon.otGender = trainer.gender;
+        } else {
+            pokemon.setTrainerID(0);                                     // :947-949
+            pokemon.originalTrainer = "";
+            pokemon.otGender = 2;
+        }
+        pokemon.obtainMap = mapId;                                       // :951
+        pokemon.obtainLevel = level;                                     // :953
+        pokemon.obtainMode = 0;                                          // :954
+        pokemon.ability = naturalAbility(species, pokemon);
+        pokemon.nature = natureOf(data, pokemon);
+        pokemon.shiny = Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
+        pokemon.hp = pokemon.maxHp();                                    // :960
+        return pokemon;
+    }
+
+    /**
      * {@code ability} with {@code abilIndex = @personalID&1}
      * (PokeBattle_Pokemon:224-245), including the plugin's fallback to the other
      * natural slot when the species leaves one empty.
@@ -212,9 +250,7 @@ public final class WildGenerator {
 
     /** {@code givePokerus} (PokeBattle_Pokemon:368-374). */
     private static void givePokerus(Pokemon pokemon, Random random) {
-        int strain = 1 + random.nextInt(15);
-        int time = 1 + (strain % 4);
-        pokemon.pokerus = time | (strain << 4);
+        pokemon.givePokerus(0, random);
     }
 
     /** {@code pkmn.hasAbility?(:X)} (PokeBattle_Pokemon:248-252). */

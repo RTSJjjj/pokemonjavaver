@@ -182,6 +182,74 @@ class BattleTest {
     }
 
     @Test
+    @DisplayName("Battle_ExpAndMoveLearning:68-96 pbGainEVsOne: the foe's effort points, doubled by Pokerus, capped per stat")
+    void effortPointsFollowPbGainEVsOne(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        data.species("FOE").effortPoints = new int[] {0, 0, 0, 0, 2, 0};
+        Pokemon hero = new Pokemon(data.species("HERO"), 50, data);
+        hero.evs[4] = 251;
+        hero.givePokerus(5, new Random(1));
+        Pokemon foe = new Pokemon(data.species("FOE"), 2, data);
+        BattleResult result = new Battle(data, new Random(7), null).addPlayer(hero).addFoe(foe).run(100);
+        assertEquals(BattleResult.Outcome.WIN, result.outcome);
+        assertEquals(252, hero.evs[4], "2 doubled is 4, the stat limit is 252");
+    }
+
+    @Test
+    @DisplayName("Battle_ExpAndMoveLearning:25-56: the Exp All feeds the party members that did not fight, with one line")
+    void expAllFeedsTheBench(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        data.species("FOE").baseExp = 3000;                       // a/2 scaled down by 5 and by the level gap still leaves exp
+        Pokemon hero = new Pokemon(data.species("HERO"), 50, data);
+        Pokemon bench = new Pokemon(data.species("HERO"), 50, data);
+        Pokemon foe = new Pokemon(data.species("FOE"), 2, data);
+        int benchBefore = bench.exp;
+        Battle battle = new Battle(data, new Random(7), null).addPlayer(hero).addPlayer(bench).addFoe(foe);
+        battle.expAllOn = true;
+        BattleResult result = battle.run(100);
+        assertEquals(BattleResult.Outcome.WIN, result.outcome);
+        assertTrue(bench.exp > benchBefore, "the bench gained exp");
+        int announced = 0;
+        for (Battle.ExpAward award : battle.lastExpAwards) {
+            if (award.announce != null) announced++;
+            if (award.pokemon == bench) assertFalse(award.showMessage, "no exp line for the Exp All's others");
+        }
+        assertTrue(announced <= 1);
+    }
+
+    @Test
+    @DisplayName("Battle_ExpAndMoveLearning:25-33: an Exp Share holder that did not fight gains half")
+    void expShareHolderGainsHalf(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon hero = new Pokemon(data.species("HERO"), 50, data);
+        Pokemon holder = new Pokemon(data.species("HERO"), 50, data);
+        holder.item = "EXPSHARE";
+        Pokemon foe = new Pokemon(data.species("FOE"), 2, data);
+        int before = holder.exp;
+        Battle battle = new Battle(data, new Random(7), null).addPlayer(hero).addPlayer(holder).addFoe(foe);
+        battle.run(100);
+        assertTrue(holder.exp > before, "the holder gained exp without fighting");
+    }
+
+    @Test
+    @DisplayName("Battle_ExpAndMoveLearning:21,26,48: a fainted Pokemon gets nothing from the Exp Share or the Exp All")
+    void faintedPartyMembersGainNothing(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        data.species("FOE").baseExp = 3000;
+        Pokemon hero = new Pokemon(data.species("HERO"), 50, data);
+        Pokemon fainted = new Pokemon(data.species("HERO"), 50, data);
+        fainted.item = "EXPSHARE";
+        fainted.hp = 0;
+        Pokemon foe = new Pokemon(data.species("FOE"), 2, data);
+        int before = fainted.exp;
+        Battle battle = new Battle(data, new Random(7), null).addPlayer(hero).addPlayer(fainted).addFoe(foe);
+        battle.expAllOn = true;
+        battle.run(100);
+        assertEquals(before, fainted.exp, "a fainted holder / bench member shares nothing");
+        assertTrue(hero.exp > 0);
+    }
+
+    @Test
     @DisplayName("P2: a high-experience foe levels the winner up")
     void levelUp(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));

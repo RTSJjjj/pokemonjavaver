@@ -47,6 +47,14 @@ public final class TrainerState {
     public final ChainCatching chainCatching = new ChainCatching();
     /** {@code $PokemonGlobal.daycare} and its egg (181_PField_DayCare). */
     public final DayCare dayCare = new DayCare();
+    /** {@code $PokemonGlobal.eggs} (323_Egg_Hatcher:27-31): the six slots of the Egg Hatcher. */
+    public final Pokemon[] hatcherEggs = new Pokemon[6];
+    /** {@code $Trainer.mysterygiftaccess} (the Mystery Gift menu entry). */
+    public boolean mysteryGiftAccess;
+    /** {@code $PokemonGlobal.hallOfFame} (232_PScreen_HallOfFame:504-510): one list of Pokemon per entry, oldest first. */
+    public final java.util.List<java.util.List<Pokemon>> hallOfFame = new java.util.ArrayList<>();
+    /** {@code $PokemonGlobal.hallOfFameLastNumber}: how many entries were ever recorded. */
+    public int hallOfFameLastNumber;
     public double playSeconds;
     public int region;
 
@@ -87,7 +95,7 @@ public final class TrainerState {
         newId(null);                       // a new game rolls a new trainer id
         party.members().clear(); storage.clear(); regionalStorage.clear();
         seen.clear(); owned.clear(); badges.clear(); playSeconds = 0; region = 0;
-        pokedex = false; pokepc = false; expPot = 0; chainCatching.reset(); dayCare.reset();
+        pokedex = false; pokepc = false; expPot = 0; chainCatching.reset(); dayCare.reset(); java.util.Arrays.fill(hatcherEggs, null); hallOfFame.clear(); hallOfFameLastNumber = 0; mysteryGiftAccess = false;
         healMapId = -1; healX = 0; healY = 0; healDirection = 0;
     }
 

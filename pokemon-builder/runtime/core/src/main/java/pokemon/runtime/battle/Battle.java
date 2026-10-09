@@ -1738,6 +1738,10 @@ public final class Battle {
          * (lines 170-175 / 181-184). 0 = use {@code max(1, expGained/8)}.
          */
         public int potGain;
+        /** {@code showMessages}: false for the Pokemon that gain Exp because of the Exp All (:197). */
+        public boolean showMessage = true;
+        /** A paused line to show before this award (the Exp All's other-Pokemon line, :51). */
+        public String announce;
     }
 
     /** The awards of the last faint, in party order. */
@@ -1746,6 +1750,11 @@ public final class Battle {
     public boolean trainerBattle;
     /** The player's name, for the outsider check (lines 146-147). */
     public String playerName;
+    /** {@code pbPlayer.id}: the outsider check compares it with the Pokemon's trainer id (:146); null = compare the OT name. */
+    public Integer playerTrainerId;
+    /** {@code $PokemonBag.pbHasItem?(:EXPALL)} / {@code :EXPCHARM} (Battle_ExpAndMoveLearning:13, :164). */
+    public boolean expAllOn;
+    public boolean expCharmOn;
     /** {@code @opponent[..].fullname} (PokeBattle_Battle:268): the opposing trainer's full name. */
     public String opponentName;
     /** {@code $game_switches[199]} / {@code [12]} (lines 167-186, 221-257). */
@@ -1771,107 +1780,6 @@ public final class Battle {
         if (captured == null) return;
         lastExpAwards.clear();
         awardParticipants(captured);
-    }
-
-    /**
-     * pbGainExpOne (Battle_ExpAndMoveLearning:99-308) for one participant with
-     * this project's settings: {@code SCALED_EXP_FORMULA = true} (Settings:162)
-     * and {@code SPLIT_EXP_BETWEEN_GAINERS = false} (Settings:163).
-     */
-    private void awardExperience(Battler fainted, Battler receiver) {
-        lastExpGain = 0;
-        if (receiver == null || receiver.pokemon == null || fainted.pokemon == null
-                || fainted.pokemon.species == null) {
-            return;
-        }
-        Pokemon pkmn = receiver.pokemon;
-        int baseExp = fainted.pokemon.species.baseExp;
-        if (baseExp <= 0) {
-            return;
-        }
-        String growth = pkmn.growthRate();
-        int maxExp = pokemon.runtime.pokemon.PBExperience.pbGetMaxExperience(growth);   // :104
-        if (pkmn.exp >= maxExp) {
-            return; // Already at the maximum (lines 104-107)
-        }
-        int level = fainted.level();
-        int exp = level * baseExp;                 // one participant, no split
-        if (exp <= 0) {
-            return;
-        }
-        if (trainerBattle) {
-            exp = (int) Math.floor(exp * 1.5);     // line 132
-        }
-        // SCALED_EXP_FORMULA (lines 134-141).
-        exp /= 5;
-        double adjust = (2.0 * level + 10.0) / (pkmn.level + level + 10.0);
-        adjust = Math.pow(adjust, 5);
-        adjust = Math.sqrt(adjust);
-        exp = (int) (exp * adjust);
-        exp += 1;
-        // Foreign Pokemon gain more (lines 146-154).
-        boolean outsider = pkmn.originalTrainer != null && !pkmn.originalTrainer.isEmpty()
-                && !pkmn.originalTrainer.equals(playerName);
-        if (outsider) {
-            exp = (int) Math.floor(exp * 1.5);
-        }
-        if (pkmn.happiness >= 180) {
-            exp = (int) Math.floor(exp * 1.2);     // line 160
-        }
-        if (pkmn.superShiny) {
-            exp = (int) Math.floor(exp * 1.2);     // line 161 (PokeBattle_Pokemon:335)
-        }
-        // The level lock (lines 167-186): a capped gain goes to the exp pot.
-        int potGain = 0;
-        if (levelLockOn && levelLockReached(pkmn)) {
-            potGain = Math.max(1, exp / 8);
-            exp = 0;
-        }
-        int expFinal = Math.min(maxExp, pkmn.exp + exp);
-        int expGained = expFinal - pkmn.exp;
-        if (expGained <= 0 && potGain == 0) {
-            return;
-        }
-        ExpAward award = new ExpAward();
-        award.pokemon = pkmn;
-        award.expGained = expGained;
-        award.outsider = outsider;
-        award.potGain = potGain;
-        award.oldLevel = pkmn.level;
-        award.oldStats = new int[] { pkmn.maxHp(), pkmn.attack(), pkmn.defense(),
-                pkmn.spAtk(), pkmn.spDef(), pkmn.speed() };
-        // The bar plays one segment per level (lines 221-265).
-        int curLevel = pkmn.level;
-        int tempExp1 = pkmn.exp;
-        while (tempExp1 < expFinal && curLevel < 200) {                // :222 break if curLevel >= 200
-            if (levelLockStop(curLevel)) {
-                break;                             // lines 223-255
-            }
-            int levelMinExp = PokemonStats.experienceForLevel(growth, curLevel);
-            int levelMaxExp = PokemonStats.experienceForLevel(growth, curLevel + 1);
-            int tempExp2 = Math.min(levelMaxExp, expFinal);
-            award.segments.add(new int[] { levelMinExp, levelMaxExp, tempExp1, tempExp2 });
-            tempExp1 = tempExp2;
-            curLevel++;
-        }
-        // Apply it (the plugin sets pkmn.exp per segment while animating).
-        pkmn.hp = receiver.hp;
-        if (expGained > 0 && pkmn.gainExperience(expGained)) {
-            // The level's moves are learned in the settlement (pbLearnMove). A level-up never evolves in battle: the
-            // plugin's onEndBattle evolution check is commented out (174_PField_Battles:687-694) and the evolution
-            // is the party menu's 进化 command (210_PScreen_Party:1335).
-            for (PbsData.LearnMove learn : pkmn.species.moves) {
-                if (learn.level > award.oldLevel && learn.level <= pkmn.level) {
-                    PbsData.Move move = pbs.move(learn.move);
-                    if (move != null && !knowsMove(pkmn, move)) {
-                        award.movesToLearn.add(move);
-                    }
-                }
-            }
-        }
-        receiver.hp = Math.min(pkmn.hp, receiver.maxHp());
-        lastExpGain = expGained;
-        lastExpAwards.add(award);
     }
 
     /** Battle_ExpAndMoveLearning:167-186: the level-lock cap for the exp gain. */
@@ -2300,20 +2208,212 @@ public final class Battle {
     /**
      * Battle_ExpAndMoveLearning:17-65 for one defeated battler: every able participant of the player's own team
      * gains Exp ({@code SPLIT_EXP_BETWEEN_GAINERS} is false, so none is split), then the participants are cleared.
-     * 登记: :11/:23-32/:45-56 Exp All and Exp Share are not modelled; :42 pbGainEVsOne is not here.
+     * 登记: :11/:23-32/:45-56 Exp All and Exp Share are not modelled.
      */
+    /**
+     * {@code pbGainEVsOne(idxParty, defeatedBattler)} (Battle_ExpAndMoveLearning:68-96): the defeated species' effort points,
+     * changed by the held item (or the item it started with), doubled by Pokerus, capped at 510 in all and 252 per stat.
+     */
+    private void pbGainEVsOne(Battler defeated, Battler receiver) {
+        Pokemon pkmn = receiver.pokemon;
+        if (pkmn == null || defeated.pokemon == null || defeated.pokemon.species == null) return;
+        int[] evYield = new int[6];                                               // :70 defeatedBattler.pokemon.evYield
+        int[] points = defeated.pokemon.species.effortPoints;
+        for (int i = 0; i < 6 && points != null && i < points.length; i++) evYield[i] = points[i];
+        if (pkmn.evs == null || pkmn.evs.length < 6) pkmn.evs = java.util.Arrays.copyOf(pkmn.evs == null ? new int[0] : pkmn.evs, 6);
+        int evTotal = 0;                                                          // :71-73
+        for (int s = 0; s < 6; s++) evTotal += pkmn.evs[s];
+        if (!BattleHandlers.triggerEVGainModifierItem(pkmn.item, receiver, evYield)) {          // :75
+            BattleHandlers.triggerEVGainModifierItem(receiver.initialItem, receiver, evYield);  // :76 @initialItems[0][idxParty]
+        }
+        if (pkmn.pokerusStage() >= 1) {                                           // :79 Infected or cured
+            for (int i = 0; i < evYield.length; i++) evYield[i] *= 2;
+        }
+        for (int s = 0; s < 6; s++) {                                             // :83-96
+            int evGain = evYield[s];
+            if (evTotal + evGain > EV_LIMIT) evGain = EV_LIMIT - evTotal;
+            if (pkmn.evs[s] + evGain > EV_STAT_LIMIT) evGain = EV_STAT_LIMIT - pkmn.evs[s];
+            pkmn.evs[s] += evGain;
+            evTotal += evGain;
+        }
+    }
+
+    /** 197_PokeBattle_Pokemon:59-60. */
+    private static final int EV_LIMIT = 510;
+    private static final int EV_STAT_LIMIT = 252;
+
     private void awardParticipants(Battler b) {
         if (!internalBattle || !expGain) return;                                     // Battle_ExpAndMoveLearning:8
-        for (int partic : new java.util.ArrayList<>(b.participants)) {               // :19
-            Array<Battler> p1 = partyOf(0);
+        Array<Battler> p1 = partyOf(0);
+        // :20-24 count the participants
+        int numPartic = 0;
+        for (int partic : b.participants) {
             if (partic < 0 || partic >= p1.size) continue;
-            Battler receiver = p1.get(partic);
-            if (receiver == null || receiver.fainted() || receiver.pokemon.egg) continue;   // :20 able?
-            if (!pbIsOwner(0, partic)) continue;                                     // :20
-            awardExperience(b, receiver);                                            // :43
+            Battler gainer = p1.get(partic);
+            if (gainer != null && gainer.pokemon != null && !gainer.pokemon.egg && !gainer.fainted()
+                    && pbIsOwner(0, partic)) {
+                numPartic++;
+            }
+        }
+        // :25-33 find which Pokemon have an Exp Share (none matter with the Exp All)
+        java.util.List<Integer> expShare = new java.util.ArrayList<>();
+        if (!expAllOn) {
+            for (int i = 0; i < p1.size; i++) {
+                Battler member = p1.get(i);
+                if (member == null || member.pokemon == null || !pbIsOwner(0, i) || !able(member)) continue;
+                if (!"EXPSHARE".equals(member.pokemon.item) && !"EXPSHARE".equals(member.initialItem)) continue;
+                expShare.add(i);
+            }
+        }
+        if (numPartic > 0 || expShare.size() > 0 || expAllOn) {                      // :35
+            // :39-44 gain EVs and Exp for the participants and the Exp Share holders
+            for (int i = 0; i < p1.size; i++) {
+                Battler member = p1.get(i);
+                if (member == null || member.pokemon == null || !pbIsOwner(0, i) || !able(member)) continue;
+                if (!b.participants.contains(i) && !expShare.contains(i)) continue;
+                pbGainEVsOne(b, member);                                             // :42
+                awardExperience(b, member, i, numPartic, expShare, true);            // :43
+            }
+            // :46-56 gain EVs and Exp for all the other Pokemon because of Exp All
+            if (expAllOn) {
+                boolean showMessage = true;
+                for (int i = 0; i < p1.size; i++) {
+                    Battler member = p1.get(i);
+                    if (member == null || member.pokemon == null || !pbIsOwner(0, i) || !able(member)) continue;
+                    if (b.participants.contains(i) || expShare.contains(i)) continue;
+                    pbGainEVsOne(b, member);                                         // :53
+                    int before = lastExpAwards.size;
+                    awardExperience(b, member, i, numPartic, expShare, false);       // :54
+                    if (showMessage && lastExpAwards.size > before) {
+                        lastExpAwards.get(before).announce = "其他宝可梦也获得了经验。";   // :51 pbDisplayPaused (once)
+                        showMessage = false;
+                    }
+                }
+            }
         }
         b.expAwarded = true;                                                         // :64 b.participants = []
         b.participants.clear();
+    }
+
+    /** {@code pkmn.able?}: not an egg, HP left. */
+    private static boolean able(Battler member) {
+        return !member.pokemon.egg && !member.fainted();
+    }
+
+    /**
+     * {@code pbGainExpOne(idxParty, defeatedBattler, numPartic, expShare, expAll, showMessages)}
+     * (Battle_ExpAndMoveLearning:98-308) with this project's settings: {@code SCALED_EXP_FORMULA = true} (Settings:162)
+     * and {@code SPLIT_EXP_BETWEEN_GAINERS = false} (Settings:163). 登记: {@code language} (the 1.7 outsider bonus) is not
+     * modelled; the move list is the form's own ({@code getMoveList}).
+     */
+    private void awardExperience(Battler fainted, Battler receiver, int idxParty, int numPartic,
+                                 java.util.List<Integer> expShare, boolean showMessages) {
+        lastExpGain = 0;
+        if (receiver == null || receiver.pokemon == null || fainted.pokemon == null
+                || fainted.pokemon.species == null) {
+            return;
+        }
+        Pokemon pkmn = receiver.pokemon;
+        String growth = pkmn.growthRate();
+        int maxExp = pokemon.runtime.pokemon.PBExperience.pbGetMaxExperience(growth);   // :104
+        if (pkmn.exp >= maxExp) {
+            return;                                                                  // :104-107 already at the maximum
+        }
+        boolean isPartic = fainted.participants.contains(idxParty);                  // :108
+        boolean hasExpShare = expShare.contains(idxParty);                           // :109
+        int level = fainted.level();                                                 // :110
+        int exp = 0;
+        int a = level * fainted.pokemon.species.baseExp;                             // :113
+        if (expShare.size() > 0 && (isPartic || hasExpShare)) {                      // :114
+            if (numPartic == 0) {
+                exp = a;                                                             // :116 all Exp goes to the Exp Share holders
+            } else {
+                exp = isPartic ? a : a / 2;                                          // :120 Exp not split
+            }
+        } else if (isPartic) {
+            exp = a;                                                                 // :123
+        } else if (expAllOn) {
+            exp = a / 2;                                                             // :127
+        }
+        if (exp <= 0) {
+            return;                                                                  // :130
+        }
+        if (trainerBattle) {
+            exp = (int) Math.floor(exp * 1.5);                                       // :132
+        }
+        exp /= 5;                                                                    // :135 SCALED_EXP_FORMULA
+        double adjust = (2.0 * level + 10.0) / (pkmn.level + level + 10.0);
+        adjust = Math.pow(adjust, 5);
+        adjust = Math.sqrt(adjust);
+        exp = (int) Math.floor(exp * adjust);
+        if (isPartic || hasExpShare) exp += 1;                                       // :141
+        boolean outsider = playerTrainerId != null ? pkmn.trainerID != playerTrainerId
+                : pkmn.originalTrainer != null && !pkmn.originalTrainer.isEmpty() && !pkmn.originalTrainer.equals(playerName);
+        if (outsider) {
+            exp = (int) Math.floor(exp * 1.5);                                       // :146-154
+        }
+        int itemExp = BattleHandlers.triggerExpGainModifierItem(pkmn.item, receiver, exp);   // :157
+        if (itemExp < 0) {
+            itemExp = BattleHandlers.triggerExpGainModifierItem(receiver.initialItem, receiver, exp);   // :159
+        }
+        if (pkmn.happiness >= 180) exp = (int) Math.floor(exp * 1.2);                // :162
+        if (pkmn.superShiny) exp = (int) Math.floor(exp * 1.2);                      // :163
+        if (expCharmOn) exp = (int) Math.floor(exp * 1.5);                           // :164 EXP Charm
+        if (itemExp >= 0) exp = itemExp;                                             // :165
+        int potGain = 0;
+        if (pkmn.level >= 200) {                                                     // :166
+            potGain = Math.max(1, exp / 8);
+            exp = 0;
+        } else if (levelLockOn && levelLockReached(pkmn)) {                          // :171-186 the level lock turns it into pot exp
+            potGain = Math.max(1, exp / 8);
+            exp = 0;
+        }
+        int expFinal = Math.min(maxExp, pkmn.exp + exp);                             // :189 pbAddExperience
+        int expGained = expFinal - pkmn.exp;
+        if (expGained <= 0 && potGain == 0) {
+            return;
+        }
+        ExpAward award = new ExpAward();
+        award.pokemon = pkmn;
+        award.expGained = expGained;
+        award.outsider = outsider;
+        award.potGain = potGain;
+        award.showMessage = showMessages;
+        award.oldLevel = pkmn.level;
+        award.oldStats = new int[] { pkmn.maxHp(), pkmn.attack(), pkmn.defense(),
+                pkmn.spAtk(), pkmn.spDef(), pkmn.speed() };
+        // The bar plays one segment per level (lines 221-265).
+        int curLevel = pkmn.level;
+        int tempExp1 = pkmn.exp;
+        while (tempExp1 < expFinal && curLevel < 200) {                // :222 break if curLevel >= 200
+            if (levelLockStop(curLevel)) {
+                break;                             // lines 223-255
+            }
+            int levelMinExp = PokemonStats.experienceForLevel(growth, curLevel);
+            int levelMaxExp = PokemonStats.experienceForLevel(growth, curLevel + 1);
+            int tempExp2 = Math.min(levelMaxExp, expFinal);
+            award.segments.add(new int[] { levelMinExp, levelMaxExp, tempExp1, tempExp2 });
+            tempExp1 = tempExp2;
+            curLevel++;
+        }
+        // Apply it (the plugin sets pkmn.exp per segment while animating).
+        pkmn.hp = receiver.hp;
+        if (expGained > 0 && pkmn.gainExperience(expGained)) {
+            // The level's moves are learned in the settlement (pbLearnMove). A level-up never evolves in battle: the
+            // plugin's onEndBattle evolution check is commented out (174_PField_Battles:687-694) and the evolution
+            // is the party menu's 进化 command (210_PScreen_Party:1335).
+            for (PbsData.LearnMove learn : pkmn.getMoveList(pbs)) {                  // :281-286 pkmn.getMoveList
+                if (learn.level > award.oldLevel && learn.level <= pkmn.level) {
+                    PbsData.Move move = pbs.move(learn.move);
+                    if (move != null && !knowsMove(pkmn, move)) {
+                        award.movesToLearn.add(move);
+                    }
+                }
+            }
+        }
+        receiver.hp = Math.min(pkmn.hp, receiver.maxHp());
+        lastExpGain = expGained;
+        lastExpAwards.add(award);
     }
 
     /**
@@ -2535,6 +2635,25 @@ public final class Battle {
         return null;
     }
 
+    /** Battle_StartAndEnd:514-527: after an internal battle an infected Pokemon passes Pokerus to its neighbours in the party (1 in 3). */
+    private void passOnPokerus() {
+        if (!internalBattle || playerParty == null) return;
+        java.util.List<Integer> infected = new java.util.ArrayList<>();
+        for (int i = 0; i < playerParty.size; i++) {
+            Battler b = playerParty.get(i);
+            if (b != null && b.pokemon != null && b.pokemon.pokerusStage() == 1) infected.add(i);
+        }
+        for (int idxParty : infected) {
+            int strain = playerParty.get(idxParty).pokemon.pokerusStrain();
+            if (idxParty > 0 && playerParty.get(idxParty - 1).pokemon.pokerusStage() == 0) {
+                if (random.nextInt(3) == 0) playerParty.get(idxParty - 1).pokemon.givePokerus(strain, random);   // 33%
+            }
+            if (idxParty < playerParty.size - 1 && playerParty.get(idxParty + 1).pokemon.pokerusStage() == 0) {
+                if (random.nextInt(3) == 0) playerParty.get(idxParty + 1).pokemon.givePokerus(strain, random);   // 33%
+            }
+        }
+    }
+
     private BattleResult finish(BattleResult.Outcome outcome) {
         for (Battler battler : playerParty) battler.restoreMimickedMoves();
         for (Battler battler : foeParty) battler.restoreMimickedMoves();
@@ -2544,6 +2663,7 @@ public final class Battle {
         for (Battler battler : foeParty) {
             if (!battler.removedFromParty) battler.syncHp();      // PokeBattle_Battle:576 party[idxParty] = nil: a caught Pokemon is no longer the battler's
         }
+        passOnPokerus();                                           // Battle_StartAndEnd:514-527
         BattleMega.pbEndOfBattle(this);                            // ZA模式:207-222
         return new BattleResult(outcome, turns, caughtPokemon.isEmpty() ? null : caughtPokemon.get(0));
     }

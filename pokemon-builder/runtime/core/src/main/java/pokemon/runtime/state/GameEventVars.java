@@ -19,6 +19,8 @@ public final class GameEventVars {
     private static final int MAX_EVENT_ID = (1 << 30) - 1;
 
     private final LongMap<int[]> values = new LongMap<>();
+    /** {@code setVariable(:SYMBOL)}: the event's variable when the script stored a symbol (the lottery prize). */
+    private final LongMap<String> texts = new LongMap<>();
     private final StateVersion version;
 
     GameEventVars(StateVersion version) {
@@ -33,6 +35,7 @@ public final class GameEventVars {
     /** Stores a copy (the interpreter hands out its live array). */
     public void set(int mapId, int eventId, int[] value) {
         long key = key(mapId, eventId);
+        texts.remove(key);
         if (value == null) {
             if (values.remove(key) != null) {
                 version.bump();
@@ -41,6 +44,28 @@ public final class GameEventVars {
         }
         values.put(key, value.clone());
         version.bump();
+    }
+
+    /** The text stored by {@code setVariable(:SYMBOL)}, or null (Ruby nil). */
+    public String getText(int mapId, int eventId) {
+        return texts.get(key(mapId, eventId));
+    }
+
+    /** {@code setVariable(sym)} / {@code pbSetEventTime} share one slot per event: a text replaces the number and vice versa. */
+    public void setText(int mapId, int eventId, String value) {
+        long key = key(mapId, eventId);
+        values.remove(key);
+        if (value == null) texts.remove(key); else texts.put(key, value);
+        version.bump();
+    }
+
+    /** Encoded keys of the events that hold a text, sorted, for saves. */
+    public long[] textKeys() {
+        long[] keys = new long[texts.size];
+        int index = 0;
+        for (LongMap.Entry<String> entry : texts) keys[index++] = entry.key;
+        java.util.Arrays.sort(keys);
+        return keys;
     }
 
     public int size() {
@@ -52,6 +77,7 @@ public final class GameEventVars {
             return;
         }
         values.clear();
+        texts.clear();
         version.bump();
     }
 
