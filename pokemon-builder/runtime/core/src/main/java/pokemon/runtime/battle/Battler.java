@@ -4681,19 +4681,24 @@ public final class Battler {
 
     /** {@code canRebirth?} / {@code setCanRebirth} / {@code reborn?} / {@code setReborn} (PokeBattle_Battler:765-779)。 */
     public boolean canRebirth() {
-        return battle.canRebirth[index & 1][pokemonIndex];                               // :766
+        return rebirthSlotOk() && battle.canRebirth[index & 1][pokemonIndex];            // :766
     }
 
     public void setCanRebirth(boolean b) {
-        battle.canRebirth[index & 1][pokemonIndex] = b;                                  // :770
+        if (rebirthSlotOk()) battle.canRebirth[index & 1][pokemonIndex] = b;             // :770
     }
 
     public boolean reborn() {
-        return battle.rebirth[index & 1][pokemonIndex];                                  // :774
+        return rebirthSlotOk() && battle.rebirth[index & 1][pokemonIndex];               // :774
     }
 
     public void setReborn() {
-        battle.rebirth[index & 1][pokemonIndex] = true;                                  // :778
+        if (rebirthSlotOk()) battle.rebirth[index & 1][pokemonIndex] = true;             // :778
+    }
+
+    /** The flag tables hold six party slots per side; a party member past them (a combined party) simply has no rebirth flag. */
+    private boolean rebirthSlotOk() {
+        return pokemonIndex >= 0 && pokemonIndex < battle.canRebirth[index & 1].length;
     }
 
     /** {@code pbTakeEffectDamage(amt,show_anim=true){|hp_lost| }} (Battler_ChangeSelf:50-58)。 */

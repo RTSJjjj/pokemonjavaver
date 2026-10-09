@@ -487,7 +487,9 @@ public final class BattlerUseMove {
                 newTargets = BattlerTargeting.pbChangeTargets(self, move, b, newTargets);                // :518
                 boolean success = pbProcessMoveHit(self, move, b, newTargets, 0, false);                 // :519
                 if (!success) b.lastMoveFailed = true;                               // :520
-                for (Battler otherB : targets) {                                     // :521
+                // Indexed: this runs inside the for-each over the same libGDX Array, whose iterators cannot be nested
+                for (int t = 0; t < targets.size; t++) {                             // :521
+                    Battler otherB = targets.get(t);
                     if (otherB != null && otherB.fainted()) otherB.pbFaint();
                 }
                 if (user.fainted()) user.pbFaint();                                  // :522

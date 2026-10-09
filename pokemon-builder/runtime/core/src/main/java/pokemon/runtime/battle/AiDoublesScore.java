@@ -130,7 +130,7 @@ final class AiDoublesScore {
         int sum = 0;
         for (Battler f : foes(battle, atk)) sum += k.scores[f.index];
         if (partner != null) sum += k.scores[partner.index];
-        return sum;
+        return Math.max(0, sum);               // the per-battler scores can be negative (a partner it would hurt): MAPPING[][] is indexed by this
     }
 
     /** {@code UpdateBestDoubleKillingMoveScore(bankAtk,bankDef,bankAtkPartner,bankDefPartner,bestMoveScores,bestMove)} (ai_util.c:796-1111). */
@@ -345,7 +345,9 @@ final class AiDoublesScore {
     /** {@code IncreaseDoublesDamageViability(&viability,class,bankAtk,bankDef,move)} (ai_advanced.c:3180). */
     static int increaseDamage(AiCtx ctx, int viability, int cls, Battler atk, Battler def, BattleMove move) {
         if (!AiCalc.classDoublesSpecific(cls)) cls = AiCalc.CLASS_D_ALL_OUT_ATTACKER;        // 0xFF: dumb AI
-        return Math.min(viability + MAPPING[row(cls)][doubleKillingScore(ctx, move, atk, def)], 255);
+        int[] mapping = MAPPING[row(cls)];
+        int score = Math.max(0, Math.min(doubleKillingScore(ctx, move, atk, def), mapping.length - 1));   // never index past the table
+        return Math.min(viability + mapping[score], 255);
     }
 
     /** {@code IncreaseDoublesDamageViabilityToScore(&viability,class,score,bankAtk,bankDef)} (ai_advanced.c:3191). */

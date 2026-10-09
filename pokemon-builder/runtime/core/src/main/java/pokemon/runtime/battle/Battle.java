@@ -600,7 +600,11 @@ public final class Battle {
             if (b.fainted() || pbOwnedByPlayer(b.index)) continue;
             Object[] c = choices(b.index);
             if (!":UseItem".equals(c[0]) || !(c[1] instanceof String) || ((String) c[1]).isEmpty()) continue;   // :74, :77
-            AiItems.use(this, b, (String) c[1]);
+            final String used = (String) c[1];
+            aiGuard("AiItems", () -> {
+                AiItems.use(this, b, used);
+                return Boolean.TRUE;
+            }, Boolean.FALSE);
         }
         return true;
     }
@@ -2530,12 +2534,12 @@ public final class Battle {
         // CFRU AI_TrySwitchOrUseItem (ai_master.c:948): a trainer's Pokemon may switch instead of attacking;
         // then the plugin's pbEnemyShouldUseItem? (142_PokeBattle_AI.rb:168-170)
         if (controller == null && user.foe && trainerBattle && !user.fainted()) {
-            int idxSwitch = AiSwitching.decide(this, user, random);
+            int idxSwitch = aiGuard("AiSwitching", () -> AiSwitching.decide(this, user, random), -1);
             if (idxSwitch >= 0 && registerSwitch(user.index, idxSwitch)) {
                 return;
             }
-            String item = AiItems.choose(this, user, random);
-            if (item != null && AiItems.register(this, user, item)) {
+            String item = aiGuard("AiItems", () -> AiItems.choose(this, user, random), null);
+            if (item != null && aiGuard("AiItems", () -> AiItems.register(this, user, item), false)) {
                 return;
             }
         }
@@ -2543,7 +2547,7 @@ public final class Battle {
         if (controller == null && user.foe && !singleBattle() && !user.fainted() && user.hasUsableMove()
                 && !BattleAi.handles(this, user)
                 && (trainerBattle || (user.pokemon != null && user.pokemon.battleRank >= 2))) {
-            AiDoubles.Choice choice = AiDoubles.choose(this, user, random);
+            AiDoubles.Choice choice = aiGuard("AiDoubles", () -> AiDoubles.choose(this, user, random), null);
             BattleMove picked = choice == null ? null : user.moveSlot(choice.slot);
             if (picked != null) {
                 c[0] = ":UseMove";
@@ -2561,6 +2565,54 @@ public final class Battle {
         c[1] = user.moveSlotIndex(move);                           // :64 -1 for Struggle / :75
         c[2] = move;                                               // :65 @struggle / :76
         c[3] = -1;                                                 // :66 / :77
+    }
+
+    /** The AI entry points that already threw in this battle: they are skipped from then on (one log line, not one per turn). */
+    private final java.util.Set<String> aiDisabled = new java.util.HashSet<>();
+
+    /**
+     * Safety net around one trainer-AI entry point ({@code AiSwitching}, {@code AiItems}, {@code AiDoubles}, {@code AiMaster}): an
+     * exception there must not end the game. The first failure is logged once with where it came from, the entry point is switched
+     * off for the rest of the battle and the caller gets {@code fallback} (no switch / no item / the simple AI picks the move).
+     */
+    <T> T aiGuard(String entry, java.util.function.Supplier<T> call, T fallback) {
+        if (aiDisabled.contains(entry)) {
+            return fallback;
+        }
+        try {
+            return call.get();
+        } catch (RuntimeException error) {
+            aiDisabled.add(entry);
+            StringBuilder where = new StringBuilder();
+            int shown = 0;
+            for (StackTraceElement frame : error.getStackTrace()) {
+                if (frame.getClassName().startsWith("pokemon.runtime.battle.")) {
+                    where.append(shown == 0 ? "" : " <- ").append(frame.getClassName().substring("pokemon.runtime.battle.".length()))
+                            .append('.').append(frame.getMethodName()).append(':').append(frame.getLineNumber());
+                    if (++shown == 4) break;
+                }
+            }
+            String message = entry + " failed and is off for the rest of this battle: " + error + " at " + where;
+            aiFailures.add(message);
+            if (com.badlogic.gdx.Gdx.app != null) {
+                com.badlogic.gdx.Gdx.app.error("BattleAI", message);
+            } else {
+                System.err.println("[BattleAI] " + message);
+            }
+            return fallback;
+        }
+    }
+
+    private final java.util.List<String> aiFailures = new java.util.ArrayList<>();
+
+    /** What {@link #aiGuard} caught in this battle, one line each (tests and diagnostics). */
+    public java.util.List<String> aiFailures() {
+        return java.util.Collections.unmodifiableList(aiFailures);
+    }
+
+    /** The AI entry points switched off by {@link #aiGuard} in this battle (tests and diagnostics). */
+    public java.util.Set<String> disabledAi() {
+        return java.util.Collections.unmodifiableSet(aiDisabled);
     }
 
     private BattleMove pickMove(Battler user, Battler foe, Controller controller) {
@@ -2594,7 +2646,7 @@ public final class Battle {
         // CFRU ai_master.c ChooseMoveOrAction_Singles: trainers (and wild Bosses) in a single battle use the move scorer;
         // the simple AI below stays as its fallback (doubles are phase 4).
         if (user.foe && singleBattle() && (trainerBattle || (user.pokemon != null && user.pokemon.battleRank >= 2))) {
-            int slot = AiMaster.chooseMove(this, user, random);
+            int slot = aiGuard("AiMaster", () -> AiMaster.chooseMove(this, user, random), AiMaster.NONE);
             BattleMove chosen = user.moveSlot(slot);
             if (chosen != null) {
                 return chosen;

@@ -99,6 +99,10 @@ class AiFuzzRealDataTest {
                     }
                     battles++;
                     battle.run(40);
+                    for (String failure : battle.aiFailures()) {             // the safety net swallowed it: still a crash site
+                        counts.merge("guarded " + failure.substring(0, Math.min(failure.length(), 200)), 1, Integer::sum);
+                        samples.putIfAbsent("guarded " + failure.substring(0, Math.min(failure.length(), 200)), trainerData.key + " seed=" + seed);
+                    }
                 } catch (Throwable error) {
                     StringBuilder where = new StringBuilder();
                     int shown = 0;
@@ -125,7 +129,7 @@ class AiFuzzRealDataTest {
         // The AI's own crash sites fail the test; engine ones (outside Ai*) are only listed, they are the engine's to decide.
         List<String> aiSites = new ArrayList<>();
         for (String key : counts.keySet()) {
-            if (key.contains("Ai")) aiSites.add(key);
+            if (key.contains("Ai") || key.startsWith("guarded")) aiSites.add(key);
         }
         assertTrue(aiSites.isEmpty(), report.toString());
     }
