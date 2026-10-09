@@ -172,7 +172,7 @@ public final class TrainerView {
         f.draw(b, "ID No.", LABEL_X, h - (99f + 32f), BASE, SHADOW);
         f.drawRight(b, publicId(), VALUE_X, h - (99f + 32f), BASE, SHADOW);
         f.draw(b, "零花钱", LABEL_X, h - (131f + 32f), BASE, SHADOW);
-        f.drawRight(b, "$" + trainer.money, VALUE_X, h - 131f, BASE, SHADOW);
+        f.drawRight(b, "$" + trainer.money, VALUE_X, h - (131f + 32f), BASE, SHADOW);   // :850 writes y=131 (no +32), which lands on the ID row; moved to its own row
         if (trainer.owned != null && !trainer.owned.isEmpty()) {
             f.draw(b, "图鉴", LABEL_X, h - (163f + 32f), BASE, SHADOW);
             f.drawRight(b, String.valueOf(trainer.owned.size()), VALUE_X, h - (163f + 32f), BASE, SHADOW);
