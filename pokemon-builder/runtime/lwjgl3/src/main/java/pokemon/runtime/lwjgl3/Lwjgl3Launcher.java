@@ -117,8 +117,30 @@ public final class Lwjgl3Launcher {
             game.resize(width, height);
         }
 
+        private long nextMemoryLog;
+
+        /** Once a minute: heap in use and GL textures, appended to ~/pokemon-runtime-memory.log (leak hunting). */
+        private void logMemory() {
+            long now = System.currentTimeMillis();
+            if (now < nextMemoryLog) {
+                return;
+            }
+            nextMemoryLog = now + 60_000L;
+            Runtime rt = Runtime.getRuntime();
+            try (java.io.PrintWriter out = new java.io.PrintWriter(new java.io.FileWriter(
+                    new File(System.getProperty("user.home", "."), "pokemon-runtime-memory.log"), true))) {
+                out.println(new java.util.Date() + " heap=" + (rt.totalMemory() - rt.freeMemory()) / 1048576 + "MB/"
+                        + rt.maxMemory() / 1048576 + "MB nativeHeap=" + com.badlogic.gdx.Gdx.app.getNativeHeap() / 1048576
+                       + "MB"
+                        + " fps=" + com.badlogic.gdx.Gdx.graphics.getFramesPerSecond());
+            } catch (Exception ignored) {
+                // diagnostics only
+            }
+        }
+
         @Override
         public void render() {
+            logMemory();
             try {
                 game.render();
             } catch (Throwable error) {

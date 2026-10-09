@@ -53,6 +53,8 @@ public final class DefaultKeyBindings {
         bind(GameAction.SHOULDER_RIGHT, Input.Keys.S, Input.Keys.PAGE_DOWN);
         // Input::F5 = F, F5, Tab (0x46, 0x74, 0x09).
         bind(GameAction.F5, Input.Keys.F, Input.Keys.F5, Input.Keys.TAB);
+        // 296_Follower_Config:44 TOGGLEFOLLOWERKEY = :CTRL.
+        bind(GameAction.TOGGLE_FOLLOWER, Input.Keys.CONTROL_LEFT, Input.Keys.CONTROL_RIGHT);
     }
 
     public void bind(GameAction action, int... keyCodes) {

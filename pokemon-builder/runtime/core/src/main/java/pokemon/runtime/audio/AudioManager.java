@@ -52,6 +52,17 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     private String currentBgmId;
     private float currentVolume = 1f;
     private float currentBgsVolume = 1f;
+    /** The BGS the way {@code Game_System#playing_bgs} keeps it: name, volume, pitch (null = none). */
+    private String currentBgsId;
+    private int currentBgsVolumePercent = 100;
+    private int currentBgsPitch = 100;
+    /** 020_Game_System:122-123/220-221 {@code @memorized_bgm / @memorized_bgs} (null = nothing playing). */
+    private String memorizedBgmId;
+    private int memorizedBgmVolume = 100;
+    private int memorizedBgmPitch = 100;
+    private String memorizedBgsId;
+    private int memorizedBgsVolume = 100;
+    private int memorizedBgsPitch = 100;
     /** Raw (unfactored) volume / pitch of the running BGM, for {@link #pauseBgm()}. */
     private int currentBgmVolumePercent = 100;
     private int currentBgmPitch = 100;
@@ -378,6 +389,9 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         music.setVolume(currentBgsVolume);
         music.play();
         currentBgs = music;
+        currentBgsId = logicalId;                               // Game_System#bgs_play: @playing_bgs = bgs.clone
+        currentBgsVolumePercent = volume;
+        currentBgsPitch = pitch;
     }
 
     public void stopBgm() {
@@ -470,6 +484,51 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
             currentBgs.stop();
         }
         currentBgs = null;
+        currentBgsId = null;                                    // Game_System:200-203 bgs_stop: @playing_bgs = nil
+    }
+
+    /**
+     * 020_Game_System:210-214 {@code bgs_fade}: {@code @playing_bgs = nil} and
+     * {@code Audio.bgs_fade}. 登记: this runtime has no BGS volume ramp, so the
+     * BGS stops at once (event command 246 is used once in the project).
+     */
+    public void fadeBgs(float seconds) {
+        stopBgs();
+    }
+
+    /**
+     * 048_Interpreter:1361-1367 command_247 {@code bgm_memorize}/{@code bgs_memorize}
+     * (020_Game_System:122-124 / 220-222): remembers what is playing now.
+     */
+    public void memorizeBgmAndBgs() {
+        memorizedBgmId = currentBgmId;
+        memorizedBgmVolume = currentBgmVolumePercent;
+        memorizedBgmPitch = currentBgmPitch;
+        memorizedBgsId = currentBgsId;
+        memorizedBgsVolume = currentBgsVolumePercent;
+        memorizedBgsPitch = currentBgsPitch;
+    }
+
+    /**
+     * 048_Interpreter:1371-1377 command_248 {@code bgm_restore}/{@code bgs_restore}
+     * (020_Game_System:127-129 / 224-226): {@code bgm_play(@memorized_bgm)}. A
+     * memorized nil stops the track ({@code bgm_play_internal} :73-76), and playing
+     * the same file again restarts it, like {@code Audio.bgm_play}.
+     */
+    public void restoreBgmAndBgs() {
+        if (memorizedBgmId == null) {
+            stopBgm();
+        } else {
+            if (memorizedBgmId.equals(currentBgmId)) {
+                stopBgm();
+            }
+            playBgm(memorizedBgmId, memorizedBgmVolume, memorizedBgmPitch);
+        }
+        if (memorizedBgsId == null) {
+            stopBgs();
+        } else {
+            playBgs(memorizedBgsId, memorizedBgsVolume, memorizedBgsPitch);
+        }
     }
 
     public String currentBgmId() {

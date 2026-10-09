@@ -121,9 +121,11 @@ tasks.register('jpackageImage') {
             // Keep the bundled runtime small; these cover libGDX/LWJGL/LWJGL3.
             command.addAll(['--add-modules', 'java.base,java.desktop,java.logging,jdk.unsupported'])
         }
-        if (isWindows && !project.hasProperty('noConsole')) {
-            // Stage 2 preview: keep the console so runtime logs stay visible.
-            // Pass -PnoConsole for a plain window-only launcher.
+        // R17: the packaged launcher is window-only by default, so players
+        // never get a terminal window. Developer builds can bring the debug
+        // console back with -Pconsole; the old -PnoConsole (already used by
+        // scripts and docs) still means the same as the default.
+        if (isWindows && project.hasProperty('console') && !project.hasProperty('noConsole')) {
             command.add('--win-console')
         }
         exec { commandLine command }

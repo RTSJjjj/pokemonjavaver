@@ -26,5 +26,7 @@ public enum GameAction {
      * RMXP {@code Input::F5} (PSystem_Controls:124: F, F5, Tab) - the party
      * screen's "[F]:寄存系统" (PScreen_Party:918).
      */
-    F5
+    F5,
+    /** 296_Follower_Config:44 {@code TOGGLEFOLLOWERKEY = :CTRL}: the following Pokemon on / off. */
+    TOGGLE_FOLLOWER
 }

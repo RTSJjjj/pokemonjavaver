@@ -77,6 +77,9 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
+        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]))) {
+            System.setProperty("pokemon.menu.clockDelta", "0.025");
+        }
         // Keep the capture away from the real save directory.
         File homes = Files.createTempDirectory("pb-menu-capture-").toFile();
         System.setProperty("user.home", homes.getAbsolutePath());
@@ -223,6 +226,59 @@ public final class MenuCapture extends ApplicationAdapter {
 
             // Pause menu overlay on its own (no map screen needed for visuals).
             overlay = new PauseMenuOverlay(context, locator);
+            if (args.length > 2 && "mart".equals(args[2])) {
+                captureMart();       // roadmap stage 6.1: the Poke Mart screens
+                Gdx.app.exit();
+                return;
+            }
+            if (args.length > 2 && "pcitems".equals(args[2])) {
+                pokemon.runtime.event.MenuService.Request pc =
+                        new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.STORAGE);
+                context.gameState().inventory().add("ETHER", 7);
+                overlay.openRequest(pc);
+                idle(150);
+                tapAndRender(GameAction.CONFIRM, overlay);        // the first line of the open message
+                idle(150);
+                tapAndRender(GameAction.DOWN, overlay);           // the trainer's PC
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(200);
+                tapAndRender(GameAction.CONFIRM, overlay);        // 访问了电脑
+                idle(150);
+                renderOverlay();
+                shot("pcitems-1-menu");
+                tapAndRender(GameAction.CONFIRM, overlay);        // 整理道具
+                idle(100);
+                renderOverlay();
+                shot("pcitems-2-help");
+                tapAndRender(GameAction.CONFIRM, overlay);        // 取出道具
+                idle(20);
+                renderOverlay();
+                shot("pcitems-3-withdraw");
+                Gdx.app.exit();
+                return;
+            }
+            if (args.length > 2 && "storage".equals(args[2])) {
+                overlay.openAt(pokemon.runtime.ui.menu.PauseMenuModel.Action.STORAGE);
+                idle(40);
+                renderOverlay();
+                shot("storage-1-open");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(40);
+                renderOverlay();
+                shot("storage-2-after-confirm");
+                Gdx.app.exit();
+                return;
+            }
+            if (args.length > 2 && "items".equals(args[2])) {
+                captureItems();      // roadmap stage 5: items used from the bag on the party screen
+                Gdx.app.exit();
+                return;
+            }
+            if (args.length > 2 && "starter".equals(args[2])) {
+                captureStarter();    // roadmap stage 8.4: the starter selection scene
+                Gdx.app.exit();
+                return;
+            }
             overlay.open();
             renderOverlay();
             shot("l1-menu-main");
@@ -444,7 +500,11 @@ public final class MenuCapture extends ApplicationAdapter {
             boolean switchCapture = args.length > 2 && "switch".equals(args[2]);
             // B2: a trainer with two Pokemon, so the first faint makes the
             // opponent send out a replacement (Battle_Action_Switching:165-239).
-            boolean multiTrainerCapture = args.length > 2 && "trainer2".equals(args[2]);
+            boolean multiTrainerCapture = args.length > 2 && ("trainer2".equals(args[2]) || "trainer2-switch".equals(args[2]) || "trainer2-faint".equals(args[2]));
+            // The opposing trainer voluntarily switches in the first round (what the trainer AI does).
+            // The opposing trainer's strong lead knocks the player's 1 HP lead out (trainer form of pbEORSwitch, :205-208).
+            boolean trainerFaintCapture = args.length > 2 && "trainer2-faint".equals(args[2]);
+            boolean foeSwitchCapture = args.length > 2 && "trainer2-switch".equals(args[2]);
             // B2: the player's lead faints in a wild battle, so pbEORSwitch asks
             // "要更换宝可梦吗？" and then replaces it (:221-231).
             boolean faintCapture = args.length > 2 && "faint".equals(args[2]);
@@ -501,10 +561,12 @@ public final class MenuCapture extends ApplicationAdapter {
                     // Keep the foes weak so the player's lead knocks the first one
                     // out and the opposing side has to send out its replacement.
                     for (pokemon.runtime.pokemon.PbsData.TrainerPokemon member : opponent.party) {
-                        member.level = 5;
+                        member.level = trainerFaintCapture ? 100 : 5;
                     }
                     // ... and level the player's lead up before the battle starts.
-                    if (context.gameState().trainer().partyCount() > 0) {
+                    if (trainerFaintCapture) {
+                        pinFaintCaptureLeadToOneHp();
+                    } else if (context.gameState().trainer().partyCount() > 0) {
                         pokemon.runtime.pokemon.Pokemon lead =
                                 context.gameState().trainer().party.members().get(0);
                         lead.level = 100;
@@ -539,6 +601,9 @@ public final class MenuCapture extends ApplicationAdapter {
                 advanceMap(1f / 60f, 256);          // through the entry animation
                 advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 1200);
                 shotMap("l1-battle-t2-start");
+                if (foeSwitchCapture) {
+                    ((pokemon.runtime.battle.InteractiveBattlePort) context.battlePort()).session().battle.registerSwitch(1, 1);
+                }
                 stepMap(GameAction.CONFIRM);        // 战斗 -> the fight menu
                 stepMap(GameAction.CONFIRM);        // use the first move
                 // The round plays out: the exp / faint line, then pbEORSwitch.
@@ -548,12 +613,22 @@ public final class MenuCapture extends ApplicationAdapter {
                         3000);
                 shotMap("l1-battle-t2-question");
                 BattleScreen live = battleScreen();
+                // A foe move that misses leaves the 1 HP lead standing: fight on until it faints.
+                for (int again = 0; (faintCapture || trainerFaintCapture) && again < 8 && live != null && live.debugChoice() == null
+                        && live.debugPage() != 3; again++) {
+                    stepMap(GameAction.CONFIRM);
+                    stepMap(GameAction.CONFIRM);
+                    advanceUntilBattle(s -> s.debugChoice() != null || s.debugPage() == 3
+                            || (s.debugWindow() == 2 && s.debugMessage() == null
+                                && "none".equals(s.debugSwitch()) && "none".equals(s.debugEor())), 3000);
+                    live = battleScreen();
+                }
                 if (live != null && live.debugChoice() != null) {
                     // The first entry ("是") is selected (PokeBattle_Scene:211).
                     stepMap(GameAction.CONFIRM);
                     advanceUntilBattle(s -> s.debugPage() == 3, 300);
                     shotMap("l1-battle-t2-party");
-                    stepMap(GameAction.DOWN);
+                    stepMap(GameAction.RIGHT);
                     stepMap(GameAction.CONFIRM);    // -> pbRecallAndReplace
                     advanceUntilBattle(BattleScreen::debugSendingOut, 900);
                     shotMap("l1-battle-t2-player-sendout");
@@ -567,10 +642,20 @@ public final class MenuCapture extends ApplicationAdapter {
                     // No question: the trainer-battle form sends the replacement
                     // out directly (Battle_Action_Switching:205-208).
                     shotMap("l1-battle-t2-party");
-                    stepMap(GameAction.DOWN);
+                    stepMap(GameAction.RIGHT);
                     stepMap(GameAction.CONFIRM);
                     advanceUntilBattle(BattleScreen::debugSendingOut, 900);
                     shotMap("l1-battle-t2-foe-sendout");
+                }
+                if (trainerFaintCapture) {
+                    // A player presses through the lines: where does the battle end up?
+                    for (int press = 0; press < 14; press++) {
+                        stepMap(GameAction.CONFIRM);
+                        advanceMap(1f / 60f, 90);
+                        BattleScreen b = battleScreen();
+                        System.out.println("press " + press + ": " + (b == null ? "no screen" : "page=" + b.debugPage() + " window=" + b.debugWindow() + " switch=" + b.debugSwitch() + " eor=" + b.debugEor() + " msg=" + b.debugMessage()));
+                    }
+                    shotMap("l1-battle-t2-after-presses");
                 }
                 advanceUntilBattle(s -> "BATTLE".equals(s.debugStage())
                         && !s.debugSendingOut() && s.debugWindow() == 2, 1500);
@@ -1296,6 +1381,166 @@ public final class MenuCapture extends ApplicationAdapter {
         title.render(1f / 60f);
         input.endFrame();
         input.release(action);
+    }
+
+    /** Roadmap stage 8.4: DiegoWTsStarterSelection.new(152,255,728), from the fade-in to the confirmed choice. */
+    private void captureStarter() {
+        pokemon.runtime.event.MenuService.Request request =
+                new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.STARTER);
+        request.dex = new int[] {152, 255, 728};
+        overlay.openRequest(request);
+        idle(12);
+        renderOverlay();
+        shot("starter-1-fade");
+        idle(90);
+        renderOverlay();
+        shot("starter-2-ask");
+        tapAndRender(GameAction.RIGHT, overlay);          // first input selects the middle ball
+        idle(6);
+        renderOverlay();
+        shot("starter-3-choose");
+        tapAndRender(GameAction.LEFT, overlay);
+        idle(8);
+        renderOverlay();
+        shot("starter-4-left");
+        tapAndRender(GameAction.CONFIRM, overlay);        // pbChooseBall
+        idle(30);
+        renderOverlay();
+        shot("starter-5-ball-moving");
+        idle(70);
+        renderOverlay();
+        shot("starter-6-confirm");
+        tapAndRender(GameAction.DOWN, overlay);
+        idle(2);
+        renderOverlay();
+        shot("starter-7-cancel-selected");
+        tapAndRender(GameAction.CANCEL, overlay);         // back to the choosing screen
+        idle(90);
+        renderOverlay();
+        shot("starter-8-after-cancel");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(100);
+        tapAndRender(GameAction.CONFIRM, overlay);        // yes
+        idle(10);
+        renderOverlay();
+        shot("starter-9-closing");
+        idle(40);
+        System.out.println("starter capture: result=" + request.result + " done=" + request.done);
+    }
+
+    /** Roadmap stage 5: bag -> 使用 -> party screen -> the item handlers (HP, level, PP, number window). */
+    private void captureItems() {
+        pokemon.runtime.state.GameState state = context.gameState();
+        pokemon.runtime.state.Inventory bag = state.inventory();
+        bag.clear();
+        bag.add("RARECANDY", 4);
+        pokemon.runtime.pokemon.Pokemon lead = state.trainer().party.get(0);
+        lead.hp = Math.max(1, lead.maxHp() / 3);
+        overlay.openAt(pokemon.runtime.ui.menu.PauseMenuModel.Action.BAG);
+        tapAndRender(GameAction.RIGHT, overlay);          // pocket 2: 回复道具
+        idle(4);
+        renderOverlay();
+        shot("items-1-bag");
+        tapAndRender(GameAction.CONFIRM, overlay);        // the first item of the pocket
+        idle(2);
+        renderOverlay();
+        shot("items-2-commands");
+        tapAndRender(GameAction.CONFIRM, overlay);        // 使用
+        idle(6);
+        renderOverlay();
+        shot("items-3-party");
+        tapAndRender(GameAction.CONFIRM, overlay);        // the lead
+        idle(60);
+        renderOverlay();
+        shot("items-4-after-pick");
+        tapAndRender(GameAction.UP, overlay);
+        tapAndRender(GameAction.UP, overlay);
+        idle(2);
+        renderOverlay();
+        shot("items-5-number");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(80);
+        renderOverlay();
+        shot("items-6-level-up");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(4);
+        renderOverlay();
+        shot("items-7-stats");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(4);
+        renderOverlay();
+        shot("items-8-stats2");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(80);
+        renderOverlay();
+        shot("items-9-next");
+        System.out.println("items capture: lead level=" + lead.level + " hp=" + lead.hp + "/" + lead.maxHp()
+                + " rarecandy=" + bag.count("RARECANDY") + " potion=" + bag.count("POTION"));
+    }
+
+    /** {@code frames} updates of the overlay with nothing pressed. */
+    private void idle(int frames) {
+        InputManager input = context.inputManager();
+        for (int i = 0; i < frames; i++) {
+            input.beginFrame();
+            overlay.update(1f / 60f);
+            input.endFrame();
+        }
+    }
+
+    /**
+     * Roadmap stage 6.1: pbPokemonMart (230_PScreen_Mart) from the greeting to a purchase and a sale.
+     * Needs {@code -Dpokemon.menu.clockDelta=0.025} (one 40 fps tick per update) because the capture
+     * runs inside {@code create()}, where libGDX's own delta never advances.
+     */
+    private void captureMart() {
+        pokemon.runtime.event.MenuService.Request request =
+                new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.MART);
+        request.items = new java.util.ArrayList<>(java.util.Arrays.asList(
+                "POKEBALL", "GREATBALL", "POTION", "SUPERPOTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING",
+                "BURNHEAL", "ICEHEAL", "REPEL", "MAXREPEL", "FULLHEAL"));
+        context.gameState().trainer().money = 12000;
+        overlay.openRequest(request);
+        idle(40);
+        renderOverlay();
+        shot("mart-1-greeting");
+        idle(120);
+        renderOverlay();
+        shot("mart-2-commands");
+        tapAndRender(GameAction.CONFIRM, overlay);        // 购买
+        idle(4);
+        renderOverlay();
+        shot("mart-3-buy-list");
+        tapAndRender(GameAction.DOWN, overlay);
+        tapAndRender(GameAction.DOWN, overlay);
+        tapAndRender(GameAction.DOWN, overlay);
+        idle(2);
+        renderOverlay();
+        shot("mart-4-buy-list-scrolled");
+        tapAndRender(GameAction.CONFIRM, overlay);        // choose Super Potion
+        idle(120);
+        renderOverlay();
+        shot("mart-5-number");
+        tapAndRender(GameAction.UP, overlay);
+        tapAndRender(GameAction.UP, overlay);
+        renderOverlay();
+        shot("mart-6-number-3");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(120);
+        renderOverlay();
+        shot("mart-7-confirm");
+        tapAndRender(GameAction.CONFIRM, overlay);        // 是的
+        idle(120);
+        renderOverlay();
+        shot("mart-8-thanks");
+        tapAndRender(GameAction.CONFIRM, overlay);
+        idle(4);
+        tapAndRender(GameAction.CANCEL, overlay);         // leave the buy list
+        idle(80);
+        renderOverlay();
+        shot("mart-9-anything-else");
+        System.out.println("mart capture: money=" + context.gameState().trainer().money
+                + " superpotion=" + context.gameState().inventory().count("SUPERPOTION"));
     }
 
     /** One tap: press, let the target update, clear the edge, release. */

@@ -455,6 +455,120 @@ public final class RuntimeContext {
                     screenPort.togglePlateSwitches();
                 }
             }
+
+            @Override
+            public void startSurfing() {
+                if (screenPort != null) {
+                    screenPort.startSurfing();
+                }
+            }
+
+            // 297_Follower_Main: the following Pokemon and the dependent events live on the map screen.
+            @Override
+            public boolean toggleFollower(String forced) {
+                return screenPort != null && screenPort.toggleFollower(forced);
+            }
+
+            @Override
+            public boolean startFollowing(int eventId) {
+                return screenPort != null && screenPort.startFollowing(eventId);
+            }
+
+            @Override
+            public void removeDependencies(boolean exceptFollower) {
+                if (screenPort != null) {
+                    screenPort.removeDependencies(exceptFollower);
+                }
+            }
+
+            @Override
+            public boolean addDependency(int eventId, String name, int commonEvent) {
+                return screenPort != null && screenPort.addDependency(eventId, name, commonEvent);
+            }
+
+            @Override
+            public FollowerTalkPlan talkToFollower() {
+                return screenPort == null ? null : screenPort.talkToFollower();
+            }
+
+            // 179_PField_FieldMoves: the hidden moves' field side (the R6.14 trap: every hook forwards).
+            @Override
+            public String facingEventName() {
+                return screenPort == null ? null : screenPort.facingEventName();
+            }
+
+            @Override
+            public int[] facingEventPosition() {
+                return screenPort == null ? null : screenPort.facingEventPosition();
+            }
+
+            @Override
+            public int facingTerrainTag() {
+                return screenPort == null ? 0 : screenPort.facingTerrainTag();
+            }
+
+            @Override
+            public int playerTerrainTag() {
+                return screenPort == null ? 0 : screenPort.playerTerrainTag();
+            }
+
+            @Override
+            public boolean facingPassable() {
+                return screenPort != null && screenPort.facingPassable();
+            }
+
+            @Override
+            public boolean hasDependentEvents() {
+                return screenPort != null && screenPort.hasDependentEvents();
+            }
+
+            @Override
+            public int terrainTagOnMap(int mapId) {
+                return screenPort == null ? 0 : screenPort.terrainTagOnMap(mapId);
+            }
+
+            @Override
+            public float smashFacingEvent() {
+                return screenPort == null ? 0f : screenPort.smashFacingEvent();
+            }
+
+            @Override
+            public float hiddenMoveAnimation(pokemon.runtime.pokemon.Pokemon pokemon) {
+                return screenPort == null ? 0f : screenPort.hiddenMoveAnimation(pokemon);
+            }
+
+            @Override
+            public float ascendWaterfall() {
+                return screenPort == null ? 0f : screenPort.ascendWaterfall();
+            }
+
+            @Override
+            public void transferThroughFade(int mapId, int x, int y, int direction, boolean keepVehicles) {
+                requestTransfer(mapId, x, y, direction, 1);
+                if (pendingTransfer != null) {
+                    pendingTransfer.keepVehicles = keepVehicles;
+                }
+            }
+
+            @Override
+            public float flyAnimation(boolean departure) {
+                return screenPort == null ? 0f : screenPort.flyAnimation(departure);
+            }
+
+            @Override
+            public float sweetScentFlash() {
+                return screenPort == null ? 0f : screenPort.sweetScentFlash();
+            }
+
+            @Override
+            public boolean darknessActive() {
+                return screenPort != null && screenPort.darknessActive();
+            }
+
+            @Override
+            public float flashDarkness() {
+                return screenPort == null ? 0f : screenPort.flashDarkness();
+            }
         };
         eventInterpreter = new EventInterpreter(gameState, messageService, inputManager,
                 audioManager, this::commonEventCommands, mapPort, pictureService,
@@ -509,14 +623,8 @@ public final class RuntimeContext {
      * the player simply keeps the map and walks on.
      */
     private void whiteOut() {
-        gameState.trainer().healParty();
-        if (gameState.trainer().hasPokemonCenter()) {
-            game.log("white-out: warping to the PokeCenter");
-            requestTransfer(gameState.trainer().healMapId, gameState.trainer().healX,
-                    gameState.trainer().healY, gameState.trainer().healDirection, 0);
-        } else {
-            game.log("white-out: no PokeCenter set; the party was healed");
-        }
+        screenEffects.fade(0, true);                                             // the screen is black while pbStartOver speaks
+        eventInterpreter.startOver();                                            // pbStartOver (297_Follower_Main)
     }
 
     /** Common event lookup for CALL_COMMON_EVENT (project3 section 27). */
@@ -564,6 +672,8 @@ public final class RuntimeContext {
         public final int y;
         public final int direction;
         public final int fade;
+        /** {@code transfer_player(false)}: the surf / dive flags survive the swap (Dive and Surfacing). */
+        public boolean keepVehicles;
 
         Transfer(int mapId, int x, int y, int direction, int fade) {
             this.mapId = mapId;
