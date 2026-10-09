@@ -27,6 +27,9 @@ public final class PokemonGame extends Game {
     private final String dataRoot;
     private final int startMapOverride;
     private final KeyStateSource keySource;
+    /** On-screen keys of a touch build (Android); null on the desktop. */
+    private final pokemon.runtime.input.touch.TouchControls touch;
+    private com.badlogic.gdx.graphics.g2d.SpriteBatch touchBatch;
     private RuntimeContext context;
     /** Window size to restore when fullscreen is left (R11). */
     private int windowedWidth = ScreenMetrics.LOGICAL_WIDTH;
@@ -48,6 +51,17 @@ public final class PokemonGame extends Game {
      * @param keySource       desktop key state; null keeps the game headless
      */
     public PokemonGame(String dataRoot, int startMapOverride, KeyStateSource keySource) {
+        this(dataRoot, startMapOverride, keySource, null);
+    }
+
+    /**
+     * @param touch on-screen keys (a touch build); the caller wraps its key
+     *              source with {@code touch.wrap(...)} so the keys reach the
+     *              game as ordinary keys
+     */
+    public PokemonGame(String dataRoot, int startMapOverride, KeyStateSource keySource,
+                       pokemon.runtime.input.touch.TouchControls touch) {
+        this.touch = touch;
         this.dataRoot = dataRoot;
         this.startMapOverride = startMapOverride;
         this.keySource = keySource;
@@ -78,6 +92,10 @@ public final class PokemonGame extends Game {
             }
         }
 
+        if (touch != null && context.database() != null) {
+            createTouchControls();
+        }
+
         if (context.database() != null) {
             // R3/R4: the walking demo starts on the System start map unless an
             // explicit map was requested (e.g. the demo runs Map002). L1: the
@@ -96,6 +114,17 @@ public final class PokemonGame extends Game {
         }
     }
 
+    /** The key faces use the project's message font, sized from the screen height. */
+    private void createTouchControls() {
+        String name = context.database().project().runtime.messageFont;
+        java.io.File file = name == null ? null
+                : new pokemon.runtime.map.GraphicsLocator(context.database()).font(name);
+        int height = Gdx.graphics.getHeight();
+        touch.create(new pokemon.runtime.ui.menu.MenuFont(file, Math.round(height * 0.06f)),
+                new pokemon.runtime.ui.menu.MenuFont(file, Math.round(height * 0.028f)));
+        touchBatch = new com.badlogic.gdx.graphics.g2d.SpriteBatch();
+    }
+
     /** Logger wrapper so the context can log without holding a Gdx reference. */
     public void log(String message) {
         if (Gdx.app != null) {
@@ -109,13 +138,24 @@ public final class PokemonGame extends Game {
     public void render() {
         // The input manager is polled once per frame so that every system sees
         // the same frame snapshot (project3 sections 13, 14).
+        if (touch != null) {
+            touch.update();
+        }
         context.inputManager().beginFrame();
         if (getScreen() instanceof MapScreen) {
             context.gameState().trainer().playSeconds += Math.max(0, Math.min(1, Gdx.graphics.getDeltaTime()));
         }
         context.audioManager().update(Gdx.graphics.getDeltaTime()); // R6.24: BGM cue
         handleSystemKeys();
-        super.render();
+        // Game#render, with the frame time scaled by the speed-up (346_Speed_Up).
+        if (getScreen() != null) {
+            getScreen().render(GameSpeed.scale(Gdx.graphics.getDeltaTime()));
+        }
+        if (touch != null && touchBatch != null) {
+            touch.render(touchBatch);
+        } else {
+            renderSpeedLabel();
+        }
         context.inputManager().endFrame();
     }
 
@@ -131,6 +171,7 @@ public final class PokemonGame extends Game {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
             toggleFullscreen();
         }
+        handleSpeedKeys();
         if ((context.battlePort() != null && context.battlePort().pending()) || context.menuService().pending() != null) return;
         // The pause menu's party screen owns F5 (Input::F5 = 寄存系统).
         boolean pauseMenuOpen = getScreen() instanceof pokemon.runtime.map.MapScreen
@@ -142,6 +183,62 @@ public final class PokemonGame extends Game {
             loadQuick();
         }
     }
+
+    /**
+     * 346_Speed_Up:16-34 (Windows only, like the plugin): Alt = next speed,
+     * Ctrl+Alt = back to 1x. The touch build has its own speed key.
+     */
+    private void handleSpeedKeys() {
+        if (touch != null || Gdx.app.getType() != com.badlogic.gdx.Application.ApplicationType.Desktop) {
+            return;
+        }
+        boolean alt = Gdx.input.isKeyJustPressed(Input.Keys.ALT_LEFT) || Gdx.input.isKeyJustPressed(Input.Keys.ALT_RIGHT);
+        if (!alt) {
+            return;
+        }
+        if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) {
+            GameSpeed.reset();
+        } else {
+            GameSpeed.cycle();
+        }
+    }
+
+    /** 346_Speed_Up:30-37: "N×" at the top right of the game picture (small font, white on black, opacity 224). */
+    private void renderSpeedLabel() {
+        String label = GameSpeed.label();
+        if (label == null || context.database() == null) {
+            return;
+        }
+        int width = Gdx.graphics.getWidth(), height = Gdx.graphics.getHeight();
+        float scale = Math.min(width / (float) ScreenMetrics.logicalWidth(), height / (float) ScreenMetrics.logicalHeight());
+        int size = Math.max(8, Math.round(25f * scale));          // pbSetSmallFont
+        if (speedFont == null || speedFontSize != size) {
+            String name = context.database().project().runtime.messageFont;
+            java.io.File file = name == null ? null
+                    : new pokemon.runtime.map.GraphicsLocator(context.database()).font(name);
+            if (speedFont != null) {
+                speedFont.dispose();
+            }
+            speedFont = new pokemon.runtime.ui.menu.MenuFont(file, size);
+            speedFontSize = size;
+        }
+        if (speedBatch == null) {
+            speedBatch = new com.badlogic.gdx.graphics.g2d.SpriteBatch();
+        }
+        Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
+        com.badlogic.gdx.graphics.OrthographicCamera camera = new com.badlogic.gdx.graphics.OrthographicCamera();
+        camera.setToOrtho(false, width, height);
+        speedBatch.setProjectionMatrix(camera.combined);
+        float right = (width + ScreenMetrics.logicalWidth() * scale) / 2f;       // right edge of the game picture
+        speedBatch.begin();
+        speedFont.drawRight(speedBatch, label, right, height, new com.badlogic.gdx.graphics.Color(1f, 1f, 1f, 224f / 255f),
+                new com.badlogic.gdx.graphics.Color(0f, 0f, 0f, 224f / 255f));
+        speedBatch.end();
+    }
+
+    private pokemon.runtime.ui.menu.MenuFont speedFont;
+    private int speedFontSize;
+    private com.badlogic.gdx.graphics.g2d.SpriteBatch speedBatch;
 
     private void toggleFullscreen() {
         if (Gdx.graphics == null) {
@@ -196,6 +293,18 @@ public final class PokemonGame extends Game {
         }
         if (getScreen() != null) {
             getScreen().dispose();
+        }
+        if (touch != null) {
+            touch.dispose();
+        }
+        if (touchBatch != null) {
+            touchBatch.dispose();
+        }
+        if (speedBatch != null) {
+            speedBatch.dispose();
+        }
+        if (speedFont != null) {
+            speedFont.dispose();
         }
         super.dispose();
     }

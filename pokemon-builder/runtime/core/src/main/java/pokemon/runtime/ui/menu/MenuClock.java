@@ -33,7 +33,8 @@ final class MenuClock {
         if (Gdx.graphics == null) {
             return 1;
         }
-        accumulated += FIXED_DELTA >= 0f ? FIXED_DELTA : Math.min(Gdx.graphics.getDeltaTime(), 0.25f);
+        accumulated += FIXED_DELTA >= 0f ? FIXED_DELTA
+                : Math.min(pokemon.runtime.app.GameSpeed.scale(Gdx.graphics.getDeltaTime()), 0.25f * pokemon.runtime.app.GameSpeed.multiplier());
         int ticks = (int) (accumulated / TICK);
         accumulated -= ticks * TICK;
         return ticks;

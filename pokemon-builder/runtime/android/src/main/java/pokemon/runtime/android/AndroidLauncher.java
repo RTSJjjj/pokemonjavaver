@@ -10,6 +10,7 @@ import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
 
 import pokemon.runtime.app.PokemonGame;
 import pokemon.runtime.data.DataPackUnpacker;
+import pokemon.runtime.input.touch.TouchControls;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -54,7 +55,10 @@ public final class AndroidLauncher extends AndroidApplication {
         config.useGyroscope = false;
         config.useImmersiveMode = true;
 
-        initialize(new PokemonGame(dataRoot, -1, new AndroidKeyStateSource()), config);
+        // Release plan P1: the screen keys stand in for physical keys, so a
+        // keyboard still works and the game sees ordinary GameActions.
+        TouchControls touch = new TouchControls();
+        initialize(new PokemonGame(dataRoot, -1, touch.wrap(new AndroidKeyStateSource()), touch), config);
     }
 
     /**

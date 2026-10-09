@@ -509,7 +509,7 @@ public final class BagView {
     }
 
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, WindowSkin speech, MenuFont smallFont) {
-        gridOffset += Gdx.graphics.getDeltaTime() * 40f;
+        gridOffset += pokemon.runtime.app.GameSpeed.scale(Gdx.graphics.getDeltaTime()) * 40f;
         float w = ScreenMetrics.logicalWidth(), h = ScreenMetrics.logicalHeight();
         drawBackground(b, a, w, h);
         drawPocket(b, a, f, h);
