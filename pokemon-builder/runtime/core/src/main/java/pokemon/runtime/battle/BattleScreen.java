@@ -2552,6 +2552,55 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         useCommandItem(id, target, -1);
     }
 
+    /** {@code $BallTypes} (105_PokeBall_CatchEffects:1-30): the order {@code fastCatching} lists the balls in. */
+    private static final String[] BALL_TYPES = {"POKEBALL", "GREATBALL", "SAFARIBALL", "ULTRABALL", "MASTERBALL", "NETBALL",
+            "DIVEBALL", "NESTBALL", "REPEATBALL", "TIMERBALL", "LUXURYBALL", "PREMIERBALL", "DUSKBALL", "HEALBALL", "QUICKBALL",
+            "CHERISHBALL", "FASTBALL", "LEVELBALL", "LUREBALL", "HEAVYBALL", "LOVEBALL", "FRIENDBALL", "MOONBALL", "SPORTBALL",
+            "DREAMBALL", "BEASTBALL", "PETBALL", "WILDERNESSBALL"};
+    private pokemon.runtime.ui.menu.FastCatchView fastCatch;
+    /** {@code @battle.esfc_ball_index}: the ball the last quick catch of this battle stopped on. */
+    private int fastCatchIndex;
+
+    /**
+     * 156_Scene_Commands:64-76 and 355_ES_s_Fast_Catching:142-160 {@code fastCatching}. Nothing happens in a trainer
+     * battle, with switch 196 on, in the Safari Zone, against a Boss (battleRank > 1) or with {@code disablePokeBalls}.
+     *
+     * @return whether the key was taken (the picker opened, or the "no balls" line was queued)
+     */
+    private boolean openFastCatch() {
+        if (session.battle.trainerBattle || context.gameState().switches().get(196)) return false;      // :65-66
+        Battler me = fighter();
+        boolean[] boss = {false};
+        me.eachOpposing(o -> { if (o.pokemon != null && o.pokemon.battleRank > 1) boss[0] = true; });  // :68-75
+        if (boss[0] || session.ballsDisabled()) return false;                                           // :76-77
+        java.util.List<String> balls = new ArrayList<>();
+        for (String ball : BALL_TYPES) {                                                                // 355:146-150
+            if (context.pbsData().item(ball) != null && context.gameState().inventory().has(ball)) balls.add(ball);
+        }
+        if (balls.isEmpty()) {
+            session.message = "没有可供捕捉的精灵球。";                                                       // 355:152-153 pbDisplay
+            queueSessionEvents();
+            go(0);
+            return true;
+        }
+        fastCatch = new pokemon.runtime.ui.menu.FastCatchView(context, balls, fastCatchIndex,
+                context.gameState().trainer().gender == pokemon.runtime.pokemon.PokemonStats.FEMALE);
+        return true;
+    }
+
+    private void updateFastCatch(InputManager input) {
+        pokemon.runtime.ui.menu.FastCatchView.Result result = fastCatch.update(input);
+        fastCatchIndex = fastCatch.index();
+        if (result == pokemon.runtime.ui.menu.FastCatchView.Result.OPEN) return;
+        String ball = fastCatch.ball();
+        boolean thrown = result == pokemon.runtime.ui.menu.FastCatchView.Result.THROW;
+        fastCatch = null;
+        if (thrown) {                                                  // 355:81-87 pbThrowPokeBall(@battler.index, ball): the direct opponent
+            Battler target = fighter().pbDirectOpposing(true);
+            useCommandItem(ball, 0, target.index);
+        }
+    }
+
     private void useCommandItem(String id, int target, int idxTarget) {
         int idxBattler = actingIndex();
         PbsData.Item data = context.pbsData().item(id);
@@ -4347,6 +4396,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
 
+        // ---- 355_ES_s_Fast_Catching: the Poke Ball picker, opened by Input::A on the command menu (156_Scene_Commands:64-76) ----
+        if (fastCatch != null) {
+            updateFastCatch(input);
+            return;
+        }
+        if (page == 0 && !session.safari && input.wasPressed(GameAction.SPECIAL) && openFastCatch()) {
+            return;
+        }
+
         // ---- command / fight menus ----
         if (input.wasPressed(GameAction.CANCEL) && page != 0) {
             if (page == 1) lastMove[actingIndex()] = cursor.index();                 // Scene_Commands:174
@@ -4535,6 +4593,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 drawFightMenu(batch, w, h);
             } else if (stage == Stage.BATTLE && window == COMMAND_BOX) {
                 drawCommandWindow(batch, w, h);
+            }
+            if (fastCatch != null && stage == Stage.BATTLE) {
+                fastCatch.render(batch, assets, font, skin, smallFont);
             }
             // pbShowCommands's command window (PokeBattle_Scene:202-237).
             if (choiceOptions != null) {

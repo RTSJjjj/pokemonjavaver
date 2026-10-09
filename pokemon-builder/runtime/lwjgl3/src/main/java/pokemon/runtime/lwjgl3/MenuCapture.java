@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1444,6 +1444,39 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "fastcatch":
+                context.gameState().inventory().add("GREATBALL", 4);
+                context.gameState().inventory().add("ULTRABALL", 2);
+                context.gameState().inventory().add("MASTERBALL", 1);
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().wildBattle("BULBASAUR", 5);
+                renderMap();
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 2400);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 1200);
+                stepMap(GameAction.SPECIAL);                 // Input::A on the command menu: the Poke Ball picker
+                advanceMap(1f / 60f, 6);
+                shotMap("fastcatch-1");
+                stepMap(GameAction.RIGHT);
+                advanceMap(1f / 60f, 12);
+                shotMap("fastcatch-2");
+                stepMap(GameAction.RIGHT);
+                stepMap(GameAction.RIGHT);                   // Master Ball
+                advanceMap(1f / 60f, 12);
+                stepMap(GameAction.CONFIRM);                 // pbConfirmMessageSerious
+                advanceMap(1f / 60f, 30);
+                shotMap("fastcatch-master-confirm");
+                stepMap(GameAction.CANCEL);                  // 否
+                stepMap(GameAction.LEFT);
+                stepMap(GameAction.LEFT);
+                stepMap(GameAction.LEFT);                    // back to the Poke Ball
+                stepMap(GameAction.CONFIRM);                 // throw
+                for (int i = 0; i < 6; i++) {
+                    advanceMap(1f / 60f, 30);
+                    shotMap("fastcatch-throw" + i);
+                }
+                break;
             case "headnames":
                 context.settings().headtopname = 3;
                 mapScreen = new MapScreen(context, 3, 18, 14, 8);

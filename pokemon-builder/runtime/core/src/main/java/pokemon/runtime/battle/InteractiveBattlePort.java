@@ -1321,6 +1321,11 @@ public final class InteractiveBattlePort implements BattlePort {
          *
          * @param idxTarget the opposing battler a Poke Ball is thrown at
          */
+        /** {@code @battle.disablePokeBalls} (355_ES_s_Fast_Catching's caller, 156_Scene_Commands:75). */
+        public boolean ballsDisabled() {
+            return disablePokeBalls;
+        }
+
         public boolean commandItem(String id, int target, int idxBattler, int idxTarget) {
             return useItem(id, target, idxBattler, battle.battlerAt(idxTarget), false);
         }
