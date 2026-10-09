@@ -63,7 +63,8 @@ public final class MessageWindow implements Disposable {
     public int textSpeed = 1;
     /** The char-by-char reveal (MessageConfig::pbGetSystemTextSpeed). */
     private int revealedChars;
-    private String revealKey = "";
+    private String[] revealLines = new String[0];
+    private String revealSpeaker;
 
     public MessageWindow(MessageService messages, File fontFile,
                          TextureRepository textures, GraphicsLocator locator) {
@@ -92,6 +93,54 @@ public final class MessageWindow implements Disposable {
 
     public boolean ready() {
         return ready;
+    }
+
+    /** Fixed text of the item / gift messages (309_Item_Find) and the common UI wording, rendered ahead of time. */
+    private static final String COMMON_TEXT =
+            "你发现了获得一些个将放进口袋。但是背包满了...！？，、：“”（）《》0123456789"
+            + "道具回复精灵球招式学习机树果超级石对战重要特殊零花钱是否好的不"
+            + "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz×$%,.:;!?'\"-+/ ";
+
+    /**
+     * Generates the glyphs of the incremental font and loads the skins / icons the item messages use, so the first
+     * message does not stall on FreeType and disk reads. {@code extraTexts}: item and move names of the PBS data.
+     */
+    public void warmUp(Iterable<String> extraTexts) {
+        if (!ready) {
+            return;
+        }
+        java.util.LinkedHashSet<Integer> codes = new java.util.LinkedHashSet<>();
+        addCodePoints(codes, COMMON_TEXT);
+        if (extraTexts != null) {
+            for (String text : extraTexts) {
+                addCodePoints(codes, text);
+            }
+        }
+        StringBuilder all = new StringBuilder(codes.size() * 2);
+        for (int code : codes) {
+            all.appendCodePoint(code);
+            if (all.length() >= 64) {                       // short layouts keep each glyph-page update small
+                layout.setText(font, all);
+                all.setLength(0);
+            }
+        }
+        if (all.length() > 0) {
+            layout.setText(font, all);
+        }
+        skin(DEFAULT_SKIN);
+        skin(CHOICE_SKIN);
+        ui("pause", "Pictures/pause.png");
+        ui("selarrow", "Pictures/selarrow.png");
+        for (int pocket = 1; pocket <= 9; pocket++) {
+            iconTexture("bagPocket" + pocket);
+        }
+    }
+
+    private static void addCodePoints(java.util.Set<Integer> codes, String text) {
+        if (text == null) {
+            return;
+        }
+        text.codePoints().forEach(codes::add);
     }
 
     /**
@@ -233,46 +282,92 @@ public final class MessageWindow implements Disposable {
                            float windowX, float windowY, float windowHeight,
                            float windowWidth) {
         updateReveal();
+        ensureLayoutCache(palette);
         float contentX = windowX + (skin != null ? skin.geometry.trimStartX : 16f);
         float contentWidth = windowWidth - (skin != null ? skin.geometry.borderX : 32f);
         float contentTop = windowY + windowHeight - (skin != null ? skin.geometry.trimStartY : 16f);
-        Array<Run> runs = new Array<>();
-        // <ac> persists across line breaks (the source keeps an alignment
-        // stack until </ac>), which is how the notice pages centre every line.
-        boolean centered = false;
         int remaining = revealedChars;
-        for (int i = 0; i < messages.lines().size; i++) {
-            String line = messages.lines().get(i);
-            String lower = line.toLowerCase();
-            if (lower.contains("<ac>")) {
-                centered = true;
-            }
-            runs.clear();
-            collectRuns(line, palette, runs);
-            float lineWidth = 0f;
-            for (Run run : runs) {
-                lineWidth += runWidth(run);
-            }
-            float x = centered ? contentX + Math.max(0f, (contentWidth - lineWidth) / 2f) : contentX;
+        for (int i = 0; i < cachedRuns.size; i++) {
+            Array<Run> runs = cachedRuns.get(i);
+            float x = cachedCentered[i] ? contentX + Math.max(0f, (contentWidth - cachedWidths[i]) / 2f) : contentX;
             float y = contentTop - i * LINE_HEIGHT;
-            for (Run run : runs) {
-                String visible = run.text;
-                if (remaining < visible.length()) {
-                    visible = remaining <= 0 ? "" : visible.substring(0, remaining);
-                }
-                remaining -= run.text.length();
-                if (!visible.isEmpty()) {
+            for (int r = 0; r < runs.size; r++) {
+                Run run = runs.get(r);
+                int length = run.text.length();
+                if (remaining > 0) {
                     if (run.icon != null) {
                         Texture icon = iconTexture(run.icon);
                         if (icon != null) {
                             batch.draw(icon, x, y - icon.getHeight() + 6f);
                         }
+                    } else if (remaining >= length) {
+                        drawRun(batch, run, x, y);                       // fully revealed: no copy
                     } else {
-                        drawRun(batch, new Run(visible, run.base, run.shadow), x, y);
+                        drawRun(batch, new Run(run.text.substring(0, remaining), run.base, run.shadow), x, y);
                     }
                 }
-                x += runWidth(run);
+                remaining -= length;
+                x += run.width;
             }
+        }
+    }
+
+    // The parsed message, rebuilt only when its text/speaker/palette changes (not every frame).
+    private final Array<Array<Run>> cachedRuns = new Array<>();
+    private String[] cachedSource = new String[0];
+    private float[] cachedWidths = new float[0];
+    private boolean[] cachedCentered = new boolean[0];
+    private int cachedTotalChars;
+    private int cachedBase = Integer.MIN_VALUE;
+    private int cachedShadow;
+
+    private boolean layoutCacheValid(Array<String> lines, MessagePalette palette) {
+        if (cachedSource.length != lines.size || cachedBase != palette.base || cachedShadow != palette.shadow) {
+            return false;
+        }
+        for (int i = 0; i < cachedSource.length; i++) {
+            String line = lines.get(i);
+            if (line != cachedSource[i] && !line.equals(cachedSource[i])) {      // same instance each frame: O(1)
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void ensureLayoutCache(MessagePalette palette) {
+        Array<String> lines = messages.lines();
+        if (layoutCacheValid(lines, palette)) {
+            return;
+        }
+        int count = lines.size;
+        cachedSource = new String[count];
+        cachedWidths = new float[count];
+        cachedCentered = new boolean[count];
+        cachedRuns.clear();
+        cachedBase = palette.base;
+        cachedShadow = palette.shadow;
+        cachedTotalChars = 0;
+        // <ac> persists across line breaks (the source keeps an alignment
+        // stack until </ac>), which is how the notice pages centre every line.
+        boolean centered = false;
+        for (int i = 0; i < count; i++) {
+            String line = lines.get(i);
+            cachedSource[i] = line;
+            String lower = line.toLowerCase();
+            if (lower.contains("<ac>")) {
+                centered = true;
+            }
+            Array<Run> runs = new Array<>();
+            collectRuns(line, palette, runs);
+            float width = 0f;
+            for (Run run : runs) {
+                run.width = runWidth(run);
+                width += run.width;
+            }
+            cachedRuns.add(runs);
+            cachedWidths[i] = width;
+            cachedCentered[i] = centered;
+            cachedTotalChars += line.length();
             if (lower.contains("</ac>")) {
                 centered = false;
             }
@@ -284,18 +379,20 @@ public final class MessageWindow implements Disposable {
      * frame (slow waits a frame between characters, fast shows three at a time).
      */
     private void updateReveal() {
-        StringBuilder key = new StringBuilder();
-        for (String line : messages.lines()) {
-            key.append(line).append('\n');
+        Array<String> lines = messages.lines();
+        String speaker = messages.speaker();
+        boolean changed = revealLines.length != lines.size || !java.util.Objects.equals(speaker, revealSpeaker);
+        for (int i = 0; !changed && i < lines.size; i++) {
+            String line = lines.get(i);
+            changed = line != revealLines[i] && !line.equals(revealLines[i]);
         }
-        key.append('|').append(messages.speaker());
-        String current = key.toString();
-        if (!current.equals(revealKey)) {
-            revealKey = current;
+        if (changed) {
+            revealLines = lines.toArray(String.class);
+            revealSpeaker = speaker;
             revealedChars = 0;
         }
         int total = 0;
-        for (String line : messages.lines()) {
+        for (String line : revealLines) {
             total += line.length();
         }
         if (revealedChars >= total) {
@@ -328,6 +425,8 @@ public final class MessageWindow implements Disposable {
         final int shadow;
         /** {@code <icon=X>} (070_DrawText:604-610): a picture of Graphics/Icons drawn in the line, or null. */
         final String icon;
+        /** Measured once when the message is parsed. */
+        float width;
 
         Run(String text, int base, int shadow) {
             this(text, base, shadow, null);

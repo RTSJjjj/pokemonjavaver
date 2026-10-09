@@ -329,6 +329,18 @@ public final class MapScreen extends ScreenAdapter {
             messageWindow = new MessageWindow(context.messageService(),
                     locator.font(messageFontName), textures, locator);
             messageWindow.money = () -> context.gameState().trainer().money;
+            java.util.List<String> names = new java.util.ArrayList<>();
+            pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+            if (pbs != null) {
+                for (pokemon.runtime.pokemon.PbsData.Item item : pbs.items.values()) {
+                    names.add(item.name);
+                    names.add(item.namePlural);
+                }
+                for (pokemon.runtime.pokemon.PbsData.Move move : pbs.moves.values()) {
+                    names.add(move.name);
+                }
+            }
+            messageWindow.warmUp(names);   // glyphs, skins and icons before the first message
         }
         pauseMenu = new PauseMenuOverlay(context, locator);
         pauseMenu.host(new PauseMenuOverlay.Host() {
