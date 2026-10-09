@@ -10,7 +10,7 @@
 
 | # | 工作包 | 插件出处 | 规模 | 验收 |
 |---|---|---|---|---|
-| 1 | **任务系统**：接受/推进/完成/失败的提示文字；暂停菜单“任务”入口（图标 `menuQuests`）；任务日志界面；任务名称与阶段文字 | 282_002_Quest_Main（326 行）、283_003_Quest_UI（323）、284_004_Quest_Data（1683）、281_001_Quest_Config | 大 | 地图里触发任务时有原文提示；日志里能看到进行中/已完成/已失败及阶段文字；截图核对 |
+| 1 | **任务系统**（已实现，待实机：提示文字、暂停菜单“任务”、日志界面；任务数据由 `build-data` 导出 `generated/quests.json`，需要重新打包）：接受/推进/完成/失败的提示文字；暂停菜单“任务”入口（图标 `menuQuests`）；任务日志界面；任务名称与阶段文字 | 282_002_Quest_Main（326 行）、283_003_Quest_UI（323）、284_004_Quest_Data（1683）、281_001_Quest_Config | 大 | 地图里触发任务时有原文提示；日志里能看到进行中/已完成/已失败及阶段文字；截图核对 |
 | 2 | **钓鱼**：`SUPERROD` 使用、等待与咬钩、`pbFishing` 遇敌 | 170_PField_Field:1232-（`pbFishingBegin/End/pbFishing`）、189_PItem_ItemEffects | 中 | 面朝水面用鱼竿能钓到水面遇敌表里的宝可梦，没有遇敌时有原文提示 |
 | 3 | **关键道具使用**：`TOWNMAP`（打开地区地图）、`LANTERN`、`INFINITEROPE`（带确认的逃脱绳）、`EONFLUTE`、`ETHEREALNEXUS` | 189_PItem_ItemEffects 的 `UseFromBag`/`UseInField` | 中 | 背包里使用有原文效果；“这里不能使用”只在原文条件下出现 |
 | 4 | **快速捕捉**（已实现，待实机：按 Z/Shift = `Input::A`；选球界面 L/R 翻 5 个，大师球有确认）：战斗指令菜单按 A（`Input::A`），弹出捕捉球选择界面，直接扔球（狩猎战斗、训练家战斗、Boss、`disablePokeBalls`、开关 196 时不可用） | 355_ES_s_Fast_Catching（168 行）、156_Scene_Commands:64-76 | 小 | 野外战斗按 A 列出背包里有的精灵球并扔出；无球时说“没有可供捕捉的精灵球。”；上述不可用情形下按键无反应 |

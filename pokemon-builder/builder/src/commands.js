@@ -21,6 +21,7 @@ import { writeAuditReports } from "../../tools/report-writer/index.js";
 import { convertProject, formatConvertSummary } from "../../tools/data-converter/index.js";
 import { writeScriptIr } from "./script-compiler.js";
 import { syncBossBattles } from "./boss-battles.js";
+import { syncQuestData } from "./quest-data.js";
 import {
   DEFAULT_AUDIO_OPTIONS,
   AUDIO_PRESETS,
@@ -401,6 +402,7 @@ function cmdBuildData(ctx, parsed) {
   if (!converted) return EXIT_ERROR;
   if (!compileScripts(ctx, "4/4")) return EXIT_ERROR;
   if (!bossBattleStep(ctx, validated.projectPath, "4/4")) return EXIT_ERROR;
+  if (!questDataStep(ctx, validated.projectPath, "4/4")) return EXIT_ERROR;
   console.log("BUILD DATA SUCCESS");
   console.log("BUILD SUCCESS");
   return EXIT_OK;
@@ -442,6 +444,22 @@ function bossBattleStep(ctx, projectPath, step) {
   }
   if (!boss.skipped) {
     ctx.logger.step(`      defs=${boss.defs} entries=${boss.entries} ${boss.changed ? "updated" : "unchanged"}`);
+  }
+  return true;
+}
+
+/** Quest plugin: the 004_Quest_Data table becomes generated/quests.json (the quest log's names, stages and rewards). */
+function questDataStep(ctx, projectPath, step) {
+  ctx.logger.step(`[${step}] Quest data: exporting the plugin table to generated/quests.json...`);
+  const quests = syncQuestData(ctx.builderRoot, projectPath);
+  for (const warning of quests.warnings) ctx.logger.warn("      " + warning);
+  if (!quests.ok) {
+    for (const error of quests.errors) ctx.logger.error("      " + error);
+    ctx.logger.error("quest data export failed");
+    return false;
+  }
+  if (!quests.skipped) {
+    ctx.logger.step(`      quests=${quests.quests} ${quests.changed ? "updated" : "unchanged"}`);
   }
   return true;
 }
@@ -586,6 +604,7 @@ function cmdBuildPc(ctx, parsed) {
   const ir = compileScripts(ctx, "4/8");
   if (!ir) return EXIT_ERROR;
   if (!bossBattleStep(ctx, validated.projectPath, "4/8")) return EXIT_ERROR;
+  if (!questDataStep(ctx, validated.projectPath, "4/8")) return EXIT_ERROR;
 
   const audio = runAudioStep(ctx, parsed, "[5/8]", validated.projectPath);
   if (!audio.ok) return EXIT_ERROR;
@@ -700,6 +719,7 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
   const ir = compileScripts(ctx, "4/8");
   if (!ir) return EXIT_ERROR;
   if (!bossBattleStep(ctx, validated.projectPath, "4/8")) return EXIT_ERROR;
+  if (!questDataStep(ctx, validated.projectPath, "4/8")) return EXIT_ERROR;
 
   const audio = runAudioStep(ctx, parsed, "[5/8]", validated.projectPath);
   if (!audio.ok) return EXIT_ERROR;

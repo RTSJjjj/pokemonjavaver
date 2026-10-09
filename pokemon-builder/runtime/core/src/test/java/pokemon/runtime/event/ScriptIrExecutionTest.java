@@ -525,7 +525,28 @@ class ScriptIrExecutionTest {
         return new JsonReader().parse(new FileHandle(irFile)).get("commands");
     }
 
-    @Test
+        @Test
+    @DisplayName("activateQuest / advanceQuestToStage show the plugin's message and wait (282_002_Quest_Main:63, :150)")
+    void questMessages() {
+        ir("blk", "{\"command\":\"SEQUENCE\",\"steps\":["
+                + "{\"command\":\"ACTIVATE_QUEST\",\"quest\":\"Quest7\"},"
+                + "{\"command\":\"ADVANCE_QUEST_TO_STAGE\",\"quest\":\"Quest7\",\"stage\":2}]}");
+        interpreter.start(program(block(0, "blk")), 2, 8);
+        interpreter.update(0f);
+        assertEquals(InterpreterState.WAIT_MESSAGE, interpreter.state());
+        assertTrue(messages.lines().first().contains("接受到了新的任务！"));
+        assertTrue(state.quests().isActive("Quest7"));
+        for (int i = 0; i < 4 && interpreter.state() == InterpreterState.WAIT_MESSAGE; i++) {
+            input.beginFrame();
+            input.press(GameAction.CONFIRM);
+            interpreter.update(0f);
+            input.endFrame();
+            interpreter.update(0f);
+        }
+        assertEquals(2, state.quests().stage("Quest7"));
+    }
+
+@Test
     @DisplayName("a SEQUENCE runs every step in order (R6.19)")
     void sequenceSteps() {
         ir("blk", "{\"command\":\"SEQUENCE\",\"steps\":["
@@ -536,8 +557,18 @@ class ScriptIrExecutionTest {
         interpreter.start(program(block(0, "blk")), 2, 8);
         interpreter.update(0f);
 
-        assertEquals(InterpreterState.FINISHED, interpreter.state());
+        // completeQuest's pbMessage (282_002_Quest_Main:129) blocks the sequence until it is dismissed.
+        assertEquals(InterpreterState.WAIT_MESSAGE, interpreter.state());
+        assertTrue(messages.lines().first().contains("任务完成！"));
         assertTrue(state.selfSwitches().get(2, 23, "A"));
+        assertFalse(state.selfSwitches().get(2, 24, "B"));
+        input.beginFrame();
+        input.press(GameAction.CONFIRM);
+        interpreter.update(0f);
+        input.endFrame();
+        interpreter.update(0f);
+
+        assertEquals(InterpreterState.FINISHED, interpreter.state());
         assertTrue(state.selfSwitches().get(2, 24, "B"));
         assertEquals(pokemon.runtime.state.QuestLog.Status.COMPLETED, state.quests().status("Quest5"));
     }

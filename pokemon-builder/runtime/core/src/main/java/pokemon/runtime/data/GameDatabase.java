@@ -150,8 +150,27 @@ public final class GameDatabase {
         MapLinks links = MapLinks.parse(readJson(root, "connections.json"));
         AnimationData animations = AnimationData.parse(readJson(root, "animations.json"));
         TitleData title = TitleData.parse(readJson(root, "title.json"));
-        return new GameDatabase(root, project, system, tilesets, maps, commonEvents, audioManifest,
+        GameDatabase database = new GameDatabase(root, project, system, tilesets, maps, commonEvents, audioManifest,
                 links, animations, title);
+        database.quests = QuestTable.parse(readJson(root, "quests.json"));   // 284_004_Quest_Data
+        return database;
+    }
+
+    private QuestTable quests = QuestTable.empty();
+
+    /** The Quest plugin's quest definitions (never null; empty without quests.json). */
+    public QuestTable quests() {
+        return quests;
+    }
+
+    /** The RMXP map name of {@code mapId} ({@code $game_map.name}), or "" for an unknown map. */
+    public String mapName(int mapId) {
+        for (MapInfo info : maps) {
+            if (info.mapId == mapId) {
+                return info.name == null ? "" : info.name;
+            }
+        }
+        return "";
     }
 
     private static JsonValue readJson(File root, String relative) {

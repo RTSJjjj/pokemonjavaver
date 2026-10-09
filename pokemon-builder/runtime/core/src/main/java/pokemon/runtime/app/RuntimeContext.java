@@ -592,6 +592,7 @@ public final class RuntimeContext {
         if (database != null) {
             // P0c: the Pokemon construction IR commands need the PBS data.
             eventInterpreter.attachPbs(database.pbs());
+            eventInterpreter.attachQuests(database.quests(), database::mapName);
         }
         battlePort = new pokemon.runtime.battle.InteractiveBattlePort(gameState.trainer(), gameState.inventory(),
                 () -> database == null ? null : database.pbs(),
@@ -667,6 +668,7 @@ public final class RuntimeContext {
         interpreter.attachScriptIr(scriptIr);
         if (database != null) {
             interpreter.attachPbs(database.pbs());
+            interpreter.attachQuests(database.quests(), database::mapName);
         }
         if (battlePort == null) {
             battlePort = new pokemon.runtime.battle.InteractiveBattlePort(gameState.trainer(), gameState.inventory(),

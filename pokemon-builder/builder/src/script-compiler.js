@@ -608,6 +608,9 @@ export const HANDLERS = {
   completeQuest(args) {
     return { command: "COMPLETE_QUEST", quest: questName(args[0]) };
   },
+  failQuest(args) {
+    return { command: "FAIL_QUEST", quest: questName(args[0]) };
+  },
   pbGetKeyItem(args) {
     return {
       command: "GIVE_KEY_ITEM",

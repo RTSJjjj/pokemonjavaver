@@ -22,7 +22,7 @@ public final class PauseMenuModel {
         TITLE,
         /** Quit the application. */
         EXIT
-        , PARTY, BAG, POKEDEX, STORAGE
+        , PARTY, BAG, POKEDEX, STORAGE, QUESTS
     }
 
     public static final class Entry {
@@ -66,6 +66,7 @@ public final class PauseMenuModel {
             entries.add(new Entry(Action.PARTY, "宝可梦", "menuPokemon"));
         }
         entries.add(new Entry(Action.BAG, "背包", "menuBag"));
+        entries.add(new Entry(Action.QUESTS, "任务", "menuQuests"));                // Modular Menu:141 :MQS (always available)
         entries.add(new Entry(Action.TRAINER, name, "menuTrainer"));
         if (!inSafari) entries.add(new Entry(Action.SAVE, "保存", "menuSave"));    // Modular Menu:176 !(pbInSafari? || pbInBugContest?)
         entries.add(new Entry(Action.LOAD, "读档", "menuLoad"));

@@ -204,6 +204,12 @@ test("quest chains translate into a SEQUENCE (R6.19)", () => {
   ]);
 });
 
+test("failQuest compiles like the other quest calls (282_002_Quest_Main:66)", () => {
+  const result = compileBlock(essentials("failQuest", "failQuest(:Quest9)"));
+  assert.equal(result.status, "TRANSLATED");
+  assert.deepEqual(result.ir, { command: "FAIL_QUEST", quest: "Quest9" });
+});
+
 test("a non-call statement is reported, not mis-translated (R6.19)", () => {
   const result = compileBlock(essentials("pbSetSelfSwitch",
       'pbSetSelfSwitch(23,"A",true)\n$game_switches[5] = true'));

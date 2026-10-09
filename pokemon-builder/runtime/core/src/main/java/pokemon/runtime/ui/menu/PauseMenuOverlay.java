@@ -38,7 +38,7 @@ public final class PauseMenuOverlay implements Disposable {
         LOAD,
         OPTIONS,
         TRAINER
-        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, MINIGAME, SLOTS, HATCHER, SETUP, MAP, MART, STARTER
+        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, MINIGAME, SLOTS, HATCHER, SETUP, MAP, MART, STARTER, QUESTS
     }
 
     private static final float ROW_HEIGHT = 56f;
@@ -70,6 +70,7 @@ public final class PauseMenuOverlay implements Disposable {
     private PartyView partyView;
     private BagView bagView;
     private PokedexView pokedexView;
+    private QuestListView questView;
     private StorageView storageView;
     private PokeCenterPcView pcView;
     private MartView martView;
@@ -503,7 +504,7 @@ public final class PauseMenuOverlay implements Disposable {
             return false;
         }
         switch (other) {
-            case SAVE: case LOAD: case OPTIONS: case TRAINER: case PARTY: case BAG: case POKEDEX: case STORAGE:
+            case SAVE: case LOAD: case OPTIONS: case TRAINER: case PARTY: case BAG: case POKEDEX: case STORAGE: case QUESTS:
                 return true;
             default:
                 return false;
@@ -626,6 +627,9 @@ public final class PauseMenuOverlay implements Disposable {
                         sub = Sub.MAIN;
                     }
                 }
+                break;
+            case QUESTS:
+                if (questView.update(input)) sub = Sub.MAIN;
                 break;
             case POKEDEX:
                 if (pokedexView.update(input)) sub = Sub.MAIN;
@@ -776,6 +780,8 @@ public final class PauseMenuOverlay implements Disposable {
                 bagView = newBagView(); sub = Sub.BAG; break;
             case POKEDEX:
                 pokedexView = new PokedexView(context); sub = Sub.POKEDEX; break;
+            case QUESTS:
+                questView = new QuestListView(context); sub = Sub.QUESTS; break;      // Modular Menu:141-149 QuestList_Scene
             case STORAGE:
                 // Modular Menu:70-82 (the pause menu's 寄存系统): SE + the blocked-map check + pbStartScreen(0)
                 storageView = new StorageView(context, 0, true);
@@ -912,6 +918,7 @@ public final class PauseMenuOverlay implements Disposable {
             case PARTY: partyView.render(batch, assets, font, skin, smallFont); break;
             case BAG: bagView.render(batch, assets, font, skin, speech, detailFont); break;
             case POKEDEX: pokedexView.render(batch, assets, font, skin, detailFont); break;
+            case QUESTS: questView.render(batch, assets, font, detailFont); break;
             case STORAGE: storageView.render(batch, assets, font, skin, speech, detailFont); break;
             case PC: pcView.render(batch, assets, font, skin, speech, detailFont); break;
             case MART: martView.render(batch, assets, font, skin, speech, detailFont); break;

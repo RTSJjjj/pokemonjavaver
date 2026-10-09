@@ -17,6 +17,7 @@ import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.pokemon.Storage;
 import pokemon.runtime.state.GameState;
+import pokemon.runtime.state.QuestLog;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1217,6 +1218,19 @@ public final class EventInterpreter {
         }
     }
 
+    private pokemon.runtime.data.QuestTable questTable = pokemon.runtime.data.QuestTable.empty();
+    private java.util.function.IntFunction<String> mapNames = id -> "";
+
+    /** The Quest plugin's definitions and {@code $game_map.name} (a quest remembers the map it began on). */
+    public void attachQuests(pokemon.runtime.data.QuestTable table, java.util.function.IntFunction<String> names) {
+        this.questTable = table == null ? pokemon.runtime.data.QuestTable.empty() : table;
+        this.mapNames = names == null ? id -> "" : names;
+    }
+
+    private String questMapName() {
+        return mapNames.apply(state.currentMapId());
+    }
+
     /** R8: shows one message from an IR handler and waits for it (pbMessage). */
     private void showHandlerMessage(String text) {
         Array<String> raw = new Array<>();
@@ -2213,25 +2227,43 @@ public final class EventInterpreter {
             // ---- plugin batch 1: quests, key items, following Pokemon ----
             case "ACTIVATE_QUEST": {
                 String quest = ir.getString("quest", "");
-                if (state.quests().activate(quest)) {
-                    log.warn("quest activated: " + quest);
+                String shown = state.quests().activateQuest(quest, QuestLog.DEFAULT_COLOR, false, questMapName(),
+                        questTable.maxStages(quest), System.currentTimeMillis());          // 282_002_Quest_Main:42-64
+                if (shown != null) {
+                    showHandlerMessage(shown);
+                    return;
                 }
                 break;
             }
             case "ADVANCE_QUEST_TO_STAGE": {
                 String quest = ir.getString("quest", "");
                 JsonValue stage = ir.get("stage");
-                int number = stage == null || !stage.isNumber()
-                        ? state.quests().stage(quest) + 1 : stage.asInt();
-                if (!state.quests().advance(quest, number)) {
-                    log.warn("quest " + quest + " is not active; stage change ignored");
+                int number = stage == null || !stage.isNumber() ? state.quests().stage(quest) + 1 : stage.asInt();
+                String shown = state.quests().advanceQuestToStage(quest, number, null, false, questMapName(),
+                        questTable.maxStages(quest), System.currentTimeMillis());          // :141-166
+                if (shown != null) {
+                    showHandlerMessage(shown);
+                    return;
                 }
                 break;
             }
             case "COMPLETE_QUEST": {
                 String quest = ir.getString("quest", "");
-                if (state.quests().complete(quest)) {
-                    log.warn("quest completed: " + quest);
+                String shown = state.quests().completeQuest(quest, null, false, questMapName(),
+                        questTable.maxStages(quest), System.currentTimeMillis());          // :103-139
+                if (shown != null) {
+                    showHandlerMessage(shown);
+                    return;
+                }
+                break;
+            }
+            case "FAIL_QUEST": {
+                String quest = ir.getString("quest", "");
+                String shown = state.quests().failQuest(quest, null, false, questMapName(),
+                        questTable.maxStages(quest), System.currentTimeMillis());          // :66-101
+                if (shown != null) {
+                    showHandlerMessage(shown);
+                    return;
                 }
                 break;
             }

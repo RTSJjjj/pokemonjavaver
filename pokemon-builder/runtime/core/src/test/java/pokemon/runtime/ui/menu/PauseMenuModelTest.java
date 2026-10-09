@@ -27,23 +27,26 @@ class PauseMenuModelTest {
         PauseMenuModel menu = new PauseMenuModel(state);
         // No party yet: the Pokemon entry is hidden (the plugin's availability
         // check is $Trainer.party.length > 0).
-        assertEquals(9, menu.size());
+        assertEquals(10, menu.size());
         assertEquals(PauseMenuModel.Action.POKEDEX, menu.entryAt(0).action);
         assertEquals("图鉴", menu.entryAt(0).label);
         assertEquals(PauseMenuModel.Action.STORAGE, menu.entryAt(1).action);
         assertEquals("寄存系统", menu.entryAt(1).label);
         assertEquals("menuPC", menu.entryAt(1).icon);
         assertEquals(PauseMenuModel.Action.BAG, menu.entryAt(2).action);
-        assertEquals(PauseMenuModel.Action.TRAINER, menu.entryAt(3).action);
-        assertEquals("测试家", menu.entryAt(3).label, "the trainer entry shows the player name");
-        assertEquals("menuTrainer", menu.entryAt(3).icon);
-        assertEquals(PauseMenuModel.Action.SAVE, menu.entryAt(4).action);
-        assertEquals(PauseMenuModel.Action.LOAD, menu.entryAt(5).action);
-        assertEquals(PauseMenuModel.Action.TITLE, menu.entryAt(6).action);
-        assertEquals("退出", menu.entryAt(6).label);
-        assertEquals(PauseMenuModel.Action.OPTIONS, menu.entryAt(7).action);
-        assertEquals(PauseMenuModel.Action.EXIT, menu.entryAt(8).action);
-        assertEquals("menuExit", menu.entryAt(8).icon);
+        assertEquals(PauseMenuModel.Action.QUESTS, menu.entryAt(3).action, "Modular Menu:141 :MQS follows the bag");
+        assertEquals("任务", menu.entryAt(3).label);
+        assertEquals("menuQuests", menu.entryAt(3).icon);
+        assertEquals(PauseMenuModel.Action.TRAINER, menu.entryAt(4).action);
+        assertEquals("测试家", menu.entryAt(4).label, "the trainer entry shows the player name");
+        assertEquals("menuTrainer", menu.entryAt(4).icon);
+        assertEquals(PauseMenuModel.Action.SAVE, menu.entryAt(5).action);
+        assertEquals(PauseMenuModel.Action.LOAD, menu.entryAt(6).action);
+        assertEquals(PauseMenuModel.Action.TITLE, menu.entryAt(7).action);
+        assertEquals("退出", menu.entryAt(7).label);
+        assertEquals(PauseMenuModel.Action.OPTIONS, menu.entryAt(8).action);
+        assertEquals(PauseMenuModel.Action.EXIT, menu.entryAt(9).action);
+        assertEquals("menuExit", menu.entryAt(9).icon);
     }
 
     @Test
@@ -65,7 +68,7 @@ class PauseMenuModelTest {
         state.trainer().pokepc = true;
         state.trainer().party.add(new Pokemon(null, 5, null));
         PauseMenuModel menu = new PauseMenuModel(state);
-        assertEquals(10, menu.size());
+        assertEquals(11, menu.size());
         assertEquals(PauseMenuModel.Action.POKEDEX, menu.entryAt(0).action);
         assertEquals(PauseMenuModel.Action.STORAGE, menu.entryAt(1).action);
         assertEquals(PauseMenuModel.Action.PARTY, menu.entryAt(2).action);

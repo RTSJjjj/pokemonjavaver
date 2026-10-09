@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1444,6 +1444,41 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "quests": {
+                pokemon.runtime.state.QuestLog log = state.quests();
+                log.activateQuest("Quest1", pokemon.runtime.state.QuestLog.DEFAULT_COLOR, true, "茶月镇", 2, 1700000000000L);
+                log.advanceQuestToStage("Quest1", 2, null, true, "", 2, 1700000000000L);
+                log.activateQuest("Quest3", "7DC076EF", false, "六号道路", 3, 1700100000000L);
+                log.completeQuest("Quest2", "26CC4B56", false, "荼蘼镇", 3, 1700200000000L);
+                log.failQuest("Quest4", "089D5EBF", false, "", 5, 1700300000000L);
+                overlay.openAt(pokemon.runtime.ui.menu.PauseMenuModel.Action.QUESTS);
+                idle(8);
+                renderOverlay();
+                shot("quests-1-list");
+                tapAndRender(GameAction.DOWN, overlay);
+                idle(2);
+                renderOverlay();
+                shot("quests-2-second");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(40);
+                renderOverlay();
+                shot("quests-3-detail");
+                tapAndRender(GameAction.RIGHT, overlay);
+                idle(4);
+                renderOverlay();
+                shot("quests-4-info");
+                tapAndRender(GameAction.CANCEL, overlay);
+                idle(40);
+                tapAndRender(GameAction.RIGHT, overlay);   // 已完成
+                idle(3);
+                renderOverlay();
+                shot("quests-5-completed");
+                tapAndRender(GameAction.RIGHT, overlay);   // 失败
+                idle(3);
+                renderOverlay();
+                shot("quests-6-failed");
+                break;
+            }
             case "fastcatch":
                 context.gameState().inventory().add("GREATBALL", 4);
                 context.gameState().inventory().add("ULTRABALL", 2);

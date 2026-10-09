@@ -25,7 +25,7 @@ class QuestLogTest {
         assertTrue(quests.activate("Q1"));
         assertFalse(quests.activate("Q1"), "activating twice is ignored");
         assertTrue(quests.isActive("Q1"));
-        assertEquals(0, quests.stage("Q1"));
+        assertEquals(1, quests.stage("Q1"), "Quest#initialize: @stage = 1");
 
         assertTrue(quests.advance("Q1", 3));
         assertEquals(3, quests.stage("Q1"));
@@ -35,6 +35,44 @@ class QuestLogTest {
         assertFalse(quests.advance("Q1", 4), "a completed quest no longer advances");
         assertEquals(1, quests.count(QuestLog.Status.COMPLETED));
         assertEquals(0, quests.count(QuestLog.Status.ACTIVE));
+    }
+
+    @Test
+    @DisplayName("the plugin's messages and list moves (282_002_Quest_Main:42-166)")
+    void messages() {
+        QuestLog quests = new GameState().quests();
+        String accepted = quests.activateQuest("Quest1", QuestLog.DEFAULT_COLOR, false, "茶月镇", 2, 1000L);
+        assertEquals("\\se[Mining found all.ogg]<ac><c2=089D5EBF>接受到了新的任务！</c2>\n请点开任务日志查看详情！</ac>", accepted);
+        assertEquals("你已经开始这个任务了。", quests.activateQuest("Quest1", null, false, "", 2, 2000L));
+        assertEquals("茶月镇", quests.entry("Quest1").location);
+        assertEquals(1000L, quests.entry("Quest1").time);
+
+        String moved = quests.advanceQuestToStage("Quest1", 9, "7DC076EF", false, "", 2, 3000L);
+        assertTrue(moved.contains("任务进度更新了！"));
+        assertEquals(2, quests.stage("Quest1"), "the stage never passes the quest's stage count");
+        assertEquals("7DC076EF", quests.entry("Quest1").color);
+
+        String done = quests.completeQuest("Quest1", null, false, "", 2, 4000L);
+        assertTrue(done.contains("任务完成！") && done.contains("您的任务日志已更新！"));
+        assertEquals(4000L, quests.entry("Quest1").time, "completion stamps the time");
+        assertEquals("你已经完成了这个任务。", quests.completeQuest("Quest1", null, false, "", 2, 5000L));
+        assertEquals("你已经完成了这个任务。", quests.activateQuest("Quest1", null, false, "", 2, 5000L));
+        assertEquals("你已经完成了这个任务。", quests.failQuest("Quest1", null, false, "", 2, 5000L));
+    }
+
+    @Test
+    @DisplayName("advancing / completing a quest that was never started adds it silently")
+    void silentCreation() {
+        QuestLog quests = new GameState().quests();
+        assertNull(quests.advanceQuestToStage("Quest4", 3, null, false, "", 5, 1L));
+        assertTrue(quests.isActive("Quest4"));
+        assertEquals(3, quests.stage("Quest4"));
+        assertNull(quests.completeQuest("Quest8", null, false, "", 2, 1L));
+        assertTrue(quests.isCompleted("Quest8"));
+        assertEquals(QuestLog.DEFAULT_COLOR, quests.entry("Quest8").color);
+        String failed = quests.failQuest("Quest4", null, false, "", 5, 2L);
+        assertTrue(failed.contains("Quest failed!") && failed.contains("Your quest log has been updated!"));
+        assertEquals(QuestLog.Status.FAILED, quests.status("Quest4"));
     }
 
     @Test

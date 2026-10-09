@@ -133,6 +133,10 @@ public final class SaveManager {
             quest.addChild("status", new JsonValue(entry.status.name()));
             quest.addChild("stage", new JsonValue(entry.stage));
             quest.addChild("updated", new JsonValue(entry.updated));
+            quest.addChild("color", new JsonValue(entry.color));
+            quest.addChild("story", new JsonValue(entry.story));
+            quest.addChild("time", new JsonValue(entry.time));
+            quest.addChild("location", new JsonValue(entry.location == null ? "" : entry.location));
             quests.addChild(quest);
         }
         root.addChild("quests", quests);
@@ -598,8 +602,16 @@ public final class SaveManager {
                 } catch (IllegalArgumentException ignored) {
                     // unknown status: keep it active
                 }
-                state.quests().restore(id, status, quest.getInt("stage", 0),
-                        quest.getBoolean("updated", false));
+                pokemon.runtime.state.QuestLog.Entry entry = new pokemon.runtime.state.QuestLog.Entry();   // Quest, 282_002_Quest_Main:4-27
+                entry.id = id;
+                entry.status = status;
+                entry.stage = Math.max(1, quest.getInt("stage", 1));
+                entry.updated = quest.getBoolean("updated", false);
+                entry.color = quest.getString("color", pokemon.runtime.state.QuestLog.DEFAULT_COLOR);
+                entry.story = quest.getBoolean("story", false);
+                entry.time = quest.getLong("time", 0L);
+                entry.location = quest.getString("location", "");
+                state.quests().restore(entry);
             }
         }
         state.followerToggled(root.getBoolean("followerToggled", false));
