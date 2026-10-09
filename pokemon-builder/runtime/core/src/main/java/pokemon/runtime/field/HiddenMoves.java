@@ -87,6 +87,11 @@ public final class HiddenMoves {
     }
 
     /** {@code pbCheckHiddenMoveBadge(badge, showmsg)} (:63-72) as a check ($DEBUG is false). */
+    /** {@code pbCheckHiddenMoveBadge(badge, true)}: the badge test with its refusal line. */
+    public static Check badgeCheck(GameState state, int badge) {
+        return badge(state, badge);
+    }
+
     private static Check badge(GameState state, int badge) {
         if (badge < 0) {
             return YES;

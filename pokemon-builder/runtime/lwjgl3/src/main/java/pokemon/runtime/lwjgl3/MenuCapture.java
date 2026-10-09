@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1444,6 +1444,24 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "ropes": {
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                context.gameState().fieldGlobals().escapePoint = new int[] {2, 36, 8, 2};
+                context.gameState().inventory().add("INFINITEROPE", 1);
+                context.eventInterpreter().startFieldItem("INFINITEROPE");
+                for (int i = 0; i < 180; i++) {
+                    advanceMap(1f / 40f, 1);                       // one frame per call: a transfer swaps the screen under the loop
+                    if (i == 6) shotMap("ropes-1-message");
+                    if (i == 12 || i == 24) stepMap(GameAction.CONFIRM);
+                    if (i == 60) shotMap("ropes-2-fade");
+                }
+                shotMap("ropes-3-arrived");
+                System.out.println("rope: map=" + context.gameState().currentMapId() + " escape=" + context.gameState().fieldGlobals().escapePoint.length
+                        + " rope=" + context.gameState().inventory().count("INFINITEROPE"));
+                break;
+            }
             case "fishing": {
                 mapScreen = new MapScreen(context, 10, 31, 23, 2);
                 context.game().setScreen(mapScreen);

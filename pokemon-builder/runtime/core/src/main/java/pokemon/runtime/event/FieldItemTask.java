@@ -29,27 +29,105 @@ final class FieldItemTask {
     private static final String[] ROD_TYPES = {"OldRod", "GoodRod", "SuperRod"};
 
     private final GameState state;
+    private final pokemon.runtime.pokemon.PbsData pbs;
     private final MapPort port;
     private final TaskFieldScene scene;
     private final Services services;
     private final Random random;
 
-    FieldItemTask(GameState state, MapPort port, TaskFieldScene scene, Services services, Random random) {
+    FieldItemTask(GameState state, pokemon.runtime.pokemon.PbsData pbs, MapPort port, TaskFieldScene scene, Services services,
+                  Random random) {
         this.state = state;
+        this.pbs = pbs;
         this.port = port;
         this.scene = scene;
         this.services = services;
         this.random = random;
     }
 
-    /** {@code ItemHandlers.triggerUseInField(item)}: 0 not used, 1 used. */
+    /** {@code ItemHandlers.triggerUseInField(item)}: 0 not used, 1 used, 3 used and consumed. */
     int use(String item) {
         switch (item) {
             case "SUPERROD":
                 return superRod();
+            case "ESCAPEROPE":
+                return escapeRope(item, 3);                                            // :213-240 next 3
+            case "INFINITEROPE":
+                return escapeRope(item, 1);                                            // :242-268 next 1
+            case "LANTERN":
+                return lantern();
             default:
                 return 0;
         }
+    }
+
+    /** {@code pbUseItemMessage(item)} (188_PItem_Items:984-991). */
+    private void useItemMessage(String item) {
+        pokemon.runtime.pokemon.PbsData.Item data = pbs == null ? null : pbs.item(item);
+        scene.pbMessage("使用了" + (data == null || data.name == null ? item : data.name) + "。");
+    }
+
+    /** 189_PItem_ItemEffects:213-268: the maps the ropes refuse, and the way back to the cave mouth. */
+    private static final int[] ROPE_BANNED_MAPS = {60, 226, 207, 321, 322, 209, 210};
+
+    /** {@code UseInField :ESCAPEROPE / :INFINITEROPE}: back to the escape point set by the cave entrance. */
+    private int escapeRope(String item, int consumed) {
+        int[] escape = state.fieldGlobals().escapePoint;
+        if (escape == null || escape.length < 4) {
+            scene.pbMessage("这里不能使用。");                                            // :215-218
+            return 0;
+        }
+        for (int map : ROPE_BANNED_MAPS) {
+            if (state.currentMapId() == map) {
+                scene.pbMessage("这里不能使用。");                                        // :219-222
+                return 0;
+            }
+        }
+        boolean[] partnered = {false};
+        scene.runAction(() -> {
+            partnered[0] = port.hasDependentEvents();
+            return 0f;
+        });
+        if (partnered[0]) {
+            scene.pbMessage("与他人同行时不能使用。");                                      // :223-226
+            return 0;
+        }
+        useItemMessage(item);                                                          // :227
+        final int[] target = escape.clone();
+        scene.runAction(() -> {
+            new pokemon.runtime.field.Vehicles(pbs, state).cancelVehicles(null);       // :234 pbCancelVehicles
+            port.transferThroughFade(target[0], target[1], target[2], target[3], false);   // :229-237 pbFadeOutIn { transfer_player }
+            return 0f;
+        });
+        state.fieldGlobals().escapePoint = new int[0];                                 // :239 pbEraseEscapePoint
+        return consumed;
+    }
+
+    /** {@code UseInField :LANTERN} (:1528-1552): lights a dark cave like Flash does. */
+    private int lantern() {
+        pokemon.runtime.field.HiddenMoves.Check badge = pokemon.runtime.field.HiddenMoves.badgeCheck(state,
+                pokemon.runtime.field.FieldMoves.BADGE_FOR_FLASH);
+        if (!badge.ok) {
+            if (badge.message != null) scene.pbMessage(badge.message);                  // :1529 pbCheckHiddenMoveBadge(..., true)
+            return 0;
+        }
+        boolean[] dark = {false};
+        scene.runAction(() -> {
+            dark[0] = port.darknessActive();
+            return 0f;
+        });
+        if (!dark[0]) {
+            scene.pbMessage("不能在这里使用。");                                          // :1530-1533 the map is not a dark map
+            return 0;
+        }
+        if (state.fieldGlobals().flashUsed) {
+            scene.pbMessage("这里已经被照亮了。");                                        // :1534-1537
+            return 0;
+        }
+        scene.pbMessage("拿出了提灯！");                                                 // :1540
+        state.fieldGlobals().flashUsed = true;                                         // :1541
+        scene.runAction(port::flashDarkness);                                          // :1542-1550 the light grows to its full radius
+        return 1;
     }
 
     /** {@code UseInField :SUPERROD} (:318-337). */

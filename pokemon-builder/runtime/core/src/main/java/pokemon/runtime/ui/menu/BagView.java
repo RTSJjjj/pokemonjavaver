@@ -72,16 +72,25 @@ public final class BagView {
         this.endScreen = host;
     }
 
-    /** The map side of the items that act on the map (the fishing rod): the check of {@code UseFromBag} and the hand-over. */
+    /** The map side of the items that act on the map (fishing rod, ropes, Lantern, flutes): the check of {@code UseFromBag} and the hand-over. */
     public interface MapItems {
-        /** {@code UseFromBag :SUPERROD} (189_PItem_ItemEffects:55-63): water in front (and no cliff unless surfing). */
-        boolean canFish();
+        /**
+         * {@code ItemHandlers::UseFromBag} (189_PItem_ItemEffects:25-63, :1523-1570, :1649-1660): the lines the handler shows when
+         * the item cannot be used here, or null when it can.
+         */
+        String[] unusable(String item);
 
-        /** {@code UseFromBag} answered 2: the screens close and {@code UseInField} runs on the map. */
+        /** {@code UseFromBag} answered 2 / 4: the screens close and {@code UseInField} runs on the map. */
         void use(String item);
     }
 
     private MapItems mapItems;
+    private Runnable townMapHost;
+
+    /** {@code UseInField :TOWNMAP} (189:372-375): the host shows the region map over the bag and comes back to it. */
+    public void townMapHost(Runnable host) {
+        this.townMapHost = host;
+    }
 
     public void mapItems(MapItems host) {
         this.mapItems = host;
@@ -501,12 +510,20 @@ public final class BagView {
             });
             return;
         }
-        if (ItemHandlers.isMapItem(item) && mapItems != null) {   // 189:55-63 UseFromBag :SUPERROD
-            if (!mapItems.canFish()) {
-                say("这里不能使用。", null);                       // :61
+        if ("TOWNMAP".equals(item) && townMapHost != null) {      // 189:372-375 pbShowMap(-1, false)
+            townMapHost.run();
+            return;
+        }
+        if (ItemHandlers.isMapItem(item) && mapItems != null) {   // 189 UseFromBag: SUPERROD / ropes / LANTERN / EONFLUTE / ETHEREALNEXUS
+            String[] refusal = mapItems.unusable(item);
+            if (refusal != null) {
+                sayAll(refusal, 0);
                 return;
             }
-            mapItems.use(item);                                    // next 2: end screen, then pbUseKeyItemInField
+            if (ItemHandlers.consumedInBag(item)) {
+                state().inventory().remove(item, 1);                // :917 case 4: bag.pbDeleteItem(item), end screen
+            }
+            mapItems.use(item);                                    // next 2 / 4: end screen, then pbUseKeyItemInField
             return;
         }
         if (handlers.hasBagFieldHandler(item)) {               // :917-927 triggerUseFromBag falls back to UseInField
@@ -523,6 +540,14 @@ public final class BagView {
             return;
         }
         say("这里不能使用。", null);                            // :929
+    }
+
+    /** Shows the lines one after the other (a handler that refuses can show more than one pbMessage). */
+    private void sayAll(String[] lines, int index) {
+        if (index >= lines.length) {
+            return;
+        }
+        say(lines[index], index + 1 < lines.length ? () -> sayAll(lines, index + 1) : null);
     }
 
     private void finish(String text) { notice = text; step = Step.ITEMS; model.refresh(); }

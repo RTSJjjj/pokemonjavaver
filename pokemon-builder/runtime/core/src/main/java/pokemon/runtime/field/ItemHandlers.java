@@ -376,7 +376,7 @@ public final class ItemHandlers {
 
     private static final Set<String> BAG_FIELD_ITEMS = new HashSet<>(Arrays.asList(
             "REPEL", "SUPERREPEL", "MAXREPEL", "INFINITEREPEL", "BLACKFLUTE", "WHITEFLUTE", "EXPALL", "EXPALLOFF",
-            "COINCASE", "BICYCLE", "MACHBIKE", "ACROBIKE"));
+            "COINCASE", "BICYCLE", "MACHBIKE", "ACROBIKE", "TOWNMAP"));
 
     /** Whether {@link #useInField} handles the item (SACREDASH needs the party screen: {@link #sacredAsh}). */
     public boolean hasBagFieldHandler(String item) {
@@ -388,8 +388,23 @@ public final class ItemHandlers {
      * map: it runs after the bag and the pause menu have closed ({@code pbUseKeyItemInField}).
      */
     public static boolean isMapItem(String item) {
-        return "SUPERROD".equals(item);
+        return "SUPERROD".equals(item) || "ESCAPEROPE".equals(item) || "INFINITEROPE".equals(item) || "LANTERN".equals(item)
+                || "EONFLUTE".equals(item) || "ETHEREALNEXUS".equals(item);
     }
+
+    /** {@code UseFromBag} answered 4 (189:25-35 {@code :ESCAPEROPE}): the bag deletes the item before the screens end. */
+    public static boolean consumedInBag(String item) {
+        return "ESCAPEROPE".equals(item);
+    }
+
+    /** 189:1522-1620: the maps the Eon Flute / Ethereal Nexus / Heaven Seal refuse ({@code ESMM_Config::BAN_MAPS}, 335_001_ESMM_Config:10-). */
+    public static boolean banMap(int mapId) {
+        return BAN_MAPS.contains(mapId);
+    }
+
+    private static final Set<Integer> BAN_MAPS = new HashSet<>(Arrays.asList(
+            1, 119, 224, 292, 293, 294, 295, 296, 347, 60, 209, 210, 228, 297, 321, 371, 140, 441, 442, 444,
+            417, 440, 443, 445, 446, 447, 448, 450, 451, 478, 485, 388, 462));
 
     /**
      * {@code UseFromBag :SUPERROD} (189_PItem_ItemEffects:55-63) and the check of {@code UseInField} (:319-323): water in

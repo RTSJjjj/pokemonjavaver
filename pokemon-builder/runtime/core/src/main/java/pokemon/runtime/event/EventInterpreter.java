@@ -2591,6 +2591,11 @@ public final class EventInterpreter {
             }
             case "CAVE_ENTRANCE": {
                 boolean exiting = ir.getBoolean("exiting", false);
+                if (exiting) {
+                    state.fieldGlobals().escapePoint = new int[0];                   // 171_PField_Visuals:616-619 pbCaveExit: pbEraseEscapePoint
+                } else {
+                    setEscapePoint();                                                // :611-614 pbCaveEntrance: pbSetEscapePoint
+                }
                 if (mapPort == null) {
                     break;
                 }
@@ -3110,6 +3115,23 @@ public final class EventInterpreter {
     }
 
     /**
+     * {@code pbSetEscapePoint} (170_PField_Field:1370-1381): the tile in front of the cave mouth the player is leaving, seen from
+     * the way out - {@code [map, x, y, direction]}. The escape rope, Dig and the Infinite Rope take the player back there.
+     */
+    private void setEscapePoint() {
+        int x = state.playerX();
+        int y = state.playerY();
+        int dir;
+        switch (state.playerDirection()) {
+            case 2: y -= 1; dir = 8; break;                                          // Down
+            case 4: x += 1; dir = 6; break;                                          // Left
+            case 6: x -= 1; dir = 4; break;                                          // Right
+            default: y += 1; dir = 2; break;                                         // Up (8)
+        }
+        state.fieldGlobals().escapePoint = new int[] {state.currentMapId(), x, y, dir};
+    }
+
+    /**
      * 189_PItem_ItemEffects {@code pbUseKeyItemInField(item)}: the {@code UseInField} body of an item that acts on the map
      * (the fishing rod), started after the bag and the pause menu have closed.
      */
@@ -3119,7 +3141,7 @@ public final class EventInterpreter {
         start(list, state.currentMapId(), -1);
         pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
         TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
-        FieldItemTask task = new FieldItemTask(state, mapPort, scene, new FieldItemTask.Services() {
+        FieldItemTask task = new FieldItemTask(state, pbs, mapPort, scene, new FieldItemTask.Services() {
             @Override
             public boolean hasEncounter(String enctype) {
                 if (pbs == null) return false;
@@ -3135,7 +3157,10 @@ public final class EventInterpreter {
         }, encounterRandom);
         scriptTaskResult = null;
         holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
-            task.use(item);
+            int ret = task.use(item);
+            if (ret == 3 && inventory != null) {
+                inventory.remove(item, 1);                                           // 188:978-980 pbUseKeyItemInField: 3 = used and consumed
+            }
             scriptTaskResult = true;
         });
         scriptTaskDone = result -> {

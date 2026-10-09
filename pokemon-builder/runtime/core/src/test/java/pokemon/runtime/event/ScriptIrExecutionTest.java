@@ -526,6 +526,22 @@ class ScriptIrExecutionTest {
     }
 
         @Test
+    @DisplayName("pbCaveEntrance sets the escape point in front of the cave mouth, pbCaveExit erases it (170:1370-1385)")
+    void caveEntranceSetsEscapePoint() {
+        ir("blk", "{\"command\":\"CAVE_ENTRANCE\",\"exiting\":false}");
+        state.enterMap(5, 10, 10);
+        state.setPlayerPosition(10, 10, 8);                                    // facing up: the mouth is above, the way out is the tile below
+        interpreter.start(program(block(0, "blk")), 5, 8);
+        interpreter.update(0f);
+        assertArrayEquals(new int[] {5, 10, 11, 2}, state.fieldGlobals().escapePoint);
+
+        ir("out", "{\"command\":\"CAVE_ENTRANCE\",\"exiting\":true}");
+        interpreter.start(program(block(0, "out")), 5, 8);
+        interpreter.update(0f);
+        assertEquals(0, state.fieldGlobals().escapePoint.length);
+    }
+
+    @Test
     @DisplayName("activateQuest / advanceQuestToStage show the plugin's message and wait (282_002_Quest_Main:63, :150)")
     void questMessages() {
         ir("blk", "{\"command\":\"SEQUENCE\",\"steps\":["

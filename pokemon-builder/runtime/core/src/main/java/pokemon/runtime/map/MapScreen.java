@@ -343,10 +343,8 @@ public final class MapScreen extends ScreenAdapter {
             }
 
             @Override
-            public boolean pauseMenuCanFish() {
-                pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
-                return pokemon.runtime.field.ItemHandlers.canFish(pokemon.runtime.field.PBTerrain.isWater(g.facingTerrainTag),
-                        facingPassableNow(), g.surfing);                      // 189:55-63
+            public String[] pauseMenuMapItemCheck(String item) {
+                return mapItemRefusal(item);
             }
 
             @Override
@@ -2638,6 +2636,35 @@ public final class MapScreen extends ScreenAdapter {
         if (player != null) {
             player.characterName = charset;
             player.runningCharacterName = running;
+        }
+    }
+
+    /**
+     * {@code ItemHandlers::UseFromBag} of the items that act on the map (189_PItem_ItemEffects): the lines shown when the item
+     * cannot be used here, null when it can.
+     */
+    private String[] mapItemRefusal(String item) {
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        boolean partnered = followers != null && followers.hasDependentEvents();
+        switch (item) {
+            case "SUPERROD":                                               // :55-63
+                return pokemon.runtime.field.ItemHandlers.canFish(pokemon.runtime.field.PBTerrain.isWater(g.facingTerrainTag),
+                        facingPassableNow(), g.surfing) ? null : new String[] {"这里不能使用。"};
+            case "ESCAPEROPE":                                             // :25-35
+            case "INFINITEROPE":                                           // :37-47
+                if (partnered) return new String[] {"与他人同行时不能使用。"};
+                return g.escapePoint != null && g.escapePoint.length > 0 ? null : new String[] {"这里不能使用。"};
+            case "LANTERN":                                                // :1523-1527 next false if !darkness -> "这里不能使用。"
+                return darkness != null ? null : new String[] {"这里不能使用。"};
+            case "EONFLUTE":                                               // :1554-1559, :1560-1565 then next false -> "这里不能使用。"
+                if (partnered) return new String[] {"与他人同行时不能使用。", "这里不能使用。"};
+                return null;
+            case "ETHEREALNEXUS":                                          // :1649-1660
+                if (partnered) return new String[] {"与他人同行时不能使用。", "这里不能使用。"};
+                if (pokemon.runtime.field.ItemHandlers.banMap(gameState.currentMapId())) return new String[] {"无法在这里使用"};
+                return null;
+            default:
+                return null;
         }
     }
 

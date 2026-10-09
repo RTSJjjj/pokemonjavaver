@@ -31,8 +31,8 @@ public final class PauseMenuOverlay implements Disposable {
         /** Modular Menu:198-206: the player quit the Safari Zone (decision = 1, pbGoToStart). */
         void pauseMenuSafariQuit();
 
-        /** {@code UseFromBag :SUPERROD}: the player faces water (and may use the rod from here). */
-        boolean pauseMenuCanFish();
+        /** {@code ItemHandlers::UseFromBag} of the map items: the refusal lines, or null when the item can be used here. */
+        String[] pauseMenuMapItemCheck(String item);
     }
 
     private enum Sub {
@@ -121,10 +121,15 @@ public final class PauseMenuOverlay implements Disposable {
 
     private BagView newBagView() {
         BagView view = new BagView(context);
+        view.townMapHost(() -> {
+            townMapView = new TownMapView(context, assets, -1, false);       // pbShowMap(-1, false)
+            mapReturnsToBag = true;
+            sub = Sub.MAP;
+        });
         view.mapItems(new BagView.MapItems() {
             @Override
-            public boolean canFish() {
-                return host != null && host.pauseMenuCanFish();
+            public String[] unusable(String item) {
+                return host == null ? new String[] {"这里不能使用。"} : host.pauseMenuMapItemCheck(item);
             }
 
             @Override
@@ -465,6 +470,8 @@ public final class PauseMenuOverlay implements Disposable {
     }
 
     private java.util.function.Consumer<int[]> flyCallback;
+    /** The region map was opened from the bag (the Town Map): closing it goes back to the bag. */
+    private boolean mapReturnsToBag;
 
     /** The hidden move chosen in the party screen, once; null when none. */
     public String takeHiddenMove(pokemon.runtime.pokemon.Pokemon[] pokemonOut) {
@@ -756,6 +763,9 @@ public final class PauseMenuOverlay implements Disposable {
                         flyCallback = null;
                         sub = Sub.PARTY;                                // the party screen goes on (or ends with the chosen place)
                         callback.accept(townMapView.flyResult());
+                    } else if (mapReturnsToBag) {
+                        mapReturnsToBag = false;
+                        sub = Sub.BAG;
                     } else {
                         back();
                     }
