@@ -51,8 +51,19 @@ gradlew android-legacy:assembleDebug
 即玩）与 `pokemon-builder/dist/Windows/`（`PokemonGame.exe` + `app/` +
 `runtime/` + `runtime-data/`＝`generated/` 的副本，exe 旁布局由启动器自动识别）。
 打包用 JDK 自带的 jpackage（app-image）：`jmods/` 缺失的裁剪 JDK 用
-`-PruntimeImage=<运行时目录>`，`-PnoConsole` 可去掉调试控制台；首次打包前先
-`builder.bat build-data` 生成 `generated/`。
+`-PruntimeImage=<运行时目录>`；打包出的 exe 默认**不带控制台**（R17），
+需要看 stdout 日志时加 `-Pconsole`；首次打包前先 `builder.bat build-data` 生成
+`generated/`。
+
+已经打包好的 `dist/Windows/` 也可以绕过 exe、直接用捆绑运行时启动（同样没有
+终端窗口，且不必重新打包）：
+
+```bat
+cd pokemon-builder\dist\Windows
+runtime\bin\javaw.exe -jar app\PokemonGame.jar runtime-data
+```
+
+（`javaw` 不写 stdout；未捕获异常仍会写 `%USERPROFILE%\pokemon-runtime-crash.log`。）
 
 ## Windows 中文路径 / Gradle 测试（重要）
 

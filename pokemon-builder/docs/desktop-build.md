@@ -11,8 +11,8 @@ cd pokemon-builder\runtime
 gradlew.bat lwjgl3:run                     REM 开发运行（参数见下）
 
 REM 打包（R12）
-gradlew.bat lwjgl3:dist                    REM Runnable JAR + dist\Windows 自包含应用
-gradlew.bat lwjgl3:dist -PnoConsole        REM 去掉调试控制台
+gradlew.bat lwjgl3:dist                    REM Runnable JAR + dist\Windows 自包含应用（无控制台窗口）
+gradlew.bat lwjgl3:dist -Pconsole          REM 开发者：保留调试控制台（看 stdout 日志）
 gradlew.bat lwjgl3:dist -PruntimeImage="C:\jre"  REM JDK 无 jmods/ 时直接捆绑该运行时
 
 REM 全流水线（R14，含数据/音频/测试）
@@ -25,7 +25,7 @@ scripts\build-pc.bat --runtime-image "C:\jre"
 | 任务 | 产物 | 说明 |
 |---|---|---|
 | `runnableJar` | `runtime/lwjgl3/build/dist/PokemonGame.jar` | `Main-Class` + 全部运行时依赖与原生库（约 16.5 MB），`java -jar` 即玩 |
-| `jpackageImage` | `runtime/lwjgl3/build/jpackage/PokemonGame/` | JDK 自带 jpackage，`--type app-image`（exe + `app/` + 捆绑运行时）；默认 jlink 裁 `java.base,java.desktop,java.logging,jdk.unsupported`；`-PruntimeImage=<目录>` 跳过 jlink 直接捆绑现成运行时；`--win-console` 默认开、`-PnoConsole` 关 |
+| `jpackageImage` | `runtime/lwjgl3/build/jpackage/PokemonGame/` | JDK 自带 jpackage，`--type app-image`（exe + `app/` + 捆绑运行时）；默认 jlink 裁 `java.base,java.desktop,java.logging,jdk.unsupported`；`-PruntimeImage=<目录>` 跳过 jlink 直接捆绑现成运行时；R17 起**默认不带 `--win-console`**（双击 exe 只出游戏窗口），`-Pconsole` 保留调试控制台 |
 | `dist` | `pokemon-builder/dist/` | `PokemonGame.jar` + `dist/Windows/`（exe + `app/` + `runtime/` + `runtime-data/`＝`generated/` 副本） |
 | `captureMap` | 截图 | 开发用：离屏渲染一张地图（探针） |
 
@@ -46,6 +46,17 @@ PokemonGame [runtime-data-root] [mapId] [--fullscreen|--size WxH|--logical WxH|-
   保存/读档/设置（音量、全屏，写 `settings.json`）/回到标题/退出游戏。
 - **打包形态**：双击 exe 时工作目录不一定是 exe 目录；启动器经 `jpackage.app-path`
   在 exe 旁找 `runtime-data/`（或 `generated/`），命中后作为显式数据根；显式参数优先。
+- **无控制台启动**：R17 起 `dist/Windows/PokemonGame.exe` 默认是 GUI 子系统的
+  window-only 启动器（`jpackage` 不再带 `--win-console`）。旧包或想绕过 exe 时用
+  捆绑运行时直接跑 fat JAR，同样没有终端窗口：
+
+  ```bat
+  cd pokemon-builder\dist\Windows
+  runtime\bin\javaw.exe -jar app\PokemonGame.jar runtime-data
+  ```
+
+  `javaw` 丢弃 stdout：未捕获异常仍写 `%USERPROFILE%\pokemon-runtime-crash.log`；
+  要看运行期日志就重新打包时加 `-Pconsole`。
 - `RuntimeDataLocator` 解析顺序：显式参数 → `POKEMON_RUNTIME_DATA` →
   `-Dpokemon.runtime.data` → CWD/`generated` → CWD/`runtime-data`。
 - **图形素材（L4）**：运行时优先读数据根下的随包副本（`runtime-data/Graphics` +
