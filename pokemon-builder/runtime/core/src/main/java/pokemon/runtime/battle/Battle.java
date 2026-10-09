@@ -2571,6 +2571,12 @@ public final class Battle {
     private final java.util.Set<String> aiDisabled = new java.util.HashSet<>();
 
     /**
+     * Whether {@link #aiGuard} prints the failure it caught. Off by default (the failure is still kept in {@link #aiFailures()});
+     * switch it on to test moves with {@code -Dpokemon.ai.log=true} or the environment variable {@code POKEMON_AI_LOG=1}.
+     */
+    static final boolean AI_LOG = Boolean.getBoolean("pokemon.ai.log") || System.getenv("POKEMON_AI_LOG") != null;
+
+    /**
      * Safety net around one trainer-AI entry point ({@code AiSwitching}, {@code AiItems}, {@code AiDoubles}, {@code AiMaster}): an
      * exception there must not end the game. The first failure is logged once with where it came from, the entry point is switched
      * off for the rest of the battle and the caller gets {@code fallback} (no switch / no item / the simple AI picks the move).
@@ -2594,10 +2600,12 @@ public final class Battle {
             }
             String message = entry + " failed and is off for the rest of this battle: " + error + " at " + where;
             aiFailures.add(message);
-            if (com.badlogic.gdx.Gdx.app != null) {
-                com.badlogic.gdx.Gdx.app.error("BattleAI", message);
-            } else {
-                System.err.println("[BattleAI] " + message);
+            if (AI_LOG) {                                                             // off by default; see AI_LOG
+                if (com.badlogic.gdx.Gdx.app != null) {
+                    com.badlogic.gdx.Gdx.app.error("BattleAI", message);
+                } else {
+                    System.err.println("[BattleAI] " + message);
+                }
             }
             return fallback;
         }
