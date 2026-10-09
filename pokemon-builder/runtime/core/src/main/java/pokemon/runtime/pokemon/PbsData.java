@@ -634,6 +634,21 @@ public final class PbsData {
          * (:194-217) starts from it.
          */
         public String environment;
+        /** MetadataHealingSpot "map,x,y" (the Pokemon Center of the region's nearest town). */
+        public int[] healingSpot;
+        /** MetadataWeather "type,probability": the map's weather type name and its chance (percent). */
+        public String weatherType;
+        public int weatherProbability;
+        /** MetadataDiveMap: the map id of this map's underwater counterpart (-1 none). */
+        public int diveMap = -1;
+        public boolean darkMap, safariMap, showArea;
+        /** MetadataBicycle / MetadataBicycleAlways: null when the map does not say. */
+        public Boolean bicycle, bicycleAlways;
+        /** Global "[000]" only: MetadataHome "map,x,y,direction", SurfBGM, BicycleBGM. */
+        public int[] home;
+        public String surfBGM, bicycleBGM;
+        /** Global "[000]" only: MetadataPlayerA.. "trainertype,charset,bike,surf,run,dive,fish,surffish" by letter. */
+        public java.util.Map<String, String[]> players;
     }
 
     /**
@@ -644,6 +659,11 @@ public final class PbsData {
      */
     public Metadata mapMetadata(int mapId) {
         return mapId <= 0 ? null : mapMetadata.get(mapId);
+    }
+
+    /** The map ids that have a metadata section ({@code pbLoadMetadata}'s indexes). */
+    public java.util.Set<Integer> metadataMapIds() {
+        return new java.util.TreeSet<>(mapMetadata.keySet());
     }
 
     /** {@code pbGetMetadata(0, ...)}: the "[000]" section, never null. */
@@ -683,6 +703,28 @@ public final class PbsData {
         record.trainerVictoryME = node.getString("trainerVictoryME", null);
         record.wildCaptureME = node.getString("wildCaptureME", null);
         record.environment = node.getString("environment", null);
+        record.healingSpot = node.has("healingSpot") ? intArray(child(node, "healingSpot")) : null;
+        JsonValue weather = child(node, "weather");
+        if (weather != null && weather.isArray() && weather.size >= 2) {
+            record.weatherType = weather.get(0).asString();
+            record.weatherProbability = weather.get(1).asInt();
+        }
+        record.diveMap = node.getInt("diveMap", -1);
+        record.darkMap = node.getBoolean("darkMap", false);
+        record.safariMap = node.getBoolean("safariMap", false);
+        record.showArea = node.getBoolean("showArea", false);
+        record.bicycle = node.has("bicycle") ? node.getBoolean("bicycle") : null;
+        record.bicycleAlways = node.has("bicycleAlways") ? node.getBoolean("bicycleAlways") : null;
+        record.home = node.has("home") ? intArray(child(node, "home")) : null;
+        record.surfBGM = node.getString("surfBGM", null);
+        record.bicycleBGM = node.getString("bicycleBGM", null);
+        JsonValue players = child(node, "players");
+        if (players != null && players.isObject()) {
+            record.players = new java.util.HashMap<>();
+            for (JsonValue entry = players.child; entry != null; entry = entry.next) {
+                record.players.put(entry.name, entry.asStringArray());
+            }
+        }
         return record;
     }
 

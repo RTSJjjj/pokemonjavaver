@@ -84,14 +84,40 @@ public final class WildGenerator {
         Pokemon lead = trainer == null ? null : trainer.first();
 
         // --- pbGenerateWildPokemon (417-463) ---
-        boolean hiddenAbility = source.nextInt(HIDDEN_ABILITY_ROLL) < HIDDEN_ABILITY_CHANCE;
-        giveHeldItem(pokemon, species, lead, source);                    // :422-435
-        if (bag != null && bag.has("SHINYCHARM")) {                      // :436-442
-            for (int i = 0; i < 2; i++) {
-                if (Pokemon.isShiny(pokemon.personalID, pokemon.trainerID)) {
-                    break;
+        // 343_ChainCatching:221-298 replaces the rest of pbGenerateWildPokemon (the Safari Zone is not part of the game).
+        boolean hiddenAbility = source.nextInt(HIDDEN_ABILITY_ROLL) < HIDDEN_ABILITY_CHANCE;   // :222 ($DEBUG is off)
+        if (hiddenAbility) {
+            pokemon.battleRank = 2;                                      // :226 a special ("elite") Pokemon
+            pokemon.ivs = ChainCatching.randomIvs(1, source);            // :227
+        }
+        Boolean shinyFlag = null;
+        boolean superFlag = false;
+        if (mapId == 508 || mapId == 510) {                              // :230-233 makeShiny, makeSuperShiny
+            shinyFlag = true;
+            superFlag = true;
+        }
+        giveHeldItem(pokemon, species, lead, source);                    // :235-246
+        ChainCatching chain = trainer == null ? new ChainCatching() : trainer.chainCatching;
+        chain.get(species.internalName);                                 // :248
+        int maxCount = 0;                                                // :249-251
+        for (int iv : pokemon.ivs) {
+            if (iv == IV_STAT_LIMIT) maxCount++;
+        }
+        if (chain.ivGuaranteed > maxCount) {                             // :252-253
+            pokemon.ivs = ChainCatching.randomIvs(chain.ivGuaranteed, source);
+        }
+        int shinyRetries = chain.shinyRetries;                           // :255-258
+        if (bag != null && bag.has("SHINYCHARM")) {
+            shinyRetries += 8;
+        }
+        for (int i = 0; i < shinyRetries; i++) {                         // :259-268
+            pokemon.personalID = Pokemon.newPersonalID(source);
+            boolean shinyNow = shinyFlag != null ? shinyFlag : Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
+            if (shinyNow) {
+                if (!(shinyFlag != null && superFlag) && source.nextInt(16) < 1) {
+                    superFlag = true;                                    // :262-264 makeSuperShiny
                 }
-                pokemon.personalID = Pokemon.newPersonalID(source);
+                break;
             }
         }
         if (source.nextInt(65536) < POKERUS_CHANCE) {                    // :443-446
@@ -116,7 +142,9 @@ public final class WildGenerator {
         if (pokemon.nature == null) {
             pokemon.nature = natureOf(data, pokemon);
         }
-        pokemon.shiny = Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
+        pokemon.shiny = shinyFlag != null ? shinyFlag : Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
+        pokemon.superShiny = pokemon.shiny && superFlag;                  // PokeBattle_Pokemon:335-339 superShiny?
+        pokemon.hp = pokemon.maxHp();                                    // :254 calcStats (a full-HP Pokemon stays full)
         return pokemon;
     }
 

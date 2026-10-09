@@ -25,6 +25,9 @@ public final class GameState {
     /** Essentials {@code $PokemonGlobal.eventvars} (R7: berry plants). */
     private final GameEventVars eventVars = new GameEventVars(version);
     private final TemporaryEventState temporary = new TemporaryEventState();
+    private final ScreenWeather weather = new ScreenWeather();
+    private final MartPrices martPrices = new MartPrices();
+    private final FieldGlobals fieldGlobals = new FieldGlobals();
     private final Inventory inventory = new Inventory();
     /** Quest plugin state (plugin batch 1). */
     private final QuestLog quests = new QuestLog(version);
@@ -213,6 +216,30 @@ public final class GameState {
         this.followerToggled = value;
     }
 
+    /** {@code $PokemonTemp.flydata} (214_PScreen_RegionMap fly mode): [map, x, y] of the chosen town; null = none. Never saved. */
+    private int[] flyData;
+
+    public int[] flyData() {
+        return flyData;
+    }
+
+    public void flyData(int[] value) {
+        this.flyData = value;
+    }
+
+    /** The next map screen plays the arrival half of the fly animation ({@code pbFlyAnimation(false)}, 179:535). Never saved. */
+    private boolean flyArrival;
+
+    public boolean takeFlyArrival() {
+        boolean value = flyArrival;
+        flyArrival = false;
+        return value;
+    }
+
+    public void flyArrival(boolean value) {
+        this.flyArrival = value;
+    }
+
     /** PField_Field:1411/1435: the registered partner trainer, or null. */
     public Partner partner() {
         return partner;
@@ -289,6 +316,21 @@ public final class GameState {
         nextBattleCaptureME = null;
     }
 
+    /** {@code $PokemonGlobal} / {@code $PokemonMap} field state (surfing, bicycle, repel, step counters, flutes). */
+    public FieldGlobals fieldGlobals() {
+        return fieldGlobals;
+    }
+
+    /** {@code $game_temp.mart_prices} (230_PScreen_Mart:850-860): price overrides of the shop in progress. */
+    public MartPrices martPrices() {
+        return martPrices;
+    }
+
+    /** The weather half of {@code $game_screen} (Set Weather Effects, 019_Game_Screen). */
+    public ScreenWeather weather() {
+        return weather;
+    }
+
     public int currentMapId() {
         return mapId;
     }
@@ -307,6 +349,7 @@ public final class GameState {
         this.playerY = playerY;
         temporary.clearMap(mapId);
         tempSwitches.clear(); // RMXP rebuilds every event on map setup
+        fieldGlobals.clearMap(); // Events.onMapChange: $PokemonMap.clear (PField_Field:537)
     }
 
     /**
@@ -362,6 +405,8 @@ public final class GameState {
         tempSwitches.clear();
         eventVars.clear();
         temporary.clear();
+        weather.reset();
+        fieldGlobals.reset();
         inventory.clear();
         trainer.reset();
         playerId = -1;

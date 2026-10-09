@@ -117,13 +117,7 @@ public final class ItemUse {
         }
         PbsData.Species evolved = evolution(p, id, data, day);
         if (evolved != null) {
-            int form = specialForm(p, id);
-            PokemonGrowth.evolve(p, evolved);
-            if (form > 0 && data.form(evolved.internalName, form) != null) {
-                p.form = data.form(evolved.internalName, form);
-                p.internalName = p.form.key;
-                p.hp = Math.min(p.hp, p.maxHp());
-            }
+            applyItemEvolution(p, evolved, id, data);
             trainer.registerOwned(p);
             bag.remove(id, 1);
             return Result.USED;
@@ -204,6 +198,17 @@ public final class ItemUse {
         }
         return null;
     }
+    /** The species change of an evolution stone, with the special forms the project's stones give. */
+    public static void applyItemEvolution(Pokemon p, PbsData.Species evolved, String id, PbsData data) {
+        int form = specialForm(p, id);
+        PokemonGrowth.evolve(p, evolved, data);
+        if (form > 0 && data.form(evolved.internalName, form) != null) {
+            p.form = data.form(evolved.internalName, form);
+            p.internalName = p.form.key;
+            p.hp = Math.min(p.hp, p.maxHp());
+        }
+    }
+
     private static int specialForm(Pokemon p, String id) {
         String s = p.species.internalName;
         if (("MAGIKARP".equals(s) && "THUNDERSTONE".equals(id)) || ("FEEBAS".equals(s) && "DRAGONSCALE".equals(id))) return 2;

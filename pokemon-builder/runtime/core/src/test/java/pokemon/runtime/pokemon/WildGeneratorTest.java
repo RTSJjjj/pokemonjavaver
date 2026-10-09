@@ -283,7 +283,7 @@ class WildGeneratorTest {
     @DisplayName("Pokérus follows rand(65536) < POKERUS_CHANCE (:443-446)")
     void pokerus() {
         int infected = 0;
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 200000; i++) {
             Pokemon pokemon = wild("CATERPIE", 10);
             if (pokemon.pokerus != 0) {
                 infected++;
@@ -292,7 +292,7 @@ class WildGeneratorTest {
                 assertTrue(strain >= 1 && strain <= 15, "strain " + strain);
             }
         }
-        assertTrue(infected > 0 && infected < 12, "POKERUS_CHANCE is 3/65536: " + infected);
+        assertTrue(infected > 0 && infected < 30, "POKERUS_CHANCE is 3/65536: " + infected);
     }
 
     @Test

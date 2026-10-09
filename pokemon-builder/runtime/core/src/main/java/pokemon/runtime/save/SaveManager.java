@@ -12,6 +12,7 @@ import pokemon.runtime.pokemon.Storage;
 import pokemon.runtime.pokemon.TrainerState;
 import pokemon.runtime.state.GameSelfSwitches;
 import pokemon.runtime.state.GameState;
+import pokemon.runtime.state.PcItemStorage;
 
 import java.io.File;
 import java.io.IOException;
@@ -118,8 +119,82 @@ public final class SaveManager {
         root.addChild("followerToggled", new JsonValue(state.followerToggled()));
         root.addChild("strengthUsed", new JsonValue(state.pokemonMapStrengthUsed()));
         root.addChild("bridge", new JsonValue(state.bridge()));
+        // $PokemonGlobal surfing / bicycle / repel / step counters (the flutes are $PokemonMap and never saved).
+        JsonValue globals = new JsonValue(JsonValue.ValueType.object);
+        globals.addChild("surfing", new JsonValue(state.fieldGlobals().surfing));
+        globals.addChild("diving", new JsonValue(state.fieldGlobals().diving));
+        globals.addChild("bicycle", new JsonValue(state.fieldGlobals().bicycle));
+        globals.addChild("repel", new JsonValue(state.fieldGlobals().repel));
+        globals.addChild("infRepel", new JsonValue(state.fieldGlobals().infRepel));
+        globals.addChild("stepcount", new JsonValue(state.fieldGlobals().stepcount));
+        globals.addChild("happinessSteps", new JsonValue(state.fieldGlobals().happinessSteps));
+        globals.addChild("coins", new JsonValue(state.fieldGlobals().coins));
+        JsonValue found = array();
+        for (String item : state.fieldGlobals().foundItems) {
+            found.addChild(new JsonValue(item));
+        }
+        globals.addChild("foundItems", found);
+        JsonValue visited = array();
+        for (int visitedMap : state.fieldGlobals().visitedMaps) {
+            visited.addChild(new JsonValue(visitedMap));
+        }
+        globals.addChild("visitedMaps", visited);
+        globals.addChild("flashUsed", new JsonValue(state.fieldGlobals().flashUsed));
+        JsonValue escape = array();
+        for (int value : state.fieldGlobals().escapePoint) {
+            escape.addChild(new JsonValue(value));
+        }
+        globals.addChild("escapePoint", escape);
+        if (state.fieldGlobals().healingSpot != null) {
+            JsonValue healing = array();
+            for (int value : state.fieldGlobals().healingSpot) {
+                healing.addChild(new JsonValue(value));
+            }
+            globals.addChild("healingSpot", healing);
+        }
+        globals.addChild("timeTaken", new JsonValue(state.fieldGlobals().timeTaken));
+        globals.addChild("followerHoldItem", new JsonValue(state.fieldGlobals().followerHoldItem));
+        JsonValue dependents = array();
+        for (pokemon.runtime.state.Dependent dependent : state.fieldGlobals().dependents) {
+            JsonValue entry = object();
+            entry.addChild("originalMap", new JsonValue(dependent.originalMap));
+            entry.addChild("eventId", new JsonValue(dependent.eventId));
+            entry.addChild("currentMap", new JsonValue(dependent.currentMap));
+            entry.addChild("x", new JsonValue(dependent.x));
+            entry.addChild("y", new JsonValue(dependent.y));
+            entry.addChild("direction", new JsonValue(dependent.direction));
+            entry.addChild("characterName", new JsonValue(dependent.characterName == null ? "" : dependent.characterName));
+            entry.addChild("name", new JsonValue(dependent.name == null ? "" : dependent.name));
+            entry.addChild("commonEvent", new JsonValue(dependent.commonEvent));
+            dependents.addChild(entry);
+        }
+        globals.addChild("dependents", dependents);
+        if (state.fieldGlobals().pcItemStorage != null) {
+            JsonValue pc = array();
+            for (int i = 0; i < state.fieldGlobals().pcItemStorage.length(); i++) {
+                PcItemStorage.Slot slot = state.fieldGlobals().pcItemStorage.get(i);
+                JsonValue entry = object();
+                entry.addChild("item", new JsonValue(slot.item));
+                entry.addChild("count", new JsonValue(slot.count));
+                pc.addChild(entry);
+            }
+            globals.addChild("pcItemStorage", pc);
+        }
+        root.addChild("fieldGlobals", globals);
         root.addChild("trainer", trainerJson(state.trainer()));
         return root.toJson(JsonWriter.OutputType.json);
+    }
+
+    private static int[] intList(JsonValue node) {
+        if (node == null || !node.isArray()) {
+            return new int[0];
+        }
+        int[] values = new int[node.size];
+        int i = 0;
+        for (JsonValue entry = node.child; entry != null; entry = entry.next) {
+            values[i++] = entry.asInt();
+        }
+        return values;
     }
 
     // ------------------------------------------------------------------
@@ -139,6 +214,14 @@ public final class SaveManager {
         node.addChild("pokedex", new JsonValue(trainer.pokedex));
         node.addChild("pokepc", new JsonValue(trainer.pokepc));
         node.addChild("expPot", new JsonValue(trainer.expPot));
+        JsonValue chain = new JsonValue(JsonValue.ValueType.object);
+        if (trainer.chainCatching.species != null) {
+            chain.addChild("species", new JsonValue(trainer.chainCatching.species));
+        }
+        chain.addChild("times", new JsonValue(trainer.chainCatching.chainTimes));
+        chain.addChild("shinyRetries", new JsonValue(trainer.chainCatching.shinyRetries));
+        chain.addChild("ivGuaranteed", new JsonValue(trainer.chainCatching.ivGuaranteed));
+        node.addChild("chain", chain);
         JsonValue seen = array(), owned = array(), badges = array();
         for (String id : trainer.seen) seen.addChild(new JsonValue(id));
         for (String id : trainer.owned) owned.addChild(new JsonValue(id));
@@ -242,12 +325,24 @@ public final class SaveManager {
         node.addChild("item", new JsonValue(pokemon.item == null ? "" : pokemon.item));
         node.addChild("happiness", new JsonValue(pokemon.happiness));
         node.addChild("stepsToHatch", new JsonValue(pokemon.stepsToHatch));
+        node.addChild("hatchedMap", new JsonValue(pokemon.hatchedMap));
+        node.addChild("timeEggHatched", new JsonValue(pokemon.timeEggHatched));
         if (pokemon.ribbons.size > 0) {
             JsonValue ribbons = array();
             for (String ribbon : pokemon.ribbons) {
                 ribbons.addChild(new JsonValue(ribbon));
             }
             node.addChild("ribbons", ribbons);
+        }
+        if (pokemon.firstMoves.size > 0) {
+            JsonValue firstMoves = array();
+            for (String move : pokemon.firstMoves) firstMoves.addChild(new JsonValue(move));
+            node.addChild("firstMoves", firstMoves);
+        }
+        if (pokemon.trMoves.size > 0) {
+            JsonValue trMoves = array();
+            for (String move : pokemon.trMoves) trMoves.addChild(new JsonValue(move));
+            node.addChild("trMoves", trMoves);
         }
         node.addChild("ot", new JsonValue(pokemon.originalTrainer == null ? "" : pokemon.originalTrainer));
         node.addChild("battleRank", new JsonValue(pokemon.battleRank));
@@ -263,6 +358,9 @@ public final class SaveManager {
         node.addChild("obtainMode", new JsonValue(pokemon.obtainMode));
         node.addChild("obtainText", new JsonValue(pokemon.obtainText == null ? "" : pokemon.obtainText));
         node.addChild("pokerus", new JsonValue(pokemon.pokerus));
+        if (pokemon.fused != null) {
+            node.addChild("fused", pokemonJson(pokemon.fused));
+        }
         return node;
     }
 
@@ -400,6 +498,59 @@ public final class SaveManager {
         // $PokemonGlobal.bridge (pbBridgeOn/pbBridgeOff). An older save without
         // the key means "not on a bridge", which is the field default.
         state.bridge(root.getInt("bridge", 0));
+        JsonValue globals = root.get("fieldGlobals");
+        if (globals != null && globals.isObject()) {
+            state.fieldGlobals().surfing = globals.getBoolean("surfing", false);
+            state.fieldGlobals().diving = globals.getBoolean("diving", false);
+            state.fieldGlobals().bicycle = globals.getBoolean("bicycle", false);
+            state.fieldGlobals().repel = globals.getInt("repel", 0);
+            state.fieldGlobals().infRepel = globals.getBoolean("infRepel", false);
+            state.fieldGlobals().stepcount = globals.getInt("stepcount", 0);
+            state.fieldGlobals().happinessSteps = globals.getInt("happinessSteps", 0);
+            state.fieldGlobals().coins = globals.getInt("coins", 0);
+            state.fieldGlobals().foundItems.clear();
+            JsonValue found = globals.get("foundItems");
+            if (found != null && found.isArray()) {
+                for (JsonValue entry = found.child; entry != null; entry = entry.next) {
+                    state.fieldGlobals().foundItems.add(entry.asString());
+                }
+            }
+            state.fieldGlobals().visitedMaps.clear();
+            for (int visitedMap : intList(globals.get("visitedMaps"))) {
+                state.fieldGlobals().visitedMaps.add(visitedMap);
+            }
+            state.fieldGlobals().flashUsed = globals.getBoolean("flashUsed", false);
+            state.fieldGlobals().escapePoint = intList(globals.get("escapePoint"));
+            JsonValue healingNode = globals.get("healingSpot");
+            state.fieldGlobals().healingSpot = healingNode == null ? null : intList(healingNode);
+            state.fieldGlobals().timeTaken = globals.getInt("timeTaken", 0);
+            state.fieldGlobals().followerHoldItem = globals.getBoolean("followerHoldItem", false);
+            state.fieldGlobals().dependents.clear();
+            JsonValue dependents = globals.get("dependents");
+            if (dependents != null && dependents.isArray()) {
+                for (JsonValue entry = dependents.child; entry != null; entry = entry.next) {
+                    pokemon.runtime.state.Dependent dependent = new pokemon.runtime.state.Dependent();
+                    dependent.originalMap = entry.getInt("originalMap", 0);
+                    dependent.eventId = entry.getInt("eventId", 0);
+                    dependent.currentMap = entry.getInt("currentMap", 0);
+                    dependent.x = entry.getInt("x", 0);
+                    dependent.y = entry.getInt("y", 0);
+                    dependent.direction = entry.getInt("direction", 2);
+                    dependent.characterName = entry.getString("characterName", "");
+                    dependent.name = entry.getString("name", "");
+                    dependent.commonEvent = entry.getInt("commonEvent", -1);
+                    state.fieldGlobals().dependents.add(dependent);
+                }
+            }
+            JsonValue pc = globals.get("pcItemStorage");
+            if (pc != null && pc.isArray()) {
+                PcItemStorage storage = new PcItemStorage();
+                for (JsonValue entry = pc.child; entry != null; entry = entry.next) {
+                    storage.restore(entry.getString("item", null), entry.getInt("count", 0));
+                }
+                state.fieldGlobals().pcItemStorage = storage;
+            }
+        }
         // P1: the trainer / party / PC storage. A v1 document has no "trainer"
         // key (or a null one) and simply leaves the party empty.
         loadTrainer(root.get("trainer"), state.trainer());
@@ -424,6 +575,14 @@ public final class SaveManager {
         trainer.pokedex = node.getBoolean("pokedex", false);
         trainer.pokepc = node.getBoolean("pokepc", false);
         trainer.expPot = Math.max(0, node.getInt("expPot", 0));
+        trainer.chainCatching.reset();
+        JsonValue chain = node.get("chain");
+        if (chain != null) {
+            trainer.chainCatching.species = chain.getString("species", null);
+            trainer.chainCatching.chainTimes = chain.getInt("times", 0);
+            trainer.chainCatching.shinyRetries = chain.getInt("shinyRetries", 0);
+            trainer.chainCatching.ivGuaranteed = chain.getInt("ivGuaranteed", 0);
+        }
         JsonValue seen = node.get("seen"), owned = node.get("owned"), badges = node.get("badges");
         if (seen != null && seen.isArray()) for (JsonValue id : seen) trainer.seen.add(id.asString());
         if (owned != null && owned.isArray()) for (JsonValue id : owned) trainer.owned.add(id.asString());
@@ -544,6 +703,7 @@ public final class SaveManager {
                 slot.pp = entry.getInt("pp", slot.maxPp);
                 slot.ppUp = entry.getInt("ppUp", 0);
                 pokemon.moves.add(slot);
+                slot.setPpUp(slot.ppUp);
             }
         }
         pokemon.hp = node.getInt("hp", pokemon.maxHp());
@@ -557,11 +717,21 @@ public final class SaveManager {
         pokemon.item = item == null || item.isEmpty() ? null : item;
         pokemon.happiness = node.getInt("happiness", pokemon.happiness);
         pokemon.stepsToHatch = node.getInt("stepsToHatch", pokemon.stepsToHatch);
+        pokemon.hatchedMap = node.getInt("hatchedMap", 0);
+        pokemon.timeEggHatched = node.getLong("timeEggHatched", 0L);
         JsonValue ribbons = node.get("ribbons");
         if (ribbons != null && ribbons.isArray()) {
             for (JsonValue entry = ribbons.child; entry != null; entry = entry.next) {
                 pokemon.ribbons.add(entry.asString());
             }
+        }
+        JsonValue firstMoves = node.get("firstMoves");
+        if (firstMoves != null && firstMoves.isArray()) {
+            for (JsonValue entry = firstMoves.child; entry != null; entry = entry.next) pokemon.firstMoves.add(entry.asString());
+        }
+        JsonValue trMoves = node.get("trMoves");
+        if (trMoves != null && trMoves.isArray()) {
+            for (JsonValue entry = trMoves.child; entry != null; entry = entry.next) pokemon.trMoves.add(entry.asString());
         }
         String originalTrainer = node.getString("ot", null);
         pokemon.originalTrainer = originalTrainer == null || originalTrainer.isEmpty()
@@ -580,6 +750,7 @@ public final class SaveManager {
         String obtainText = node.getString("obtainText", null);
         pokemon.obtainText = obtainText == null || obtainText.isEmpty() ? null : obtainText;
         pokemon.pokerus = node.getInt("pokerus", 0);
+        pokemon.fused = readPokemon(node.get("fused"));
         return pokemon;
     }
 

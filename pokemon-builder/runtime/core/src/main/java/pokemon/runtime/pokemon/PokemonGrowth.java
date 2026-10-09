@@ -32,6 +32,26 @@ public final class PokemonGrowth {
         return evolveOnCondition(pokemon, data) || changed;
     }
 
+    /**
+     * {@code pbCheckEvolution(pokemon, 0)} (201_Pokemon_Evolution:280-283) for the methods that need a level only:
+     * the species the Pokemon would evolve into on a level-up check, or null. 登记: the full method table is roadmap
+     * stage 8; this is the same check {@link #evolveOnCondition} makes.
+     */
+    public static PbsData.Species levelEvolutionTarget(Pokemon pokemon, PbsData data) {
+        if (pokemon == null || pokemon.species == null || data == null) {
+            return null;
+        }
+        for (PbsData.Evolution evolution : pokemon.species.evolutions) {
+            if (levelConditionReached(evolution, pokemon)) {
+                PbsData.Species target = data.species(evolution.species);
+                if (target != null) {
+                    return target;
+                }
+            }
+        }
+        return null;
+    }
+
     /** Adds a move when it is not known; the four-move replace prompt is P4. */
     public static boolean learnMove(Pokemon pokemon, PbsData.Move move) {
         if (move == null) {
@@ -66,7 +86,7 @@ public final class PokemonGrowth {
             }
             PbsData.Species target = data.species(evolution.species);
             if (target != null) {
-                evolve(pokemon, target);
+                evolve(pokemon, target, data);
                 return true;
             }
         }
@@ -106,22 +126,12 @@ public final class PokemonGrowth {
     }
 
     /**
-     * Replaces the species, keeping the moves, IVs / EVs, nickname and the
-     * current HP (raised by the maximum-HP increase). The ability follows the
-     * evolved species unless the Pokemon kept a hidden one.
+     * Replaces the species ({@code species=}, 197_PokeBattle_Pokemon:658-666): the nickname, the moves, IVs / EVs, the
+     * ability slot (natural 0/1 or the hidden one) and the missing HP stay, as {@link Pokemon#changeSpecies} does.
+     * The old version of this method reset the ability to the new species' first one, which turned a Torchic's hidden
+     * Defiant into Combusken's Blaze.
      */
-    public static void evolve(Pokemon pokemon, PbsData.Species target) {
-        String oldName = pokemon.species == null ? null : pokemon.species.name;
-        int oldMax = pokemon.maxHp();
-        pokemon.species = target;
-        pokemon.form = null;
-        pokemon.internalName = target.internalName;
-        if (pokemon.name == null || pokemon.name.isEmpty() || pokemon.name.equals(oldName)) {
-            pokemon.name = target.name;
-        }
-        if (target.abilities.size > 0) {
-            pokemon.ability = target.abilities.get(0);
-        }
-        pokemon.hp = Math.min(pokemon.maxHp(), pokemon.hp + (pokemon.maxHp() - oldMax));
+    public static void evolve(Pokemon pokemon, PbsData.Species target, PbsData data) {
+        pokemon.changeSpecies(data, target);
     }
 }

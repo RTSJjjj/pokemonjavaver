@@ -226,6 +226,21 @@ public final class Storage {
         if (b != null) b.set(index, value);
     }
 
+    /**
+     * 204_Pokemon_Storage:377-384 {@code pbEachPokemon}: every Pokemon in the
+     * party (box -1) and in all boxes, in that order.
+     */
+    public void eachPokemon(java.util.function.Consumer<Pokemon> action) {
+        for (int i = -1; i < maxBoxes(); i++) {                // :378
+            for (int j = 0; j < maxPokemon(i); j++) {          // :379
+                Pokemon pkmn = get(i, j);                      // :380
+                if (pkmn != null) {                            // :381
+                    action.accept(pkmn);
+                }
+            }
+        }
+    }
+
     /** 他段: PokeBattle_Pokemon:769-774 heal (egg 不动)。 */
     public static void heal(Pokemon p) {
         if (p == null || p.egg) return;

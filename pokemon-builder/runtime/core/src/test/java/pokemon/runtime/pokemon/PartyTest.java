@@ -103,4 +103,36 @@ class PartyTest {
         assertFalse(egg.egg);
         assertEquals(0, party.eggCount());
     }
+
+    @Test
+    @DisplayName("225:222-227: Flame Body / Magma Armor in the party take one more step off every egg")
+    void flameBodyHelpsEggs() {
+        Party party = new Party();
+        Pokemon egg = pokemon();
+        egg.egg = true;
+        egg.stepsToHatch = 3;
+        Pokemon warm = pokemon();
+        warm.ability = "FLAMEBODY";
+        party.add(egg);
+        party.add(warm);
+        assertTrue(party.stepEggs().isEmpty());
+        assertEquals(1, egg.stepsToHatch);
+        assertEquals(1, party.stepEggs().size, "1 - 2 <= 0 hatches");
+        assertEquals(0, egg.stepsToHatch, "the counter is clamped to zero");
+    }
+
+    @Test
+    @DisplayName("225:192-205 pbHatch")
+    void hatchWritesTheTrainerAndMap() {
+        TrainerState trainer = new TrainerState();
+        trainer.name = "Red";
+        Pokemon egg = pokemon();
+        egg.name = "神秘的蛋";
+        EggHatching.pbHatch(egg, trainer, 42, 1000L);
+        assertEquals("Red", egg.originalTrainer);
+        assertEquals(120, egg.happiness);
+        assertEquals(1, egg.obtainMode);
+        assertEquals(42, egg.hatchedMap);
+        assertEquals(1000L, egg.timeEggHatched);
+    }
 }

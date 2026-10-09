@@ -43,6 +43,8 @@ public final class TrainerState {
     public boolean pokepc;
     /** PokeBattle_Trainer:19 / Settings:28: the exp pot ("经验储罐"). */
     public int expPot;
+    /** 343_ChainCatching:17-31 {@code $Trainer.chainCatching}. */
+    public final ChainCatching chainCatching = new ChainCatching();
     public double playSeconds;
     public int region;
 
@@ -83,7 +85,7 @@ public final class TrainerState {
         newId(null);                       // a new game rolls a new trainer id
         party.members().clear(); storage.clear(); regionalStorage.clear();
         seen.clear(); owned.clear(); badges.clear(); playSeconds = 0; region = 0;
-        pokedex = false; pokepc = false; expPot = 0;
+        pokedex = false; pokepc = false; expPot = 0; chainCatching.reset();
         healMapId = -1; healX = 0; healY = 0; healDirection = 0;
     }
 

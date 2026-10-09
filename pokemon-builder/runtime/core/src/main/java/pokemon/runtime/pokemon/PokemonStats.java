@@ -84,6 +84,9 @@ public final class PokemonStats {
      * formulas and their integer arithmetic match the project's PBExperience.
      */
     public static int experienceForLevel(String growthRate, int level) {
+        if (level > 100) {
+            return PBExperience.pbGetStartExperience(level, growthRate);   // 087_PBExperience:117-147 above the table
+        }
         if (level <= 1) {
             return 0;
         }
@@ -127,11 +130,7 @@ public final class PokemonStats {
      * kept at 100 here because the runtime does not read Settings yet.
      */
     public static int levelForExperience(String growthRate, int experience) {
-        int level = 1;
-        while (level < 100 && experienceForLevel(growthRate, level + 1) <= experience) {
-            level++;
-        }
-        return level;
+        return Math.max(1, PBExperience.pbGetLevelFromExperience(experience, growthRate));
     }
 
     /**

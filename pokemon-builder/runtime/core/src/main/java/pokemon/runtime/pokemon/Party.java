@@ -81,26 +81,27 @@ public final class Party {
     }
 
     /**
-     * P3: one field step. Decrements every egg's hatch counter and hatches the
-     * ones that reach zero (the egg becomes the species, full HP).
+     * The step handler of 225_PScreen_EggHatching:218-233: every egg loses a step, and one more when a Pokemon of the party
+     * has Flame Body or Magma Armor; an egg whose counter reaches zero is ready for {@code pbHatch}.
      *
-     * @return the Pokemon that hatched this step (empty when none)
+     * @return the eggs that reached zero this step (they are no longer eggs)
      */
     public Array<Pokemon> stepEggs() {
         Array<Pokemon> hatched = new Array<>();
-        for (Pokemon pokemon : members) {
-            if (!pokemon.egg) {
+        for (Pokemon pokemon : new Array<>(members)) {
+            if (pokemon == null || !pokemon.egg) {                       // :220 next if egg.eggsteps<=0
                 continue;
             }
-            if (pokemon.stepsToHatch > 0) {
+            pokemon.stepsToHatch--;                                       // :221
+            for (Pokemon other : members) {                               // :222-227 $Trainer.pokemonParty
+                if (other == null || other.egg) continue;
+                if (!"FLAMEBODY".equals(other.ability) && !"MAGMAARMOR".equals(other.ability)) continue;
                 pokemon.stepsToHatch--;
+                break;
             }
-            if (pokemon.stepsToHatch <= 0) {
+            if (pokemon.stepsToHatch <= 0) {                              // :228-231
+                pokemon.stepsToHatch = 0;
                 pokemon.egg = false;
-                if (pokemon.name == null || pokemon.name.isEmpty() || "神秘的蛋".equals(pokemon.name)) {
-                    pokemon.name = pokemon.species == null ? pokemon.name : pokemon.species.name;
-                }
-                pokemon.hp = pokemon.maxHp();
                 hatched.add(pokemon);
             }
         }

@@ -66,9 +66,18 @@ public final class Pokemon {
     public int obtainLevel;
     /** 0 met, 1 hatched, 2 traded, 3 fateful, 4 fateful. */
     public int obtainMode;
+    /** {@code hatchedMap} / {@code timeEggHatched} (197:47, :98-109; epoch seconds, 0 = unset): where and when an egg hatched. */
+    public int hatchedMap;
+    public long timeEggHatched;
     public String obtainText;
     /** PokeRus stage: 0 none, 1 infected, 2 cured. */
     public int pokerus;
+    /** {@code @beauty} (the contest stat Feebas' Beauty evolution reads). 登记: nothing raises it yet. */
+    public int beauty;
+    /** {@code @criticalHits} (the Pokemon-side mirror of the battler's, 201_Pokemon_Evolution CriticalHits). */
+    public int criticalHits;
+    /** {@code @yamaskhp} (the damage Yamask took, 201_Pokemon_Evolution DamageDone). */
+    public int yamaskhp;
 
     /** One known move with its current PP (up to 4 by the time battle lands). */
     public static final class MoveSlot {
@@ -81,6 +90,73 @@ public final class Pokemon {
             this.move = move;
             this.maxPp = move == null ? 0 : move.pp;
             this.pp = this.maxPp;
+        }
+
+        /** {@code PBMove#totalpp} (085_PBMove:70-73): the move's PP plus 1/5 of it for each PP Up. */
+        public int totalPp() {
+            int base = move == null ? 0 : move.pp;
+            return base + base * ppUp / 5;
+        }
+
+        /** {@code ppup=}: keeps {@link #maxPp} equal to {@link #totalPp()}. */
+        public void setPpUp(int value) {
+            ppUp = value;
+            maxPp = totalPp();
+        }
+    }
+
+    /** The form number ({@code form}, 0 for the base form). */
+    public int formIndex() {
+        return form == null ? looseForm : form.form;
+    }
+
+    /**
+     * {@code @form} when the data has no entry for it on the current species (a Magikarp whose {@code form = 2} was set by
+     * the Thunder Stone, a Goomy's {@code form = 1}): Ruby keeps the number on the Pokemon, and the species it evolves into
+     * has the entry. 0 when {@link #form} is set or the base form is meant.
+     */
+    public int looseForm;
+
+    /** {@code @fused} (PokeBattle_Pokemon:27): the Pokemon fused into this one (DNA Splicers, N-Solarizer ...). */
+    public Pokemon fused;
+
+    /**
+     * {@code pbLearnMove(move)} (PokeBattle_Pokemon:467-492): learns the move silently. A known move moves to the end of
+     * the list; a full set forgets the first move.
+     */
+    public void learnMoveSilently(PbsData.Move move) {
+        if (move == null || move.internalName == null) {
+            return;
+        }
+        for (int i = 0; i < moves.size; i++) {
+            if (moves.get(i).move != null && move.internalName.equals(moves.get(i).move.internalName)) {
+                moves.add(moves.removeIndex(i));                               // :470-481 relocate to the end
+                return;
+            }
+        }
+        if (moves.size >= 4) {
+            moves.removeIndex(0);                                              // :488-491 forget the first move
+        }
+        moves.add(new MoveSlot(move));                                         // :482-486
+    }
+
+    /**
+     * {@code calcStats} (PokeBattle_Pokemon:868-891): the stats are derived on the fly here, but the current HP keeps its
+     * distance to the maximum: {@code hpDiff = totalhp - hp} before, {@code hp = totalhp - hpDiff} after (:884-888).
+     */
+    /** {@code level=} (197_PokeBattle_Pokemon:121-127): the level and the start experience of that level. */
+    public void setLevelAndExp(int value) {
+        level = Math.max(1, value);
+        exp = PokemonStats.experienceForLevel(growthRate(), level);
+    }
+
+    public void recalculatingStats(Runnable change) {
+        int hpDiff = maxHp() - hp;
+        change.run();
+        int total = maxHp();
+        hp = Math.max(0, total - hpDiff);
+        if (hp > total) {
+            hp = total;
         }
     }
 
@@ -160,6 +236,75 @@ public final class Pokemon {
      */
     public int totalHpFactor = 1;
 
+    /**
+     * {@code changeHappiness(method)} (197_PokeBattle_Pokemon:777-833): the walking / level-up / vitamin / faint ...
+     * changes, boosted when positive by the map the Pokemon was met on, a Luxury Ball, the Soothe Bell and super
+     * shininess; clamped to 0..255.
+     *
+     * @param currentMapId {@code $game_map.map_id} (:826)
+     * @param luxuryBallType {@code pbGetBallType(:LUXURYBALL)} (:827), -1 when the project has no such ball
+     */
+    public void changeHappiness(String method, int currentMapId, int luxuryBallType) {
+        int gain;
+        switch (method) {
+            case "walking":
+                gain = happiness < 200 ? 2 : 1;                                       // :781-782
+                break;
+            case "levelup":
+                gain = happiness < 100 ? 5 : happiness < 200 ? 4 : 3;                 // :784-786
+                break;
+            case "groom":
+                gain = happiness < 200 ? 10 : 4;                                      // :788-789
+                break;
+            case "evberry":
+                gain = happiness < 100 ? 10 : happiness < 200 ? 5 : 2;                // :791-793
+                break;
+            case "vitamin":
+                gain = happiness < 100 ? 5 : happiness < 200 ? 3 : 2;                 // :795-797
+                break;
+            case "wing":
+                gain = happiness < 100 ? 3 : happiness < 200 ? 2 : 1;                 // :799-801
+                break;
+            case "machine":
+            case "battleitem":
+                gain = happiness < 200 ? 1 : 0;                                       // :803-808
+                break;
+            case "faint":
+                gain = -1;                                                            // :809
+                break;
+            case "faintbad":
+                gain = happiness < 200 ? -5 : -10;                                    // :811-813
+                break;
+            case "powder":
+                gain = happiness < 200 ? -5 : -10;                                    // :814-816
+                break;
+            case "energyroot":
+                gain = happiness < 200 ? -10 : -15;                                   // :817-819
+                break;
+            case "revivalherb":
+                gain = happiness < 200 ? -15 : -20;                                   // :820-822
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown happiness-changing method: " + method);   // :824
+        }
+        if (gain > 0) {                                                               // :826
+            if (obtainMap == currentMapId) {
+                gain += 1;                                                            // :827
+            }
+            if (luxuryBallType >= 0 && ballused == luxuryBallType) {
+                gain += 1;                                                            // :828
+            }
+            if ("SOOTHEBELL".equals(item)) {
+                gain = (int) Math.floor(gain * 1.5);                                  // :829
+            }
+            if (superShiny) {
+                gain *= 2;                                                            // :830
+            }
+        }
+        happiness += gain;                                                            // :832
+        happiness = Math.max(0, Math.min(255, happiness));                            // :833
+    }
+
     public int maxHp() {
         return totalHpFactor * PokemonStats.maxHp(baseStat(PokemonStats.HP), ivs[PokemonStats.HP],
                 evs[PokemonStats.HP], level);
@@ -213,7 +358,8 @@ public final class Pokemon {
         String growth = growthRate();
         int previous = level;
         int previousMax = maxHp();
-        while (level < 100 && exp >= PokemonStats.experienceForLevel(growth, level + 1)) {
+        exp = Math.min(exp, PBExperience.pbGetMaxExperience(growth));                 // pbAddExperience (:175-182)
+        while (level < PBExperience.MAXIMUM_LEVEL && exp >= PokemonStats.experienceForLevel(growth, level + 1)) {
             level++;
         }
         if (level != previous) {
@@ -227,7 +373,7 @@ public final class Pokemon {
 
     /** Experience still needed to reach the next level (0 at level 100). */
     public int experienceToNextLevel() {
-        return level >= 100 ? 0 : PokemonStats.experienceForLevel(growthRate(), level + 1) - exp;
+        return level >= PBExperience.MAXIMUM_LEVEL ? 0 : PokemonStats.experienceForLevel(growthRate(), level + 1) - exp;
     }
 
     public boolean fainted() {
@@ -388,6 +534,21 @@ public final class Pokemon {
      */
     public final Array<String> firstMoves = new Array<>();
 
+    /** {@code trmoves} (197_PokeBattle_Pokemon:25, :643-646): the moves taught by Technical Records, which stay relearnable. */
+    public final Array<String> trMoves = new Array<>();
+
+    /**
+     * {@code getMoveList} (197_PokeBattle_Pokemon:443-445): {@code pbGetSpeciesMoveset(@species, formSimple)}, the level-up
+     * list of the form's own entry. 登记: a form without moves of its own reads the species' list.
+     */
+    public Array<PbsData.LearnMove> getMoveList(PbsData data) {
+        if (species != null && data != null && formIndex() > 0) {
+            PbsData.SpeciesForm f = data.form(species.internalName, formIndex());
+            if (f != null && f.moves != null) return f.moves;
+        }
+        return species == null ? new Array<>() : species.moves;
+    }
+
     public void recordFirstMoves() {
         firstMoves.clear();
         for (MoveSlot slot : moves) {
@@ -473,18 +634,140 @@ public final class Pokemon {
         if (isPrimal()) setForm(data, 0);                                           // :104
     }
 
-    private boolean isSpecies(String name) {
+    /** {@code isSpecies?(s)} (PokeBattle_Pokemon:668-671). */
+    public boolean isSpecies(String name) {
         return species != null && species.internalName != null
                 && name.equalsIgnoreCase(species.internalName);
     }
 
+    /** {@code pkmn.clone} (197_PokeBattle_Pokemon:893+): an independent copy (the moves, stats and lists are copied). */
+    public Pokemon copy() {
+        Pokemon c = new Pokemon(species, level, null);
+        c.form = form;
+        c.internalName = internalName;
+        c.name = name;
+        c.ivs = ivs.clone();
+        c.evs = evs.clone();
+        c.nature = nature;
+        c.ability = ability;
+        c.moves.clear();
+        for (MoveSlot slot : moves) {
+            MoveSlot m = new MoveSlot(slot.move);
+            m.pp = slot.pp;
+            m.maxPp = slot.maxPp;
+            m.ppUp = slot.ppUp;
+            c.moves.add(m);
+        }
+        c.hp = hp;
+        c.statusCount = statusCount;
+        c.status = status;
+        c.gender = gender;
+        c.shiny = shiny;
+        c.superShiny = superShiny;
+        c.egg = egg;
+        c.item = item;
+        c.happiness = happiness;
+        c.stepsToHatch = stepsToHatch;
+        c.ribbons.addAll(ribbons);
+        c.firstMoves.addAll(firstMoves);
+        c.trMoves.addAll(trMoves);
+        c.exp = exp;
+        c.originalTrainer = originalTrainer;
+        c.battleRank = battleRank;
+        c.personalID = personalID;
+        c.trainerID = trainerID;
+        c.publicID = publicID;
+        c.otGender = otGender;
+        c.ballused = ballused;
+        c.markings = markings;
+        c.obtainMap = obtainMap;
+        c.obtainLevel = obtainLevel;
+        c.obtainMode = obtainMode;
+        c.hatchedMap = hatchedMap;
+        c.timeEggHatched = timeEggHatched;
+        c.obtainText = obtainText;
+        c.pokerus = pokerus;
+        c.beauty = beauty;
+        c.criticalHits = criticalHits;
+        c.yamaskhp = yamaskhp;
+        c.fused = fused;
+        c.totalHpFactor = totalHpFactor;
+        return c;
+    }
+
+    /**
+     * {@code species=} (197_PokeBattle_Pokemon:658-666) as {@code PokemonEvolutionScene} uses it: the new species keeps the
+     * form number, the nickname (a name that is not the old species name), the ability slot (natural 0/1 or the hidden
+     * one) and the missing HP; the level follows the experience under the new species' growth rate.
+     */
+    public void changeSpecies(PbsData data, PbsData.Species target) {
+        PbsData.Species old = species;
+        boolean nicknamed = old != null && name != null && !name.equals(old.name);
+        int formNumber = formIndex();
+        int slot = abilitySlot();
+        int oldMax = maxHp();
+        species = target;
+        form = formNumber > 0 && data != null ? data.form(target.internalName, formNumber) : null;
+        looseForm = form == null && formNumber > 0 ? formNumber : 0;
+        internalName = form != null ? form.key : target.internalName;
+        if (!nicknamed) {
+            name = target.name;
+        }
+        if (slot >= 0) {
+            ability = abilityForSlot(slot);
+        }
+        level = Math.max(1, PokemonStats.levelForExperience(growthRate(), exp));
+        hp = Math.max(0, Math.min(maxHp(), maxHp() - (oldMax - hp)));
+    }
+
+    /** The ability slot of the current ability: 0/1 natural, 2 hidden, -1 when it is none of the species' own. */
+    private int abilitySlot() {
+        if (ability == null) {
+            return -1;
+        }
+        Array<String> natural = form != null && form.abilities != null ? form.abilities : species.abilities;
+        String hidden = form != null && form.hiddenAbility != null ? form.hiddenAbility : species.hiddenAbility;
+        if (natural.size > 0 && ability.equals(natural.get(0))) {
+            return 0;
+        }
+        if (natural.size > 1 && ability.equals(natural.get(1))) {
+            return 1;
+        }
+        return hidden != null && ability.equals(hidden) ? 2 : -1;
+    }
+
+    /** {@code ability} (197:224-245) for a slot: hidden when the species has one, else the personality's natural slot. */
+    private String abilityForSlot(int slot) {
+        Array<String> natural = form != null && form.abilities != null ? form.abilities : species.abilities;
+        String hidden = form != null && form.hiddenAbility != null ? form.hiddenAbility : species.hiddenAbility;
+        int index = slot;
+        if (index >= 2) {
+            if (hidden != null && !hidden.isEmpty()) {
+                return hidden;                                              // :228-234
+            }
+            index = personalID & 1;                                         // :235
+        }
+        String result = index < natural.size ? natural.get(index) : null;   // :238-243
+        if (result == null || result.isEmpty()) {
+            int other = (index + 1) % 2;
+            result = other < natural.size ? natural.get(other) : null;
+        }
+        return result == null ? ability : result;
+    }
+
     /** Applies a form index; index 0 is the base species (form = null). */
     public void setForm(PbsData data, int index) {
+        int slot = species == null ? -1 : abilitySlot();
         form = index <= 0 || data == null || species == null
                 ? null : data.form(species.internalName, index);
-        if (form != null && form.abilities != null && form.abilities.size > 0) {
-            ability = form.abilities.get(0);
-        } else if (species != null && species.abilities.size > 0) {
+        looseForm = form == null && index > 0 ? index : 0;                      // the number survives without a data entry
+        if (species != null) {
+            internalName = form != null ? form.key : species.internalName;
+        }
+        // 198_Pokemon_Forms:17-24 setForm does not touch the ability; it follows the new form's table by slot.
+        if (slot >= 0) {
+            ability = abilityForSlot(slot);
+        } else if (ability == null && species != null && species.abilities.size > 0) {
             ability = species.abilities.get(0);
         }
     }
