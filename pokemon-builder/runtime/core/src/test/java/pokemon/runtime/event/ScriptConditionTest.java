@@ -110,6 +110,18 @@ class ScriptConditionTest {
     }
 
     @Test
+    @DisplayName("transportPokemon (map 93) says the old-save transfer is switched off and takes no branch")
+    void transportPokemonIsClosed() {
+        interpreter.start(conditionProgram("transportPokemon(\"0vej\")"), 7, 3);
+        interpreter.update(0f);
+        assertEquals(InterpreterState.WAIT_MESSAGE, interpreter.state());
+        tap(GameAction.CONFIRM);
+        assertEquals(InterpreterState.FINISHED, interpreter.state());
+        assertFalse(state.switches().get(1));
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
     @DisplayName("pbCut without the badge only says the tree could be cut (179:194-199)")
     void cutNeedsTheBadge() {
         knowing("CUT");

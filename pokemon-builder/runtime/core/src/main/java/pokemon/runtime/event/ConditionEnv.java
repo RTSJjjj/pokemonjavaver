@@ -237,7 +237,7 @@ final class ConditionEnv implements ScriptCondition.Env {
     /** The atoms that talk to the player run on a task with a screen. */
     static final java.util.Set<String> SCREEN_CALLS = new java.util.HashSet<>(
             java.util.Arrays.asList("pbCut", "pbRockSmash", "pbStrength", "pbMoveTutorChoose", "pbSurf", "pbWaterfall", "pbDive",
-                    "pbSurfacing", "pbRelearnMoveScreen", "pbAddToParty", "pbAddPokemon", "pbReceiveItem"));
+                    "pbSurfacing", "pbRelearnMoveScreen", "pbAddToParty", "pbAddPokemon", "pbReceiveItem", "transportPokemon"));
 
     private boolean needScene(String name) {
         if (scene == null) {
@@ -437,6 +437,11 @@ final class ConditionEnv implements ScriptCondition.Env {
                 return needScene(name) && fieldMoves.pbCut(scene);
             case "pbRockSmash":                                                 // :610-623
                 return needScene(name) && fieldMoves.pbRockSmash(scene);
+            case "transportPokemon": {                                          // 350_Pokemon_Transporter:23-33, switched off for now
+                needScene(name);
+                scene.pbMessage("对不起，由于引擎更新，宝可梦传送已经暂时关闭");   // the old-save reader lives on feature/legacy-transfer
+                return false;
+            }
             case "pbStrength":                                                  // :652-672
                 return needScene(name) && fieldMoves.pbStrength(scene);
             case "isTempSwitchOn?":

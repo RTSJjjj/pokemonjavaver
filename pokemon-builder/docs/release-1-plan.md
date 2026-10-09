@@ -15,7 +15,7 @@
 | 3 | **关键道具使用**（已实现，待实机：`ESCAPEROPE`/`INFINITEROPE`（并修了洞口出口点从未设置）、`LANTERN`、`TOWNMAP`、`EONFLUTE`、`ETHEREALNEXUS`；背包里用）：`TOWNMAP`（打开地区地图）、`LANTERN`、`INFINITEROPE`（带确认的逃脱绳）、`EONFLUTE`、`ETHEREALNEXUS` | 189_PItem_ItemEffects 的 `UseFromBag`/`UseInField` | 中 | 背包里使用有原文效果；“这里不能使用”只在原文条件下出现 |
 | 4 | **快速捕捉**（已实现，待实机：按 Z/Shift = `Input::A`；选球界面 L/R 翻 5 个，大师球有确认）：战斗指令菜单按 A（`Input::A`），弹出捕捉球选择界面，直接扔球（狩猎战斗、训练家战斗、Boss、`disablePokeBalls`、开关 196 时不可用） | 355_ES_s_Fast_Catching（168 行）、156_Scene_Commands:64-76 | 小 | 野外战斗按 A 列出背包里有的精灵球并扔出；无球时说“没有可供捕捉的精灵球。”；上述不可用情形下按键无反应 |
 | 4b | **ES 战斗信息 / 招式信息**：指令菜单按 F5 弹出战场信息（`pbBattleInfo`），招式菜单按 F5 弹出所选招式的详情（`pbMoveInfo`）；触控端对应 R 键（战斗里）。狩猎区不可用（`pbInSafari?`） | 353_ES_s_Battle_Info_Display（632 行）、354_ES_s_Move_Info_Display（214 行）、156_Scene_Commands:60-63、:149-151 | 中 | 战斗里按 F5/R 出现与原插件一致的信息界面，取消返回战斗菜单；截图核对 |
-| 5 | **旧版存档转移**：`transportPokemon("0vej")` / `("shadowvow")`。读 `save/GameOld.rxdata`（Ruby Marshal）。**先决定取舍**：做，或第一版先从地图 93 的事件里去掉这两个选项 | 350_Pokemon_Transporter（308 行） | 中/小 | 做：能从旧存档转入宝可梦且不可重复转入；去掉：事件里不再有该选项 |
+| 5 | **（暂缓）旧版存档转移**：转换器已做在分支 `feature/legacy-transfer`，develop 上 NPC 只提示“由于引擎更新，宝可梦传送已经暂时关闭”。原计划：`transportPokemon("0vej")` / `("shadowvow")`。读 `save/GameOld.rxdata`（Ruby Marshal）。**先决定取舍**：做，或第一版先从地图 93 的事件里去掉这两个选项 | 350_Pokemon_Transporter（308 行） | 中/小 | 做：能从旧存档转入宝可梦且不可重复转入；去掉：事件里不再有该选项 |
 | 6 | **自动存档**：每 200 步存到当前存档位（禁用地图 1、119、426；滑行中不计步） | 378_001_MSF_AutoSave、379/380/381 | 小 | 走满 200 步后存档位被更新，禁用地图不计步 |
 | 7 | **天气渲染**：雨/雪/沙暴/阳光等，地图元数据天气 + 事件设置天气 | 172_PField_Weather、098_PBWeather、Game_Screen | 中 | 21 张带天气的地图和事件设置的天气有画面，换图/切换时正确开关 |
 | 8 | **小地图与设置页**（可选，默认关闭） | 335–338_ESMM（共约 800 行） | 中 | 设置页里有“小地图设置”，开启后按设置显示 |

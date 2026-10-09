@@ -705,31 +705,6 @@ public final class SaveManager {
         return true;
     }
 
-    /**
-     * A save of this runtime read on its own as the source of a Pokémon transfer (the Java counterpart of reading a Ruby
-     * {@code Game.rxdata}): the trainer with the party and the PC storage, built without touching any game state.
-     *
-     * @return null when the text is not a save of a version this runtime reads
-     */
-    public TrainerState readTrainer(String json) {
-        JsonValue root;
-        try {
-            root = new JsonReader().parse(json);
-        } catch (RuntimeException error) {
-            return null;
-        }
-        if (root == null || !root.isObject()) {
-            return null;
-        }
-        int version = root.getInt("saveVersion", -1);
-        if (version < OLDEST_SAVE_VERSION || version > SAVE_VERSION || root.get("trainer") == null) {
-            return null;
-        }
-        TrainerState trainer = new TrainerState();
-        loadTrainer(root.get("trainer"), trainer);
-        return trainer;
-    }
-
     // ------------------------------------------------------------------
     // P1: trainer / Pokemon reconstruction
     // ------------------------------------------------------------------
