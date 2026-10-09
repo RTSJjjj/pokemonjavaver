@@ -7,7 +7,7 @@ import java.util.function.Function;
 
 /** The {@link FieldScene} of a field script running on a {@code BlockingTask}: each call is a request for the interpreter. */
 final class TaskFieldScene implements FieldScene {
-    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM }
+    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL }
 
     static final class Request {
         final Kind kind;
@@ -38,6 +38,20 @@ final class TaskFieldScene implements FieldScene {
         Request r = new Request(Kind.MESSAGE);
         r.text = text;
         caller.apply(r);
+    }
+
+    /** {@code pbMessageDisplay(msgWindow, text, false)} (274_Name-box:359 {@code break if !letterbyletter}): the text shows and the script goes on. */
+    public void flashMessage(String text) {
+        Request r = new Request(Kind.FLASH);
+        r.text = text;
+        caller.apply(r);
+    }
+
+    /** A wait of {@code frames} (40 fps) that ends early on C or B ({@code pbWaitMessage}'s loop); true when it was cancelled. */
+    public boolean waitCancelable(int frames) {
+        Request r = new Request(Kind.WAIT_CANCEL);
+        r.number = frames;
+        return Boolean.TRUE.equals(caller.apply(r));
     }
 
     @Override

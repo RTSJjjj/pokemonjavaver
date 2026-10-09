@@ -750,6 +750,14 @@ public final class EventInterpreter {
         switch (interpreterState) {
             case WAIT_TIME:
                 waitTimer -= Math.max(0f, delta);
+                if (waitCancelable && (input.wasPressed(GameAction.CONFIRM) || input.wasPressed(GameAction.CANCEL))) {
+                    waitCancelled = true;                                              // pbWaitMessage: Input.trigger?(C) || (B)
+                    waitCancelable = false;
+                    waitTimer = 0f;
+                }
+                if (waitCancelable && waitTimer <= 0f) {
+                    waitCancelable = false;
+                }
                 if (keyItem != null) {
                     keyItem.update(delta);
                     if (keyItem.takeJingle() && audio != null) {
@@ -1232,6 +1240,24 @@ public final class EventInterpreter {
     }
 
     /** R8: shows one message from an IR handler and waits for it (pbMessage). */
+    private boolean waitCancelable;
+    private boolean waitCancelled;
+
+    /** The text of a message that does not wait ({@code pbMessageDisplay(..., false)}): shown at once, the script goes on. */
+    private void showFlashMessage(String text) {
+        Array<String> raw = new Array<>();
+        raw.add(text);
+        MessageText.Parsed parsed = MessageText.parse(raw, state, messageColumns);
+        messageLines = parsed.lines;
+        messagePage = 0;
+        messageWaits = false;
+        noteMessageExtras(parsed);
+        messageSpeaker = parsed.speaker;
+        messageLinesPerPage = parsed.lineCount > 0 ? parsed.lineCount : MessageService.LINES_PER_PAGE;
+        choicesFollow = false;
+        showMessagePage();
+    }
+
     private void showHandlerMessage(String text) {
         Array<String> raw = new Array<>();
         raw.add(text);
@@ -3084,6 +3110,42 @@ public final class EventInterpreter {
     }
 
     /**
+     * 189_PItem_ItemEffects {@code pbUseKeyItemInField(item)}: the {@code UseInField} body of an item that acts on the map
+     * (the fishing rod), started after the bag and the pause menu have closed.
+     */
+    public void startFieldItem(String item) {
+        Array<EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 0));
+        start(list, state.currentMapId(), -1);
+        pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
+        TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
+        FieldItemTask task = new FieldItemTask(state, mapPort, scene, new FieldItemTask.Services() {
+            @Override
+            public boolean hasEncounter(String enctype) {
+                if (pbs == null) return false;
+                PokemonEncounters wild = new PokemonEncounters(pbs, state, encounterRandom, java.time.LocalTime::now);
+                wild.setup(state.currentMapId());
+                return wild.hasEncounter(enctype);
+            }
+
+            @Override
+            public boolean pbEncounter(String enctype) {
+                return EventInterpreter.this.pbEncounter(enctype);
+            }
+        }, encounterRandom);
+        scriptTaskResult = null;
+        holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            task.use(item);
+            scriptTaskResult = true;
+        });
+        scriptTaskDone = result -> {
+        };
+        scriptTaskAnswer = null;
+        scriptQuestion = null;
+        scriptTask = holder[0];
+    }
+
+    /**
      * 362_changeShiny {@code teachEggMoves}: the egg-move teacher NPC. The Ruby runs as a blocking script on a task of the
      * running event; the event goes on when it returns.
      */
@@ -3726,6 +3788,21 @@ public final class EventInterpreter {
                     }
                     break;
                 }
+                case FLASH:
+                    showFlashMessage(r.text);
+                    scriptTask.answer(null);
+                    break;
+                case WAIT_CANCEL:
+                    waitCancelled = false;
+                    scriptTaskAnswer = () -> waitCancelled;
+                    waitCancelable = true;
+                    waitTimer = r.number / 40f;
+                    if (waitTimer > 0f) {
+                        interpreterState = InterpreterState.WAIT_TIME;
+                        return;
+                    }
+                    waitCancelable = false;
+                    break;
                 case WAIT:
                     scriptTaskAnswer = () -> null;
                     waitTimer = r.number / 40f;

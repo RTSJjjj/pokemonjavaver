@@ -120,5 +120,7 @@ public class ProjectInfo {
         public String surfCharset;
         public String runningCharset;
         public String fishCharset;
+        /** PlayerX field 8: the fishing sheet used while surfing ({@code meta[7]}); null in data built before it was exported. */
+        public String surfFishCharset;
     }
 }

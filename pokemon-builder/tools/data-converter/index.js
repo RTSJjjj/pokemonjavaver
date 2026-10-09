@@ -610,6 +610,7 @@ function runtimeProfile(projectPath, scriptSources) {
           surfCharset: fields[3] || "",
           runningCharset: fields[4] || "",
           fishCharset: fields[6] || "",
+          surfFishCharset: fields[7] || "",   // pbFishingBegin/End use meta[7] while surfing (170_PField_Field:1232-1269)
         });
       }
       if (players.length > 0) {

@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1444,6 +1444,19 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "fishing": {
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                shotMap("fishing-0-ready");
+                context.eventInterpreter().startFieldItem("SUPERROD");
+                for (int i = 0; i < 40; i++) {
+                    advanceMap(1f / 40f, 2);
+                    if (i % 3 == 0) shotMap(String.format(java.util.Locale.ROOT, "fishing-%02d", i));
+                    if (i == 30 || i == 36) stepMap(GameAction.CONFIRM);
+                }
+                break;
+            }
             case "quests": {
                 pokemon.runtime.state.QuestLog log = state.quests();
                 log.activateQuest("Quest1", pokemon.runtime.state.QuestLog.DEFAULT_COLOR, true, "茶月镇", 2, 1700000000000L);

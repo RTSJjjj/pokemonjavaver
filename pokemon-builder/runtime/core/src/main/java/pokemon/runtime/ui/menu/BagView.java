@@ -72,6 +72,21 @@ public final class BagView {
         this.endScreen = host;
     }
 
+    /** The map side of the items that act on the map (the fishing rod): the check of {@code UseFromBag} and the hand-over. */
+    public interface MapItems {
+        /** {@code UseFromBag :SUPERROD} (189_PItem_ItemEffects:55-63): water in front (and no cliff unless surfing). */
+        boolean canFish();
+
+        /** {@code UseFromBag} answered 2: the screens close and {@code UseInField} runs on the map. */
+        void use(String item);
+    }
+
+    private MapItems mapItems;
+
+    public void mapItems(MapItems host) {
+        this.mapItems = host;
+    }
+
     private static boolean isBicycle(String item) {
         return "BICYCLE".equals(item) || "MACHBIKE".equals(item) || "ACROBIKE".equals(item);
     }
@@ -484,6 +499,14 @@ public final class BagView {
                     state().inventory().remove(ash, 1);                // :923 3 = used, consume
                 }
             });
+            return;
+        }
+        if (ItemHandlers.isMapItem(item) && mapItems != null) {   // 189:55-63 UseFromBag :SUPERROD
+            if (!mapItems.canFish()) {
+                say("这里不能使用。", null);                       // :61
+                return;
+            }
+            mapItems.use(item);                                    // next 2: end screen, then pbUseKeyItemInField
             return;
         }
         if (handlers.hasBagFieldHandler(item)) {               // :917-927 triggerUseFromBag falls back to UseInField

@@ -291,6 +291,24 @@ public interface MapPort {
     }
 
     /** {@code $game_player.pbHasDependentEvents?}. */
+    /**
+     * {@code $game_player.setDefaultCharName(fishSheet, pattern, true)} of pbFishingBegin / pbFishingEnd
+     * (170_PField_Field:1232-1269): shows one frame of the player's fishing sheet ({@code pattern} 0..15 = direction row
+     * x 4 + column, rows ordered down / left / right / up). False when the project has no sheet for this state.
+     */
+    default boolean fishingFrame(boolean surfing, int pattern) {
+        return false;
+    }
+
+    /** {@code $game_player.setDefaultCharName(nil, oldpattern)} (:1294): the walking graphic and the old frame come back. */
+    default void endFishingFrame(int oldPattern) {
+    }
+
+    /** {@code $game_player.fullPattern} (the direction row x 4 + the column). */
+    default int playerFullPattern() {
+        return 0;
+    }
+
     default boolean hasDependentEvents() {
         return false;
     }

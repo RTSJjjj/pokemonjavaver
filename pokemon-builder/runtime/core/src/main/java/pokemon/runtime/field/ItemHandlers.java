@@ -380,7 +380,23 @@ public final class ItemHandlers {
 
     /** Whether {@link #useInField} handles the item (SACREDASH needs the party screen: {@link #sacredAsh}). */
     public boolean hasBagFieldHandler(String item) {
-        return item != null && (BAG_FIELD_ITEMS.contains(item) || "SACREDASH".equals(item));
+        return item != null && (BAG_FIELD_ITEMS.contains(item) || "SACREDASH".equals(item) || isMapItem(item));
+    }
+
+    /**
+     * The items whose {@code UseFromBag} answers 2 (used, close the screens) and whose {@code UseInField} body acts on the
+     * map: it runs after the bag and the pause menu have closed ({@code pbUseKeyItemInField}).
+     */
+    public static boolean isMapItem(String item) {
+        return "SUPERROD".equals(item);
+    }
+
+    /**
+     * {@code UseFromBag :SUPERROD} (189_PItem_ItemEffects:55-63) and the check of {@code UseInField} (:319-323): water in
+     * front, and no cliff edge unless surfing.
+     */
+    public static boolean canFish(boolean facingWater, boolean facingPassable, boolean surfing) {
+        return facingWater && (facingPassable || surfing);
     }
 
     /** {@code pbUseItemMessage(item)} (188_PItem_Items:984-991). */

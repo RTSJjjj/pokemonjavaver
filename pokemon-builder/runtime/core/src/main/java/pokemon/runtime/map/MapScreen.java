@@ -343,6 +343,13 @@ public final class MapScreen extends ScreenAdapter {
             }
 
             @Override
+            public boolean pauseMenuCanFish() {
+                pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+                return pokemon.runtime.field.ItemHandlers.canFish(pokemon.runtime.field.PBTerrain.isWater(g.facingTerrainTag),
+                        facingPassableNow(), g.surfing);                      // 189:55-63
+            }
+
+            @Override
             public void pauseMenuSafariQuit() {
                 gameState.fieldGlobals().safari.decision = 1;                  // Modular Menu:203-204
                 safariGoToStart();
@@ -644,9 +651,22 @@ public final class MapScreen extends ScreenAdapter {
 
             @Override
             public boolean facingPassable() {
-                pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
-                int bit = Collision.directionBit(player.direction());
-                return tileMap.playerPassable(player.x(), player.y(), bit, gameState.bridge(), g.surfing, g.bicycle);
+                return facingPassableNow();
+            }
+
+            @Override
+            public boolean fishingFrame(boolean surfing, int pattern) {
+                return MapScreen.this.fishingFrame(surfing, pattern);
+            }
+
+            @Override
+            public void endFishingFrame(int oldPattern) {
+                MapScreen.this.endFishingFrame(oldPattern);
+            }
+
+            @Override
+            public int playerFullPattern() {
+                return fullPattern(player);
             }
 
             @Override
@@ -891,6 +911,10 @@ public final class MapScreen extends ScreenAdapter {
             String hiddenMove = pauseMenu.takeHiddenMove(hiddenPokemon);
             if (hiddenMove != null && interpreter != null) {
                 interpreter.startHiddenMove(hiddenPokemon[0], hiddenMove);   // 206_PScreen_PauseMenu:183 pbUseHiddenMove
+            }
+            String fieldItem = pauseMenu.takeFieldItem();
+            if (fieldItem != null && interpreter != null) {
+                interpreter.startFieldItem(fieldItem);                       // 288_Modular_Menu:102-118 pbUseKeyItemInField
             }
             if (followers != null) {
                 followers.comeBack(false);                                   // 297_Follower_Main:579-638 after the party / bag screens
@@ -2615,6 +2639,46 @@ public final class MapScreen extends ScreenAdapter {
             player.characterName = charset;
             player.runningCharacterName = running;
         }
+    }
+
+    /** {@code $game_map.passable?(player.x, player.y, player.direction, player)}. */
+    private boolean facingPassableNow() {
+        pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+        int bit = Collision.directionBit(player.direction());
+        return tileMap.playerPassable(player.x(), player.y(), bit, gameState.bridge(), g.surfing, g.bicycle);
+    }
+
+    /** {@code Game_Character#fullPattern}: the direction row (down 0, left 1, right 2, up 3) x 4 + the column. */
+    private static int fullPattern(MapCharacter character) {
+        int row = character.direction() == 4 ? 1 : character.direction() == 6 ? 2 : character.direction() == 8 ? 3 : 0;
+        return row * 4 + character.pattern();
+    }
+
+    /**
+     * {@code setDefaultCharName(fishSheet, pattern, true)} (026_Game_Player_Visuals:14-20): the player shows one frame of the
+     * fishing sheet. The sheet is {@code meta[6]} (on foot) or {@code meta[7]} (surfing) of the player's PBS entry.
+     */
+    private boolean fishingFrame(boolean surfing, int pattern) {
+        pokemon.runtime.data.ProjectInfo.PlayerGraphic graphic = runtimeProfile == null ? null
+                : runtimeProfile.player(gameState.playerId());
+        if (graphic == null || pattern < 0 || pattern >= 16) {
+            return false;
+        }
+        String sheet = blankToNull(surfing && graphic.surfFishCharset != null ? graphic.surfFishCharset : graphic.fishCharset);
+        if (sheet == null) {
+            return false;                                                  // 170:1238 meta[num] && meta[num]!=""
+        }
+        player.characterName = sheet;
+        player.face(new int[] {2, 4, 6, 8}[pattern / 4]);
+        player.basePattern(pattern % 4);
+        return true;
+    }
+
+    private void endFishingFrame(int oldPattern) {
+        applyPlayerCharset();                                              // setDefaultCharName(nil, ...): the walking sheet
+        int row = Math.max(0, Math.min(3, oldPattern / 4));
+        player.face(new int[] {2, 4, 6, 8}[row]);
+        player.basePattern(oldPattern % 4);
     }
 
     private static String blankToNull(String value) {

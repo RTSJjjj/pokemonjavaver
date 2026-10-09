@@ -525,6 +525,23 @@ public final class RuntimeContext {
             }
 
             @Override
+            public boolean fishingFrame(boolean surfing, int pattern) {
+                return screenPort != null && screenPort.fishingFrame(surfing, pattern);
+            }
+
+            @Override
+            public void endFishingFrame(int oldPattern) {
+                if (screenPort != null) {
+                    screenPort.endFishingFrame(oldPattern);
+                }
+            }
+
+            @Override
+            public int playerFullPattern() {
+                return screenPort == null ? 0 : screenPort.playerFullPattern();
+            }
+
+            @Override
             public boolean hasDependentEvents() {
                 return screenPort != null && screenPort.hasDependentEvents();
             }

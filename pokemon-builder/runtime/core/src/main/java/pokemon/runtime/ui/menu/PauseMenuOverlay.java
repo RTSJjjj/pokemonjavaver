@@ -30,6 +30,9 @@ public final class PauseMenuOverlay implements Disposable {
 
         /** Modular Menu:198-206: the player quit the Safari Zone (decision = 1, pbGoToStart). */
         void pauseMenuSafariQuit();
+
+        /** {@code UseFromBag :SUPERROD}: the player faces water (and may use the rod from here). */
+        boolean pauseMenuCanFish();
     }
 
     private enum Sub {
@@ -107,8 +110,29 @@ public final class PauseMenuOverlay implements Disposable {
         sub = Sub.HATCHER;
     }
 
+    private String fieldItemId;
+
+    /** The map item the bag chose (the fishing rod), once; null when none. */
+    public String takeFieldItem() {
+        String item = fieldItemId;
+        fieldItemId = null;
+        return item;
+    }
+
     private BagView newBagView() {
         BagView view = new BagView(context);
+        view.mapItems(new BagView.MapItems() {
+            @Override
+            public boolean canFish() {
+                return host != null && host.pauseMenuCanFish();
+            }
+
+            @Override
+            public void use(String item) {
+                fieldItemId = item;
+                close();                                                       // UseFromBag answered 2: every screen ends
+            }
+        });
         view.useHost(this::openPartyForItem);
         view.hatcherHost(() -> {
             hatcherView = new HatcherView(context);                           // openHatcher
