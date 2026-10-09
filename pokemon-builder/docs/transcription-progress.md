@@ -1,6 +1,6 @@
 # 转译补全进度（验收用）
 
-对应 `transcription-roadmap.md`。每项都写了：改了什么、依据的插件位置、怎么验证。测试命令：
+后续计划见 `release-1-plan.md`（原转译路线图已完成并移除）。每项都写了：改了什么、依据的插件位置、怎么验证。测试命令：
 
 ```text
 cd /d X:\runtime && gradlew.bat --offline :core:test          (X: 是 subst 出来的 pokemon-builder)
@@ -304,3 +304,23 @@ node --test builder/tests/*.test.js                          (构建器，在 po
 - 登记：馆主信息面板（`pbShowLeaderInfo`，只能用鼠标点击触发）、页面切换的黑幕滑动、`TrainerSpriteBW`、`$PokemonGlobal.trainerRecording` 未建模。
 - 脚本覆盖 5434/5441；Java 测试 1084 通过、0 失败（2 个中止为既有的 ffmpeg 用例）。
 - 训练家卡：页面切换的黑幕滑动/淡入淡出已做；馆主立绘仅用于鼠标信息面板，未做。
+
+## 狩猎区（242_PBattle_Safari / 160_PokeBattle_SafariZone）
+
+- 状态：`SafariState`（起点、狩猎球、步数 1800、决定码），存进存档；`FieldGlobals.inSafari(mapId)` = `pbInSafari?`（接待地图 + 元数据 `safariMap` 的地图）；离开狩猎区时 `pbEnd`。
+- 地图 28 事件 2：`pbSafariState.pbStart(30)` / `pbEnd` → IR `SAFARI_START` / `SAFARI_END`；事件页开关 `s:pbInSafari?` 已接。
+- 步数：`MapScreen#safariStep`（onStepTakenTransferPossible）每步 -1，到 0 说“叮咚！/狩猎之旅已结束！”并传回起点（`pbGoToStart`，淡出、面朝下）。
+- 战斗：`InteractiveBattlePort.Session.safari` / `safariCommand`（球、诱饵、石头、逃跑，catch/escape 因子，结束判定，不给经验）；屏幕：指令菜单模式 3（`精灵球/扔诱饵/扔石头/逃跑`，按钮行 5,7,6,3）、狩猎球数据框、`ThrowBaitAnimation` / `ThrowRockAnimation`、狩猎投球时显示玩家（`trainerThrowingFrames`）；`WILDERNESSBALL` 在狩猎区捕获率 ×2。
+- 战后：`afterSafariBattle` 写回球数、变量 1（决定码 2/3/4）、球用尽时“广播：狩猎球用尽！游戏结束！”并传回起点。
+- 暂停菜单：狩猎区内隐藏“保存”，显示“剩余步数/狩猎球剩余”条，“退出”改为 `你想退出狩猎吗？`（Modular Menu:197-206）。
+- 登记：`Events.onWildBattleEnd`（Poké Radar 链）、`pbBattleInfo`/快速捕捉键在狩猎战斗里本来就禁用；狩猎战斗的天气动画未做（战斗天气为空）。
+- 测试：`SafariBattleTest`、`TrainerSaveTest`（存档）、builder 的 `script-compiler.test.js`；`MenuCapture` 新增 `safari` 模式（诱饵、石头、投球、图鉴页）。
+
+## 小游戏：挖矿 / 翻牌 / 卡牌店（239 / 237 / 235）与狩猎区缺口
+
+- 统一入口：IR `MINIGAME {game}` → `MenuService.Kind.MINIGAME`（`request.wanted`）→ `PauseMenuOverlay` 的 `Sub.MINIGAME`，由 `MiniGames.create` 按名字建 `MiniGame`（`mining` / `voltorbflip` / `triadbuy` / `triadsell`）。脚本覆盖 5441/5441（0 个不支持）。
+- **挖矿** `MiningView`（239_PMinigame_Mining）：13×10 的墙、2–4 件宝物（`MiningData` 由 Ruby 的 ITEMS/IRON 表生成）、4–6 块铁板、镐（1 次）/锤（2 次、范围更大）、铁板只吃次数不破、49 次塌方（0.8 秒黑幕）、闪光揭示、“确定要放弃吗？”、逐个给道具。画面用 `MenuCapture mining` 核对。
+- **翻牌** `VoltorbFlipView`（237_PMinigame_VoltorbFlip）：按关卡区间生成棋盘与行列合计、翻牌动画、标记模式（Ctrl）、炸弹爆炸与降级、通关加币与升级、离场结算、开闭幕布（旋转黑幕）；插件的英文提示原样保留。`pbVoltorbFlip` 的“没有代币盒/代币盒装满了”在解释器里。画面用 `MenuCapture voltorb` 核对。
+- **卡牌店** `TriadShopView`（`pbBuyTriads` / `pbSellTriads`）+ `TriadCard`（数值与价格）+ `TriadStorage`（每种 99 张，存档）：命令窗口、金钱窗口、卡牌预览、数量窗口，提示语为插件原文（英文）。画面用 `MenuCapture triad` 核对（买 3 张 -1380，卖 2 张 +230）。
+- 登记：`pbScrollMap` 用冻结的地图截图右移 96 像素近似（截图本身是低分辨率）；Triple Triad 对战界面（`TriadScene`/`TriadScreen`/`pbTriadDuel`）和 `pbTriadList`、`pbGiveTriadCard` 没有任何事件调用，未做；`234_PMinigame_Duel` 同样无事件调用。
+- 狩猎区缺口：没有可战斗的宝可梦时也能开狩猎战斗（`Events.onWildBattleOverride` 先于 `ablePokemonCount` 检查，174_PField_Battles:351-357）；暂停菜单“退出狩猎”确认里按 B 原先会当成“是”，已改为 `pbConfirmMessage` 的取消 = “否”。

@@ -798,3 +798,19 @@ test("Game Corner scripts: prize vendors, lottery, event time, the slot machine"
   assert.deepEqual(compileBlock(block("pbSlotMachine\n")).ir, { command: "SLOT_MACHINE", difficulty: 1 });
   assert.deepEqual(compileBlock(block("$scene = Scene_Credits.new\n")).ir, { command: "CREDITS" });
 });
+
+test("Safari Zone reception scripts and the trainer card's badge box", () => {
+  const block = (rubySource) => ({ id: "s", category: "ESSENTIALS_API", apis: [], calls: [], rubySource });
+  assert.deepEqual(compileBlock(block("pbSafariState.pbStart(30)\n")).ir, { command: "SAFARI_START", balls: 30 });
+  assert.deepEqual(compileBlock(block("pbSafariState.pbEnd\n")).ir, { command: "SAFARI_END" });
+  assert.deepEqual(compileBlock(block("scene = PokemonTrainerCard_Scene.new\nscreen = PokemonTrainerCardScreen.new(scene)\npbFadeOutIn(99999) { \n screen.pbStartBadgeScreen\n}\n")).ir,
+    { command: "TRAINER_CARD_BADGES" });
+});
+
+test("the mini-games: mining, Voltorb Flip and the Triple Triad shop", () => {
+  const block = (rubySource) => ({ id: "m", category: "ESSENTIALS_API", apis: [], calls: [], rubySource });
+  assert.deepEqual(compileBlock(block("pbMiningGame\n")).ir, { command: "MINIGAME", game: "mining" });
+  assert.deepEqual(compileBlock(block("pbVoltorbFlip\n")).ir, { command: "MINIGAME", game: "voltorbflip" });
+  assert.deepEqual(compileBlock(block("pbBuyTriads\n")).ir, { command: "MINIGAME", game: "triadbuy" });
+  assert.deepEqual(compileBlock(block("pbSellTriads\n")).ir, { command: "MINIGAME", game: "triadsell" });
+});

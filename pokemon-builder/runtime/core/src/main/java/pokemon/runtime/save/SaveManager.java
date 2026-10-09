@@ -13,6 +13,7 @@ import pokemon.runtime.pokemon.TrainerState;
 import pokemon.runtime.state.GameSelfSwitches;
 import pokemon.runtime.state.GameState;
 import pokemon.runtime.state.PcItemStorage;
+import pokemon.runtime.state.TriadStorage;
 
 import java.io.File;
 import java.io.IOException;
@@ -146,6 +147,17 @@ public final class SaveManager {
         globals.addChild("runningShoes", new JsonValue(state.fieldGlobals().runningShoes));
         globals.addChild("creditsPlayed", new JsonValue(state.fieldGlobals().creditsPlayed));
         globals.addChild("startTime", new JsonValue(state.fieldGlobals().startTime));
+        if (state.fieldGlobals().safari.inProgress) {
+            pokemon.runtime.state.SafariState safari = state.fieldGlobals().safari;
+            JsonValue node = object();
+            node.addChild("ballcount", new JsonValue(safari.ballcount));
+            node.addChild("steps", new JsonValue(safari.steps));
+            node.addChild("decision", new JsonValue(safari.decision));
+            JsonValue start = array();
+            for (int v : safari.start) start.addChild(new JsonValue(v));
+            node.addChild("start", start);
+            globals.addChild("safari", node);
+        }
         JsonValue unlocked = array();
         for (Boolean flag : state.fieldGlobals().pokedexUnlocked) unlocked.addChild(new JsonValue(Boolean.TRUE.equals(flag)));
         globals.addChild("pokedexUnlocked", unlocked);
@@ -199,6 +211,17 @@ public final class SaveManager {
                 pc.addChild(entry);
             }
             globals.addChild("pcItemStorage", pc);
+        }
+        if (state.fieldGlobals().triads != null) {
+            JsonValue triads = array();
+            for (int i = 0; i < state.fieldGlobals().triads.length(); i++) {
+                TriadStorage.Slot slot = state.fieldGlobals().triads.get(i);
+                JsonValue entry = object();
+                entry.addChild("species", new JsonValue(slot.species));
+                entry.addChild("count", new JsonValue(slot.count));
+                triads.addChild(entry);
+            }
+            globals.addChild("triads", triads);
         }
         root.addChild("fieldGlobals", globals);
         root.addChild("trainer", trainerJson(state.trainer()));
@@ -574,6 +597,13 @@ public final class SaveManager {
             state.fieldGlobals().runningShoes = globals.getBoolean("runningShoes", true);
             state.fieldGlobals().creditsPlayed = globals.getBoolean("creditsPlayed", false);
             state.fieldGlobals().startTime = globals.getLong("startTime", 0L);
+            JsonValue safariNode = globals.get("safari");
+            if (safariNode != null && safariNode.get("start") != null && safariNode.get("start").size == 4) {
+                JsonValue s = safariNode.get("start");
+                state.fieldGlobals().safari.begin(s.getInt(0), s.getInt(1), s.getInt(2), s.getInt(3), safariNode.getInt("ballcount", 0));
+                state.fieldGlobals().safari.steps = safariNode.getInt("steps", 0);
+                state.fieldGlobals().safari.decision = safariNode.getInt("decision", 0);
+            }
             state.fieldGlobals().pokedexUnlocked.clear();
             JsonValue unlockedDexes = globals.get("pokedexUnlocked");
             if (unlockedDexes != null && unlockedDexes.isArray()) {
@@ -616,6 +646,14 @@ public final class SaveManager {
                     dependent.commonEvent = entry.getInt("commonEvent", -1);
                     state.fieldGlobals().dependents.add(dependent);
                 }
+            }
+            JsonValue triads = globals.get("triads");
+            if (triads != null && triads.isArray()) {
+                TriadStorage storage = new TriadStorage(pbs == null ? 1000 : Math.max(1, pbs.species.size));
+                for (JsonValue entry = triads.child; entry != null; entry = entry.next) {
+                    storage.restore(entry.getString("species", null), entry.getInt("count", 0));
+                }
+                state.fieldGlobals().triads = storage;
             }
             JsonValue pc = globals.get("pcItemStorage");
             if (pc != null && pc.isArray()) {

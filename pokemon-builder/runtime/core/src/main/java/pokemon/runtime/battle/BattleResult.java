@@ -28,6 +28,11 @@ public final class BattleResult {
     public final int turns;
     /** The caught Pokemon for {@link Outcome#CAUGHT}, else null. */
     public final Pokemon caught;
+    /**
+     * The decision code the Ruby battle returned when it is not the one the outcome implies (the Safari Zone's
+     * 2 = out of Safari Balls, 242_PBattle_Safari:121-125); -1 = derive it from {@link #outcome}.
+     */
+    public int decision = -1;
 
     public BattleResult(Outcome outcome, int turns, Pokemon caught) {
         this.outcome = outcome;

@@ -23,7 +23,7 @@ import java.util.Random;
  * is not ported; the Day Care and Pokerus step handlers live in {@code DayCare} / {@code MapScreen}; the Shadow Pokemon /
  * Follower / auto-save step handlers and the Alcremie spin tracker are separate roadmap items; ②when a repel runs out while
  * another is in the bag, {@link Result#repelRenewal} asks the screen to run the plugin's question (189:166-186);
- * ③safari zone and follower auto-toggle are not part of the game.</p>
+ * ③the Safari Zone's step countdown lives in {@code MapScreen#safariStep} (242_PBattle_Safari:77-92); the follower auto-toggle is not part of the game.</p>
  */
 public final class FieldSteps {
     /** 169_PBTerrain: Ice = 12, TallGrass = 10. */

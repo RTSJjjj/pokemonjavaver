@@ -25,7 +25,9 @@ public final class MenuService {
         /** {@code pbSlotMachine(difficulty)} (236_PMinigame_SlotMachine:384-402); {@code index} is the difficulty. */
         SLOT_MACHINE,
         /** {@code pbForgetMove(pkmn, move)}: the summary screen's forget mode (188_PItem_Items:823-830). */
-        FORGET_MOVE }
+        FORGET_MOVE,
+        /** A mini-game screen ({@link Request#wanted}: {@code mining}, {@code voltorbflip}, {@code triad:*}). */
+        MINIGAME }
     public static final class Request {
         public final Kind kind;
         public String wanted, nickname, trainerName;

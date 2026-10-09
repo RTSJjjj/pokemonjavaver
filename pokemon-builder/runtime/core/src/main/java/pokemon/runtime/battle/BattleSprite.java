@@ -41,7 +41,9 @@ final class BattleSprite {
         /** {@code AnimatedPlane} (Planes:190-232): {@link #name} tiled from ({@link #ox},{@link #oy}). */
         PLANE_BITMAP,
         /** {@code abilityBar_N}: AbilitySplashBar (PokeBattle_SceneElements:405-497), the bar and its two text lines. */
-        ABILITY_BAR
+        ABILITY_BAR,
+        /** {@code dataBox_0} of a Safari Zone battle: SafariDataBox (160_PokeBattle_SafariZone:~45-74). */
+        SAFARI_BOX
     }
 
     final String key;

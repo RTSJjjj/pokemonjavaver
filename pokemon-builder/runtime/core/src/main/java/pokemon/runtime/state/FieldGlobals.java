@@ -25,6 +25,18 @@ public final class FieldGlobals {
     public boolean runningShoes;
     /** {@code $PokemonGlobal.creditsPlayed} (173_PField_Metadata:27, :89): the credits can be skipped once they were seen. */
     public boolean creditsPlayed;
+    /** {@code $PokemonGlobal.safariState} (242_PBattle_Safari:68-71). */
+    public final SafariState safari = new SafariState();
+    /** {@code pbGetMetadata(mapid, MetadataSafariMap)}; set by the map screen. */
+    public transient java.util.function.IntPredicate safariMapOf;
+
+    /** {@code pbInSafari?} (242_PBattle_Safari:57-66): the reception map and the maps marked as Safari maps. */
+    public boolean inSafari(int mapId) {
+        if (!safari.inProgress) return false;
+        if (mapId == safari.receptionMap()) return true;
+        return safariMapOf != null && safariMapOf.test(mapId);
+    }
+
     /** {@code $PokemonGlobal.startTime} (epoch seconds; 0 = not set yet), shown on the trainer card. */
     public long startTime;
     /** {@code $PokemonGlobal.pokedexUnlocked} (173:92-99): which Dex lists are unlocked; the first one is unlocked at the start. */
@@ -33,6 +45,8 @@ public final class FieldGlobals {
     public long pokerusDay = Long.MIN_VALUE;
     /** {@code $PokemonGlobal.coins}: the Game Corner coins. */
     public int coins;
+    /** {@code $PokemonGlobal.triads} (235_PMinigame_TripleTriad:991-999): the Triple Triad cards; null until first used. */
+    public TriadStorage triads;
     /** {@code $PokemonGlobal.pcItemStorage}: null until the PC's item storage is first opened (:19-21). */
     public PcItemStorage pcItemStorage;
     /** {@code $game_player.found_items} (309_Item_Find:107-125): the items picked up before, by internal name. */

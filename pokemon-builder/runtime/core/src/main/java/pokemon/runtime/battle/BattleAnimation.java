@@ -370,6 +370,31 @@ abstract class BattleAnimation {
     }
 
     /**
+     * {@code trainerThrowingFrames(ball,trainer,traSprite)} (149_PokeBattle_Animation:139-159): the player's throwing
+     * frames for a Safari Zone throw, and the ball following the hand.
+     */
+    protected float[] trainerThrowingFrames(PictureEx ball, PictureEx trainer, BattleSprite traSprite) {
+        ball.setZ(0, traSprite.z - 1);                           // :140
+        // Change trainer's frames
+        int size = traSprite.sourceWidth();                      // :142 traSprite.src_rect.width
+        trainer.setSrc(0, size, 0);                              // :143
+        trainer.setSrc(5, size * 2, 0);                          // :144
+        trainer.setSrc(7, size * 3, 0);                          // :145
+        trainer.setSrc(9, size * 4, 0);                          // :146
+        trainer.setSrc(18, 0, 0);                                // :147
+        // Alter trainer's positioning
+        trainer.setDelta(0, -12, 0);                             // :149
+        trainer.setDelta(5, 34, 0);                              // :150
+        trainer.setDelta(7, -14, 0);                             // :151
+        trainer.setDelta(9, 28, 0);                              // :152
+        trainer.moveDelta(10, 3, -6, 6);                         // :153
+        trainer.setDelta(18, -4, 0);                             // :154
+        trainer.setDelta(19, -26, -6);                           // :155
+        // Make ball track the trainer's hand
+        return ballTracksHand(ball, traSprite, true);            // :157
+    }
+
+    /**
      * The {@code @trainer} of a send-out animation
      * ({@code @battler.battle.pbGetOwnerFromBattlerIndex}), used only by
      * {@code ballTracksHand}'s animated-back-sprite branch

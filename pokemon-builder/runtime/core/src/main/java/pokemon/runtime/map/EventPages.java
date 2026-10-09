@@ -71,6 +71,9 @@ public final class EventPages {
     /** {@code isOn?("A")} / {@code isOff?("A")} - the event's self switch. */
     private static final java.util.regex.Pattern SELF_SWITCH =
             java.util.regex.Pattern.compile("is(On|Off)\\?\\(\\s*\"([A-D])\"\\s*\\)");
+    /** {@code cooledDown?(86400)} / {@code cooledDownDays?(1)}. */
+    private static final java.util.regex.Pattern COOLED_DOWN =
+            java.util.regex.Pattern.compile("cooledDown(Days)?\\?\\(\\s*(\\d+)\\s*\\)");
     /** {@code pbIsWeekday(-1,2,4,6)} - true when today is one of those days. */
     private static final java.util.regex.Pattern WEEKDAY =
             java.util.regex.Pattern.compile("!?pbIsWeekday\\((.*)\\)");
@@ -107,10 +110,25 @@ public final class EventPages {
         if (expression.startsWith("PBDayNight.")) {
             return dayNight(expression.substring("PBDayNight.".length()));
         }
-        if (expression.startsWith("cooledDown")) {
-            // No save/time bookkeeping yet (R10 has no timestamps): treat the
-            // cooldown as over so daily events stay reachable.
-            return true;
+        java.util.regex.Matcher cooled = COOLED_DOWN.matcher(expression);
+        if (cooled.matches()) {                                                  // Game_Event#cooledDown? / cooledDownDays? (170:737-747)
+            int[] stored = state.eventVars().get(mapId, event.id);               // self.variable: set by pbSetEventTime
+            boolean tsOff = !state.tempSwitches().get(mapId, event.id, "A");
+            if (stored == null || stored.length == 0 || !tsOff) return false;    // expired?: ontime && ...
+            long ontime = stored[0] & 0xFFFFFFFFL;
+            long now = System.currentTimeMillis() / 1000L;
+            int amount = Integer.parseInt(cooled.group(2));
+            if ("Days".equals(cooled.group(1))) {                                // 024_Game_Event:100-107 expiredDays?
+                java.time.LocalDateTime time = java.time.LocalDateTime.now();
+                long elapsed = (now - ontime) / 86400;
+                if ((now - ontime) % 86400 > time.getHour() * 3600L + time.getMinute() * 60L + time.getSecond()) elapsed += 1;
+                return elapsed >= amount;
+            }
+            return now > ontime + amount;                                        // :94-98 expired?(secs)
+        }
+        if (expression.endsWith("pbInSafari?")) {                                 // 242_PBattle_Safari:57-66
+            boolean in = state.fieldGlobals().inSafari(mapId);
+            return expression.startsWith("!") != in;
         }
         if (expression.startsWith("pbInSafari") || expression.startsWith("pbBugContest")
                 || expression.startsWith("pbInChallenge") || expression.startsWith("pbNextMysteryGiftID")) {

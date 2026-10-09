@@ -47,6 +47,17 @@ class PauseMenuModelTest {
     }
 
     @Test
+    @DisplayName("inside the Safari Zone the save entry is hidden (Modular Menu:176)")
+    void safariHidesSave() {
+        GameState state = new GameState();
+        for (PauseMenuModel menu : new PauseMenuModel[] {new PauseMenuModel(state, false), new PauseMenuModel(state, true)}) {
+            boolean save = false;
+            for (int i = 0; i < menu.size(); i++) save |= menu.entryAt(i).action == PauseMenuModel.Action.SAVE;
+            assertEquals(menu.size() == new PauseMenuModel(state, false).size(), save);
+        }
+    }
+
+    @Test
     @DisplayName("a party adds the Pokemon entry in the plugin position (P4)")
     void partyEntry() {
         GameState state = new GameState();

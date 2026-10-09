@@ -155,7 +155,10 @@ public final class InteractiveBattlePort implements BattlePort {
     public void setCryPlayer(Battle.CryPlayer player) { this.cryPlayer = player; }
 
     private void start(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents) {
-        if (pending() || teams.isEmpty() || teams.get(0).isEmpty() || trainer.party.firstAble() == null) return;
+        // 174_PField_Battles:351-357: Events.onWildBattleOverride runs before pbWildBattleCore's ablePokemonCount check,
+        // so a Safari battle needs no able Pokemon.
+        boolean safariBattle = !trainerBattle && safariSource != null && safariSource.getAsInt() >= 0;
+        if (pending() || teams.isEmpty() || teams.get(0).isEmpty() || (trainer.party.firstAble() == null && !safariBattle)) return;
         lastResult = null;
         session = new Session(teams, trainerBattle, opponents);
         battleSize = null;                       // the recorded rules belong to this battle only (PField_Battles:498)
@@ -163,6 +166,12 @@ public final class InteractiveBattlePort implements BattlePort {
         noPartner = false;
     }
     public BattleResult lastResult() { return lastResult; }
+    /** Safari Balls left while the player is in the Safari Zone ({@code pbInSafari?}), -1 otherwise; read when a battle starts. */
+    private java.util.function.IntSupplier safariSource;
+    private int lastSafariBalls = -1;
+    /** The Safari Balls left when the last battle ended, or -1 when it was not a Safari battle. */
+    public int lastSafariBalls() { return lastSafariBalls; }
+    public void setSafariSource(java.util.function.IntSupplier source) { this.safariSource = source; }
     public void setCanLose(boolean value) { this.canLose = value; }
     /** {@code setBattleRule("noExp")}: {@code battle.expGain} (PField_Battles:105) of the next battle. */
     public void setExpGain(boolean value) { this.expGain = value; }
@@ -204,8 +213,20 @@ public final class InteractiveBattlePort implements BattlePort {
         if (session == null || session.result == null) return;
         BattleResult result = session.result;
         boolean caughtStored = session.caughtStored;       // the screen already ran storeCaught()
+        lastSafariBalls = session.safari ? session.ballCount : -1;
+        boolean safariBattle = session.safari;
         session = null;
         lastResult = result;
+        if (safariBattle) {
+            // 242_PBattle_Safari:109-134 pbSafariBattle: no pbAfterBattle (nothing of the party was in the fight)
+            for (Pokemon p : trainer.party.members()) trainer.registerOwned(p);
+            canLose = false;
+            expGain = true;
+            canRun = true;
+            switchStyleRule = null;
+            battleAnimsRule = null;
+            return;
+        }
         // pbRecordAndStoreCaughtPokemon (PokeBattle_BattleCommon:55-63): a Pokemon the engine caught (pbThrowPokeBall)
         // joins the party; the port's own ball() path has already added its own.
         // 登记: the box messages of pbStorePokemon (:11-38) and the Pokedex entry page (:48-52) are not modelled.
@@ -245,6 +266,12 @@ public final class InteractiveBattlePort implements BattlePort {
     public final class Session {
         public final Battle battle;
         public final boolean trainerBattle;
+        /** A Safari Zone battle ({@code PokeBattle_SafariZone}, 160_PokeBattle_SafariZone:297-505). */
+        public final boolean safari;
+        /** {@code @ballCount}: the Safari Balls left. */
+        public int ballCount;
+        private int catchFactor;
+        private int escapeFactor;
         /** The trainers.txt row for a trainer battle (null for a wild battle). */
         public final PbsData.TrainerData trainerData;
         /** The second opposing trainer's row, or null. */
@@ -304,6 +331,9 @@ public final class InteractiveBattlePort implements BattlePort {
         private final Array<Battle.RoundEvent> events = new Array<>();
         Session(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents) {
             this.trainerBattle = trainerBattle;
+            int safariBalls = !trainerBattle && safariSource != null ? safariSource.getAsInt() : -1;
+            this.safari = safariBalls >= 0;                              // Events.onWildBattleOverride (242_PBattle_Safari:98-107)
+            this.ballCount = Math.max(0, safariBalls);
             this.trainerData = opponents == null || opponents.isEmpty() ? null : opponents.get(0);
             this.trainerData2 = opponents == null || opponents.size() < 2 ? null : opponents.get(1);
             this.trainerData3 = opponents == null || opponents.size() < 3 ? null : opponents.get(2);
@@ -389,7 +419,13 @@ public final class InteractiveBattlePort implements BattlePort {
                 size = "double";                                                     // :88-90 (the "not enough Pokemon" message of :92 is an event-side line)
             }
             if (size != null) battle.setBattleMode(size);                            // :96
-            battle.pbEnsureParticipants();                                           // Battle_StartAndEnd:301
+            if (!safari || trainer.party.firstAble() != null) battle.pbEnsureParticipants();   // Battle_StartAndEnd:301 (PokeBattle_SafariZone has none)
+            if (safari) {                                                            // 160_PokeBattle_SafariZone:431-435
+                Pokemon wild = teams.get(0).first();
+                int rareness = wild.species == null ? 0 : wild.species.rareness;
+                catchFactor = Math.min(Math.max((rareness * 100) / 1275, 3), 20);
+                escapeFactor = Math.min(Math.max((escapeRate(rareness) * 100) / 1275, 2), 20);
+            }
             // Battle_StartAndEnd:194-228: the "wants to battle" line. It is
             // produced by the transcribed pbStartBattleSendOut
             // (BattleSendOut.plan), which branches on the wild party size, the
@@ -1404,6 +1440,130 @@ public final class InteractiveBattlePort implements BattlePort {
             return true;
         }
 
+        /** {@code pbEscapeRate(rareness)} (160_PokeBattle_SafariZone:372-378). */
+        private int escapeRate(int rareness) {
+            if (rareness <= 45) return 125;      // escape factor 9 (45%)
+            if (rareness <= 60) return 100;      // 7 (35%)
+            if (rareness <= 120) return 75;      // 5 (25%)
+            if (rareness <= 250) return 50;      // 3 (15%)
+            return 25;                           // 2 (10%)
+        }
+
+        /** The opening line of {@code PokeBattle_SafariZone#pbStartBattle} (:384-386). */
+        public String safariAppearMessage() {
+            return "野生的" + battle.foe().pokemon.name + "出现了！";
+        }
+
+        /**
+         * One pass of {@code PokeBattle_SafariZone#pbStartBattle}'s loop (160_PokeBattle_SafariZone:388-452) for the command
+         * the player chose: 0 Ball, 1 Bait, 2 Rock, 3 Run. The lines and animations are in {@link #takeEvents()}; a decision
+         * ends the battle through {@link #result}.
+         */
+        public void safariCommand(int cmd) {
+            if (result != null) return;
+            PbsData pbs = data.get();
+            events.clear();
+            message = null;
+            Battler foe = battle.foe();
+            String foeName = foe.pokemon.name;
+            int decision = 0;
+            Pokemon caught = null;
+            switch (cmd) {
+                case 0: {                                                          // Ball
+                    if (trainer.party.isFull()
+                            && trainer.currentStorage().count() >= Storage.BOXES * Storage.SLOTS) {   // :391 pbBoxesFull?
+                        events.add(Battle.RoundEvent.portMessage("电脑已经满了！\n不能再抓宝可梦了！").asPaused());   // :392
+                        return;                                                    // :393 next: the menu comes back
+                    }
+                    ballCount -= 1;                                                // :395
+                    int rare = (catchFactor * 1275) / 100;                         // :397
+                    PbsData.Item item = pbs == null ? null : pbs.item("WILDERNESSBALL");   // :388 getConst(PBItems,:WILDERNESSBALL)
+                    if (item != null) {                                            // :398
+                        caught = safariThrow(foe, item, rare);                     // :399 pbThrowPokeBall(1,safariBall,rare,true)
+                        if (caught != null) decision = 4;                          // :400-403
+                    }
+                    break;
+                }
+                case 1:                                                            // Bait
+                    events.add(Battle.RoundEvent.message(trainer.name + "向" + foeName + "丢了一些诱饵！", true));   // :407
+                    events.add(Battle.RoundEvent.safari(Battle.RoundEvent.Kind.SAFARI_BAIT));   // :408
+                    if (random.nextInt(100) < 90) catchFactor /= 2;                // :409
+                    escapeFactor /= 2;                                             // :410
+                    break;
+                case 2:                                                            // Rock
+                    events.add(Battle.RoundEvent.message(trainer.name + "向" + foeName + "丢了一块石头！", true));   // :413
+                    events.add(Battle.RoundEvent.safari(Battle.RoundEvent.Kind.SAFARI_ROCK));   // :414
+                    catchFactor *= 2;                                              // :415
+                    if (random.nextInt(100) < 90) escapeFactor *= 2;               // :416
+                    break;
+                default:                                                           // Run
+                    events.add(Battle.RoundEvent.se("Battle flee"));               // :419
+                    events.add(Battle.RoundEvent.portMessage("安全地逃跑了！").asPaused());   // :420
+                    decision = 3;                                                  // :421
+                    break;
+            }
+            catchFactor = Math.min(Math.max(catchFactor, 3), 20);                  // :424
+            escapeFactor = Math.min(Math.max(escapeFactor, 2), 20);                // :425
+            if (decision == 0) {                                                   // :427 End of round
+                if (ballCount <= 0) {
+                    events.add(Battle.RoundEvent.portMessage("广播员：你已经没有狩猎球了！\n游戏结束！").asPaused());   // :429
+                    decision = 2;                                                  // :430
+                } else if (random.nextInt(100) < 5 * escapeFactor) {               // :431
+                    events.add(Battle.RoundEvent.se("Battle flee"));               // :432
+                    events.add(Battle.RoundEvent.portMessage(foeName + "逃跑了！").asPaused());   // :433
+                    decision = 3;                                                  // :434
+                } else if (cmd == 1) {
+                    events.add(Battle.RoundEvent.portMessage(foeName + "在吃东西！").asPaused());   // :436
+                } else if (cmd == 2) {
+                    events.add(Battle.RoundEvent.portMessage(foeName + "十分生气！").asPaused());   // :438
+                } else {
+                    events.add(Battle.RoundEvent.portMessage(foeName + "正在仔细观察你！").asPaused());   // :440
+                }
+            }
+            if (decision != 0) {
+                BattleResult outcome = new BattleResult(decision == 4 ? BattleResult.Outcome.CAUGHT
+                        : BattleResult.Outcome.ESCAPE, battle.turns(), caught);
+                if (decision == 2) outcome.decision = 2;
+                result = outcome;
+            }
+        }
+
+        /**
+         * {@code pbThrowPokeBall(1,safariBall,rare,true)} (PokeBattle_BattleCommon:68-164) as the Safari Zone calls it: the
+         * Wilderness Ball, the rareness the Safari rules chose, and no exp ({@code pbGainExp} is empty, 160:331).
+         *
+         * @return the caught Pokemon, or null
+         */
+        private Pokemon safariThrow(Battler target, PbsData.Item item, int rare) {
+            PbsData pbs = data.get();
+            String throwLine = trainer.name + "扔出了" + item.name + "！";            // :93-97
+            int ballType = BallTypes.ballType(pbs, item.internalName);
+            events.add(Battle.RoundEvent.message(throwLine, true));
+            if (uncatchableSwitch()) {                                              // :104-107
+                events.add(Battle.RoundEvent.portMessage("精灵球被破坏了！\n看来只能战胜它了！").asPaused());
+                return null;
+            }
+            CaptureCalculator.Context capture = captureContext(pbs, target);
+            capture.rareness = rare;                                                // pbCaptureCalc(battler,ball,rareness)
+            int shakes = CaptureCalculator.shakes(capture, item.internalName);      // :111
+            Battle.RoundEvent thrown = Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_THROW,
+                    ballType, shakes, false, target.index);
+            thrown.ball.showTrainer = true;                                         // 150:752 showingTrainer (Safari only)
+            events.add(thrown);                                                     // :114
+            if (shakes != 4) {
+                events.add(Battle.RoundEvent.portMessage(shakeMessage(shakes)).asPaused());   // :116-128
+                return null;
+            }
+            CaptureCalculator.onCatch(pbs, item.internalName, target.pokemon);      // :150
+            target.pokemon.ballused = ballType;                                     // :152
+            target.pokemon.makeUnmega(pbs);
+            target.pokemon.recordFirstMoves();                                      // :156
+            events.add(Battle.RoundEvent.message("太好了！\n捉到了" + target.pokemon.name + "！", true));   // :130
+            events.add(Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_SUCCESS, ballType, 4, false, target.index));   // :131
+            battle.caughtPokemon.add(target.pokemon);                               // :163
+            return target.pokemon;
+        }
+
         /** PokeBattle_BattleCommon:36-39 pbStorePokemon: the party is full and so is the PC. */
         private boolean uncatchableSwitch() {
             return gameSwitches != null && gameSwitches.test(60);
@@ -1433,7 +1593,7 @@ public final class InteractiveBattlePort implements BattlePort {
             capture.turnCount = battle.turns();
             capture.time = battleTime;                    // PField_Battles:181-188
             capture.environment = battleEnvironment;
-            capture.safari = false;                       // pbInSafari? - no Safari system yet
+            capture.safari = safari;                      // pbInSafari? (Wilderness Ball, 105_PokeBall_CatchEffects:244-247)
             capture.playerMaxLevel = maxPlayerLevel();
             capture.sameSideParty = playerPartyArray();
             capture.random = random;

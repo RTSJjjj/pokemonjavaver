@@ -288,6 +288,16 @@ public final class MapScreen extends ScreenAdapter {
                 return null;
             }
         };
+        gameState.fieldGlobals().safariMapOf = id -> {
+            pokemon.runtime.pokemon.PbsData.Metadata meta = database.pbs() == null ? null : database.pbs().mapMetadata(id);
+            return meta != null && meta.safariMap;
+        };
+        if (context.battlePort() instanceof pokemon.runtime.battle.InteractiveBattlePort) {
+            // Events.onWildBattleOverride (242_PBattle_Safari:98-107): inside the Safari Zone a wild battle is a Safari battle
+            ((pokemon.runtime.battle.InteractiveBattlePort) context.battlePort()).setSafariSource(() ->
+                    gameState.fieldGlobals().inSafari(gameState.currentMapId())
+                            ? gameState.fieldGlobals().safari.ballcount : -1);
+        }
         new pokemon.runtime.field.Vehicles(database.pbs(), gameState).onMapChange(mapId);   // Events.onMapChange (170:603-608)
         noteMapChange(mapId);
         refreshDarkness(mapId);
@@ -330,6 +340,12 @@ public final class MapScreen extends ScreenAdapter {
             @Override
             public void pauseMenuTitle() {
                 backToTitle();
+            }
+
+            @Override
+            public void pauseMenuSafariQuit() {
+                gameState.fieldGlobals().safari.decision = 1;                  // Modular Menu:203-204
+                safariGoToStart();
             }
         });
         pictureLayer = new PictureLayer(context.pictureService(), textures, locator);
@@ -836,6 +852,7 @@ public final class MapScreen extends ScreenAdapter {
                     // pbBattleAnimation, before this fade back - so a white-out keeps the screen black for its lines
                     // and the transfer, and the new map is what fades in.
                     battleReturnAlpha = interpreter != null && interpreter.running() ? 0 : 255;
+                    afterSafariBattle(port);
                     if (followers != null) {
                         followers.comeBack(false);                           // 297_Follower_Main:645 callRefresh after a battle
                         rebindEntities();
@@ -939,6 +956,18 @@ public final class MapScreen extends ScreenAdapter {
         boolean scriptDriven = playerRoute != null || context.transferPending() || playerWait > 0f
                 || battleEntry != null
                 || (interpreter != null && interpreter.running());
+        if (safariGoToStartAfterMessages && !(interpreter != null && interpreter.running())
+                && !context.messageService().visible()) {
+            if (pendingSafariMessages != null && !pendingSafariMessages.isEmpty()) {
+                java.util.List<String> lines = pendingSafariMessages;
+                pendingSafariMessages = null;
+                startMessages(lines);                                         // the messages come first, then the way back
+            } else {
+                safariGoToStartAfterMessages = false;
+                pendingSafariMessages = null;
+                safariGoToStart();                                            // pbSafariState.pbGoToStart
+            }
+        }
         if (deferredWild != null && !(interpreter != null && interpreter.running())
                 && !context.messageService().visible()) {
             // The step's messages are over: now the wild battle they preceded (PField_Field:488-516 order).
@@ -2341,6 +2370,7 @@ public final class MapScreen extends ScreenAdapter {
             g.healingSpot = meta.healingSpot.clone();                             // :537
         }
         g.visitedMaps.add(mapId);                                                  // :540
+        if (!g.inSafari(mapId)) g.safari.end();                                    // 242_PBattle_Safari:54-56
     }
 
     // ---- DarknessSprite / Flash (170_PField_Field:566-585, 171_PField_Visuals:364-404, 179:479-495) ----
@@ -4171,12 +4201,72 @@ public final class MapScreen extends ScreenAdapter {
             followers.toggle("on", true);
             rebindEntities();
         }
+        if (!stepBlocked() && safariStep()) {
+            return;                                                           // handled[0] = true
+        }
         if (context.battlePort() == null || context.pbsData() == null) {
             return;
         }
         ensureFieldSteps();
         applyStepResult(fieldSteps.onStepTaken(false, stepBlocked(), playerTerrainTag(), false));
     }
+
+    /**
+     * {@code Events.onStepTakenTransferPossible} of the Safari Zone (242_PBattle_Safari:77-92): each step in the Zone costs
+     * one of its steps; at none left the game is over and the player goes back to the reception.
+     *
+     * @return true when the step was handled (the encounter roll is skipped)
+     */
+    private boolean safariStep() {
+        pokemon.runtime.state.SafariState safari = gameState.fieldGlobals().safari;
+        if (!gameState.fieldGlobals().inSafari(mapData.mapId) || safari.decision != 0
+                || pokemon.runtime.state.SafariState.SAFARI_STEPS <= 0) {
+            return false;
+        }
+        safari.steps -= 1;
+        if (safari.steps > 0) return false;
+        safari.decision = 1;
+        startMessagesThenSafariStart("PA:  叮咚！", "PA:  狩猎之旅已结束！");
+        return true;
+    }
+
+    /**
+     * The end of {@code pbSafariBattle} (242_PBattle_Safari:109-134): the balls left, the game over when there are none,
+     * and the decision in variable 1.
+     */
+    private void afterSafariBattle(pokemon.runtime.battle.InteractiveBattlePort port) {
+        int balls = port.lastSafariBalls();
+        if (balls < 0) return;
+        pokemon.runtime.state.SafariState safari = gameState.fieldGlobals().safari;
+        safari.ballcount = balls;                                          // :111
+        pokemon.runtime.battle.BattleResult result = port.lastResult();
+        int decision = result == null ? 0 : result.decision >= 0 ? result.decision
+                : result.outcome == pokemon.runtime.battle.BattleResult.Outcome.CAUGHT ? 4
+                : result.outcome == pokemon.runtime.battle.BattleResult.Outcome.ESCAPE ? 3 : 0;
+        if (balls <= 0) {                                                  // :112
+            pendingSafariMessages = new java.util.ArrayList<>();
+            if (decision != 2) pendingSafariMessages.add("广播：狩猎球用尽！游戏结束！");   // :113-115
+            safari.decision = 1;                                           // :117
+            safariGoToStartAfterMessages = true;                           // :118 pbGoToStart (after the messages)
+        }
+        gameState.variables().set(1, decision);                            // :125 pbSet(1,decision)
+    }
+
+    private java.util.List<String> pendingSafariMessages;
+
+    /** {@code pbSafariState.pbGoToStart} (242_PBattle_Safari:25-34): fade out, transfer to the start, facing down. */
+    private void safariGoToStart() {
+        int[] start = gameState.fieldGlobals().safari.start;
+        if (start == null) return;
+        context.requestTransfer(start[0], start[1], start[2], 2, 1);
+    }
+
+    private void startMessagesThenSafariStart(String... texts) {
+        startMessages(java.util.Arrays.asList(texts));
+        safariGoToStartAfterMessages = true;
+    }
+
+    private boolean safariGoToStartAfterMessages;
 
     /** {@code Events.onChangeDirection} (PField_Field:381-384): turning on the spot can start an encounter too. */
     private void onPlayerDirection() {
@@ -4237,6 +4327,9 @@ public final class MapScreen extends ScreenAdapter {
         }
         if (pokemonEncounters != null) {
             pokemonEncounters.clearStepCount();                             // the next steps after a battle are safe
+        }
+        if (wild.size() > 1 && gameState.fieldGlobals().inSafari(mapData.mapId)) {
+            wild = wild.subList(0, 1);                                      // 170_PField_Field:497 !pbInSafari?: never a double battle
         }
         PokemonEncounters.Encounter first = wild.get(0);
         if (Boolean.getBoolean("pokemon.debug.flow")) {

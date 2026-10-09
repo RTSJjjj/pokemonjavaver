@@ -64,9 +64,21 @@ class TrainerSaveTest {
         original.trainer().dayCare.egg = 1;
         original.trainer().dayCare.eggSteps = 33;
 
+        original.fieldGlobals().triads = new pokemon.runtime.state.TriadStorage(10);
+        original.fieldGlobals().triads.pbStoreItem("BULBASAUR", 50);
+        original.fieldGlobals().safari.begin(28, 4, 5, 8, 30);
+        original.fieldGlobals().safari.steps = 1234;
+        original.fieldGlobals().startTime = 1700000000L;
+
         String json = saves.toJson(original);
         GameState restored = new GameState();
         assertTrue(saves.fromJson(json, restored), () -> "rejected: " + json);
+        assertEquals(50, restored.fieldGlobals().triads.pbQuantity("BULBASAUR"));
+        assertTrue(restored.fieldGlobals().safari.inProgress);
+        assertArrayEquals(new int[] {28, 4, 5, 8}, restored.fieldGlobals().safari.start);
+        assertEquals(1234, restored.fieldGlobals().safari.steps);
+        assertEquals(30, restored.fieldGlobals().safari.ballcount);
+        assertEquals(1700000000L, restored.fieldGlobals().startTime);
         assertEquals(3, restored.trainer().hallOfFameLastNumber);
         assertEquals(1, restored.trainer().hallOfFame.size());
         assertEquals("BULBASAUR", restored.trainer().hallOfFame.get(0).get(0).species.internalName);

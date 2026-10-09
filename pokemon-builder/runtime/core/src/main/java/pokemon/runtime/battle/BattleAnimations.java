@@ -1064,10 +1064,18 @@ final class BattleAnimations {
         private final Battler battler;
         private final boolean shadowVisible;
         private BattleSprite capturedBall;
+        /** {@code @showingTrainer} (:752): only true in a Safari Zone battle. */
+        private final boolean showingTrainer;
 
         PokeballThrowCaptureAnimation(Scene scene, int ballType, int numShakes, boolean critCapture,
                 Battler battler) {
+            this(scene, ballType, numShakes, critCapture, battler, false);
+        }
+
+        PokeballThrowCaptureAnimation(Scene scene, int ballType, int numShakes, boolean critCapture,
+                Battler battler, boolean showingTrainer) {
             super(scene);
+            this.showingTrainer = showingTrainer;
             this.ballType = ballType;                               // :753
             this.numShakes = critCapture ? 1 : numShakes;           // :754
             this.critCapture = critCapture;                         // :755
@@ -1100,6 +1108,17 @@ final class BattleAnimations {
             PictureEx ball = addBallSprite(ballStartX, ballStartY, ballType);     // :779
             ball.setZ(0, batSprite.z + 1);                          // :780
             capturedBall = (numShakes >= 4 || critCapture) ? ballSprite() : null;  // :781
+            // Set up trainer sprite (only visible in Safari Zone battles)
+            BattleSprite traSprite = sprites().get("player_1");     // :768
+            if (showingTrainer && traSprite != null) {              // :782
+                if (traSprite.bitmapWidth() >= traSprite.bitmapHeight() * 2) {   // :783
+                    PictureEx trainer = addSprite(traSprite, PictureEx.Origin.BOTTOM);   // :784
+                    // Trainer animation
+                    float[] start = trainerThrowingFrames(ball, trainer, traSprite);     // :786
+                    ballStartX = start[0];
+                    ballStartY = start[1];
+                }
+            }
             int delay = ball.totalDuration();                       // :790
             // Poké Ball arc animation
             ball.setSE(delay, "Battle throw");                      // :792
@@ -1205,6 +1224,144 @@ final class BattleAnimations {
                 keepTempSprite(capturedBall, "captureBall");
             }
             super.dispose();
+        }
+    }
+
+    // ==================================================================
+    // ThrowBaitAnimation / ThrowRockAnimation (160_PokeBattle_SafariZone:50-131)
+    // ==================================================================
+
+    /** The player throwing bait at a wild Pokemon in a Safari battle. */
+    static final class ThrowBaitAnimation extends BattleAnimation {
+        private final Battler battler;
+
+        ThrowBaitAnimation(Scene scene, Battler battler) {
+            super(scene);
+            this.battler = battler;                                 // :54
+            start();
+        }
+
+        /** :59-107 */
+        @Override
+        protected void createProcesses() {
+            BattleSprite batSprite = sprites().get("pokemon_" + battler.index);   // :61
+            BattleSprite traSprite = sprites().get("player_1");                   // :62
+            if (batSprite == null || traSprite == null) {
+                return;
+            }
+            float[] ballPos = PokeBattle_SceneConstants.battlerPosition(battler.index,
+                    scene().sideSize(battler.index));               // :63
+            float ballStartX = traSprite.x;                         // :64
+            float ballStartY = traSprite.y - traSprite.bitmapHeight() / 2f;       // :65
+            float ballMidX = 0;                                     // :66 Unused in arc calculation
+            float ballMidY = 122;                                   // :67
+            float ballEndX = ballPos[0] - 40;                       // :68
+            float ballEndY = ballPos[1] - 4;                        // :69
+            // Set up trainer sprite
+            PictureEx trainer = addSprite(traSprite, PictureEx.Origin.BOTTOM);   // :71
+            // Set up bait sprite
+            PictureEx ball = addNewSprite(ballStartX, ballStartY,
+                    "Graphics/Battle animations/safari_bait", PictureEx.Origin.CENTER);   // :73-74
+            ball.setZ(0, batSprite.z + 1);                          // :75
+            // Trainer animation
+            if (traSprite.bitmapWidth() >= traSprite.bitmapHeight() * 2) {        // :77
+                float[] start = trainerThrowingFrames(ball, trainer, traSprite);  // :78
+                ballStartX = start[0];
+                ballStartY = start[1];
+            }
+            int delay = ball.totalDuration();                       // :80 0 or 7
+            // Bait arc animation
+            ball.setSE(delay, "Battle throw");                      // :82
+            createBallTrajectory(ball, delay, 12, ballStartX, ballStartY, ballMidX, ballMidY,
+                    ballEndX, ballEndY);                            // :83-84
+            ball.setZ(9, batSprite.z + 1);                          // :85
+            delay = ball.totalDuration();                           // :86
+            ball.moveOpacity(delay + 8, 2, 0);                      // :87
+            ball.setVisible(delay + 10, false);                     // :88
+            // Set up battler sprite
+            PictureEx battlerPic = addSprite(batSprite, PictureEx.Origin.BOTTOM);   // :90
+            // Show Pokémon jumping before eating the bait
+            delay = ball.totalDuration() + 3;                       // :92
+            for (int i = 0; i < 2; i++) {                           // :93
+                battlerPic.setSE(delay, "player jump");             // :94
+                battlerPic.moveDelta(delay, 3, 0, -16);             // :95
+                battlerPic.moveDelta(delay + 4, 3, 0, 16);          // :96
+                delay = battlerPic.totalDuration() + 1;             // :97
+            }
+            // Show Pokémon eating the bait
+            delay = battlerPic.totalDuration() + 3;                 // :100
+            for (int i = 0; i < 2; i++) {                           // :101
+                battlerPic.moveAngle(delay, 7, 5);                  // :102
+                battlerPic.moveDelta(delay, 7, 0, 6);               // :103
+                battlerPic.moveAngle(delay + 7, 7, 0);              // :104
+                battlerPic.moveDelta(delay + 7, 7, 0, -6);          // :105
+                delay = battlerPic.totalDuration();                 // :106
+            }
+        }
+    }
+
+    /** The player throwing a rock at a wild Pokemon in a Safari battle. */
+    static final class ThrowRockAnimation extends BattleAnimation {
+        private final Battler battler;
+
+        ThrowRockAnimation(Scene scene, Battler battler) {
+            super(scene);
+            this.battler = battler;                                 // :117
+            start();
+        }
+
+        /** :122-173 */
+        @Override
+        protected void createProcesses() {
+            BattleSprite batSprite = sprites().get("pokemon_" + battler.index);   // :124
+            BattleSprite traSprite = sprites().get("player_1");                   // :125
+            if (batSprite == null || traSprite == null) {
+                return;
+            }
+            float ballStartX = traSprite.x;                         // :126
+            float ballStartY = traSprite.y - traSprite.bitmapHeight() / 2f;       // :127
+            float ballMidX = 0;                                     // :128 Unused in arc calculation
+            float ballMidY = 122;                                   // :129
+            float ballEndX = batSprite.x;                           // :130
+            float ballEndY = batSprite.y - batSprite.bitmapHeight() / 2f;         // :131
+            // Set up trainer sprite
+            PictureEx trainer = addSprite(traSprite, PictureEx.Origin.BOTTOM);   // :133
+            // Set up rock sprite
+            PictureEx ball = addNewSprite(ballStartX, ballStartY,
+                    "Graphics/Battle animations/safari_rock", PictureEx.Origin.CENTER);   // :135-136
+            ball.setZ(0, batSprite.z + 1);                          // :137
+            // Trainer animation
+            if (traSprite.bitmapWidth() >= traSprite.bitmapHeight() * 2) {        // :139
+                float[] start = trainerThrowingFrames(ball, trainer, traSprite);  // :140
+                ballStartX = start[0];
+                ballStartY = start[1];
+            }
+            int delay = ball.totalDuration();                       // :142 0 or 7
+            // Rock arc animation
+            ball.setSE(delay, "Battle throw");                      // :144
+            createBallTrajectory(ball, delay, 12, ballStartX, ballStartY, ballMidX, ballMidY,
+                    ballEndX, ballEndY);                            // :145-146
+            ball.setZ(9, batSprite.z + 1);                          // :147
+            delay = ball.totalDuration();                           // :148
+            ball.setSE(delay, "Battle damage weak");                // :149
+            ball.moveOpacity(delay + 2, 2, 0);                      // :150
+            ball.setVisible(delay + 4, false);                      // :151
+            // Set up anger sprite
+            PictureEx anger = addNewSprite(ballEndX - 42, ballEndY - 36,
+                    "Graphics/Battle animations/safari_anger", PictureEx.Origin.CENTER);   // :153-154
+            anger.setVisible(0, false);                             // :155
+            anger.setZ(0, batSprite.z + 1);                         // :156
+            // Show anger appearing
+            delay = ball.totalDuration() + 5;                       // :158
+            for (int i = 0; i < 2; i++) {                           // :159
+                anger.setSE(delay, "Player jump");                  // :160
+                anger.setVisible(delay, true);                      // :161
+                anger.moveZoom(delay, 3, 130);                      // :162
+                anger.moveZoom(delay + 3, 3, 100);                  // :163
+                anger.setVisible(delay + 6, false);                 // :164
+                anger.setDelta(delay + 6, 96, -16);                 // :165
+                delay = anger.totalDuration() + 3;                  // :166
+            }
         }
     }
 

@@ -408,6 +408,10 @@ export const HANDLERS = {
       positionVariable: args.length > 2 ? args[2] : 3, matchedVariable: args.length > 3 ? args[3] : 4 };
   },
   pbTrainerPC() { return { command: "TRAINER_PC" }; },
+  pbBuyTriads() { return { command: "MINIGAME", game: "triadbuy" }; },     // 235_PMinigame_TripleTriad:1065
+  pbSellTriads() { return { command: "MINIGAME", game: "triadsell" }; },    // :1159
+  pbMiningGame() { return { command: "MINIGAME", game: "mining" }; },     // 239_PMinigame_Mining:610
+  pbVoltorbFlip() { return { command: "MINIGAME", game: "voltorbflip" }; },   // 237_PMinigame_VoltorbFlip
   /** 362_changeShiny teachEggMoves: the egg-move teacher NPC. */
   teachEggMoves() { return { command: "TEACH_EGG_MOVES" }; },
   /** 362_changeShiny pbChangeShinyByNPC: the shiny-colour NPC. */
@@ -1224,6 +1228,9 @@ function compileSmallScripts(source) {
   if ((m = /^for pkmn in \$Trainer\.pokemonParty if isConst\?\(pkmn\.species,PBSpecies, :(\w+)\) pkmn\.form=(\d+) pbSet\(1,pkmn\.name\) break end end$/.exec(compact))) {
     return { command: "PARTY_FORM_CHANGE", species: m[1], form: Number(m[2]), nameVariable: 1 };
   }
+  // map-028 Safari Zone reception (242_PBattle_Safari:35-49)
+  if ((m = /^pbSafariState\.pbStart\((\d+)\)$/.exec(compact))) return { command: "SAFARI_START", balls: Number(m[1]) };
+  if (/^pbSafariState\.pbEnd$/.test(compact)) return { command: "SAFARI_END" };
   // map-012 event 69 (300_B2W2_Trainer_Card:1084 pbStartBadgeScreen): the badge box
   if (/^scene = PokemonTrainerCard_Scene\.new screen = PokemonTrainerCardScreen\.new\(scene\) pbFadeOutIn\(99999\) \{ screen\.pbStartBadgeScreen \}$/.test(compact)) return { command: "TRAINER_CARD_BADGES" };
   if (/^\$scene = Scene_Credits\.new$/.test(compact)) return { command: "CREDITS" };   // 080_Scene_Credits

@@ -1224,7 +1224,13 @@ public final class Battle {
              */
             ABILITY_SPLASH_SHOW,
             /** {@code @scene.pbHideAbilitySplash(battler)} (Scene_Animations:186-198): {@code idxBattler}. */
-            ABILITY_SPLASH_HIDE }
+            ABILITY_SPLASH_HIDE,
+            /** {@code pbSEPlay(name)}: {@code text} is the sound's name. */
+            SE,
+            /** {@code @scene.pbThrowBait} (160_PokeBattle_SafariZone:~270). */
+            SAFARI_BAIT,
+            /** {@code @scene.pbThrowRock}. */
+            SAFARI_ROCK }
         public final Kind kind;
         /** The statuses of battlers 0-5 when this event was created ({@link Battle#statusSnapshot()}). */
         public String[] statuses;
@@ -1257,6 +1263,8 @@ public final class Battle {
             public final int shakes;
             public final boolean critical;
             public final int idxTarget;
+            /** {@code showingTrainer} (150_PokeBattle_SceneAnimations:752): only true in a Safari Zone battle. */
+            public boolean showTrainer;
             BallCall(int ballType, int shakes, boolean critical, int idxTarget) {
                 this.ballType = ballType;
                 this.shakes = shakes;
@@ -1313,6 +1321,12 @@ public final class Battle {
         }
         static RoundEvent faint(int idxBattler) {
             return new RoundEvent(Kind.FAINT, null, false, null, idxBattler, -1);
+        }
+        static RoundEvent se(String name) {
+            return new RoundEvent(Kind.SE, name, false, null, -1, -1);
+        }
+        static RoundEvent safari(Kind kind) {
+            return new RoundEvent(kind, null, false, null, -1, -1);
         }
         static RoundEvent bgm(String name) {
             return new RoundEvent(Kind.BGM, name, false, null, -1, -1);

@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -275,7 +275,8 @@ public final class MenuCapture extends ApplicationAdapter {
                 return;
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
-                    || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]))) {
+                    || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -541,6 +542,8 @@ public final class MenuCapture extends ApplicationAdapter {
             boolean doubleBagCapture = args.length > 2 && "double-bag".equals(args[2]);
             // The second battler faints at the end of the round, so pbEORSwitch asks for its replacement.
             boolean doubleFaintCapture = args.length > 2 && "double-faint".equals(args[2]);
+            // The Safari Zone: a Safari battle played with Bait, Rock and Balls (160_PokeBattle_SafariZone).
+            boolean safariCapture = args.length > 2 && args[2].startsWith("safari");
             if (multiTrainerCapture || faintCapture) {
                 pokemon.runtime.pokemon.PbsData.TrainerData opponent = null;
                 if (multiTrainerCapture && pbs != null) {
@@ -814,6 +817,52 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 60f, 30);
                     shotMap("l1-battle-trainer-end" + i);
                 }
+            } else if (safariCapture) {
+                context.gameState().fieldGlobals().safari.begin(2, 1, 1, 2, 30);
+                if ("safari-faint".equals(args[2])) {                 // no able Pokemon: 174_PField_Battles:351-357 runs the override first
+                    for (pokemon.runtime.pokemon.Pokemon member : context.gameState().trainer().party.members()) member.hp = 0;
+                }
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().freeWildBattle(new pokemon.runtime.pokemon.Pokemon(pbs.species("PIDGEY"), 10, pbs));
+                renderMap();
+                advanceMap(1f / 60f, 106);
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 1200);
+                shotMap("safari-appear");
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()) && s.debugWindow() == 2, 1500);
+                shotMap("safari-menu");
+                int[] script = {1, 2, 0, 0, 0, 0, 0, 0, 0, 0};
+                int throwShots = 0;
+                int next = 0;
+                String lastKey = "";
+                int shots = 0;
+                for (int i = 0; i < 1500 && battleScreen() != null; i++) {
+                    BattleScreen live = battleScreen();
+                    String key = live.debugStage() + "/" + live.debugWindow() + "/" + live.debugMessage();
+                    if ("BALL".equals(live.debugStage()) && throwShots < 30 && i % 2 == 0) {
+                        shotMap(String.format(java.util.Locale.ROOT, "safari-throw-%02d", throwShots++));
+                    }
+                    if (!key.equals(lastKey) && shots < 70) {
+                        lastKey = key;
+                        shotMap(String.format(java.util.Locale.ROOT, "safari-%02d-%s", shots++,
+                                live.debugStage().toLowerCase(java.util.Locale.ROOT)));
+                    }
+                    if ("BATTLE".equals(live.debugStage()) && live.debugWindow() == 2 && live.debugMessage() == null
+                            && live.debugPage() == 0 && next < script.length) {
+                        int cmd = script[next++];
+                        stepMap(GameAction.LEFT);
+                        stepMap(GameAction.UP);
+                        if ((cmd & 1) == 1) stepMap(GameAction.RIGHT);
+                        if ((cmd & 2) == 2) stepMap(GameAction.DOWN);
+                        System.out.println("safari command " + cmd);
+                    }
+                    stepMap(GameAction.CONFIRM);
+                    if ("CAUGHT_STORE".equals(live.debugStage())) stepMap(GameAction.CANCEL);   // the Pokedex page closes with B
+                    advanceMap(1f / 60f, 4);
+                }
+                advanceMap(1f / 60f, 60);
+                System.out.println("safari capture: finished, shots=" + shots + " balls=" + context.gameState().fieldGlobals().safari.ballcount);
             } else if (doubleSwitchCapture || doubleBagCapture || doubleFaintCapture) {
                 String tag = doubleSwitchCapture ? "dsw" : (doubleBagCapture ? "dbg" : "dfa");
                 int foeLevel = doubleFaintCapture ? 50 : 5;
@@ -1395,6 +1444,119 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "mining":
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.MINIGAME);
+                request.wanted = "mining";
+                overlay.openRequest(request);
+                idle(60);
+                renderOverlay();
+                shot("mining-1-intro");
+                for (int i = 0; i < 6; i++) { tapAndRender(GameAction.CONFIRM, overlay); idle(8); }
+                renderOverlay();
+                shot("mining-2-start");
+                for (int round = 0; round < 40; round++) {
+                    tapAndRender(GameAction.CONFIRM, overlay);
+                    idle(30);
+                    if (round % 4 == 0) tapAndRender(GameAction.RIGHT, overlay);
+                    if (round % 4 == 1) tapAndRender(GameAction.UP, overlay);
+                    if (round % 4 == 2) tapAndRender(GameAction.SPECIAL, overlay);
+                    if (round % 4 == 3) tapAndRender(GameAction.LEFT, overlay);
+                    idle(4);
+                    if (round == 1 || round == 5 || round == 20 || round == 39) { renderOverlay(); shot("mining-3-round" + round); }
+                }
+                break;
+            case "voltorb":
+                state.fieldGlobals().coins = 120;
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.MINIGAME);
+                request.wanted = "voltorbflip";
+                overlay.openRequest(request);
+                idle(30);
+                renderOverlay();
+                shot("voltorb-1-curtain");
+                idle(60);
+                renderOverlay();
+                shot("voltorb-2-board");
+                for (int round = 0; round < 60; round++) {
+                    tapAndRender(GameAction.CONFIRM, overlay);
+                    idle(50);
+                    if (round % 7 == 3) tapAndRender(GameAction.TOGGLE_FOLLOWER, overlay);
+                    tapAndRender(round % 5 == 4 ? GameAction.DOWN : GameAction.RIGHT, overlay);
+                    idle(4);
+                    if (round == 1 || round == 4 || round == 10 || round == 20 || round == 40 || round == 59) {
+                        renderOverlay();
+                        shot("voltorb-3-round" + round);
+                    }
+                }
+                tapAndRender(GameAction.CANCEL, overlay);
+                idle(30);
+                renderOverlay();
+                shot("voltorb-4-quit");
+                break;
+            case "triad":
+                state.trainer().money = 50000;
+                for (String owned : new String[] {"BULBASAUR", "CHARMANDER", "PIDGEY", "RATTATA", "PIKACHU", "MEWTWO", "SNORLAX"}) {
+                    state.trainer().owned.add(owned);
+                }
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.MINIGAME);
+                request.wanted = "triadbuy";
+                overlay.openRequest(request);
+                idle(30);
+                renderOverlay();
+                shot("triad-1-scrolling");
+                idle(40);
+                renderOverlay();
+                shot("triad-2-buy-list");
+                tapAndRender(GameAction.DOWN, overlay);
+                idle(4);
+                renderOverlay();
+                shot("triad-3-buy-second");
+                tapAndRender(GameAction.CONFIRM, overlay);          // choose the card
+                idle(60);
+                tapAndRender(GameAction.UP, overlay);
+                tapAndRender(GameAction.UP, overlay);
+                idle(10);
+                renderOverlay();
+                shot("triad-4-number");
+                tapAndRender(GameAction.CONFIRM, overlay);          // 3 cards
+                idle(60);
+                renderOverlay();
+                shot("triad-5-confirm");
+                tapAndRender(GameAction.CONFIRM, overlay);          // yes
+                idle(60);
+                renderOverlay();
+                shot("triad-6-bought");
+                for (int i = 0; i < 3; i++) { tapAndRender(GameAction.CONFIRM, overlay); idle(40); }
+                tapAndRender(GameAction.CANCEL, overlay);
+                idle(80);
+                renderOverlay();
+                shot("triad-7-after");
+                request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.MINIGAME);
+                request.wanted = "triadsell";
+                overlay.openRequest(request);
+                idle(80);
+                renderOverlay();
+                shot("triad-8-sell-list");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(60);
+                tapAndRender(GameAction.UP, overlay);
+                idle(10);
+                renderOverlay();
+                shot("triad-9-sell-number");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(60);
+                renderOverlay();
+                shot("triad-10-sell-confirm");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(60);
+                renderOverlay();
+                shot("triad-11-sold");
+                tapAndRender(GameAction.CONFIRM, overlay);
+                idle(40);
+                renderOverlay();
+                shot("triad-12-after-sell");
+                System.out.println("triad money=" + state.trainer().money + " cards=" + state.fieldGlobals().triads.length()
+                        + " first=" + (state.fieldGlobals().triads.get(0) == null ? "-" : state.fieldGlobals().triads.get(0).count));
+                break;
             case "slots":
                 state.fieldGlobals().coins = 50;
                 request = new pokemon.runtime.event.MenuService.Request(pokemon.runtime.event.MenuService.Kind.SLOT_MACHINE);

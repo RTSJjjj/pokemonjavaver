@@ -41,6 +41,11 @@ public final class PauseMenuModel {
     private int index;
 
     public PauseMenuModel(GameState state) {
+        this(state, false);
+    }
+
+    /** @param inSafari {@code pbInSafari?}: the save entry is hidden (Modular Menu:176) and 退出 quits the Safari Zone. */
+    public PauseMenuModel(GameState state, boolean inSafari) {
         String name = state == null || state.playerName() == null || state.playerName().isEmpty()
                 ? "训练家"
                 : state.playerName();
@@ -62,7 +67,7 @@ public final class PauseMenuModel {
         }
         entries.add(new Entry(Action.BAG, "背包", "menuBag"));
         entries.add(new Entry(Action.TRAINER, name, "menuTrainer"));
-        entries.add(new Entry(Action.SAVE, "保存", "menuSave"));
+        if (!inSafari) entries.add(new Entry(Action.SAVE, "保存", "menuSave"));    // Modular Menu:176 !(pbInSafari? || pbInBugContest?)
         entries.add(new Entry(Action.LOAD, "读档", "menuLoad"));
         entries.add(new Entry(Action.TITLE, "退出", "menuQuit"));
         entries.add(new Entry(Action.OPTIONS, "设置", "menuOptions"));

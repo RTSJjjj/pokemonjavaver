@@ -27,6 +27,9 @@ public final class PauseMenuOverlay implements Disposable {
         void pauseMenuLoaded(String slot);
 
         void pauseMenuTitle();
+
+        /** Modular Menu:198-206: the player quit the Safari Zone (decision = 1, pbGoToStart). */
+        void pauseMenuSafariQuit();
     }
 
     private enum Sub {
@@ -35,7 +38,7 @@ public final class PauseMenuOverlay implements Disposable {
         LOAD,
         OPTIONS,
         TRAINER
-        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, SLOTS, HATCHER, SETUP, MAP, MART, STARTER
+        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, MINIGAME, SLOTS, HATCHER, SETUP, MAP, MART, STARTER
     }
 
     private static final float ROW_HEIGHT = 56f;
@@ -53,7 +56,9 @@ public final class PauseMenuOverlay implements Disposable {
     /** The settings values {@link #skin}/{@link #speech} were loaded from. */
     private int themeFrame = -1;
     private int themeTextskin = -1;
-    private final PauseMenuModel menu;
+    private PauseMenuModel menu;
+    private final PbMessage quitMessage;
+    private final MenuClock quitClock = new MenuClock();
     private final OptionsView optionsView;
     private final SaveView saveView;
     private final LoadView loadView;
@@ -76,6 +81,7 @@ public final class PauseMenuOverlay implements Disposable {
     private HallOfFameView hallView;
     private CreditsView creditsView;
     private SlotMachineView slotView;
+    private MiniGame miniGame;
     private HatcherView hatcherView;
     private Sub hatcherReturnSub = Sub.MAIN;
     private GenderSelectorView genderView;
@@ -290,6 +296,14 @@ public final class PauseMenuOverlay implements Disposable {
             partyReturnSub = null;
             sub = Sub.PARTY;
         }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.MINIGAME) {
+            miniGame = MiniGames.create(context, value.wanted, value);              // pbMiningGame / pbVoltorbFlip / pbTriad...
+            if (miniGame == null) {
+                value.complete(-1, "");
+                return;
+            }
+            sub = Sub.MINIGAME;
+        }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.SLOT_MACHINE) {
             slotView = new SlotMachineView(context, value.index);                 // SlotMachineScene
             sub = Sub.SLOTS;
@@ -344,7 +358,8 @@ public final class PauseMenuOverlay implements Disposable {
         this.speech = loadSpeechFrame();
         themeFrame = context.settings().frame;
         themeTextskin = context.settings().textskin;
-        this.menu = new PauseMenuModel(context.gameState());
+        this.menu = new PauseMenuModel(context.gameState(), inSafari());
+        this.quitMessage = new PbMessage(context);
         this.optionsView = new OptionsView(context);
         this.saveView = new SaveView(context);
         this.loadView = new LoadView(context);
@@ -441,7 +456,14 @@ public final class PauseMenuOverlay implements Disposable {
     private String splashMessage = "";
     private final java.util.Random splashRandom = new java.util.Random();
 
+    private boolean inSafari() {
+        return context.gameState().fieldGlobals().inSafari(context.gameState().currentMapId());
+    }
+
     public void open() {
+        int keptIndex = menu.index();
+        menu = new PauseMenuModel(context.gameState(), inSafari());            // the entries follow pbInSafari?
+        menu.index(keptIndex);                                                 // the cursor stays where it was
         splashMessage = SplashMessages.sample(splashRandom);
         open = true;
         sub = Sub.MAIN;
@@ -579,6 +601,14 @@ public final class PauseMenuOverlay implements Disposable {
                     sub = hatcherReturnSub;
                 }
                 break;
+            case MINIGAME:
+                if (miniGame.update(input)) {
+                    request.complete(1, "");
+                    miniGame.dispose();
+                    miniGame = null;
+                    back();
+                }
+                break;
             case SLOTS:
                 if (slotView.update(input)) {
                     request.complete(1, "");
@@ -652,6 +682,10 @@ public final class PauseMenuOverlay implements Disposable {
     }
 
     private void updateMain(InputManager input) {
+        if (quitMessage.active()) {
+            quitMessage.update(input, quitClock.advance());
+            return;
+        }
         if (input.wasPressed(GameAction.UP)) {
             menu.move(-1);
             MenuSe.cursor(context.audioManager());
@@ -707,6 +741,14 @@ public final class PauseMenuOverlay implements Disposable {
                 sub = Sub.OPTIONS;
                 break;
             case TITLE:
+                if (inSafari()) {                                                   // Modular Menu:197-206 QUIT
+                    quitMessage.start("你想退出狩猎吗？", java.util.Arrays.asList("是", "否"), 2, 0, ret -> {   // pbConfirmMessage
+                        if (ret != 0) return;
+                        close();
+                        if (host != null) host.pauseMenuSafariQuit();
+                    });
+                    break;
+                }
                 MenuSe.close(audio);
                 close();
                 if (host != null) {
@@ -754,6 +796,23 @@ public final class PauseMenuOverlay implements Disposable {
             region.flip(false, true);
             batch.draw(region, 0, 0, width, height);
         }
+        if (sub == Sub.MINIGAME && miniGame != null && miniGame.overMap()) {
+            // A shop-like mini-game draws over the map (scrolled by pbScrollMap), not over the pause-menu backdrop.
+            if (snapshot != null) {
+                float shift = miniGame.mapShift();
+                com.badlogic.gdx.graphics.g2d.TextureRegion shifted = new com.badlogic.gdx.graphics.g2d.TextureRegion(snapshot);
+                shifted.flip(false, true);
+                batch.draw(shifted, shift, 0, width, height);
+                if (shift > 0f) {                                               // the strip the scroll brought in: the map's own edge
+                    com.badlogic.gdx.graphics.g2d.TextureRegion edge = new com.badlogic.gdx.graphics.g2d.TextureRegion(snapshot,
+                            0, 0, 1, snapshot.getHeight());
+                    edge.flip(false, true);
+                    batch.draw(edge, 0, 0, shift, height);
+                }
+            }
+            miniGame.render(batch, assets, font, skin);
+            return;
+        }
         if (sub == Sub.SETUP) {
             // pbGenderSelector runs on top of the game screen: no pause-menu background.
             genderView.render(batch, assets, font, skin, speech);
@@ -778,6 +837,7 @@ public final class PauseMenuOverlay implements Disposable {
         switch (sub) {
             case MAIN:
                 renderMain(batch, width, height);
+                if (quitMessage.active()) quitMessage.render(batch, assets, font, skin, speech, width, height);
                 break;
             case PARTY: partyView.render(batch, assets, font, skin, smallFont); break;
             case BAG: bagView.render(batch, assets, font, skin, speech, detailFont); break;
@@ -787,6 +847,7 @@ public final class PauseMenuOverlay implements Disposable {
             case MART: martView.render(batch, assets, font, skin, speech, detailFont); break;
             case STARTER: starterView.render(batch, assets, font, skin, speech, detailFont); break;
             case HATCHER: hatcherView.render(batch, assets, font, skin, speech, detailFont); break;
+            case MINIGAME: miniGame.render(batch, assets, font, skin); break;
             case SLOTS: slotView.render(batch, assets, font, skin); break;
             case TRAINER_BADGES: trainerView.render(batch, assets, font, skin); break;
             case CREDITS: creditsView.render(batch, assets, font, skin); break;
@@ -899,6 +960,19 @@ public final class PauseMenuOverlay implements Disposable {
             pokemon.runtime.pokemon.PbsData.Species chained = context.pbsData() == null ? null : context.pbsData().species(chain.species);
             font.draw(batch, "连锁：" + (chained == null ? chain.species : chained.name) + " " + chain.chainTimes + "次",
                     176f, height - 50f, new com.badlogic.gdx.graphics.Color(1f, 1f, 100 / 255f, 1f), shade);
+        }
+        if (inSafari()) {                                                       // 287_Modular_Pause_Menu:138-140
+            pokemon.runtime.state.SafariState safari = context.gameState().fieldGlobals().safari;
+            java.util.List<String> content = new java.util.ArrayList<>();
+            if (pokemon.runtime.state.SafariState.SAFARI_STEPS > 0) {
+                content.add("剩余步数: " + safari.steps + "/" + pokemon.runtime.state.SafariState.SAFARI_STEPS);
+            }
+            content.add("狩猎球剩余:" + safari.ballcount);
+            Texture bar = assets.mpm("partyBar");
+            for (int i = 0; i < content.size(); i++) {                          // :155-158
+                font.draw(batch, content.get(i), 16f, height - (60f + i * 50f + 22f), white, shade);
+                if (bar != null) batch.draw(bar, -2f, height - (92f + i * 50f) - bar.getHeight());
+            }
         }
         if (database != null && database.title() != null && !database.title().footerLeft.isEmpty()) {
             font.draw(batch, "版本号：" + database.title().footerLeft, 16f, font.lineHeight() + 4f);

@@ -146,6 +146,26 @@ public final class MenuFont implements Disposable {
         draw(batch, text, centerX - width(text) / 2f, y, main, shadow);
     }
 
+    /**
+     * {@code Bitmap#draw_text(x,y,width,height,text,align)} with a rectangle narrower than the text: RGSS squeezes the
+     * text horizontally to fit. Draws centred on {@code centerX}, at most {@code maxWidth} wide.
+     */
+    public void drawCenteredFitted(SpriteBatch batch, String text, float centerX, float y, float maxWidth, Color main, Color shadow) {
+        if (font == null || text == null || text.isEmpty()) {
+            return;
+        }
+        float natural = width(text);
+        if (natural <= maxWidth) {
+            drawCentered(batch, text, centerX, y, main, shadow);
+            return;
+        }
+        float squeeze = maxWidth / natural;
+        font.getData().setScale(squeeze, 1f);
+        float x = centerX - maxWidth / 2f;
+        draw(batch, text, x, y, main, shadow);
+        font.getData().setScale(1f, 1f);
+    }
+
     /** Draws text right-aligned to {@code rightX}. */
     public void drawRight(SpriteBatch batch, String text, float rightX, float y, Color main, Color shadow) {
         if (font == null || text == null || text.isEmpty()) {

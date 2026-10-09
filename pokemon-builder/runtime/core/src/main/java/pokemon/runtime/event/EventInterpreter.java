@@ -1806,6 +1806,15 @@ public final class EventInterpreter {
                 pbGenerateEgg(ir.getString("species", ""), ir.getString("text", ""));
                 break;
             }
+            case "SAFARI_START": {                                         // pbSafariState.pbStart(ballcount) (242_PBattle_Safari:35-40)
+                state.fieldGlobals().safari.begin(state.currentMapId(), state.playerX(), state.playerY(),
+                        state.playerDirection(), ir.getInt("balls", 0));
+                break;
+            }
+            case "SAFARI_END": {                                           // pbSafariState.pbEnd (:42-49)
+                state.fieldGlobals().safari.end();
+                break;
+            }
             case "PARTY_OT_SHINY": {                                       // map-205: each_index, next if ot != name; otgender; makeShiny; makeSuperShiny
                 String ot = ir.getString("ot", "");
                 for (Pokemon member : state.trainer().party.members()) {
@@ -1892,6 +1901,21 @@ public final class EventInterpreter {
                         if (species != null) state.variables().set(variable, species.id);
                         break;
                     }
+                }
+                break;
+            }
+            case "MINIGAME": {                                             // pbMiningGame / pbVoltorbFlip (239_PMinigame_Mining, 237_PMinigame_VoltorbFlip)
+                MenuService.Request game = new MenuService.Request(MenuService.Kind.MINIGAME);
+                game.wanted = ir.getString("game", "");
+                if ("voltorbflip".equals(game.wanted)                           // pbVoltorbFlip (237_PMinigame_VoltorbFlip:~598-609)
+                        && pbs != null && pbs.item("COINCASE") != null && !state.inventory().has("COINCASE")) {
+                    showHandlerMessage("除非拥有代币盒，\n否则无法游玩。");
+                } else if ("voltorbflip".equals(game.wanted) && state.fieldGlobals().coins == ConditionEnv.MAX_COINS) {
+                    showHandlerMessage("代币盒装满了！");
+                } else if (menuService != null) {
+                    menuRequest = menuService.submit(game);
+                } else {
+                    log.warn("MINIGAME without a menu service");
                 }
                 break;
             }
@@ -4256,6 +4280,9 @@ public final class EventInterpreter {
     private static int battleDecision(BattleResult result) {
         if (result == null) {
             return 0;
+        }
+        if (result.decision >= 0) {
+            return result.decision;                    // the Safari Zone's own codes (242_PBattle_Safari:121-125)
         }
         switch (result.outcome) {
             case WIN: return 1;

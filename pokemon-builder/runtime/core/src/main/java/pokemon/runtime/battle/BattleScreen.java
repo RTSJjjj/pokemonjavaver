@@ -476,8 +476,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         for (int i = 1; i < playerNames.length; i++) {
             playerNames[i] = session.partnerFullname;                                         // @player[i].fullname
         }
-        plan = BattleSendOut.plan(session.battle, trainerBattle, opponentNames, playerNames,
-                id -> context.gameState().switches().get(id));
+        plan = session.safari ? BattleSendOut.safariPlan(session.safariAppearMessage())
+                : BattleSendOut.plan(session.battle, trainerBattle, opponentNames, playerNames,
+                        id -> context.gameState().switches().get(id));
         go(0);
     }
 
@@ -1409,6 +1410,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** {@code pbOnActiveAll} has run for this battle. */
     private boolean openingEffectsDone;
+    /** {@code pbSafariStart} has begun (the Safari data box replaced {@code dataBox_0}). */
+    private boolean safariStarted;
 
     /** Runs the plan built by {@link BattleSendOut#plan}. */
     private void stepOpening() {
@@ -1430,6 +1433,32 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             sendOut.dispose();
             sendOut = null;
             planIndex++;
+            return;
+        }
+        if (planIndex >= plan.size() && session.safari) {
+            // 160_PokeBattle_SafariZone:228-239 pbSafariStart: the Safari data box slides in, then the loop starts
+            if (!safariStarted) {
+                safariStarted = true;
+                sprites.remove("dataBox_0");
+                BattleSprite box = sprites.add("dataBox_0", BattleSprite.Kind.SAFARI_BOX);
+                box.name = "Graphics/Pictures/Battle/databox_safari";
+                int[] size = bitmapSize(box.name);
+                box.bitmapWidth = size == null ? -1 : size[0];
+                box.bitmapHeight = size == null ? -1 : size[1];
+                box.x = 0;
+                box.y = 0;
+                box.z = 50;
+                box.homeX = 0;
+                box.visible = false;
+                briefMessage = false;
+                message = null;
+                animations.add(new BattleAnimations.DataBoxAppearAnimation(this, 0));
+                return;
+            }
+            if (!animations.isEmpty()) return;
+            stage = Stage.BATTLE;
+            openingEffectsDone = true;
+            goCommandPhase();
             return;
         }
         if (planIndex >= plan.size()) {
@@ -2247,6 +2276,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      * ({@code pbCommandPhase}, :378).
      */
     private void goCommandPhase() {
+        if (session.safari) {                                    // PokeBattle_SafariZone#pbStartBattle's loop: always the menu
+            go(0);
+            return;
+        }
         if (session.bossBuffPhase()) {
             pursuitContinuation = this::enterCommandMenu;
             queueRoundMessages();
@@ -2541,7 +2574,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     private void refresh() {
         rows = new ArrayList<>();
-        if (page == 0) rows.addAll(Arrays.asList(commandLabels()));
+        if (page == 0) rows.addAll(Arrays.asList(session.safari
+                ? new String[] { "精灵球", "诱饵", "石头", "逃跑" }          // 156_Scene_Commands / 160:pbSafariCommandMenu
+                : commandLabels()));
         if (page == 1 && fighter() != null) {
             // FightMenuDisplay#refreshButtonNames (PokeBattle_SceneMenus:337-365)
             // walks "@battler.moves", which is a FIXED four-slot array
@@ -2937,6 +2972,26 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 // PokeBattle_Battle:793-799 @scene.pbAnimation / @scene.pbCommonAnimation
                 beginAnimation(event.anim);
                 return;
+            case SE:
+                if (context.audioManager() != null) context.audioManager().playSe(event.text, 100, 100);   // pbSEPlay
+                resumeRound();
+                return;
+            case SAFARI_BAIT:
+            case SAFARI_ROCK: {
+                // @scene.pbThrowBait / pbThrowRock (160_PokeBattle_SafariZone:~262-283)
+                briefMessage = false;
+                Battler foeBattler = battler(1);
+                if (foeBattler == null) {
+                    resumeRound();
+                    return;
+                }
+                animations.add(event.kind == Battle.RoundEvent.Kind.SAFARI_BAIT
+                        ? new BattleAnimations.ThrowBaitAnimation(this, foeBattler)
+                        : new BattleAnimations.ThrowRockAnimation(this, foeBattler));
+                ballPhase = 0;
+                stage = Stage.BALL;
+                return;
+            }
             case BALL_THROW:
                 beginBallThrow(event.ball, false);
                 return;
@@ -3002,7 +3057,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         animations.add(deflect
                 ? new BattleAnimations.PokeballThrowDeflectAnimation(this, call.ballType, target)
                 : new BattleAnimations.PokeballThrowCaptureAnimation(this, call.ballType,
-                        call.shakes, call.critical, target));
+                        call.shakes, call.critical, target, call.showTrainer));
         ballPhase = 0;
         stage = Stage.BALL;
     }
@@ -4334,6 +4389,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (page == 0 || page == 1) {
             playDecisionSe();                       // Scene_Commands:49 / :135 pbPlayDecisionSE
         }
+        if (page == 0 && session.safari) {
+            lastCmd[0] = pick;                                                     // Scene_Commands:51
+            session.safariCommand(pick);                                           // 160_PokeBattle_SafariZone:388-452
+            queueSessionEvents();
+            if (message == null && queue.isEmpty()) {
+                afterRound();
+            }
+            return;
+        }
         if (page == 0) {
             lastCmd[actingIndex()] = pick;                                         // Scene_Commands:51
             if (pick == 3 && doubles() && actioned.size() > 1) {
@@ -4529,6 +4593,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             if (sprite.kind == BattleSprite.Kind.ABILITY_BAR) {
                 if (shaderBound) { batch.setShader(null); shaderBound = false; }
                 drawAbilityBar(sprite, h);
+                continue;
+            }
+            if (sprite.kind == BattleSprite.Kind.SAFARI_BOX) {
+                if (shaderBound) { batch.setShader(null); shaderBound = false; }
+                batch.setColor(Color.WHITE);
+                Texture box = texture(sprite.name);                                // SafariDataBox#refresh (160:~60-74)
+                if (box != null) batch.draw(box, sprite.x, h - sprite.y - box.getHeight());
+                font.draw(batch, "狩猎球", sprite.x + 40f, h - (sprite.y + 8f), SAFARI_BASE, SAFARI_SHADOW);
+                font.draw(batch, "剩余：" + session.ballCount, sprite.x + 40f, h - (sprite.y + 38f), SAFARI_BASE, SAFARI_SHADOW);
                 continue;
             }
             Texture texture = spriteTexture(sprite);
@@ -4984,6 +5057,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** CommandMenuDisplay::MODES[0] (a regular battle). */
     private static final int[] COMMAND_MODES = {0, 2, 1, 3};
+    /** CommandMenuDisplay::MODES[3] (a Safari Zone battle). */
+    private static final int[] SAFARI_MODES = {5, 7, 6, 3};
 
     /** {@code Window_DrawableCommand#rowHeight} (SpriteWindow_text:759-761): 32 unless set. */
     private static final float CHOICE_ROW_HEIGHT = 32f;
@@ -5044,9 +5119,17 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         Battler player = fighter();
-        String prompt = (player == null ? "" : player.name()) + "要做什么？";
-        font.draw(batch, prompt, 16f, h - (BAR_Y + 2f + (96f - font.lineHeight()) / 2f),
-                TEXT_BASE, TEXT_SHADOW);
+        if (session.safari) {                                                      // 160:pbSafariCommandMenu {1}\n准备使用什么？
+            String[] lines = { context.gameState().trainer().name, "准备使用什么？" };
+            float top = BAR_Y + 2f + (96f - lines.length * font.lineHeight()) / 2f;
+            for (int i = 0; i < lines.length; i++) {
+                font.draw(batch, lines[i], 16f, h - (top + i * font.lineHeight()), TEXT_BASE, TEXT_SHADOW);
+            }
+        } else {
+            String prompt = (player == null ? "" : player.name()) + "要做什么？";
+            font.draw(batch, prompt, 16f, h - (BAR_Y + 2f + (96f - font.lineHeight()) / 2f),
+                    TEXT_BASE, TEXT_SHADOW);
+        }
         Texture cursorTex = assets.graphic("Pictures/Battle", "cursor_command");
         if (cursorTex == null) return;
         int buttonW = cursorTex.getWidth() / 2;
@@ -5055,7 +5138,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             float cy = BAR_Y + 6f + ((i / 2 == 0) ? 0f : 46f - 4f);
             int srcX = i == cursor.index() ? buttonW : 0;
             // CommandMenuDisplay::MODES: [0,2,1,3] with "Run", [0,2,1,9] with "Cancel" (a later battler's menu)
-            int srcY = (i == 3 && actioned.size() > 1 ? 9 : COMMAND_MODES[i]) * 46;
+            int srcY = session.safari ? SAFARI_MODES[i] * 46                      // CommandMenuDisplay::MODES[3]
+                    : (i == 3 && actioned.size() > 1 ? 9 : COMMAND_MODES[i]) * 46;
             batch.draw(cursorTex, cx, h - cy - 46f, buttonW, 46f, srcX, srcY, buttonW, 46, false, false);
         }
     }
@@ -5104,6 +5188,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             narrowFont.drawCentered(batch, name, bx + srcW / 2f, h - (by + 8f), TARGET_TEXT_BASE, TARGET_TEXT_SHADOW);   // :542-544
         }
     }
+
+    /** {@code SafariDataBox#refresh}'s text colours (160_PokeBattle_SafariZone). */
+    private static final Color SAFARI_BASE = new Color(248 / 255f, 248 / 255f, 248 / 255f, 1f);
+    private static final Color SAFARI_SHADOW = new Color(104 / 255f, 104 / 255f, 104 / 255f, 1f);
 
     /** {@code TargetMenuDisplay::TEXT_BASE_COLOR / TEXT_SHADOW_COLOR} (PokeBattle_SceneMenus:457-458). */
     private static final Color TARGET_TEXT_BASE = new Color(240 / 255f, 248 / 255f, 224 / 255f, 1f);

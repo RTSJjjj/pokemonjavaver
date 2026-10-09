@@ -235,6 +235,13 @@ final class BattleSendOut {
         return battle.battlerAt(idxBattler);
     }
 
+    /** {@code PokeBattle_SafariZone#pbStartBattle} (160_PokeBattle_SafariZone:384-386): the one line before the menu. */
+    static List<Step> safariPlan(String message) {
+        List<Step> steps = new ArrayList<>();
+        steps.add(paused(message));
+        return steps;
+    }
+
     private static Step paused(String message) {
         return new Step(Step.Kind.DISPLAY_PAUSED, message, null);
     }
