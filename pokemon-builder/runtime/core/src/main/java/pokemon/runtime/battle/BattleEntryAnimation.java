@@ -384,7 +384,7 @@ public final class BattleEntryAnimation {
             return;
         }
         if (mode == Mode.VS) {
-            drawPlane(batch, playerBar, -xOffset, w / 2f, h / 3f, w / 2f, 128f, playerBarX, playerBarOx);
+            drawPlane(batch, playerBar, -xOffset, 0f, h / 3f, w / 2f, 128f, playerBarX, playerBarOx);   // :148 viewplayer = Viewport.new(0,...)
             drawPlane(batch, foeBar, xOffset, w / 2f, h / 3f, w / 2f, 128f, foeBarX, foeBarOx);
             drawSprite(batch, playerTrainer, 0f, w / 2f, h / 3f, playerSlide, Color.WHITE);
             // PField_Visuals:214/234: the opponent is blacked out until the VS

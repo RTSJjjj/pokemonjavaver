@@ -30,7 +30,7 @@ public final class BattleAttackPhase {
         Battler b = battle.battlerAt(idxBattler);
         if (b == null || b.fainted()) return false;                                   // :92
         Object[] choice = battle.choices(idxBattler);
-        int idxMove = (Integer) choice[1];                                            // :93
+        int idxMove = choice[1] instanceof Integer ? (Integer) choice[1] : -1;                                            // :93
         if (":UseMove".equals(choice[0]) && idxMove >= 0) {                           // :94
             BattleMove move = b.moveSlot(idxMove);
             return move != null && code.equals(move.function());                      // :95
@@ -43,7 +43,7 @@ public final class BattleAttackPhase {
         Battler b = battle.battlerAt(idxBattler);
         if (b == null || b.fainted()) return false;                                   // :82
         Object[] choice = battle.choices(idxBattler);
-        int idxMove = (Integer) choice[1];                                            // :83
+        int idxMove = choice[1] instanceof Integer ? (Integer) choice[1] : -1;                                            // :83
         if (":UseMove".equals(choice[0]) && idxMove >= 0) {                           // :84
             BattleMove move = b.moveSlot(idxMove);
             return move != null && moveName.equals(move.internalName());              // :85-86

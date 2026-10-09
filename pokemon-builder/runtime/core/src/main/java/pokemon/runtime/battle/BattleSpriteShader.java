@@ -25,7 +25,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
  * <p>The vertex shader is the stock SpriteBatch one, so the batch's own
  * colour/alpha handling (sprite opacity, fades) is untouched.</p>
  */
-final class BattleSpriteShader {
+public final class BattleSpriteShader {
 
     private static final String VERTEX =
         "attribute vec4 a_position;\n" +
@@ -66,7 +66,7 @@ final class BattleSpriteShader {
 
     private final ShaderProgram program = new ShaderProgram(VERTEX, FRAGMENT);
 
-    boolean isCompiled() {
+    public boolean isCompiled() {
         return program.isCompiled();
     }
 
@@ -74,25 +74,25 @@ final class BattleSpriteShader {
         return program.getLog();
     }
 
-    ShaderProgram program() {
+    public ShaderProgram program() {
         return program;
     }
 
     /** {@code tone} = {red, green, blue, gray} in RGSS units (-255..255, 0..255). */
-    void setTone(float[] tone) {
+    public void setTone(float[] tone) {
         program.setUniformf("u_tone", tone[0] / 255f, tone[1] / 255f, tone[2] / 255f,
                 Math.max(0f, Math.min(1f, tone[3] / 255f)));
     }
 
     /** {@code color} = {red, green, blue, alpha}; alpha is the blend amount (0..255). */
-    void setColor(float[] color) {
+    public void setColor(float[] color) {
         program.setUniformf("u_blend", Math.max(0f, Math.min(1f, color[0] / 255f)),
                 Math.max(0f, Math.min(1f, color[1] / 255f)),
                 Math.max(0f, Math.min(1f, color[2] / 255f)),
                 Math.max(0f, Math.min(1f, color[3] / 255f)));
     }
 
-    void dispose() {
+    public void dispose() {
         program.dispose();
     }
 }

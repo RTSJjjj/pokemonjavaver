@@ -2753,7 +2753,7 @@ public final class MoveEffects_000_07F {
         /** {@code pbEffectAgainstTarget(user,target)} (:2144-2152). */
         @Override
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
-            user.battle.showAbilitySplash(target);                            // :2145 @battle.pbShowAbilitySplash(target,true,false)
+            user.battle.showAbilitySplash(target, true);                            // :2145 @battle.pbShowAbilitySplash(target,true,false)
             String oldAbil = target.ability;                                  // :2146
             target.ability = "INSOMNIA";                                      // :2147 getConst(PBAbilities,:INSOMNIA)
             user.battle.replaceAbilitySplash(target);                         // :2148
@@ -2807,7 +2807,7 @@ public final class MoveEffects_000_07F {
         /** {@code pbEffectAgainstTarget(user,target)} (:2191-2200). */
         @Override
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
-            user.battle.showAbilitySplash(user);                              // :2192 @battle.pbShowAbilitySplash(user,true,false)
+            user.battle.showAbilitySplash(user, true);                              // :2192 @battle.pbShowAbilitySplash(user,true,false)
             String oldAbil = user.ability;                                    // :2193
             user.ability = target.ability;                                    // :2194
             user.battle.replaceAbilitySplash(user);                           // :2195

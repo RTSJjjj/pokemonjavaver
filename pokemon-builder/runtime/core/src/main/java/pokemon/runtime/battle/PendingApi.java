@@ -138,6 +138,11 @@ public final class PendingApi {
         battle.showAbilitySplash(battler);
     }
 
+    /** {@code Battle#pbShowAbilitySplash(battler,delay)} (PokeBattle_Battle:801). */
+    public static void pbShowAbilitySplash(Battle battle, Battler battler, boolean delay) {
+        battle.showAbilitySplash(battler, delay);
+    }
+
     /** {@code Battler#pbThis} (PokeBattle_Battler:214, default {@code lowerCase=false}). */
     public static String pbThis(Battler battler) {
         return battler.pbThis();

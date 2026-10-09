@@ -574,6 +574,15 @@ public final class Battle {
      * @return false when the battle ended during the switch
      */
     private boolean pbAttackPhaseSwitchOpposing() {
+        boolean anyAction = false;
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler b = battlerAt(idx);
+            if (b == null || pbOwnedByPlayer(idx)) continue;
+            String choice = (String) choices(idx)[0];
+            if (":SwitchOut".equals(choice) || ":UseItem".equals(choice)) anyAction = true;
+        }
+        if (!anyAction) return true;                               // nothing to play: leave the round (and its random draws) alone
+        pbCalculatePriority(true, null);                           // :171-184: the order is calculated before pbAttackPhaseSwitch walks it
         for (Battler b : pbPriority(false)) {                      // :51
             if (b.fainted() || pbOwnedByPlayer(b.index)) continue;
             Object[] c = choices(b.index);
@@ -1074,6 +1083,9 @@ public final class Battle {
         // Battle_Phase_Command: every battler stores its choice (:183 pbClearChoice runs
         // after the round, below).
         pbChooseAll(true);
+        if (foe() != null && player() != null && !pbAttackPhaseSwitchOpposing()) {   // Battle_Phase_Attack:50-71: the opponent's switch comes before the moves
+            return;
+        }
         BattleAttackPhase.pbAttackPhase(this);                     // Battle_StartAndEnd pbAttackPhase
         // Battle_StartAndEnd:381-386: pbBattleLoop breaks before
         // pbEndOfRoundPhase when a move decided the battle, so the end of round
@@ -1205,8 +1217,17 @@ public final class Battle {
              * {@code oldHp} (0 Mega, 1 Primal Groudon, 2 Primal Kyogre), the old form in {@code newHp}'s
              * low half and the new form in its high half.
              */
-            MEGA_SCENE }
+            MEGA_SCENE,
+            /**
+             * {@code @scene.pbShowAbilitySplash(battler)} (Scene_Animations:171-184): {@code idxBattler}, the bar's two lines in
+             * {@code text} ("name\nability"), {@code oldHp} 1 when the Ruby passed {@code delay=true}.
+             */
+            ABILITY_SPLASH_SHOW,
+            /** {@code @scene.pbHideAbilitySplash(battler)} (Scene_Animations:186-198): {@code idxBattler}. */
+            ABILITY_SPLASH_HIDE }
         public final Kind kind;
+        /** The statuses of battlers 0-5 when this event was created ({@link Battle#statusSnapshot()}). */
+        public String[] statuses;
         /** MESSAGE text, or the BGM name. */
         public final String text;
         public final boolean brief;
@@ -1319,6 +1340,13 @@ public final class Battle {
         public int megaNewForm() {
             return newHp >>> 16;
         }
+        static RoundEvent abilitySplashShow(int idxBattler, String name, String ability, boolean delay) {
+            return new RoundEvent(Kind.ABILITY_SPLASH_SHOW, name + "\n" + ability, false, null, idxBattler,
+                    delay ? 1 : 0, -1, false, false);
+        }
+        static RoundEvent abilitySplashHide(int idxBattler) {
+            return new RoundEvent(Kind.ABILITY_SPLASH_HIDE, null, false, null, idxBattler, -1);
+        }
         static RoundEvent animation(AnimationCall call) {
             return new RoundEvent(Kind.ANIMATION, null, false, null, -1, -1, -1, false, false, call);
         }
@@ -1350,7 +1378,38 @@ public final class Battle {
      * of round's. The battle screen plays it front to back (the engine owns no
      * UI); cleared at the start of every action.
      */
-    public final Array<RoundEvent> roundEvents = new Array<>();
+    public final Array<RoundEvent> roundEvents = new Array<RoundEvent>() {
+        /** Each event remembers which status every battler had when the engine reached it (the data boxes follow it). */
+        @Override
+        public void add(RoundEvent value) {
+            value.statuses = statusSnapshot();
+            super.add(value);
+        }
+
+        @Override
+        public void clear() {
+            super.clear();
+            roundBaseStatuses = statusSnapshot();
+        }
+    };
+
+    /** The statuses at the moment {@link #roundEvents} was last cleared: what the data boxes show before the first event. */
+    public String[] roundBaseStatuses = new String[0];
+
+    /**
+     * The status each battler index has right now, "" for none and a trailing "!" for a badly poisoned one. The engine
+     * runs a whole round at once, so the screen needs these to show a status icon only when its event plays
+     * (PokeBattle_Battler:102-109 refreshes the data box the moment the status is written).
+     */
+    String[] statusSnapshot() {
+        String[] snapshot = new String[6];
+        for (int i = 0; i < snapshot.length; i++) {
+            Battler b = fieldParty == null ? null : battlerAt(i);
+            String status = b == null || b.status == null ? "" : b.status;
+            snapshot[i] = "POISON".equals(status) && b.toxic > 0 ? "POISON!" : status;
+        }
+        return snapshot;
+    }
 
     /** {@code @battle.pbDisplay(msg)} (PokeBattle_Battle:773-775). */
     private void pbDisplay(String msg) {
@@ -1695,9 +1754,7 @@ public final class Battle {
     /** {@code $Trainer.badges} for the level lock (lines 179-180, 224-254). */
     public java.util.Set<Integer> badges = new java.util.HashSet<>();
     /** Settings:29 {@code MAX_LEVEL}. */
-    private static final int[] MAX_LEVEL = {
-            25, 16, 32, 36, 42, 48, 58, 63, 85, 100, 113, 125, 138, 150, 163, 175, 188, 200,
-    };
+    private static final int[] MAX_LEVEL = pokemon.runtime.pokemon.PBExperience.MAX_LEVEL;
 
     /**
      * PokeBattle_BattleCommon:134-138: a captured foe still awards exp, because
@@ -1733,7 +1790,7 @@ public final class Battle {
             return;
         }
         String growth = pkmn.growthRate();
-        int maxExp = PokemonStats.experienceForLevel(growth, 100);
+        int maxExp = pokemon.runtime.pokemon.PBExperience.pbGetMaxExperience(growth);   // :104
         if (pkmn.exp >= maxExp) {
             return; // Already at the maximum (lines 104-107)
         }
@@ -1786,7 +1843,7 @@ public final class Battle {
         // The bar plays one segment per level (lines 221-265).
         int curLevel = pkmn.level;
         int tempExp1 = pkmn.exp;
-        while (tempExp1 < expFinal && curLevel < 100) {
+        while (tempExp1 < expFinal && curLevel < 200) {                // :222 break if curLevel >= 200
             if (levelLockStop(curLevel)) {
                 break;                             // lines 223-255
             }
@@ -1800,8 +1857,9 @@ public final class Battle {
         // Apply it (the plugin sets pkmn.exp per segment while animating).
         pkmn.hp = receiver.hp;
         if (expGained > 0 && pkmn.gainExperience(expGained)) {
-            // The level's moves are learned in the settlement (pbLearnMove);
-            // the evolution check stays here (P3).
+            // The level's moves are learned in the settlement (pbLearnMove). A level-up never evolves in battle: the
+            // plugin's onEndBattle evolution check is commented out (174_PField_Battles:687-694) and the evolution
+            // is the party menu's 进化 command (210_PScreen_Party:1335).
             for (PbsData.LearnMove learn : pkmn.species.moves) {
                 if (learn.level > award.oldLevel && learn.level <= pkmn.level) {
                     PbsData.Move move = pbs.move(learn.move);
@@ -1810,7 +1868,6 @@ public final class Battle {
                     }
                 }
             }
-            pokemon.runtime.pokemon.PokemonGrowth.evolveOnCondition(pkmn, pbs);
         }
         receiver.hp = Math.min(pkmn.hp, receiver.maxHp());
         lastExpGain = expGained;
@@ -2683,23 +2740,32 @@ public final class Battle {
      * true in this project, so the plugin always takes the scene branch.</p>
      */
     public void showAbilitySplash(Battler battler) {
-        // 登记: PokeBattle_Battle:801-808 依赖 PokeBattle_Scene（未建模）
+        showAbilitySplash(battler, false);
     }
 
     /**
-     * {@code pbHideAbilitySplash(battler)} (PokeBattle_Battle:810-813) -
-     * 登记: PokeBattle_Battle:810-813 (scene).
+     * {@code pbShowAbilitySplash(battler,delay,logTrigger,ability)} (PokeBattle_Battle:801-808): the scene's bar slides in
+     * (Scene_Animations:171-184); {@code delay} waits a second afterwards (:805-807). The log line (:802) has no runtime
+     * counterpart and the {@code ability} argument only sets an attribute the bar never reads (AbilitySplashBar#refresh).
      */
+    public void showAbilitySplash(Battler battler, boolean delay) {
+        if (!PokeBattle_SceneConstants.USE_ABILITY_SPLASH || battler == null) {
+            return;                                                 // :803
+        }
+        roundEvents.add(RoundEvent.abilitySplashShow(battler.index, battler.name(), battler.abilityName(), delay));
+    }
+
+    /** {@code pbHideAbilitySplash(battler)} (PokeBattle_Battle:810-813). */
     public void hideAbilitySplash(Battler battler) {
-        // 登记: PokeBattle_Battle:810-813 依赖 PokeBattle_Scene（未建模）
+        if (!PokeBattle_SceneConstants.USE_ABILITY_SPLASH || battler == null) {
+            return;                                                 // :811
+        }
+        roundEvents.add(RoundEvent.abilitySplashHide(battler.index));
     }
 
-    /**
-     * {@code pbReplaceAbilitySplash(battler)} (PokeBattle_Battle:815-818) -
-     * 登记: PokeBattle_Battle:815-818 (scene).
-     */
+    /** {@code pbReplaceAbilitySplash(battler)} (PokeBattle_Battle:815-818): Scene_Animations:200-203 shows it again. */
     public void replaceAbilitySplash(Battler battler) {
-        // 登记: PokeBattle_Battle:815-818 依赖 PokeBattle_Scene（未建模）
+        showAbilitySplash(battler, false);
     }
 
     /**
@@ -3077,6 +3143,9 @@ public final class Battle {
 
         /** {@code BallHandlers.onCatch(ball,self,pkmn)} (:146). */
         void onCatch(String ball, Pokemon pkmn);
+
+        /** {@code $Trainer.refreshChain(pkmn.species)} (343_ChainCatching:97). */
+        default void refreshChain(String species) { }
     }
 
     public CaptureHooks captureHooks;
@@ -3168,11 +3237,17 @@ public final class Battle {
                 }
                 // Modify the Pokémon's properties because of the capture
                 hooks.onCatch(ball, pkmn);                                         // :150 BallHandlers.onCatch
-                if (gameSwitches.test(60)) pkmn.level = 1;                         // :151
                 pkmn.ballused = ballType;                                          // :152 pkmn.ballused = pbGetBallType(ball)
                 pkmn.makeUnmega(pbs);                                              // :153
                 pkmn.makeUnprimal(pbs);                                            // :154
                 pkmn.recordFirstMoves();                                           // :156 pbRecordFirstMoves
+                // 343_ChainCatching:95-103 (its pbThrowPokeBall replaces the plugin's, and drops the switch-60 level line)
+                hooks.refreshChain(pkmn.internalName);                             // $Trainer.refreshChain(pkmn.species)
+                int hpDiff = pkmn.maxHp() - pkmn.hp;                               // calcStats keeps the missing HP (:884-888)
+                if (pkmn.level > 200) pkmn.setLevelAndExp(200);                    // :99
+                if (gameSwitches.test(35)) pkmn.setLevelAndExp(1);                 // :100 "抓到的变为一级"
+                if (pkmn.battleRank > 1) pkmn.battleRank = 1;                      // :101
+                pkmn.hp = Math.max(1, pkmn.maxHp() - hpDiff);                      // :102-103 calcStats; hp = 1 if hp < 1
                 // Save the Pokémon for storage at the end of battle
                 caughtPokemon.add(pkmn);                                           // :163
                 break;

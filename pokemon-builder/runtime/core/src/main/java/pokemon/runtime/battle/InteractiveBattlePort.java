@@ -72,6 +72,17 @@ public final class InteractiveBattlePort implements BattlePort {
         if (pbs != null && pbs.species(species) != null) freeWildBattle(factory().wildPokemon(pbs.species(species), level, pbs));
         return null;
     }
+    @Override
+    public BattleResult doubleWildBattle(String species1, int level1, String species2, int level2) {
+        PbsData pbs = data.get();
+        if (pbs == null || pbs.species(species1) == null || pbs.species(species2) == null) {
+            return wildBattle(species1, level1);
+        }
+        java.util.List<Pokemon> foes = new java.util.ArrayList<>();
+        foes.add(factory().wildPokemon(pbs.species(species1), level1, pbs));
+        foes.add(factory().wildPokemon(pbs.species(species2), level2, pbs));
+        return freeWildBattle(foes);
+    }
     public BattleResult freeWildBattle(Pokemon foe) {
         if (foe != null) start(java.util.Collections.singletonList(Array.with(foe)), false, null);
         return null;
@@ -191,12 +202,14 @@ public final class InteractiveBattlePort implements BattlePort {
     }
     public void finish() {
         if (session == null || session.result == null) return;
-        BattleResult result = session.result; session = null;
+        BattleResult result = session.result;
+        boolean caughtStored = session.caughtStored;       // the screen already ran storeCaught()
+        session = null;
         lastResult = result;
         // pbRecordAndStoreCaughtPokemon (PokeBattle_BattleCommon:55-63): a Pokemon the engine caught (pbThrowPokeBall)
         // joins the party; the port's own ball() path has already added its own.
         // 登记: the box messages of pbStorePokemon (:11-38) and the Pokedex entry page (:48-52) are not modelled.
-        if (result.caught != null && !trainer.party.members().contains(result.caught, true)) trainer.addToParty(result.caught);
+        if (!caughtStored && result.caught != null && !trainer.party.members().contains(result.caught, true)) trainer.addToParty(result.caught);
         for (Pokemon p : trainer.party.members()) trainer.registerOwned(p);
         // PField_Battles:619-658 pbAfterBattle runs before Events.onEndBattle
         // (:656), which is where the white-out lives (:701-706).
@@ -217,6 +230,17 @@ public final class InteractiveBattlePort implements BattlePort {
     public static final String MESSAGE_BREAK = "\f";
     /** Settings:28 {@code EXP_POT_MAX}. */
     private static final int EXP_POT_MAX = 99999999;
+
+    /** One thing {@code pbRecordAndStoreCaughtPokemon} shows: a line, or the Pokedex entry page of a new species. */
+    public static final class CaughtStep {
+        public final String text;
+        public final PbsData.Species dex;
+
+        CaughtStep(String text, PbsData.Species dex) {
+            this.text = text;
+            this.dex = dex;
+        }
+    }
 
     public final class Session {
         public final Battle battle;
@@ -613,6 +637,10 @@ public final class InteractiveBattlePort implements BattlePort {
                 CaptureCalculator.Context capture = captureContext(data.get(), target);
                 if (rareness >= 0) capture.rareness = rareness;                         // PokeBattle_BattleCommon:174 `if !rareness`
                 return CaptureCalculator.shakes(capture, ball);
+            }
+
+            @Override public void refreshChain(String species) {
+                trainer.chainCatching.refresh(species);                                 // 343_ChainCatching:97
             }
 
             @Override public void onCatch(String ball, Pokemon pkmn) {
@@ -1354,7 +1382,8 @@ public final class InteractiveBattlePort implements BattlePort {
                 // :134-138: a capture still awards exp (GAIN_EXP_FOR_CAPTURE,
                 // Settings:165).
                 battle.awardCaptureExperience();
-                trainer.addToParty(target.pokemon);
+                // :163 @caughtPokemon: stored (party/box, Pokedex page, lines) by storeCaught() at the end of the battle
+                battle.caughtPokemon.add(target.pokemon);
                 result = new BattleResult(BattleResult.Outcome.CAUGHT, battle.turns(), target.pokemon);
             } else {
                 message = shakeMessage(shakes);                                 // :116-128
@@ -1425,6 +1454,75 @@ public final class InteractiveBattlePort implements BattlePort {
             return party;
         }
 
+        private boolean caughtStored;
+
+        /**
+         * {@code pbRecordAndStoreCaughtPokemon} (PokeBattle_BattleCommon:43-63) with {@code pbStorePokemon} (:5-40) and
+         * {@code PokeBattle_RealBattlePeer#pbStorePokemon} (166:25-40): the caught Pokemon are recorded in the Pokedex
+         * and put in the party, or in the PC box when the party is full. Returns the lines and entry pages the scene
+         * shows, in order. The nickname question of :6-12 is commented out in the plugin, so there is none.
+         * 登记: {@code pbShadowPokemon} bookkeeping (:54-58), {@code @initialItems} (:18), the storage creator's name
+         * ({@code seenStorageCreator}, :22/:33).
+         */
+        public java.util.List<CaughtStep> storeCaught() {
+            java.util.List<CaughtStep> steps = new java.util.ArrayList<>();
+            if (caughtStored) return steps;
+            caughtStored = true;
+            PbsData pbs = data.get();
+            for (Pokemon pkmn : battle.caughtPokemon) {
+                trainer.registerSeen(pkmn);                                          // :45 pbSeenForm
+                String species = pkmn.species == null ? null : pkmn.species.internalName;
+                if (species != null && !trainer.owned.contains(species)) {           // :47 hasOwned?
+                    trainer.owned.add(species);                                      // :48 setOwned
+                    if (trainer.pokedex) {                                           // :49
+                        steps.add(new CaughtStep(pkmn.name + "的数据被记录在图鉴里了。", null));   // :50
+                        steps.add(new CaughtStep(null, pkmn.species));               // :51 pbShowPokedex
+                    }
+                }
+                if (trainer.party.size() < 6) {                                      // 166:26
+                    trainer.party.add(pkmn);                                         // 166:27
+                    steps.add(new CaughtStep(pkmn.name + "加入了队伍。", null));          // 129:17
+                    continue;
+                }
+                Storage.heal(pkmn);                                                  // 166:30 pkmn.heal
+                Storage storage = trainer.currentStorage();
+                int currentBox = storage.currentBox;                                 // :14
+                int stored = storage.pbStoreCaught(pkmn);                            // 166:32
+                if (stored < 0) {
+                    steps.add(new CaughtStep("Can't catch any more...", null));       // 166:36
+                    continue;
+                }
+                String currentName = storage.box(currentBox).name;                   // :23
+                String boxName = storage.box(stored).name;                           // :24
+                if (stored != currentBox) {                                          // :25
+                    steps.add(new CaughtStep("寄存系统的盒子" + currentName + "已经满了。", null));   // :29
+                    steps.add(new CaughtStep(pkmn.name + "被传送到盒子\"" + boxName + "了。\".", null));   // :31
+                } else {
+                    steps.add(new CaughtStep(pkmn.name + "被传送到寄存系统里。", null));    // :36
+                    steps.add(new CaughtStep("存储到" + boxName + "了。", null));          // :38
+                }
+            }
+            battle.caughtPokemon.clear();                                            // :62
+            return steps;
+        }
+
+        private final java.util.List<String> lossLines = new java.util.ArrayList<>();
+
+        /**
+         * {@code pbLoseMoney} (Battle_StartAndEnd:424-442): the player's highest level times the badge multiplier,
+         * at most what the player holds; null when nothing is lost ({@code NO_MONEY_LOSS} = switch 33).
+         */
+        private String loseMoney() {
+            if (gameSwitches != null && gameSwitches.test(33)) return null;            // :426
+            // The plugin takes pbMaxLevelInTeam(0,0) * [8,16,24,36,48,64,80,100,120][badges] (131_Battle_StartAndEnd:427-431).
+            // The project asked for a gentler loss instead: 5 % of the money held (never more than it holds).
+            int money = trainer.money * 5 / 100;
+            trainer.money -= money;                                                    // :433
+            if (money <= 0) return null;                                               // :435
+            String text = String.format(java.util.Locale.ROOT, "%,d", money);
+            return trainerBattle ? "你给了获胜者$" + text + "……" : "你不小心掉了$" + text + "……";   // :436-440
+        }
+
         private void endMessage() {
             if (result != null) {
                 switch (result.outcome) {
@@ -1435,8 +1533,19 @@ public final class InteractiveBattlePort implements BattlePort {
                         if (trainerBattle) awardPrizeMoney();
                         break;
                     case LOSS:
-                        // Battle_StartAndEnd:480 "所有的宝可梦都倒下了……".
-                        message = "所有的宝可梦都倒下了……";
+                        // Battle_StartAndEnd:479-495: every line is a pbDisplayPaused.
+                        lossLines.add("所有的宝可梦都倒下了……");                        // :480
+                        if (trainerBattle) {                                           // :481-491
+                            String[] names = {trainerFullname, trainerFullname2, trainerFullname3};
+                            java.util.List<String> foes = new java.util.ArrayList<>();
+                            for (String name : names) if (name != null) foes.add(name);
+                            if (foes.size() == 1) lossLines.add("你输给了\n" + foes.get(0) + "！");
+                            else if (foes.size() == 2) lossLines.add("你输给了\n" + foes.get(0) + "和" + foes.get(1) + "！");
+                            else if (foes.size() == 3) lossLines.add("你输给了\n" + foes.get(0) + "、" + foes.get(1) + "和" + foes.get(2) + "！");
+                        }
+                        String lost = loseMoney();                                     // :494 pbLoseMoney
+                        if (lost != null) lossLines.add(lost);
+                        if (!canLose) lossLines.add("你眼前一黑！");                    // :495
                         break;
                     // The capture line is pbThrowPokeBall's own (:130) and is set
                     // by ball() before this runs.
@@ -1463,6 +1572,10 @@ public final class InteractiveBattlePort implements BattlePort {
             if (message != null && !message.isEmpty()) {
                 events.add(Battle.RoundEvent.portMessage(message));
             }
+            for (String line : lossLines) {
+                events.add(Battle.RoundEvent.portMessage(line).asPaused());
+            }
+            lossLines.clear();
             // message keeps every line's text (MESSAGE_BREAK-joined) for callers
             // that only read text.
             StringBuilder out = new StringBuilder();

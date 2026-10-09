@@ -594,6 +594,56 @@ final class BattleAnimations {
     }
 
     // ==================================================================
+    // AbilitySplashAppearAnimation / AbilitySplashDisappearAnimation (PokeBattle_SceneAnimations:230-267)
+    // ==================================================================
+
+    /** Makes a Pokemon's ability bar slide in (:230-247). */
+    static final class AbilitySplashAppearAnimation extends BattleAnimation {
+        private final int side;
+
+        AbilitySplashAppearAnimation(Scene scene, int side) {
+            super(scene);
+            this.side = side;                                           // :232
+            start();
+        }
+
+        @Override
+        protected void createProcesses() {
+            BattleSprite barSprite = sprites().get("abilityBar_" + side);   // :237
+            if (barSprite == null) {
+                return;
+            }
+            PictureEx bar = addSprite(barSprite);                       // :238
+            bar.setVisible(0, true);                                    // :239
+            int dir = side == 0 ? 1 : -1;                               // :240
+            bar.moveDelta(0, 8, dir * PictureEx.Graphics.WIDTH / 2f, 0);   // :241
+        }
+    }
+
+    /** Makes a Pokemon's ability bar slide out (:250-267). */
+    static final class AbilitySplashDisappearAnimation extends BattleAnimation {
+        private final int side;
+
+        AbilitySplashDisappearAnimation(Scene scene, int side) {
+            super(scene);
+            this.side = side;                                           // :252
+            start();
+        }
+
+        @Override
+        protected void createProcesses() {
+            BattleSprite barSprite = sprites().get("abilityBar_" + side);   // :257
+            if (barSprite == null) {
+                return;
+            }
+            PictureEx bar = addSprite(barSprite);                       // :258
+            int dir = side == 0 ? -1 : 1;                               // :259
+            bar.moveDelta(0, 8, dir * PictureEx.Graphics.WIDTH / 2f, 0);   // :260
+            bar.setVisible(8, false);                                   // :261
+        }
+    }
+
+    // ==================================================================
     // PokeballPlayerSendOutAnimation (Follower_Main:727-813 — the project
     // overrides PokeBattle_SceneAnimations:404-477 with this class)
     // ==================================================================

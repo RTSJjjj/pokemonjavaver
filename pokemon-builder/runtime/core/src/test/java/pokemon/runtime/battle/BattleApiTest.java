@@ -159,14 +159,21 @@ class BattleApiTest {
 
         int messages = battle.roundMessages.size;
         int events = battle.roundEvents.size;
-        battle.showAbilitySplash(player);                             // 登记: :801-808
-        battle.hideAbilitySplash(player);                             // 登记: :810-813
-        battle.replaceAbilitySplash(player);                          // 登记: :815-818
         battle.pbSetSeen(battle.foe());                               // 登记: :652-656
-
-        // The four registered calls neither print nor queue anything.
+        // The registered call neither prints nor queues anything.
         assertEquals(messages, battle.roundMessages.size);
         assertEquals(events, battle.roundEvents.size);
+
+        // :801-818 the ability bar is WIRED: show / hide / replace each queue a scene event, and print nothing.
+        battle.showAbilitySplash(player);
+        battle.hideAbilitySplash(player);
+        battle.replaceAbilitySplash(player);
+        assertEquals(messages, battle.roundMessages.size);
+        assertEquals(events + 3, battle.roundEvents.size);
+        assertEquals(Battle.RoundEvent.Kind.ABILITY_SPLASH_SHOW, battle.roundEvents.get(events).kind);
+        assertEquals(Battle.RoundEvent.Kind.ABILITY_SPLASH_HIDE, battle.roundEvents.get(events + 1).kind);
+        assertEquals(Battle.RoundEvent.Kind.ABILITY_SPLASH_SHOW, battle.roundEvents.get(events + 2).kind);
+        events = battle.roundEvents.size;
 
         // :797-799 pbCommonAnimation and :793-795 pbAnimation are WIRED now: each
         // queues one ANIMATION event for the scene to play (`if @showAnims`,

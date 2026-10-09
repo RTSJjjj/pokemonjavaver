@@ -15,6 +15,14 @@ public interface BattlePort {
     /** A wild battle against a freshly generated Pokemon. */
     BattleResult wildBattle(String species, int level);
 
+    /**
+     * {@code pbDoubleWildBattle(species1, level1, species2, level2)} (PField_Battles:262-345 pbWildBattleCore with two
+     * foes): the default has no double battle and only fights the first.
+     */
+    default BattleResult doubleWildBattle(String species1, int level1, String species2, int level2) {
+        return wildBattle(species1, level1);
+    }
+
     /** A wild battle against a specific Pokemon (pbFreeWildBattle). */
     BattleResult freeWildBattle(Pokemon foe);
 

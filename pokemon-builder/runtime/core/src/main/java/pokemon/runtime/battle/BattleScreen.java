@@ -216,6 +216,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         final boolean brief;
         /** A non-text round event (HIT / HP_CHANGE / FAINT / BGM), or null. */
         final Battle.RoundEvent event;
+        /** The statuses to show once this message / event starts (null = leave them). */
+        String[] statuses;
         Message(String text, boolean paused) { this(text, paused, false, null); }
         Message(String text, boolean paused, boolean brief, Battle.RoundEvent event) {
             this.text = text; this.paused = paused; this.brief = brief; this.event = event;
@@ -226,6 +228,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private static final float HP_BAR_CHANGE_TIME = 1.0f;
     private static final float EXP_BAR_FILL_TIME = 1.75f;
     // One entry per battler index (the plugin's data boxes: {@code dataBox_i}).
+    /** The status each data box shows during a round's playback ("POISON!" = badly poisoned), see {@link #statusHeld}. */
+    private final String[] shownStatus = { "", "", "", "", "", "" };
+    /** True while the boxes follow {@link #shownStatus} instead of the engine's already final statuses. */
+    private boolean statusHeld;
     private final float[] hpShown = { 1f, 1f, 1f, 1f, 1f, 1f };
     private final float[] hpFrom = { 1f, 1f, 1f, 1f, 1f, 1f };
     private final float[] hpTo = { 1f, 1f, 1f, 1f, 1f, 1f };
@@ -268,8 +274,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
          * pbHideCaptureBall: the Poké Ball thrown at the foe, and the capture's end.
          */
         BALL,
+        /** PokeBattle_BattleCommon:43-63 pbRecordAndStoreCaughtPokemon: the Pokedex lines and entry page, the storing lines. */
+        CAUGHT_STORE,
         /** PokeBattle_Scene:296-303 pbEndBattle's fade before the scene is dropped. */
-        END_BATTLE
+        END_BATTLE,
+        /** Scene_Animations:171-198 pbShowAbilitySplash / pbHideAbilitySplash: the ability bar slides in or out. */
+        ABILITY_SPLASH
     }
     private Stage stage = Stage.INTRO;
     /** Scene_Animations:5-53: 0 = BattleIntroAnimation, 1 = its post-appearance work. */
@@ -319,6 +329,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         LEARN_MOVE, DONE
     }
     private ExpPhase expPhase = ExpPhase.MESSAGE;
+    /** pbLearnMove's four-move dialogue: 0 start, 1 ask, 2-6 the lines and screens, -1 waiting for an answer. */
+    private int learnStep;
+    private PbsData.Move learnMove;
+    private int forgetSlot = -1;
+    private String oldMoveName = "";
+    private SummaryView forgetView;
     private int expAwardIndex;
     private int expSegmentIndex;
     private int expMoveIndex;
@@ -574,6 +590,21 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                         -PictureEx.Graphics.WIDTH, 0, null);                    // :139
                 ball.z = 121;                                                   // :140
                 ball.visible = false;                                           // :141
+            }
+            // Ability splash bars (:143-145)
+            if (PokeBattle_SceneConstants.USE_ABILITY_SPLASH) {
+                BattleSprite bar = sprites.add("abilityBar_" + side, BattleSprite.Kind.ABILITY_BAR);
+                bar.name = "Graphics/Pictures/Battle/ability_bar";
+                int[] barSize = bitmapSize(bar.name);
+                bar.bitmapWidth = barSize == null ? -1 : barSize[0];
+                bar.bitmapHeight = barSize == null ? -1 : barSize[1];
+                bar.barSide = side;
+                bar.srcY = side == 0 ? 0 : (barSize == null ? 0 : barSize[1] / 2);   // AbilitySplashBar#initialize
+                bar.srcHeight = barSize == null ? -1 : barSize[1] / 2;
+                bar.x = side == 0 ? -PictureEx.Graphics.WIDTH / 2f : PictureEx.Graphics.WIDTH;
+                bar.y = 220 + 16;
+                bar.z = 120;
+                bar.visible = false;
             }
         }
         // Player's and partner trainer's back sprite (:148-151)
@@ -881,8 +912,32 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         return graphic == null ? null : graphic.trainerType;
     }
 
-    /** Follower_Main:175-176: no dependency and no toggled follower in this runtime. */
-    @Override public boolean followerSprite() { return false; }
+    /**
+     * {@code refresh_sprite(false,true)} (Follower_Main:174-193): the follower walks in from the side instead of leaving
+     * a Poke Ball. 登记: {@code isEncounterPossibleHere?} needs the player's tile, which the battle does not know.
+     */
+    @Override public boolean followerSprite() {
+        pokemon.runtime.state.GameState state = context.gameState();
+        boolean has = false;
+        for (pokemon.runtime.state.Dependent entry : state.fieldGlobals().dependents) {
+            has |= entry.isFollower();
+        }
+        Pokemon first = state.trainer().party.firstAble();
+        if (!has || !state.followerToggled() || first == null) {
+            return false;                                           // :175-178
+        }
+        int mapId = state.currentMapId();
+        pokemon.runtime.data.MapData map =
+                context.database() == null || mapId < 0 ? null : context.database().map(mapId);
+        pokemon.runtime.field.FollowerRules.Context rules = new pokemon.runtime.field.FollowerRules.Context();
+        rules.bicycle = state.fieldGlobals().bicycle;
+        rules.surfing = state.fieldGlobals().surfing;
+        rules.diving = state.fieldGlobals().diving;
+        rules.outdoor = map != null && Boolean.TRUE.equals(map.outdoor);
+        rules.mapName = map == null || map.name == null ? "" : map.name;
+        Boolean refresh = pokemon.runtime.field.FollowerRules.refresh(first, rules);   // :179
+        return refresh == null || refresh;                           // :180 -1 counts as true with check
+    }
 
     /** {@code pbCryFile} (PSystem_FileUtilities:509-539). */
     @Override public String cryFile(Pokemon pokemon) {
@@ -998,11 +1053,28 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (!animations.isEmpty()) {
             return false;
         }
-        // Show shiny animation for wild Pokemon (:41-52):
-        //   pbCommonAnimation("SuperShiny"/"Shiny", battler) for a shiny battler
-        // needs the battle common-animation player (PokeBattle_AnimationPlayer,
-        // 878 lines, + Graphics/Animations), which this runtime does not have.
-        // NOT transcribed - reported to the user (see the batch report).
+        // Scene_Animations:41-52 show the shiny animation for wild Pokemon: pbCommonAnimation("SuperShiny" / "Shiny", battler).
+        if (!introShinyBuilt) {
+            introShinyBuilt = true;
+            if (session.battle.showAnims) {                                         // :42 if @battle.showAnims
+                for (int i = 0; i < sideSize(1); i++) {                             // :43
+                    int idxBattler = 2 * i + 1;                                     // :44
+                    Battler foe = battler(idxBattler);
+                    if (foe == null || foe.pokemon == null || !foe.pokemon.shiny) { // :45 next if !battler || !shiny?
+                        continue;
+                    }
+                    introShinyQueue.add(idxBattler);
+                }
+            }
+        }
+        if (!introShinyQueue.isEmpty()) {
+            int idxBattler = introShinyQueue.poll();
+            Battler foe = battler(idxBattler);
+            introShinyActive = true;
+            beginAnimation(new Battle.AnimationCall(true, -1, foe.pokemon.superShiny ? "SuperShiny" : "Shiny", idxBattler, -1, 0));   // :46-50
+            return false;
+        }
+        introShinyBuilt = false;
         return true;
     }
 
@@ -1645,7 +1717,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         switchStep = SwitchStep.NONE;
         recallPhase = 0;
         session.answer(answer);
-        queueRoundMessages();
+        queueSessionEvents();
+        // A brief line (pbMessageOnRecall's) keeps lingering while the next scene call runs - it must not hold the
+        // engine's next request back (nothing would start it once the line is gone).
+        if (queue.isEmpty() && (message == null || message.brief)) {
+            afterRound();
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -1664,9 +1741,104 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             partyView = new PartyView(context);
         }
         partyView.battleChoose(true, canCancel);
+        partyView.displayOrder(playerDisplayOrder());              // Battle_Phase_Command:109 pbPlayerDisplayParty
         page = 3;
         window = COMMAND_BOX;
         partyScreenOpen = true;
+    }
+
+    /**
+     * {@code pbPlayerDisplayParty} (the party screen's order in battle): the battlers on the field come first, then
+     * the rest of the party in order. Entries are indexes into the trainer's party.
+     */
+    private int[] playerDisplayOrder() {
+        int count = Math.min(context.gameState().trainer().party.size(), session.battle.playerParty().size);
+        boolean[] used = new boolean[count];
+        int[] order = new int[count];
+        int next = 0;
+        for (int position = 0; position < 6; position += 2) {
+            Battler active = session.battle.battlerAt(position);
+            if (active != null && active.pokemonIndex >= 0 && active.pokemonIndex < count && !used[active.pokemonIndex]) {
+                used[active.pokemonIndex] = true;
+                order[next++] = active.pokemonIndex;
+            }
+        }
+        for (int i = 0; i < count; i++) {
+            if (!used[i]) {
+                order[next++] = i;
+            }
+        }
+        return order;
+    }
+
+    /** The party screen of a bag item (Scene_Commands:263-346): "要对哪只宝可梦使用？" and the chosen Pokemon. */
+    private PartyView itemParty;
+    private String itemPartyItem;
+    private int itemPartyResult = -1;
+
+    private void openItemParty(String item) {
+        final int[] order = playerDisplayOrder();
+        PbsData.Item data = context.pbsData().item(item);
+        final int useType = data == null ? 1 : data.battleUse;
+        itemPartyItem = item;
+        itemPartyResult = -1;
+        if ((useType == 1 || useType == 6) && order.length == 1) {   // :276-279 the only Pokemon is used at once
+            itemPartyResult = order[0];
+            finishItemParty();
+            return;
+        }
+        final int[] chosen = {-1};
+        itemParty = PartyView.forItem(context, scene -> {
+            scene.pbStartScene("要对哪只宝可梦使用？", null);       // :290 pkmnScreen.pbStartScene
+            while (true) {
+                scene.pbSetHelpText("要对哪只宝可梦使用？");          // :296
+                int shown = scene.pbChoosePokemon("要对哪只宝可梦使用？");   // :297 pbChoosePokemon
+                if (shown < 0) {
+                    break;                                          // :298 cancelled: the Bag again
+                }
+                int real = order[shown];
+                Pokemon pkmn = context.gameState().trainer().party.get(real);
+                if (pkmn == null || pkmn.egg) {
+                    continue;                                       // :308 next if !pkmn || pkmn.egg?
+                }
+                if (useType == 2 || useType == 7) {                  // :310-313 an Ether asks for the move
+                    if (scene.pbChooseMove(pkmn, "要回复哪个招式？") < 0) {
+                        continue;
+                    }
+                }
+                chosen[0] = real;
+                break;
+            }
+            itemPartyResult = chosen[0];
+        }, null, order);
+    }
+
+    /** The party screen of the bag item ended: use the item on the chosen Pokemon, or go back to the Bag. */
+    private void finishItemParty() {
+        itemParty = null;
+        if (itemPartyResult < 0) {
+            return;                                                 // :326-327 the Bag is shown again
+        }
+        bagItem = itemPartyItem;
+        bagTarget = itemPartyResult;
+        completeBagItem();
+    }
+
+    /** The Bag ended with an item to use (or none): {@code yield item, useType, idxParty, ...} of pbItemMenu. */
+    private void completeBagItem() {
+        if (bagItem != null && doubles()) {
+            String id = bagItem;
+            int target = Math.max(0, bagTarget);
+            bagItem = null; bagTarget = -1;
+            useBagItemInDoubles(id, target);
+            return;
+        }
+        if (bagItem != null) {
+            if (!session.item(bagItem, Math.max(0, bagTarget))) session.message = "现在无法使用这个道具。";
+            queueSessionEvents();
+            bagItem = null; bagTarget = -1;
+        }
+        go(0);
     }
 
     /** The engine's {@code pbChooseItemScreen} (a Poke Ball from the Bag, PokeBattle_BOSS:168) is on screen. */
@@ -1844,7 +2016,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private void queueRoundMessages() {
         queueSessionEvents();
-        if (message == null && queue.isEmpty()) {
+        // A lingering brief line (the faint line before pbEORSwitch's party screen) must not hold back the scene call
+        // the engine waits on: nothing would start it and the command menu would open over a suspended engine.
+        if (queue.isEmpty() && (message == null || (message.brief && session.suspended()))) {
             afterRound();
         }
     }
@@ -1863,7 +2037,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         roundPlayback = true;
+        BattleEventLog.round(session.battle, events);
         holdPlayerExp();
+        // The status icons keep what the boxes showed before the round (the engine already applied them all) until the
+        // events that set them play.
+        statusHeld = true;
         // The data boxes start from the HP each battler had before its first
         // HP change of the round (the engine already applied them all).
         for (Battle.RoundEvent event : events) {
@@ -1882,12 +2060,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
         }
         for (Battle.RoundEvent event : events) {
+            Message entry;
             if (event.kind == Battle.RoundEvent.Kind.MESSAGE) {
                 if (event.text == null || event.text.isEmpty()) continue;
-                queue.add(new Message(cleanMessage(event.text), event.paused, event.brief, null));
+                entry = new Message(cleanMessage(event.text), event.paused, event.brief, null);
             } else {
-                queue.add(new Message("", false, false, event));
+                entry = new Message("", false, false, event);
             }
+            entry.statuses = event.statuses;
+            queue.add(entry);
         }
     }
 
@@ -1931,6 +2112,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (stage == Stage.END_BATTLE) {
             return;
         }
+        if (beginCaughtStore()) {                                  // Battle_StartAndEnd:510 pbRecordAndStoreCaughtPokemon
+            return;
+        }
         stage = Stage.END_BATTLE;
         pbShowWindow(BLANK);                                       // :298
         message = null;
@@ -1942,6 +2126,62 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             context.audioManager().fadeBgm(1.0f);
         }
         endBattleFadeFrame = 0;                                    // :301 pbFadeOutAndHide
+    }
+
+    private boolean caughtDone;
+    private java.util.List<InteractiveBattlePort.CaughtStep> caughtSteps;
+    private int caughtIndex;
+    private pokemon.runtime.ui.menu.DexEntryView caughtDex;
+
+    /** Starts the Pokedex / storing lines of the Pokemon caught this battle; false when there is nothing to show. */
+    private boolean beginCaughtStore() {
+        if (caughtDone) {
+            return false;
+        }
+        caughtDone = true;
+        caughtSteps = session.storeCaught();
+        if (caughtSteps.isEmpty()) {
+            return false;
+        }
+        stage = Stage.CAUGHT_STORE;
+        caughtIndex = 0;
+        stepCaughtStore();
+        return true;
+    }
+
+    private void stepCaughtStore() {
+        if (caughtIndex >= caughtSteps.size()) {
+            beginEndBattle();                                      // caughtDone is set: goes on to pbEndBattle
+            return;
+        }
+        InteractiveBattlePort.CaughtStep step = caughtSteps.get(caughtIndex++);
+        if (step.dex != null) {                                    // :51 @scene.pbShowPokedex(species)
+            message = null;
+            caughtDex = new pokemon.runtime.ui.menu.DexEntryView(context,
+                    java.util.Collections.singletonList(step.dex), 0);
+            context.audioManager().playCry(step.dex.id);
+            return;
+        }
+        showBattleMessage(step.text, true);                        // pbDisplayPaused
+    }
+
+    private void updateCaughtStore() {
+        if (caughtDex != null) {
+            if (caughtDex.update(context.inputManager())) {
+                caughtDex = null;
+                stepCaughtStore();
+            }
+            return;
+        }
+        if (message != null) {
+            tickMessage(context.inputManager());
+            return;
+        }
+        if (!queue.isEmpty()) {
+            startNextMessage();
+            return;
+        }
+        stepCaughtStore();
     }
 
     /** One frame of {@code pbFadeOutAndHide} (MessageConfig:607-609). */
@@ -2331,11 +2571,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void go(int next) {
         if (page == 1 && next != 1) session.unregisterMega(actingIndex());        // Battle_Phase_Command:80 (the fight menu was left)
         page = next; cursor.select(0); refresh();
-        if (doubles() && cmdBattler >= 0) {
+        {
+            int remembered = actingIndex();
             if (next == 0) {
-                cursor.select(lastCmd[cmdBattler]);                               // Scene_Commands:30 setIndexAndMode(@lastCmd[idxBattler],mode)
-            } else if (next == 1 && moveSlotFilled(lastMove[cmdBattler])) {
-                cursor.select(lastMove[cmdBattler]);                              // Scene_Commands:94-96 @lastMove[idxBattler]
+                cursor.select(lastCmd[remembered]);                               // Scene_Commands:30 setIndexAndMode(@lastCmd[idxBattler],mode)
+            } else if (next == 1 && moveSlotFilled(lastMove[remembered])) {
+                cursor.select(lastMove[remembered]);                              // Scene_Commands:94-96 @lastMove[idxBattler]
             }
         }
         megaButton = next == 1 && session.canMega(actingIndex());                 // :73 pbCanMegaEvolve?
@@ -2353,6 +2594,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (next == 2) {
             if (bagView == null) bagView = new BagView(context);
             bagView.battleMode((id, target) -> { bagItem = id; bagTarget = target; });
+            bagView.battleItemHost(this::openItemParty);
+            itemParty = null;
         }
     }
 
@@ -2489,6 +2732,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     private void startNextMessage() {
         Message next = queue.peek();
+        if (next != null && next.statuses != null && statusHeld) {
+            System.arraycopy(next.statuses, 0, shownStatus, 0, Math.min(shownStatus.length, next.statuses.length));
+        }
         if (next != null && next.event != null) {
             queue.poll();
             startRoundEvent(next.event);
@@ -2525,6 +2771,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         if (stage == Stage.TRAINER_END) {  // the victory lines advance on each confirm
             stepTrainerEnd();
+            return;
+        }
+        if (stage == Stage.CAUGHT_STORE) {
+            stepCaughtStore();
             return;
         }
         // A message shown over the party screen is partyScene.pbDisplay
@@ -2714,6 +2964,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case MEGA_SCENE:
                 beginMegaScene(event);
                 return;
+            case ABILITY_SPLASH_SHOW:
+                beginAbilitySplashShow(event);
+                return;
+            case ABILITY_SPLASH_HIDE:
+                beginAbilitySplashHide(event.idxBattler % 2);
+                return;
             case BGM:
                 // Move_Usage:288 pbBGMPlay(name) -> Audio_Play:52-58 ->
                 // Game_System:50-52/65-83 bgm_play_internal: :69 only plays when
@@ -2798,10 +3054,114 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     /** Back to the event queue after a blocking round event. */
+    /** pbBattleIntroAnimation:41-52: the shiny animations of the wild foes, one after the other. */
+    private final java.util.ArrayDeque<Integer> introShinyQueue = new java.util.ArrayDeque<>();
+    private boolean introShinyBuilt;
+    private boolean introShinyActive;
+
+    /** The level the data box of {@link #expSlot} shows while the exp bar fills (-1 = the live level). */
+    private int expLevelShown = -1;
+    /** The "LevelUp" animation of the exp sequence is playing. */
+    private boolean expAnimActive;
+
     private void resumeRound() {
+        if (expAnimActive) {                                       // back to pbGainExpOne's level loop
+            expAnimActive = false;
+            stage = Stage.EXP_GAIN;
+            if (expLevelShown >= 0) {
+                expLevelShown++;                                   // :260-265 the new level shows
+            }
+            stepExpGain();
+            return;
+        }
+        if (introShinyActive) {                                    // back to pbBattleIntroAnimation
+            introShinyActive = false;
+            stage = Stage.INTRO;
+            return;
+        }
         stage = Stage.BATTLE;
         if (queue.isEmpty()) {
             afterMessages();
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Scene_Animations:171-203 pbShowAbilitySplash / pbHideAbilitySplash
+    // ---------------------------------------------------------------------
+
+    private Battle.RoundEvent splashPending;
+    private int splashSide;
+    private int splashDelayTicks;
+    private int splashPhase;
+
+    private BattleSprite abilityBar(int side) {
+        return sprites.get("abilityBar_" + side);
+    }
+
+    /** {@code pbShowAbilitySplash(battler,ability)} (:171-184). */
+    private void beginAbilitySplashShow(Battle.RoundEvent event) {
+        int side = event.idxBattler % 2;
+        BattleSprite bar = abilityBar(side);
+        if (bar == null) {
+            resumeRound();
+            return;
+        }
+        splashPending = event;
+        splashSide = side;
+        splashDelayTicks = event.oldHp > 0 ? 40 : 0;                       // :181-183 40.times { pbUpdate }
+        stage = Stage.ABILITY_SPLASH;
+        if (bar.visible) {                                                  // :174 pbHideAbilitySplash(battler) if visible
+            splashPhase = 0;
+            animations.add(new BattleAnimations.AbilitySplashDisappearAnimation(this, side));
+        } else {
+            startSplashAppear();
+        }
+    }
+
+    private void startSplashAppear() {
+        BattleSprite bar = abilityBar(splashSide);
+        String[] lines = splashPending.text.split("\n", 2);               // :175-176 battler=, ability=
+        bar.barLine1 = lines[0] + "发动了特性";                              // AbilitySplashBar#refresh
+        bar.barLine2 = lines.length > 1 ? lines[1] : "";
+        splashPhase = 1;
+        animations.add(new BattleAnimations.AbilitySplashAppearAnimation(this, splashSide));   // :177
+    }
+
+    /** {@code pbHideAbilitySplash(battler)} (:186-198). */
+    private void beginAbilitySplashHide(int side) {
+        BattleSprite bar = abilityBar(side);
+        if (bar == null || !bar.visible) {                                  // :188
+            resumeRound();
+            return;
+        }
+        splashPending = null;
+        splashSide = side;
+        splashPhase = 3;
+        stage = Stage.ABILITY_SPLASH;
+        animations.add(new BattleAnimations.AbilitySplashDisappearAnimation(this, side));
+    }
+
+    private void updateAbilitySplash() {
+        if (!animations.isEmpty()) {
+            return;
+        }
+        switch (splashPhase) {
+            case 0:                                                         // the old bar is gone, show the new text
+                startSplashAppear();
+                return;
+            case 1:                                                         // appeared; delay=true waits a second
+                splashPhase = 2;
+                return;
+            case 2:
+                if (splashDelayTicks > 0) {
+                    splashDelayTicks--;
+                    return;
+                }
+                splashPending = null;
+                resumeRound();
+                return;
+            default:                                                        // hidden
+                resumeRound();
         }
     }
 
@@ -3197,6 +3557,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private void endRoundPlayback() {
         roundPlayback = false;
+        statusHeld = false;
         java.util.Arrays.fill(heldHp, -1);
         if (messageReleased && !session.suspended()) {
             message = null;
@@ -3221,6 +3582,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             playVictoryMe(false);
         }
         stage = Stage.EXP_GAIN;
+        learnStep = 0;
+        forgetView = null;
         heldExp = -1f;
         expPhase = ExpPhase.MESSAGE;
         expAwardIndex = 0;
@@ -3232,6 +3595,17 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** Drives the exp sequence: bar segments, messages and the level-up windows. */
     private void updateExpGain(float delta) {
+        if (forgetView != null) {                          // the summary screen's forget mode owns the input
+            if (forgetView.update(context.inputManager())) {
+                forgetSlot = forgetView.forgetResult();
+                forgetView = null;
+                learnStep = 4;
+            }
+            return;
+        }
+        if (updateChoice()) {                              // pbShowCommands of the move-learning questions
+            return;
+        }
         if (message != null) {
             if (message.paused) {                  // a line waits for its confirm
                 tickMessage(context.inputManager());
@@ -3266,7 +3640,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             expFlash -= delta;
             if (expFlash <= 0f) {
                 expFlash = 0f;
-                stepExpGain();
+                // Battle_ExpAndMoveLearning:249-259: a filled bar means a level was gained - "LevelUp" plays on the battler,
+                // and only then does its level number change (:260-265 calcStats / pbRefreshOne).
+                if (expSlot >= 0 && expLevelShown >= 0) {
+                    expAnimActive = true;
+                    beginAnimation(new Battle.AnimationCall(true, -1, "LevelUp", expSlot, expSlot, 0));
+                } else {
+                    stepExpGain();
+                }
             }
             return;
         }
@@ -3323,6 +3704,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 expSegmentIndex = 0;
                 expMoveIndex = 0;
                 expAnimT = 1f;
+                expLevelShown = award.oldLevel;                              // the box keeps the old level until each level-up plays
                 // Lines 193-197 (the outsider wording differs). The line lingers
                 // while the bar fills, so it is a brief message and the bar
                 // starts in the same beat.
@@ -3357,6 +3739,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     }
                     return;
                 }
+                expLevelShown = -1;                                          // every level is in: the live level
                 expPhase = award.pokemon.level > award.oldLevel ? ExpPhase.LEVEL_MESSAGE : ExpPhase.DONE;
                 stepExpGain();
                 return;
@@ -3406,29 +3789,73 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case LEARN_MOVE: {
                 // pbLearnMove (Battle_ExpAndMoveLearning:312-343).
                 Battle.ExpAward award = awards.get(expAwardIndex);
-                if (expMoveIndex >= award.movesToLearn.size) {
-                    expPhase = ExpPhase.DONE;
-                    stepExpGain();
+                if (learnStep == -1) {
+                    return;                                       // waiting for the question / the forget screen
+                }
+                if (learnStep == 0) {
+                    if (expMoveIndex >= award.movesToLearn.size) {
+                        expPhase = ExpPhase.DONE;
+                        stepExpGain();
+                        return;
+                    }
+                    learnMove = award.movesToLearn.get(expMoveIndex++);
+                    expPhase = ExpPhase.LEARN_MOVE;
+                    for (Pokemon.MoveSlot known : award.pokemon.moves) {          // :317 return if m.id==newMove
+                        if (known.move != null && known.move.internalName.equals(learnMove.internalName)) {
+                            stepExpGain();
+                            return;
+                        }
+                    }
+                    // :319-327 a blank slot learns it at once.
+                    if (award.pokemon.moves.size < 4) {
+                        award.pokemon.moves.add(new Pokemon.MoveSlot(learnMove));
+                        playSe("Pkmn move learnt");                   // :324
+                        showExpBriefMessage(award.pokemon.name + "学会了" + learnMove.name + "！");
+                        return;
+                    }
+                    // :329 four moves already.
+                    showExpMessage(award.pokemon.name + "想要学会" + learnMove.name
+                            + "。\n可是它已经学会四个招式了。");
+                    learnStep = 1;
                     return;
                 }
-                PbsData.Move move = award.movesToLearn.get(expMoveIndex++);
-                expPhase = ExpPhase.LEARN_MOVE;
-                // :319-327 a blank slot learns it at once.
-                if (award.pokemon.moves.size < 4) {
-                    award.pokemon.moves.add(new Pokemon.MoveSlot(move));
-                    playSe("Pkmn move learnt");                   // :324
-                    showExpBriefMessage(award.pokemon.name + "学会了" + move.name + "！");
-                    return;
+                switch (learnStep) {
+                    case 1:                                       // :330 pbDisplayConfirm
+                        learnStep = -1;
+                        showChoice("遗忘一个招式来学习" + learnMove.name + "吗？", 1, answer -> {
+                            learnStep = answer == 0 ? 2 : 0;      // declining leaves the move unlearned (no line in the plugin)
+                        });
+                        return;
+                    case 2:                                       // :331
+                        showExpMessage("要忘记哪一个招式？");
+                        learnStep = 3;
+                        return;
+                    case 3:                                       // :332 @scene.pbForgetMove -> pbStartForgetScreen
+                        forgetView = SummaryView.forForget(context, award.pokemon, learnMove);
+                        learnStep = -1;
+                        return;
+                    case 4: {                                     // :333-340
+                        if (forgetSlot < 0) {
+                            learnStep = 0;
+                            stepExpGain();
+                            return;
+                        }
+                        oldMoveName = award.pokemon.moves.get(forgetSlot).move.name;
+                        award.pokemon.moves.set(forgetSlot, new Pokemon.MoveSlot(learnMove));   // :336 PBMove.new: full PP
+                        showExpMessage("一，二…………当当!");           // :337
+                        learnStep = 5;
+                        return;
+                    }
+                    case 5:
+                        showExpMessage(award.pokemon.name + "遗忘了" + oldMoveName + "。\n以及……");   // :338
+                        learnStep = 6;
+                        return;
+                    default:
+                        playSe("Pkmn move learnt");               // :339
+                        showExpBriefMessage(award.pokemon.name + "学会了" + learnMove.name + "！");
+                        learnStep = 0;
+                        return;
                 }
-                // :329-342 four moves already: the plugin asks whether to forget
-                // one and opens the summary screen's forget mode
-                // (@scene.pbForgetMove, Scene_Commands:482-490 ->
-                // PokemonSummaryScreen#pbStartForgetScreen). This runtime has no
-                // such screen mode, so the sequence stops at the plugin's first
-                // line and the rest is reported to the user (not invented).
-                showExpMessage(award.pokemon.name + "想要学会" + move.name
-                        + "。\n可是它已经学会四个招式了。");
-                return;
             }
             case DONE:
             default: {
@@ -3454,6 +3881,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** Clears the played awards and leaves the settlement. */
     private void finishExpGain() {
+        expLevelShown = -1;
         session.battle.lastExpAwards.clear();
         afterRound();
     }
@@ -3735,6 +4163,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             updateTrainerEnd(safeDelta);
             return;
         }
+        if (stage == Stage.CAUGHT_STORE) {
+            updateCaughtStore();
+            return;
+        }
         // ---- pbEndBattle's fade (PokeBattle_Scene:296-303) ----
         if (stage == Stage.END_BATTLE) {
             updateEndBattle();
@@ -3743,6 +4175,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // ---- pbHitAndHPLossAnimation (Scene_Animations:239-268) ----
         if (stage == Stage.HIT) {
             updateDamageFlashes();
+            return;
+        }
+        // ---- pbShowAbilitySplash / pbHideAbilitySplash (Scene_Animations:171-198) ----
+        if (stage == Stage.ABILITY_SPLASH) {
+            updateAbilitySplash();
             return;
         }
         // ---- pbFaintBattler (Scene_Animations:299-312) ----
@@ -3822,20 +4259,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
         // ---- the battle bag is the real BW Bag (pbItemMenu) ----
         if (page == 2 && bagView != null) {
+            if (itemParty != null) {                                  // the party screen of a bag item owns the input
+                if (itemParty.update(input)) {
+                    finishItemParty();
+                }
+                return;
+            }
             if (bagView.update(input)) {
-                if (bagItem != null && doubles()) {
-                    String id = bagItem;
-                    int target = Math.max(0, bagTarget);
-                    bagItem = null; bagTarget = -1;
-                    useBagItemInDoubles(id, target);
-                    return;
-                }
-                if (bagItem != null) {
-                    if (!session.item(bagItem, Math.max(0, bagTarget))) session.message = "现在无法使用这个道具。";
-                    queueSessionEvents();
-                    bagItem = null; bagTarget = -1;
-                }
-                go(0);
+                completeBagItem();
             }
             return;
         }
@@ -3848,7 +4279,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
         // ---- command / fight menus ----
         if (input.wasPressed(GameAction.CANCEL) && page != 0) {
-            if (page == 1 && doubles()) lastMove[actingIndex()] = cursor.index();     // Scene_Commands:174
+            if (page == 1) lastMove[actingIndex()] = cursor.index();                 // Scene_Commands:174
             go(0);
             return;
         }
@@ -3896,7 +4327,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             playDecisionSe();                       // Scene_Commands:49 / :135 pbPlayDecisionSE
         }
         if (page == 0) {
-            if (doubles() && cmdBattler >= 0) lastCmd[cmdBattler] = pick;           // Scene_Commands:51
+            lastCmd[actingIndex()] = pick;                                         // Scene_Commands:51
             if (pick == 3 && doubles() && actioned.size() > 1) {
                 backToPreviousBattler();                                           // Scene_Commands:17 "Run" converted to "Cancel"
                 return;
@@ -3997,12 +4428,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         // PokeBattle_Scene:298 pbShowWindow(BLANK): during pbEndBattle no window
         // is drawn, only the fading sprites.
-        if (stage == Stage.TRAINER_END && message != null) {
+        if ((stage == Stage.TRAINER_END || stage == Stage.CAUGHT_STORE) && message != null) {
             drawMessageWindow(batch, w, h);
         }
         // pbHitAndHPLossAnimation / pbHPChanged / pbFaintBattler run with the
         // message box up, a brief line lingering in it (PokeBattle_Scene:130-134).
-        if ((stage == Stage.HIT || stage == Stage.HP_CHANGE || stage == Stage.FAINT
+        if ((stage == Stage.HIT || stage == Stage.HP_CHANGE || stage == Stage.FAINT || stage == Stage.ABILITY_SPLASH
                 || stage == Stage.MOVE_ANIM || stage == Stage.BALL) && window == MESSAGE_BOX) {
             drawMessageWindow(batch, w, h);
         }
@@ -4010,6 +4441,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             if (stage == Stage.BATTLE && partyScreenOpen && partyView != null
                     && window == COMMAND_BOX) {
                 partyView.render(batch, assets, font, skin, smallFont);
+            } else if (stage == Stage.BATTLE && page == 2 && itemParty != null && window == COMMAND_BOX) {
+                itemParty.render(batch, assets, font, skin, smallFont);
             } else if (stage == Stage.BATTLE && page == 2 && bagView != null && window == COMMAND_BOX) {
                 bagView.render(batch, assets, font, skin, smallFont);
             } else if (window == MESSAGE_BOX) {
@@ -4027,6 +4460,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             if (choiceOptions != null) {
                 drawChoiceWindow(batch, w, h);
             }
+        }
+        if (forgetView != null) {
+            forgetView.render(batch, assets, font, skin);          // PokemonSummaryScreen#pbStartForgetScreen
+        }
+        if (caughtDex != null) {
+            caughtDex.render(batch, assets, font, smallFont);      // PokemonPokedexInfoScreen#pbDexEntry
         }
         batch.end();
     }
@@ -4077,6 +4516,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 // data box with it.
                 batch.setColor(Color.WHITE);
                 drawDataBox(batch, sprite, h);
+                continue;
+            }
+            if (sprite.kind == BattleSprite.Kind.ABILITY_BAR) {
+                if (shaderBound) { batch.setShader(null); shaderBound = false; }
+                drawAbilityBar(sprite, h);
                 continue;
             }
             Texture texture = spriteTexture(sprite);
@@ -4154,6 +4598,31 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             applyBlend(0);
         }
         batch.setColor(Color.WHITE);
+    }
+
+    private static final Color BAR_TEXT = new Color(248f / 255f, 248f / 255f, 248f / 255f, 1f);
+    private static final Color BAR_SHADOW = new Color(48f / 255f, 48f / 255f, 48f / 255f, 1f);
+
+    /** AbilitySplashBar (PokeBattle_SceneElements:405-497): the bar graphic and its two lines of text. */
+    private void drawAbilityBar(BattleSprite bar, float h) {
+        Texture texture = texture(bar.name);
+        if (texture == null) {
+            return;
+        }
+        int srcH = bar.srcHeight >= 0 ? bar.srcHeight : texture.getHeight() / 2;
+        batch.setColor(1f, 1f, 1f, bar.opacity / 255f);
+        batch.draw(texture, bar.x, h - bar.y - srcH, texture.getWidth(), srcH,
+                0, bar.srcY, texture.getWidth(), srcH, false, false);
+        batch.setColor(Color.WHITE);
+        // :476-490 left aligned at x=10 for our side, right aligned at width-24 for the foe
+        if (bar.barSide == 0) {
+            smallFont.draw(batch, bar.barLine1, bar.x + 10f, h - (bar.y + 2f), BAR_TEXT, BAR_SHADOW);
+            smallFont.draw(batch, bar.barLine2, bar.x + 10f, h - (bar.y + 32f), BAR_TEXT, BAR_SHADOW);
+        } else {
+            float right = bar.x + texture.getWidth() - 8f - 16f;
+            smallFont.drawRight(batch, bar.barLine1, right, h - (bar.y + 2f), BAR_TEXT, BAR_SHADOW);
+            smallFont.drawRight(batch, bar.barLine2, right, h - (bar.y + 32f), BAR_TEXT, BAR_SHADOW);
+        }
     }
 
     /** RGSS {@code Sprite#blend_type}: 0 normal, 1 additive, 2 subtractive (dst - src*alpha). */
@@ -4324,7 +4793,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // Draw Pokémon's level (:236-242): the digits at (+158, 20), or a "???"
         // above level 200.
         if (b.level() <= 200) {
-            drawBattleNumber(batch, b.level(), baseX + 158f, topY + 20f, h, false);   // :239
+            drawBattleNumber(batch, expLevelShown >= 0 && slot == expSlot ? expLevelShown : b.level(),
+                    baseX + 158f, topY + 20f, h, false);   // :239
         } else {
             font.draw(batch, "???", baseX + 158f, h - (topY + 15f),
                     LEVEL_UNKNOWN_BASE, LEVEL_UNKNOWN_SHADOW);                        // :241
@@ -4392,7 +4862,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // Draw status icon (:269-275): one 18px row of the 8-row
         // Graphics/Pictures/Battle/icon_statuses strip, at (+3, 36). The width
         // argument -1 of :274 means "the whole bitmap", i.e. all 18 columns.
-        int statusRow = statusIconRow(b);
+        if (!statusHeld) {
+            shownStatus[slot] = b.status == null ? "" : "POISON".equals(b.status) && b.toxic > 0 ? "POISON!" : b.status;
+        }
+        int statusRow = statusIconRow(shownStatus[slot]);
         if (statusRow > 0) {
             Texture statusIcons = assets.graphic("Pictures/Battle", "icon_statuses");
             if (statusIcons != null) {
@@ -4425,6 +4898,20 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      *
      * @return the 1-based sheet row, or 0 when the battler has no status (:270)
      */
+    private static int statusIconRow(String shown) {
+        if (shown == null || shown.isEmpty()) return 0;
+        boolean toxic = shown.endsWith("!");
+        String status = toxic ? shown.substring(0, shown.length() - 1) : shown;
+        int row;
+        if ("SLEEP".equals(status)) row = 1;
+        else if ("POISON".equals(status)) row = 2;
+        else if ("BURN".equals(status)) row = 3;
+        else if ("PARALYSIS".equals(status)) row = 4;
+        else if ("FROZEN".equals(status)) row = 5;
+        else return 0;
+        return row == 2 && toxic ? 8 : row;
+    }
+
     private static int statusIconRow(Battler b) {
         int status;
         if ("SLEEP".equals(b.status)) status = 1;

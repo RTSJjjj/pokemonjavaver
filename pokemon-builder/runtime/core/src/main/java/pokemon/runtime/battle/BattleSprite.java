@@ -39,7 +39,9 @@ final class BattleSprite {
         /** {@code ColoredPlane} (Planes:165-183): a black bitmap tinted by {@link #color}. */
         PLANE_COLOR,
         /** {@code AnimatedPlane} (Planes:190-232): {@link #name} tiled from ({@link #ox},{@link #oy}). */
-        PLANE_BITMAP
+        PLANE_BITMAP,
+        /** {@code abilityBar_N}: AbilitySplashBar (PokeBattle_SceneElements:405-497), the bar and its two text lines. */
+        ABILITY_BAR
     }
 
     final String key;
@@ -63,6 +65,10 @@ final class BattleSprite {
     int blendType;
     /** The plugin's full logical path, e.g. {@code Graphics/Battle animations/ball_00}. */
     String name = "";
+    /** ABILITY_BAR: the two lines of text and the side the bar belongs to. */
+    String barLine1 = "";
+    String barLine2 = "";
+    int barSide;
     int origin = PictureEx.Origin.TOP_LEFT;
     /** {@code src_rect}; a negative width/height means "the whole bitmap". */
     int srcX;

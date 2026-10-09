@@ -1851,11 +1851,27 @@ public final class Battler {
     }
 
     /** {@code pbAbilitiesOnSwitchOut} (Battler_AbilityAndItem:41-52)。 */
+    private int switchedOutHp = -1;
+    private boolean switchedOutFainted;
+
+    /**
+     * After {@code pbReplace}: the plugin's {@code @battlers[idx]} now holds the new Pokemon, so the leaving Pokemon
+     * is simply back in its party with the HP it had; {@link #pbAbilitiesOnSwitchOut()} had zeroed this object.
+     */
+    public void restoreAfterSwitchOut() {
+        if (switchedOutHp < 0) return;
+        hp = switchedOutHp;
+        faintedFlag = switchedOutFainted;
+        switchedOutHp = -1;
+    }
+
     public void pbAbilitiesOnSwitchOut() {
         if (abilityActive()) {                                           // :42
             BattleHandlers.triggerAbilityOnSwitchOut(ability, this, false); // :43
         }
         // 登记: Battler_AbilityAndItem:46 @battle.peer.pbOnLeavingBattle(...) 依赖 BattlePeer/存档
+        switchedOutHp = hp;                                              // the plugin's battler object is reused for the next Pokemon; here this one
+        switchedOutFainted = faintedFlag;                                // is the old Pokemon's own object, so what it had is put back after the switch
         hp = 0;                                                          // :48
         faintedFlag = true;                                              // :49 @fainted = true
         // :51 @battle.pbEndPrimordialWeather —— 登记: Battle 未暴露
@@ -2161,6 +2177,7 @@ public final class Battler {
         battle.roundEvents.add(Battle.RoundEvent.faint(index));           // :73 @battle.scene.pbFaintBattler(self) = the FAINT round event
         initEffects(false);                                               // :74 pbInitEffects(false)
         status = "";                                                      // :76 self.status = PBStatuses::NONE
+        if (pokemon != null) pokemon.status = "";                         // :104
         setStatusCount(0);                                                // :77
         if (pokemon != null && battle != null) {                          // :79 @battle.internalBattle
             boolean badLoss = false;                                      // :80
@@ -2580,6 +2597,7 @@ public final class Battler {
     /** {@code pbInflictStatus} (Battler_Statuses:255-309)。 */
     public void pbInflictStatus(int newStatus, int newStatusCount, String msg, Battler user) {
         status = PBStatuses.nameOf(newStatus);                            // :257 self.status = newStatus
+        if (pokemon != null) pokemon.status = status;                     // PokeBattle_Battler:104 @pokemon.status = value (the setter writes both)
         setStatusCount(newStatusCount);                                   // :258
         effects.set(PBEffects.Battler.Toxic, 0);                          // :259
         String message = msg;

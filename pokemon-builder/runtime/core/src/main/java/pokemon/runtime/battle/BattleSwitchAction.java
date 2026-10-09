@@ -192,7 +192,8 @@ public final class BattleSwitchAction {
         if (!battle.battlerAt(idxBattler).fainted()) {                                 // :257
             battle.scene.pbRecall(idxBattler);
         }
-        battle.battlerAt(idxBattler).pbAbilitiesOnSwitchOut();                         // :258 Inc. primordial weather check
+        Battler leaving = battle.battlerAt(idxBattler);
+        leaving.pbAbilitiesOnSwitchOut();                                              // :258 Inc. primordial weather check
         if (battle.pbSideSize(idxBattler) == 1) {                                      // :259
             battle.scene.pbShowPartyLineup(idxBattler & 1);
         }
@@ -200,6 +201,7 @@ public final class BattleSwitchAction {
             pbMessagesOnReplace(battle, idxBattler, idxParty);
         }
         pbReplace(battle, idxBattler, idxParty, batonPass);                            // :261
+        if (leaving != battle.battlerAt(idxBattler)) leaving.restoreAfterSwitchOut();  // the old Pokemon is back in the party as it was
     }
 
     /** {@code pbMessageOnRecall(battler)} (:264-281). */

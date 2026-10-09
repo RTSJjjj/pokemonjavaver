@@ -41,10 +41,14 @@ class InteractiveBattlePortTest {
         assertTrue(port.pending());
     }
     @Test void captureAddsOwnedAndWaitsForAcknowledgement() {
-        bag.add("MASTERBALL", 1); Pokemon foe = pokemon(10); port.freeWildBattle(foe);
+        trainer.pokedex = true; bag.add("MASTERBALL", 1); Pokemon foe = pokemon(10); port.freeWildBattle(foe);
         assertTrue(port.session().item("MASTERBALL", 0));
         assertEquals(BattleResult.Outcome.CAUGHT, port.session().result.outcome);
-        assertTrue(trainer.party.contains(foe)); assertTrue(trainer.owned.contains("A")); assertEquals(0, bag.count("MASTERBALL"));
+        // PokeBattle_BattleCommon:163 the Pokemon waits in @caughtPokemon; :43-63 stores it and shows the Pokedex page
+        assertFalse(trainer.owned.contains("A")); assertEquals(0, bag.count("MASTERBALL"));
+        java.util.List<InteractiveBattlePort.CaughtStep> steps = port.session().storeCaught();
+        assertTrue(trainer.party.contains(foe)); assertTrue(trainer.owned.contains("A"));
+        assertTrue(steps.stream().anyMatch(step -> step.dex != null), "a new species opens its Pokedex page");
         assertTrue(port.pending()); port.finish(); assertFalse(port.pending());
     }
     @Test void switchingUsesATurnAndProtectsFaintedOrActiveTargets() {
@@ -373,6 +377,132 @@ class InteractiveBattlePortTest {
         port.freeWildBattle(java.util.Arrays.asList(wild, pokemon(10)));
         assertEquals(10, wild.level);
         assertEquals(5, partner.level);
+    }
+
+    @Test void decliningTheSwitchAfterAFaintAsksForARunAndThenForAReplacement() {
+        // Battle_Action_Switching:209-231: "No" tries to run; a failed run still has to send a Pokemon in.
+        trainer.party.add(pokemon(20));
+        trainer.first().hp = 1;
+        port.setCanRun(false);
+        port.freeWildBattle(pokemon(100));
+        InteractiveBattlePort.Session session = port.session();
+        session.chooseMove(0);
+        assertTrue(session.suspended(), "the engine asks " + session.result);
+        assertEquals(Battle.SceneCall.Kind.CONFIRM, session.request().kind);
+        session.answer(false);
+        assertTrue(session.suspended(), "after No the battle still needs a replacement");
+        assertEquals(Battle.SceneCall.Kind.PARTY_SCREEN, session.request().kind);
+        assertTrue(session.battle.battlerAt(0).fainted());
+    }
+
+    @Test void aFaintedLeadIsAlwaysReplacedBeforeTheNextCommandPhase() {
+        for (long seed = 1; seed <= 60; seed++) {
+            TrainerState t = new TrainerState();
+            for (int i = 0; i < 3; i++) t.party.add(pokemon(10 + i));
+            t.first().hp = 1 + (int) (seed % 5);
+            InteractiveBattlePort p = new InteractiveBattlePort(t, new Inventory(), () -> data, () -> { }, new Random(seed));
+            p.freeWildBattle(pokemon(60));
+            InteractiveBattlePort.Session session = p.session();
+            for (int round = 0; round < 12 && session.result == null; round++) {
+                Battler lead = session.battle.player();
+                assertFalse(lead.fainted(), "seed " + seed + " round " + round + ": a command phase opened for a fainted lead");
+                session.chooseMove(0);
+                session.takeEvents();
+                while (session.suspended() && session.result == null) {
+                    Battle.SceneCall call = session.request();
+                    if (call.kind == Battle.SceneCall.Kind.CONFIRM) {
+                        session.answer(true);
+                    } else if (call.kind == Battle.SceneCall.Kind.PARTY_SCREEN) {
+                        for (int i = 0; i < session.battle.playerParty().size; i++) {
+                            if (call.validator.apply(i) == null) break;
+                        }
+                        session.answer(null);
+                    } else {
+                        session.answer(null);
+                    }
+                    session.takeEvents();
+                }
+            }
+        }
+    }
+
+    @Test void anOpposingTrainerSwitchIsPlayedAsSceneCallsAndTheNextRoundWorks() throws Exception {
+        Throwable[] failure = new Throwable[1];
+        Thread worker = new Thread(() -> { try { opposingSwitchBody(); } catch (Throwable t) { failure[0] = t; } });
+        worker.setDaemon(true);
+        worker.start();
+        worker.join(8000);
+        if (worker.isAlive()) {
+            StackTraceElement[] st = null;
+            for (java.util.Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) if (e.getKey().getName().equals("battle-engine") && e.getValue().length > 0) st = e.getValue();
+            if (st == null) st = worker.getStackTrace();
+            StringBuilder sb = new StringBuilder("HANG");
+            Battle bb = port.session().battle;
+            for (int q = 0; q < 2; q++) { Battler x = bb.battlerAt(q); sb.append(" [b" + q + " " + x.name() + " hp=" + x.hp + " choice=" + bb.choices(q)[0] + "/" + bb.choices(q)[1] + " lastRoundMoved=" + x.lastRoundMoved + " turn=" + bb.turnCount() + " moved=" + x.movedThisRound() + " effMoveNext=" + x.effects.truthy(PBEffects.Battler.MoveNext) + "]"); }
+            for (int i = 0; i < Math.min(st.length, 25); i++) sb.append(" | ").append(st[i]);
+            fail(sb.toString());
+        }
+        if (failure[0] != null) throw new AssertionError(failure[0]);
+    }
+
+    private void opposingSwitchBody() {
+        PbsData.TrainerData foe = trainerOf("One");
+        PbsData.TrainerPokemon second = new PbsData.TrainerPokemon(); second.species = "A"; second.level = 10; foe.party.add(second);
+        for (PbsData.TrainerPokemon member : foe.party) member.moves.add("HIT");
+        port.trainerBattle(foe);
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        Battler first = battle.battlerAt(1);
+        int hpBefore = first.hp;
+        assertTrue(battle.registerSwitch(1, 1));
+        session.foeTurn();
+        java.util.List<Battle.SceneCall.Kind> kinds = new java.util.ArrayList<>();
+        while (session.suspended() && kinds.size() < 12) {
+            kinds.add(session.request().kind);
+            session.answer(null);
+        }
+        assertEquals(java.util.Arrays.asList(Battle.SceneCall.Kind.RECALL, Battle.SceneCall.Kind.SHOW_PARTY_LINEUP,
+                Battle.SceneCall.Kind.SEND_OUT), kinds);
+        assertNotSame(first, battle.battlerAt(1));
+        assertTrue(first.hp > 0, "the recalled Pokemon keeps its HP; before=" + hpBefore + " pokemon.hp=" + first.pokemon.hp + " incoming=" + battle.battlerAt(1).hp);
+        assertSame(first, battle.foeParty().get(0), "and stays in the party");
+        session.takeEvents();
+        assertTrue(session.chooseMove(0), "the next round runs");
+    }
+
+    @Test void anOpposingTrainerSwitchInAMoveRoundComesBeforeTheMoves() throws Exception {
+        Throwable[] failure = new Throwable[1];
+        Thread worker = new Thread(() -> { try { opposingSwitchInMoveRound(); } catch (Throwable t) { failure[0] = t; } });
+        worker.setDaemon(true);
+        worker.start();
+        worker.join(8000);
+        assertFalse(worker.isAlive(), "the round must not hang");
+        if (failure[0] != null) throw new AssertionError(failure[0]);
+    }
+
+    private void opposingSwitchInMoveRound() {
+        PbsData.TrainerData foe = trainerOf("One");
+        PbsData.TrainerPokemon second = new PbsData.TrainerPokemon(); second.species = "A"; second.level = 10; foe.party.add(second);
+        for (PbsData.TrainerPokemon member : foe.party) member.moves.add("HIT");
+        port.trainerBattle(foe);
+        InteractiveBattlePort.Session session = port.session();
+        Battle battle = session.battle;
+        Battler first = battle.battlerAt(1);
+        int hpBefore = first.hp;
+        assertTrue(battle.registerSwitch(1, 1));
+        session.chooseMove(0);
+        java.util.List<Battle.SceneCall.Kind> kinds = new java.util.ArrayList<>();
+        while (session.suspended() && kinds.size() < 12) {
+            kinds.add(session.request().kind);
+            session.answer(null);
+        }
+        assertEquals(java.util.Arrays.asList(Battle.SceneCall.Kind.RECALL, Battle.SceneCall.Kind.SHOW_PARTY_LINEUP,
+                Battle.SceneCall.Kind.SEND_OUT), kinds);
+        assertNotSame(first, battle.battlerAt(1));
+        assertTrue(first.hp > 0, "the recalled Pokemon keeps its HP; before=" + hpBefore + " pokemon.hp=" + first.pokemon.hp + " incoming=" + battle.battlerAt(1).hp);
+        assertSame(first, battle.foeParty().get(0), "and stays in the party");
+        session.takeEvents();
+        assertTrue(session.chooseMove(0), "the next round runs");
     }
 
     @Test void partyStartsMarkWhereEachTrainersTeamBegins() {

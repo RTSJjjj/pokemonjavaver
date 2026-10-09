@@ -111,7 +111,7 @@ final class AbilitiesSwitchIn {
                 if (!battle.pbCanRun(battler.index)) {                       // :89
                     return false;
                 }
-                battle.showAbilitySplash(battler);                           // :90 (delay=true，见类 javadoc)
+                battle.showAbilitySplash(battler, true);                           // :90 (delay=true，见类 javadoc)
                 battle.hideAbilitySplash(battler);                           // :91
                 // 登记: BattleHandlers_Abilities.rb:92 pbSEPlay("Battle flee") 依赖音频子系统
                 battle.display(battler.pbThis() + "逃离战斗了！");            // :93
@@ -127,7 +127,7 @@ final class AbilitiesSwitchIn {
             if (!battle.pbCanChooseNonActive(battler.index)) {               // :100
                 return false;
             }
-            battle.showAbilitySplash(battler);                               // :101 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :101 (delay=true)
             battle.hideAbilitySplash(battler);                               // :102
             if (!PokeBattle_SceneConstants.USE_ABILITY_SPLASH) {             // :103 死代码（常量恒 true）
                 battle.display(battler.pbThis() + "的" + battler.abilityName() + "被触发了！"); // :104
@@ -425,7 +425,7 @@ final class AbilitiesSwitchIn {
                     || choice.semiInvulnerable()) {
                 return;
             }
-            battle.showAbilitySplash(battler);                               // :2611 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :2611 (delay=true)
             battle.hideAbilitySplash(battler);                               // :2612
             // 登记: :2614 battle.scene.pbChangePokemonTransform(battler,choice.pokemon) 依赖 PokeBattle_Scene
             // 登记: :2615 battler.pbTransform(choice) —— Battler 尚无 pbTransform（PokeBattle_Battler:418-446）
@@ -693,7 +693,7 @@ final class AbilitiesSwitchIn {
                     || "WONDERGUARD".equals(fainted.ability)) {              // :2882
                 return;
             }
-            battle.showAbilitySplash(battler);                               // :2883 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :2883 (delay=true)
             battler.ability = fainted.ability;                               // :2884
             battle.replaceAbilitySplash(battler);                            // :2885
             battle.display(fainted.pbThis() + "的" + fainted.abilityName() + "被继承了！"); // :2886
@@ -709,7 +709,7 @@ final class AbilitiesSwitchIn {
             if (!battler.isSpecies("KRICKETUNE") || battler.form() == 1) {   // :3177
                 return;
             }
-            battle.showAbilitySplash(battler);                               // :3178 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :3178 (delay=true)
             battler.pbChangeFormTransform(1, null);                          // :3179
             battle.replaceAbilitySplash(battler);                            // :3180
             battle.display(battler.pbThis() + "为了倒下的" + fainted.pbThis()
@@ -861,7 +861,7 @@ final class AbilitiesSwitchIn {
             if (!battler.isSpecies("KRICKETUNE") || battler.form() == 1) {   // :3166
                 return;
             }
-            battle.showAbilitySplash(battler);                               // :3167 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :3167 (delay=true)
             battler.pbChangeFormTransform(1, null);                          // :3168
             battle.replaceAbilitySplash(battler);                            // :3169
             battle.display(battler.pbThis() + "为了\n倒下的队友而正义变身了！"); // :3170
@@ -925,7 +925,7 @@ final class AbilitiesSwitchIn {
             // BattleHandlers_Abilities.rb:3325-3335 绯红脉动
             int w = battler.effectiveWeather();                              // :3327
             if (w == PBWeather.Sun || w == PBWeather.HarshSun) {
-                battle.showAbilitySplash(battler);                           // :3328 (delay=true)
+                battle.showAbilitySplash(battler, true);                           // :3328 (delay=true)
                 battle.display(battler.pbThis() + "沐浴在阳光下，\n激起了古代的脉动！！"); // :3329
                 battle.hideAbilitySplash(battler);                           // :3330
             } else {
@@ -936,7 +936,7 @@ final class AbilitiesSwitchIn {
 
         BattleHandlers.AbilityOnSwitchIn.add("HADRONENGINE", (ability, battler, battle) -> {
             // BattleHandlers_Abilities.rb:3346-3356 强子引擎
-            battle.showAbilitySplash(battler);                               // :3348 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :3348 (delay=true)
             if (battle.field.terrain == PBBattleTerrains.Electric) {         // :3349
                 battle.display(battler.pbThis() + "利用电气场地\n使未来的机关悦动起来！！"); // :3350
                 battle.hideAbilitySplash(battler);                           // :3351
@@ -954,7 +954,7 @@ final class AbilitiesSwitchIn {
             if (battler.form() > 0) {                                        // :3371
                 return;
             }
-            battle.showAbilitySplash(battler);                               // :3372 (delay=true)
+            battle.showAbilitySplash(battler, true);                               // :3372 (delay=true)
             battle.hideAbilitySplash(battler);                               // :3373
             battler.pbChangeFormTransform(1, battler.pbThis() + "的样子发生了变化！"); // :3374
         });
