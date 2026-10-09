@@ -105,7 +105,8 @@ public final class PokemonGame extends Game {
             if (startMapOverride > 0) {
                 setScreen(new MapScreen(context, startMap));
             } else {
-                setScreen(new TitleScreen(context));
+                // P4: the icons and menu pictures are decoded once, behind a loading bar, and kept until the game closes.
+                setScreen(new pokemon.runtime.ui.menu.PreloadScreen(context, () -> new TitleScreen(context)));
             }
         } else {
             // No Builder output yet: keep the window responsive instead of
@@ -294,6 +295,7 @@ public final class PokemonGame extends Game {
         if (getScreen() != null) {
             getScreen().dispose();
         }
+        context.disposeShared();
         if (touch != null) {
             touch.dispose();
         }

@@ -177,6 +177,44 @@ public final class RuntimeContext {
         return gameState;
     }
 
+    private pokemon.runtime.ui.menu.MenuAssets sharedAssets;
+    private final java.util.Map<String, pokemon.runtime.ui.menu.MenuFont> sharedFonts = new java.util.HashMap<>();
+
+    /**
+     * The menu / battle graphics cache of the whole run. Every map change builds a new MapScreen (and pause menu), and each
+     * used to start with an empty cache - the bag then decoded its icons again on the first frames. Kept here until the game
+     * closes; screens must not dispose it.
+     */
+    public pokemon.runtime.ui.menu.MenuAssets sharedMenuAssets(pokemon.runtime.map.GraphicsLocator locator) {
+        if (sharedAssets == null) {
+            sharedAssets = new pokemon.runtime.ui.menu.MenuAssets(locator);
+        }
+        return sharedAssets;
+    }
+
+    /** One FreeType font per file and size for the whole run (same reason as {@link #sharedMenuAssets}). */
+    public pokemon.runtime.ui.menu.MenuFont sharedMenuFont(java.io.File file, int size) {
+        String key = (file == null ? "" : file.getPath()) + "@" + size;
+        pokemon.runtime.ui.menu.MenuFont font = sharedFonts.get(key);
+        if (font == null) {
+            font = new pokemon.runtime.ui.menu.MenuFont(file, size);
+            sharedFonts.put(key, font);
+        }
+        return font;
+    }
+
+    /** Frees the shared graphics and fonts; the game calls it when it closes. */
+    public void disposeShared() {
+        if (sharedAssets != null) {
+            sharedAssets.dispose();
+            sharedAssets = null;
+        }
+        for (pokemon.runtime.ui.menu.MenuFont font : sharedFonts.values()) {
+            font.dispose();
+        }
+        sharedFonts.clear();
+    }
+
     /** Message / choice state shared by the interpreter and the window (R6.2). */
     public MessageService messageService() {
         return messageService;

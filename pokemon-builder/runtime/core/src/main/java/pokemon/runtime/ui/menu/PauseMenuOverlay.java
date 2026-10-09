@@ -386,10 +386,10 @@ public final class PauseMenuOverlay implements Disposable {
     public PauseMenuOverlay(RuntimeContext context, GraphicsLocator locator) {
         this.context = context;
         this.database = context.database();
-        this.assets = new MenuAssets(locator);
-        this.font = new MenuFont(messageFontFile(locator));
-        this.smallFont = new MenuFont(messageFontFile(locator), 20); // pbSetSmallFont
-        this.detailFont = new MenuFont(messageFontFile(locator), 20);
+        this.assets = context.sharedMenuAssets(locator);                 // kept for the whole run: not rebuilt on every map change
+        this.font = context.sharedMenuFont(messageFontFile(locator), 22);
+        this.smallFont = context.sharedMenuFont(messageFontFile(locator), 20); // pbSetSmallFont
+        this.detailFont = smallFont;                                           // the same file at the same size
         this.skin = loadSystemFrame();
         this.speech = loadSpeechFrame();
         themeFrame = context.settings().frame;
@@ -1110,9 +1110,6 @@ public final class PauseMenuOverlay implements Disposable {
     @Override
     public void dispose() {
         if (snapshot != null) snapshot.dispose();
-        assets.dispose();
-        font.dispose();
-        smallFont.dispose();
-        detailFont.dispose();
+        // the assets and fonts belong to the RuntimeContext (sharedMenuAssets / sharedMenuFont)
     }
 }

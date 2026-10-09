@@ -50,6 +50,24 @@ public final class GraphicsLocator {
         return lookup(new File(graphicsRoot, subDirectory), name);
     }
 
+    /** The names (without ".png") of the PNG files of a Graphics subdirectory, in file name order. */
+    public java.util.List<String> pngNames(String subDirectory) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        if (graphicsRoot == null) {
+            return names;
+        }
+        File directory = new File(graphicsRoot, subDirectory);
+        lookup(directory, ".");                                                       // makes sure the listing exists
+        for (File file : LISTINGS.getOrDefault(directory.getPath(), java.util.Collections.emptyMap()).values()) {
+            String name = file.getName();
+            if (name.toLowerCase(java.util.Locale.ROOT).endsWith(".png")) {
+                names.add(name.substring(0, name.length() - 4));
+            }
+        }
+        java.util.Collections.sort(names);
+        return names;
+    }
+
     /** Case-insensitive lookup of one of the project's Fonts (R6 message window). */
     public File font(String name) {
         if (name == null || name.isEmpty()) {
@@ -64,19 +82,36 @@ public final class GraphicsLocator {
         return sourceRoot == null ? null : lookup(new File(sourceRoot, "Fonts"), name);
     }
 
+    /**
+     * One listing per directory, kept for the life of the process: {@code lookup} used to ask the disk
+     * ({@code isFile}, and a {@code listFiles()} scan of the whole directory - 4700 files in Icons - when the case did not
+     * match) for every candidate name of every icon, so a bag page of items cost thousands of file system calls.
+     * Keys are lower-case names; files added to the folder while the game runs are not seen until it restarts.
+     */
+    private static final java.util.Map<String, java.util.Map<String, File>> LISTINGS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private static File lookup(File directory, String name) {
-        File exact = new File(directory, name);
-        if (exact.isFile()) {
+        java.util.Map<String, File> listing = LISTINGS.computeIfAbsent(directory.getPath(), path -> {
+            java.util.Map<String, File> map = new java.util.HashMap<>();
+            File[] entries = directory.listFiles();
+            if (entries != null) {
+                for (File entry : entries) {
+                    if (entry.isFile()) {
+                        map.putIfAbsent(entry.getName().toLowerCase(java.util.Locale.ROOT), entry);
+                    }
+                }
+            }
+            return map;
+        });
+        File exact = listing.get(name.toLowerCase(java.util.Locale.ROOT));
+        if (exact != null) {
             return exact;
         }
-        File[] entries = directory.listFiles();
-        if (entries == null) {
-            return null;
-        }
-        for (File entry : entries) {
-            if (entry.isFile() && entry.getName().equalsIgnoreCase(name)) {
-                return entry;
-            }
+        // The name may carry a sub folder ("Pictures/Foo.png" under a directory): resolve it on the disk like before.
+        if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0) {
+            File nested = new File(directory, name);
+            return nested.isFile() ? nested : null;
         }
         return null;
     }

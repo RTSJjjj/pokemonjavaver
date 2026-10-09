@@ -46,6 +46,20 @@ class GraphicsLocatorTest {
     }
 
     @Test
+    @DisplayName("a folder is listed once; names are found whatever their case and pngNames lists the pictures")
+    void listingIsKeptPerFolder() throws Exception {
+        File source = Files.createTempDirectory("pb-src-").toFile();
+        write(new File(source, "Graphics/Icons/itemPOTION.png"), "a");
+        write(new File(source, "Graphics/Icons/item001.png"), "b");
+        write(new File(source, "Graphics/Icons/readme.txt"), "c");
+        GraphicsLocator locator = new GraphicsLocator(source, null);
+        assertNotNull(locator.find("Icons", "itempotion.PNG"));
+        assertNull(locator.find("Icons", "itemSUPERPOTION.png"));
+        assertEquals(java.util.Arrays.asList("item001", "itemPOTION"), locator.pngNames("Icons"));
+        assertEquals(0, locator.pngNames("Missing").size());
+    }
+
+    @Test
     @DisplayName("without a packaged copy the source project is used (L4)")
     void fallsBackToSource() throws Exception {
         File source = Files.createTempDirectory("pb-src2-").toFile();

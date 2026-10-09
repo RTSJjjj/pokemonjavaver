@@ -12,8 +12,10 @@ public final class ItemIcons {
 
     static Texture of(MenuAssets a, PbsData pbs, String id) {
         if (id == null || id.isEmpty()) return null;
-        String name = name(pbs, id, candidate -> a.icon(candidate) != null);
-        return name == null ? null : a.icon(name);
+        return a.itemIcon(id, () -> {
+            String name = name(pbs, id, candidate -> a.icon(candidate) != null);
+            return name == null ? null : a.icon(name);
+        });
     }
 
     /** The icon file (Graphics/Icons, without extension) of the item; {@code exists} is {@code pbResolveBitmap}. */

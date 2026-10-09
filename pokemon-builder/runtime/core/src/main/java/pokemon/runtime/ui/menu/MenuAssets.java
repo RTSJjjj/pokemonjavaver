@@ -130,6 +130,21 @@ public final class MenuAssets implements Disposable {
         return load("char:" + name, "Characters", name + ".png");
     }
 
+    private final ObjectMap<String, Texture> itemIcons = new ObjectMap<>();
+
+    /**
+     * The resolved icon of an item ({@link ItemIcons}), remembered: the lookup builds several candidate names (a
+     * {@code String.format} among them) and the bag asks for every visible row on every frame.
+     */
+    public Texture itemIcon(String id, java.util.function.Supplier<Texture> resolver) {
+        if (itemIcons.containsKey(id)) {
+            return itemIcons.get(id);
+        }
+        Texture texture = resolver.get();
+        itemIcons.put(id, texture);
+        return texture;
+    }
+
     /** Graphics/Icons/&lt;name&gt;.png (PokemonIconSprite strips). */
     public Texture icon(String name) {
         return load("icon:" + name, "Icons", name + ".png");

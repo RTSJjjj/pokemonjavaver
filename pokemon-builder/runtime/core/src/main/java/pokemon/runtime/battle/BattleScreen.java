@@ -455,12 +455,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         Battler foe = session.battle.foe();
         playerBallType = player == null || player.pokemon == null ? 0 : Math.max(0, player.pokemon.ballused);
         foeBallType = foe == null || foe.pokemon == null ? 0 : Math.max(0, foe.pokemon.ballused);
-        GraphicsLocator locator = new GraphicsLocator(context.database()); assets = new MenuAssets(locator);
+        GraphicsLocator locator = new GraphicsLocator(context.database()); assets = context.sharedMenuAssets(locator);
         String fontName = context.database().project().runtime.messageFont;
         File file = fontName == null ? null : locator.font(fontName);
-        font = new MenuFont(file);
-        narrowFont = new MenuFont(file, 23);   // pbSetNarrowFont: fight menu names / PP
-        smallFont = new MenuFont(file, 20);    // pbSetSmallFont
+        font = context.sharedMenuFont(file, 22);
+        narrowFont = context.sharedMenuFont(file, 23);   // pbSetNarrowFont: fight menu names / PP
+        smallFont = context.sharedMenuFont(file, 20);    // pbSetSmallFont
         skin = assets.skin("choice 1");
         camera = new OrthographicCamera(); viewport = new FitViewport(ScreenMetrics.logicalWidth(), ScreenMetrics.logicalHeight(), camera);
         viewport.update(com.badlogic.gdx.Gdx.graphics.getWidth(), com.badlogic.gdx.Gdx.graphics.getHeight(), true);
@@ -5370,7 +5370,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     @Override public void resize(int width, int height) { viewport.update(width, height, true); }
     @Override public void dispose() {
         session.abortEngine();
-        batch.dispose(); assets.dispose(); font.dispose(); narrowFont.dispose(); smallFont.dispose();
+        batch.dispose();               // assets and fonts are the RuntimeContext's (shared for the run)
         if (spriteShader != null) spriteShader.dispose();
     }
 }
