@@ -309,6 +309,19 @@ public interface MapPort {
         return 0;
     }
 
+    /** {@code pbGetMetadata($game_map.map_id, MetadataOutdoor)}: the current map is an outdoor map. */
+    default boolean currentMapOutdoor() {
+        return false;
+    }
+
+    /**
+     * {@code pbFlyAnimation(landing, nil, item, flybird_species)} (340_Fly_Animation:23-): the bird of that species (Latios, Latias,
+     * Groudon) crosses the screen; null is the usual bird. Returns how long to wait, in seconds.
+     */
+    default float flyAnimation(boolean departure, String birdSpecies) {
+        return flyAnimation(departure);
+    }
+
     default boolean hasDependentEvents() {
         return false;
     }

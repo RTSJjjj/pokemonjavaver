@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1444,6 +1444,54 @@ public final class MenuCapture extends ApplicationAdapter {
         pokemon.runtime.state.GameState state = context.gameState();
         pokemon.runtime.event.MenuService.Request request;
         switch (mode) {
+            case "eon": {
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                for (int id = 1; id < 600; id++) context.gameState().fieldGlobals().visitedMaps.add(id);   // every place counts as visited
+                context.eventInterpreter().startFieldItem("EONFLUTE");
+                java.util.List<GameAction> walk = new java.util.ArrayList<>();
+                for (int k = 0; k < 4; k++) walk.add(GameAction.CONFIRM);               // the messages
+                GameAction[] sweep = {GameAction.DOWN, GameAction.LEFT, GameAction.UP, GameAction.RIGHT};
+                for (int round = 0; round < 40; round++) {
+                    GameAction dir = sweep[(round / 6) % 4];
+                    walk.add(dir);
+                    walk.add(GameAction.CONFIRM);
+                }
+                int step = 0;
+                for (int i = 0; i < 3600; i++) {
+                    advanceMap(1f / 40f, 1);
+                    if (i % 14 == 13 && step < walk.size()) stepMap(walk.get(step++));
+                    if (i == 40 || i == 150) shotMap("eon-" + i);
+                    if (context.gameState().currentMapId() != 10 && i > 40) {
+                        for (int j = 0; j < 4; j++) {
+                            shotMap("eon-arrive-" + j);
+                            for (int k = 0; k < 20; k++) advanceMap(1f / 40f, 1);
+                        }
+                        break;
+                    }
+                }
+                System.out.println("eon: map=" + context.gameState().currentMapId());
+                break;
+            }
+            case "nexus": {
+                context.gameState().switches().set(231, true);          // Eden opens the special list
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                context.eventInterpreter().startFieldItem("ETHEREALNEXUS");
+                for (int i = 0; i < 40; i++) advanceMap(1f / 40f, 1);
+                shotMap("nexus-1-list");
+                stepMap(GameAction.RIGHT);
+                stepMap(GameAction.DOWN);
+                for (int i = 0; i < 4; i++) advanceMap(1f / 40f, 1);
+                shotMap("nexus-2-moved");
+                stepMap(GameAction.CONFIRM);
+                for (int i = 0; i < 200; i++) advanceMap(1f / 40f, 1);
+                shotMap("nexus-3-arrived");
+                System.out.println("nexus: map=" + context.gameState().currentMapId());
+                break;
+            }
             case "ropes": {
                 mapScreen = new MapScreen(context, 10, 31, 23, 2);
                 context.game().setScreen(mapScreen);

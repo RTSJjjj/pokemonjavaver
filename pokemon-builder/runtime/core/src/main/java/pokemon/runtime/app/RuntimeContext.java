@@ -542,6 +542,16 @@ public final class RuntimeContext {
             }
 
             @Override
+            public boolean currentMapOutdoor() {
+                return screenPort != null && screenPort.currentMapOutdoor();
+            }
+
+            @Override
+            public float flyAnimation(boolean departure, String birdSpecies) {
+                return screenPort == null ? 0f : screenPort.flyAnimation(departure, birdSpecies);
+            }
+
+            @Override
             public boolean hasDependentEvents() {
                 return screenPort != null && screenPort.hasDependentEvents();
             }

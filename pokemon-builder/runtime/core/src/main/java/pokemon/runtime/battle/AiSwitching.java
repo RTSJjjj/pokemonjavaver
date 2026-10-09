@@ -1433,7 +1433,7 @@ final class AiSwitching {
     /** {@code AnyUsefulOffseniveStatIsRaised(bank)} (ai_util.c:5231). 登记: Flash Fire, Unburden. */
     private static boolean anyUsefulOffensiveStatRaised(AiCtx ctx, Battler b) {
         if (b.stage(PBStats.ATTACK) > 0 && AiCalc.physicalMoveInMoveset(ctx, b)) return true;
-        if (b.stage(PBStats.DEFENSE) > 0 && AiCalc.named(firstMove(b, "BODYPRESS"), "BODYPRESS")) return true;
+        if (b.stage(PBStats.DEFENSE) > 0 && firstMove(b, "BODYPRESS") != null) return true;
         if (b.stage(PBStats.SPATK) > 0 && AiCalc.specialMoveInMoveset(ctx, b)) return true;
         if (b.stage(PBStats.SPEED) > 0) return true;
         if (b.effects.truthy(PBEffects.Battler.FlashFire) && AiCalc.damagingTypeInMoveset(ctx, b, "FIRE")) return true;   // Flash Fire activated

@@ -7,7 +7,7 @@ import java.util.function.Function;
 
 /** The {@link FieldScene} of a field script running on a {@code BlockingTask}: each call is a request for the interpreter. */
 final class TaskFieldScene implements FieldScene {
-    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL }
+    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL, FLY_MAP, DIMENSION_WARP }
 
     static final class Request {
         final Kind kind;
@@ -45,6 +45,18 @@ final class TaskFieldScene implements FieldScene {
         Request r = new Request(Kind.FLASH);
         r.text = text;
         caller.apply(r);
+    }
+
+    /** {@code PokemonRegionMapScreen#pbStartFlyScreen}: the place to fly to ({@code [map, x, y]}), or null when the player backs out. */
+    public int[] chooseFlyDestination() {
+        Object answer = caller.apply(new Request(Kind.FLY_MAP));
+        return answer instanceof int[] ? (int[]) answer : null;
+    }
+
+    /** {@code dimensionality_warp} (363_Dimensionality): the place picked in the Ethereal Nexus's list ({@code [map, x, y]}), or null. */
+    public int[] chooseDimensionWarp() {
+        Object answer = caller.apply(new Request(Kind.DIMENSION_WARP));
+        return answer instanceof int[] ? (int[]) answer : null;
     }
 
     /** A wait of {@code frames} (40 fps) that ends early on C or B ({@code pbWaitMessage}'s loop); true when it was cancelled. */

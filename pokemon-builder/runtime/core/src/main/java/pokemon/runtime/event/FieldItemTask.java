@@ -56,6 +56,10 @@ final class FieldItemTask {
                 return escapeRope(item, 1);                                            // :242-268 next 1
             case "LANTERN":
                 return lantern();
+            case "EONFLUTE":
+                return eonFlute();
+            case "ETHEREALNEXUS":
+                return etherealNexus();
             default:
                 return 0;
         }
@@ -101,6 +105,84 @@ final class FieldItemTask {
         });
         state.fieldGlobals().escapePoint = new int[0];                                 // :239 pbEraseEscapePoint
         return consumed;
+    }
+
+    /** {@code UseInField :EONFLUTE} (189:1602-1646): the flute calls Latios, Latias or a flying Groudon to carry the player to a visited place. */
+    private int eonFlute() {
+        boolean[] flags = {false, false};                                              // {partnered, outdoor}
+        scene.runAction(() -> {
+            flags[0] = port.hasDependentEvents();
+            flags[1] = port.currentMapOutdoor();
+            return 0f;
+        });
+        if (flags[0]) {
+            scene.pbMessage("与他人同行时不能使用。");                                      // :1603-1606
+            return 0;
+        }
+        scene.pbMessage("\\me[无限之笛]" + state.trainer().name + "吹响了无限之笛。\\wtnp[10]");   // :1607
+        if (!flags[1] || pokemon.runtime.field.ItemHandlers.banMap(state.currentMapId())) {
+            scene.pbMessage("似乎没有宝可梦听到笛声。");                                    // :1608-1611
+            return 0;
+        }
+        scene.pbMessage("宝可梦听到笛声了！");                                             // :1612
+        int[] destination = scene.chooseFlyDestination();                              // :1613-1616 pbStartFlyScreen
+        if (destination == null || destination.length < 3) {
+            return 0;                                                                  // :1617 next false if !ret
+        }
+        int roll = random.nextInt(100);                                                // :1620-1630 10 % Groudon, 45 % Latios, 45 % Latias
+        String species = roll < 10 ? "GROUDON" : roll < 55 ? "LATIOS" : "LATIAS";
+        Pokemon bird = pbs == null || pbs.species(species) == null ? null
+                : pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, pbs.species(species), 50, state.trainer(),
+                        state.currentMapId(), random);
+        if (bird != null && "GROUDON".equals(species)) {
+            bird.setForm(pbs, 2);                                                      // :1623 the flying Groudon
+        }
+        boolean[] banner = {false};
+        scene.runAction(() -> {
+            float duration = bird == null ? 0f : port.hiddenMoveAnimation(bird);       // :1632 pbHiddenMoveAnimation(pkmn)
+            banner[0] = duration > 0f;
+            return duration;
+        });
+        if (!banner[0]) {
+            scene.pbMessage(state.trainer().name + "召唤的宝可梦使用了飞翔！");              // :1633-1635
+        }
+        scene.runAction(() -> port.flyAnimation(true, species));                       // :1636 pbFlyAnimation(true, nil, :EONFLUTE, species)
+        state.fieldGlobals().escapePoint = new int[0];                                 // :1646 pbEraseEscapePoint (before the swap: the screen is rebuilt)
+        final int[] to = destination.clone();
+        scene.runAction(() -> {
+            state.flyArrival(true);                                                    // :1645 pbFlyAnimation(false, ...) after the fade
+            state.flyArrivalBird(species);
+            port.transferThroughFade(to[0], to[1], to[2], 2, false);                   // :1637-1644 direction 2
+            return 0f;
+        });
+        return 1;
+    }
+
+    /** {@code UseInField :ETHEREALNEXUS} (189:1662-1673): the list of places, then the warp (the plugin's own black fade). */
+    private int etherealNexus() {
+        boolean[] partnered = {false};
+        scene.runAction(() -> {
+            partnered[0] = port.hasDependentEvents();
+            return 0f;
+        });
+        if (partnered[0]) {
+            scene.pbMessage("与他人同行时不能使用。");                                      // :1663-1666
+            return 0;
+        }
+        if (pokemon.runtime.field.ItemHandlers.banMap(state.currentMapId())) {
+            scene.pbMessage("无法在这里使用");                                            // :1668-1671
+            return 0;
+        }
+        int[] place = scene.chooseDimensionWarp();                                     // :1672 dimensionality_warp
+        if (place == null || place.length < 3) {
+            return 1;
+        }
+        final int[] to = place.clone();
+        scene.runAction(() -> {
+            port.transferThroughFade(to[0], to[1], to[2], 2, false);                   // 363:355-399 pbWarpWithFade(map, x, y, 2)
+            return 0f;
+        });
+        return 1;
     }
 
     /** {@code UseInField :LANTERN} (:1528-1552): lights a dark cave like Flash does. */

@@ -301,6 +301,7 @@ public final class MapScreen extends ScreenAdapter {
         new pokemon.runtime.field.Vehicles(database.pbs(), gameState).onMapChange(mapId);   // Events.onMapChange (170:603-608)
         noteMapChange(mapId);
         refreshDarkness(mapId);
+        flyArrivalBird = gameState.takeFlyArrivalBird();
         if (gameState.takeFlyArrival()) {
             flyArrivalPending = true;                                              // 179:535 pbFlyAnimation(false) once the map has faded in
         }
@@ -665,6 +666,16 @@ public final class MapScreen extends ScreenAdapter {
             @Override
             public int playerFullPattern() {
                 return fullPattern(player);
+            }
+
+            @Override
+            public boolean currentMapOutdoor() {
+                return mapData != null && Boolean.TRUE.equals(mapData.outdoor);
+            }
+
+            @Override
+            public float flyAnimation(boolean departure, String birdSpecies) {
+                return MapScreen.this.flyAnimation(departure, birdSpecies);
             }
 
             @Override
@@ -2326,6 +2337,13 @@ public final class MapScreen extends ScreenAdapter {
     private boolean flyArrivalPending;
 
     private float flyAnimation(boolean departure) {
+        return flyAnimation(departure, null);
+    }
+
+    private String flyArrivalBird;
+
+    /** {@code pbFlyAnimation(landing, pokemon, item, flybird_species)}: a preset species picks Latios / Latias / Groudon (340:29-47). */
+    private float flyAnimation(boolean departure, String species) {
         if (locator == null) {
             return 0f;
         }
@@ -2334,7 +2352,13 @@ public final class MapScreen extends ScreenAdapter {
             context.audioManager().playSe("flybird", 100, 100);                    // :26 pbSEPlay("flybird")
         }
         // :33-57 SHOW_GEN_4_BIRD, and a 10 % Groudon (:50-51)
-        String name = talkRandom.nextInt(100) < 10 ? "flybird_Groudon" : "flybird_gen4";
+        String name;
+        if (species == null) {
+            name = talkRandom.nextInt(100) < 10 ? "flybird_Groudon" : "flybird_gen4";     // 340:48-57 the usual flight
+        } else {
+            name = "LATIOS".equals(species) ? "flybird_Latios" : "LATIAS".equals(species) ? "flybird_Latias"
+                    : "GROUDON".equals(species) ? "flybird_Groudon" : "flybird_gen4";     // 340:29-47
+        }
         java.io.File file = locator.find("Pictures", name + ".png");
         if (file == null) {
             file = locator.find("Pictures", "flybird.png");
@@ -2352,7 +2376,8 @@ public final class MapScreen extends ScreenAdapter {
     private void updateFlyBird(float delta) {
         if (flyArrivalPending && context.screenEffects().fade() <= 0f) {
             flyArrivalPending = false;
-            flyAnimation(false);                                                   // 179:535 pbFlyAnimation(false)
+            flyAnimation(false, flyArrivalBird);                                   // 179:535 pbFlyAnimation(false)
+            flyArrivalBird = null;
         }
         if (flyBird == null) {
             return;

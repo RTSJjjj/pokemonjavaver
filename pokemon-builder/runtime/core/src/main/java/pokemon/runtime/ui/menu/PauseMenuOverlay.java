@@ -41,7 +41,7 @@ public final class PauseMenuOverlay implements Disposable {
         LOAD,
         OPTIONS,
         TRAINER
-        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, MINIGAME, SLOTS, HATCHER, SETUP, MAP, MART, STARTER, QUESTS
+        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, HALL, CREDITS, TRAINER_BADGES, MINIGAME, SLOTS, HATCHER, SETUP, MAP, MART, STARTER, QUESTS, WARP
     }
 
     private static final float ROW_HEIGHT = 56f;
@@ -74,6 +74,7 @@ public final class PauseMenuOverlay implements Disposable {
     private BagView bagView;
     private PokedexView pokedexView;
     private QuestListView questView;
+    private DimensionalWarpView warpView;
     private StorageView storageView;
     private PokeCenterPcView pcView;
     private MartView martView;
@@ -309,9 +310,14 @@ public final class PauseMenuOverlay implements Disposable {
             martView = new MartView(context, value.items, value.speech, value.cantSell);
             sub = Sub.MART;
         }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.DIMENSION_WARP) {
+            warpView = new DimensionalWarpView(context);                      // 363_Dimensionality DimensionalWarpScreen
+            sub = Sub.WARP;
+        }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.SHOW_MAP) {
             // pbShowMap(region, wallmap) (PScreen_RegionMap:431-437).
             townMapView = new TownMapView(context, assets, value.region, value.wallmap);
+            townMapView.flyMode(value.fly);                                   // pbStartFlyScreen (214_PScreen_RegionMap:415-420)
             sub = Sub.MAP;
         }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.CHOOSE_NON_EGG) {
@@ -662,6 +668,12 @@ public final class PauseMenuOverlay implements Disposable {
             case QUESTS:
                 if (questView.update(input)) sub = Sub.MAIN;
                 break;
+            case WARP:
+                if (warpView.update(input)) {
+                    if (request != null) request.flyResult = warpView.result();
+                    back();
+                }
+                break;
             case POKEDEX:
                 if (pokedexView.update(input)) sub = Sub.MAIN;
                 break;
@@ -767,6 +779,7 @@ public final class PauseMenuOverlay implements Disposable {
                         mapReturnsToBag = false;
                         sub = Sub.BAG;
                     } else {
+                        if (request != null && request.fly) request.flyResult = townMapView.flyResult();
                         back();
                     }
                 }
@@ -921,6 +934,10 @@ public final class PauseMenuOverlay implements Disposable {
                 }
             }
             miniGame.render(batch, assets, font, skin);
+            return;
+        }
+        if (sub == Sub.WARP) {
+            warpView.render(batch, assets, font);                              // over the map, like pbGenderSelector
             return;
         }
         if (sub == Sub.SETUP) {

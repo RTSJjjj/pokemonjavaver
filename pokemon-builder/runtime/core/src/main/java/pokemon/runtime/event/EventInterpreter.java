@@ -3813,6 +3813,27 @@ public final class EventInterpreter {
                     }
                     break;
                 }
+                case DIMENSION_WARP: {
+                    MenuService.Request warp = new MenuService.Request(MenuService.Kind.DIMENSION_WARP);
+                    if (menuService == null) {
+                        scriptTask.answer(null);
+                        break;
+                    }
+                    menuRequest = menuService.submit(warp);
+                    scriptTaskAnswer = () -> warp.flyResult;
+                    return;
+                }
+                case FLY_MAP: {
+                    MenuService.Request fly = new MenuService.Request(MenuService.Kind.SHOW_MAP);
+                    fly.fly = true;
+                    if (menuService == null) {
+                        scriptTask.answer(null);
+                        break;
+                    }
+                    menuRequest = menuService.submit(fly);
+                    scriptTaskAnswer = () -> fly.flyResult;
+                    return;
+                }
                 case FLASH:
                     showFlashMessage(r.text);
                     scriptTask.answer(null);

@@ -6,6 +6,8 @@ import java.util.ArrayDeque;
 /** Headless request queue. Each interpreter waits for its own request only. */
 public final class MenuService {
     public enum Kind { STORAGE, CHOOSE_TRADE, TRADE, GENDER, CHOOSE_ITEM, SHOW_MAP, MART, STARTER, TUTOR,
+        /** {@code dimensionality_warp} (363_Dimensionality): the Ethereal Nexus's list of places; {@link Request#flyResult} is {@code [map, x, y]}. */
+        DIMENSION_WARP,
         /** {@code pbChooseNonEggPokemon}: the party screen, eggs refused (252_PSystem_PokemonUtilities:268-270). */
         CHOOSE_NON_EGG,
         /** {@code pbChoosePokemon(variable, nameVariable, proc, allowIneligible)}: the party screen with an able proc (252_PSystem_PokemonUtilities:246-266). */
@@ -45,6 +47,9 @@ public final class MenuService {
          */
         public int region = -1;
         public boolean wallmap = true;
+        /** SHOW_MAP as {@code pbStartFlyScreen}: choose a place to fly to; {@link #flyResult} is {@code [map, x, y]} or null. */
+        public boolean fly;
+        public int[] flyResult;
         /**
          * CHOOSE_ITEM: only items the predicate accepts can be picked, mirroring
          * {@code pbChooseItemScreen(proc { |item| ... })} (PField_BerryPlants:353).

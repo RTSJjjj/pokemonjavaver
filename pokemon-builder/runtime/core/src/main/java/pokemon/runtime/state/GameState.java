@@ -240,6 +240,19 @@ public final class GameState {
         this.flyArrival = value;
     }
 
+    /** The species of the bird of the next arrival ({@code pbFlyAnimation(false, nil, :EONFLUTE, species)}), or null for the usual one. */
+    private String flyArrivalBird;
+
+    public String takeFlyArrivalBird() {
+        String value = flyArrivalBird;
+        flyArrivalBird = null;
+        return value;
+    }
+
+    public void flyArrivalBird(String species) {
+        this.flyArrivalBird = species;
+    }
+
     /** PField_Field:1411/1435: the registered partner trainer, or null. */
     public Partner partner() {
         return partner;
