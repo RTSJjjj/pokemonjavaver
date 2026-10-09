@@ -12,6 +12,20 @@ import com.badlogic.gdx.Gdx;
 final class MenuClock {
     static final float TICK = 1f / 40f;
 
+    /**
+     * {@code -Dpokemon.menu.clockDelta=0.025}: a fixed frame time for screen captures, which run
+     * inside {@code create()} where libGDX's own delta never advances. Unset = the real delta.
+     */
+    private static final float FIXED_DELTA = fixedDelta();
+
+    private static float fixedDelta() {
+        try {
+            return Float.parseFloat(System.getProperty("pokemon.menu.clockDelta", "-1"));
+        } catch (NumberFormatException ignored) {
+            return -1f;
+        }
+    }
+
     private float accumulated;
 
     /** How many 40fps ticks passed since the last call (at least 0). */
@@ -19,7 +33,7 @@ final class MenuClock {
         if (Gdx.graphics == null) {
             return 1;
         }
-        accumulated += Math.min(Gdx.graphics.getDeltaTime(), 0.25f);
+        accumulated += FIXED_DELTA >= 0f ? FIXED_DELTA : Math.min(Gdx.graphics.getDeltaTime(), 0.25f);
         int ticks = (int) (accumulated / TICK);
         accumulated -= ticks * TICK;
         return ticks;

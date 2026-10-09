@@ -29,11 +29,26 @@ public final class BagModel {
 
     /** Cycles only the real pockets 1..9 (pbChooseItem's LEFT/RIGHT). */
     public void changePocket(int delta) {
-        pocket += delta;
-        if (pocket < 1) pocket = POCKETS.length - 1;
-        if (pocket >= POCKETS.length) pocket = 1;
+        int start = pocket;
+        do {
+            pocket += delta;
+            if (pocket < 1) pocket = POCKETS.length - 1;
+            if (pocket >= POCKETS.length) pocket = 1;
+            // 305_BW_Bag:446-455 while choosing with a filter, pockets without a matching item are skipped
+        } while (chooseFilter != null && pocket != start && filteredCount(pocket) == 0);
         cursor.select(0);
         refresh();
+    }
+
+    /** The items of {@code pocketNumber} the choose filter accepts (305_BW_Bag:393-401 {@code @filterlist[i].length}). */
+    private int filteredCount(int pocketNumber) {
+        int count = 0;
+        for (ObjectIntMap.Entry<String> entry : inventory.counts()) {
+            PbsData.Item item = data == null ? null : data.item(entry.key);
+            int section = item == null || item.pocket < 1 || item.pocket >= POCKETS.length ? 0 : item.pocket;
+            if (entry.value > 0 && section == pocketNumber && chooseFilter.test(entry.key)) count++;
+        }
+        return count;
     }
     public int pocket() { return pocket; }
 
@@ -50,12 +65,33 @@ public final class BagModel {
      */
     public void chooseFilter(java.util.function.Predicate<String> value) {
         chooseFilter = value;
+        if (value != null && filteredCount(pocket) == 0) {
+            for (int i = 1; i < POCKETS.length; i++) {          // 305_BW_Bag:181-191 the first pocket that has a matching item
+                if (filteredCount(i) > 0) {
+                    pocket = i;
+                    break;
+                }
+            }
+        }
+        cursor.select(0);
         refresh();
     }    public List<String> items() { return items; }
     /** The item under the cursor, or null on the trailing "关闭背包" row. */
     public String selected() { return cursor.index() >= items.size() ? null : items.get(cursor.index()); }
     public boolean onCloseRow() { return cursor.index() >= items.size(); }
+    /** {@code @adapter.getDisplayName(item)} (230_PScreen_Mart:21-28): a TM / HM / TR shows its move after its name. */
     public String name(String id) {
+        PbsData.Item item = data == null ? null : data.item(id);
+        String name = item == null || item.name == null ? id : item.name;
+        if (item != null && (item.fieldUse == 3 || item.fieldUse == 4 || item.fieldUse == 6) && item.machine != null) {
+            PbsData.Move move = data.move(item.machine);
+            name = name + " " + (move == null ? item.machine : move.name);
+        }
+        return name;
+    }
+
+    /** The item's own name, without a machine's move. */
+    public String plainName(String id) {
         PbsData.Item item = data == null ? null : data.item(id);
         return item == null || item.name == null ? id : item.name;
     }
@@ -65,7 +101,7 @@ public final class BagModel {
             PbsData.Item item = data == null ? null : data.item(entry.key);
             int section = item == null || item.pocket < 1 || item.pocket >= POCKETS.length ? 0 : item.pocket;
             if (entry.value > 0 && (!battleOnly || item.battleUse > 0)
-                && (chooseFilter != null ? chooseFilter.test(entry.key) : section == pocket)) items.add(entry.key);
+                && section == pocket && (chooseFilter == null || chooseFilter.test(entry.key))) items.add(entry.key);
         }
         items.sort(Comparator.comparingInt((String id) -> data == null || data.item(id) == null ? Integer.MAX_VALUE : data.item(id).id)
                 .thenComparing(id -> id));

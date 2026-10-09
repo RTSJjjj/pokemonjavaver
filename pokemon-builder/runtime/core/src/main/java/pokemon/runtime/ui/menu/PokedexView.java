@@ -87,6 +87,7 @@ public final class PokedexView {
             return false;
         }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
+            MenuSe.close(context.audioManager());                                // 329_PokedexMain_BW_Style:1262 pbPlayCloseMenuSE
             return true;
         }
         int old = index;
@@ -95,8 +96,10 @@ public final class PokedexView {
         index = Math.max(0, Math.min(index, Math.max(0, list.size() - 1)));
         if (index != old) {
             keepVisible();
+            pokemon.runtime.audio.UiSounds.cursor(context.audioManager());      // Window_Pokedex (Selectable): pbPlayCursorSE
         }
         if (input.wasPressed(GameAction.CONFIRM)) {
+            pokemon.runtime.audio.UiSounds.decision(context.audioManager());    // :1271-1273 pbPlayDecisionSE
             List<PbsData.Species> species = speciesList();
             entry = new DexEntryView(context, species, index);
             // PScreen_PokedexEntry: pbPlayCrySpecies(@species,@form) on open.

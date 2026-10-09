@@ -43,8 +43,15 @@ public final class TownMapView {
     private static final float TOP_TEXT_Y = 4f;
     private static final float BOTTOM_TEXT_Y = 354f + 64f;
 
+    /** PScreen_RegionMap:156 {@code AnimatedSprite.create("Graphics/Pictures/mapFly",2,16)}. */
+    private static final int FLY_FRAMES = 2;
+    private static final int FLY_FRAME_FRAMES = 16;
+
     private final RuntimeContext context;
     private final MenuAssets assets;
+    /** {@code pbStartScene(false, 1)}: choosing a place to fly to. */
+    private boolean flyMode;
+    private int[] flyResult;
     private final TownMapModel model;
     private final boolean wallmap;
     private final int[] playerPosition;
@@ -79,6 +86,16 @@ public final class TownMapView {
 
     public boolean hasData() {
         return model.hasData();
+    }
+
+    /** {@code PokemonRegionMapScreen#pbStartFlyScreen} (214_PScreen_RegionMap:415-420). */
+    public void flyMode(boolean value) {
+        this.flyMode = value;
+    }
+
+    /** The chosen healing spot [map, x, y], or null when the player backed out. */
+    public int[] flyResult() {
+        return flyResult;
     }
 
     /** PScreen_RegionMap#pbMapScene (overwrite:71-202). @return true = close */
@@ -120,7 +137,15 @@ public final class TownMapView {
         }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
             MenuSe.close(context.audioManager());
+            flyResult = null;
             return true;
+        }
+        if (flyMode && input.wasPressed(GameAction.CONFIRM)) {          // :361-367 choosing an area to fly to
+            int[] spot = model.flySpot();
+            if (spot != null && context.gameState().fieldGlobals().visitedMaps.contains(spot[0])) {
+                flyResult = spot;
+                return true;
+            }
         }
         return false;
     }
@@ -193,6 +218,21 @@ public final class TownMapView {
             int y = ((Number) extra[3]).intValue();
             batch.draw(hidden, mapLeft + x * SQUARE,
                     height - mapTop - (y * SQUARE + hidden.getHeight()));
+        }
+        if (flyMode) {                                                    // :150-165 the places the player has been to
+            Texture marker = assets.graphic("Pictures", "mapFly");
+            if (marker != null) {
+                int frameWidth = marker.getWidth() / FLY_FRAMES;
+                int frame = (int) (elapsed * 40f / FLY_FRAME_FRAMES) % FLY_FRAMES;
+                for (int[] spot : model.flySpots()) {
+                    if (!context.gameState().fieldGlobals().visitedMaps.contains(spot[2])) {
+                        continue;
+                    }
+                    batch.draw(marker, squareX(spot[0]), height - squareY(spot[1]) - marker.getHeight(),
+                            frameWidth, marker.getHeight(), frame * frameWidth, 0, frameWidth, marker.getHeight(),
+                            false, false);
+                }
+            }
         }
         // The player head stays where pbStartScene put it (144-149).
         if (playerHead != null && playerPosition != null && playerPosition.length >= 3

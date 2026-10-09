@@ -53,29 +53,45 @@ public final class DexEntryView {
     /** @return true when the player closed the entry (B). */
     public boolean update(InputManager input) {
         scroll += 1f;
+        pokemon.runtime.audio.AudioManager audio = context.audioManager();
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
+            MenuSe.close(audio);                                              // 330_PokedexEntry_BW_Style:1016 pbPlayCloseMenuSE
             return true;
+        }
+        if (input.wasPressed(GameAction.SPECIAL)) {                           // :994-1013 Input::A
+            audio.stopSe();
+            if (page == 1 && seen()) {
+                playCry(audio);                                               // pbPlayCrySpecies
+            } else if (page == 2 && dataShowType == 2 && seen()) {
+                movePage++;
+                pokemon.runtime.audio.UiSounds.cursor(audio);
+            }
         }
         if (input.wasPressed(GameAction.LEFT)) {
             page--;
             if (page < 1) page = 5;
             dataShowType = 0;
+            pokemon.runtime.audio.UiSounds.named(audio, "GUI naming tab swap start");   // :1049-1052
         }
         if (input.wasPressed(GameAction.RIGHT)) {
             page++;
             if (page > 5) page = 1;
             dataShowType = 0;
+            pokemon.runtime.audio.UiSounds.named(audio, "GUI naming tab swap start");   // :1057-1061
         }
         if (input.wasPressed(GameAction.UP) && index > 0) {
             index--;
             form = 0;
+            neighbourSound(audio);                                            // :1026-1034
         }
         if (input.wasPressed(GameAction.DOWN) && index < dexlist.size() - 1) {
             index++;
             form = 0;
+            neighbourSound(audio);                                            // :1036-1044
         }
         if (input.wasPressed(GameAction.CONFIRM)) {
             if (page == 4 && availableForms().size() > 1) {
+                pokemon.runtime.audio.UiSounds.decision(audio);               // :1019-1021
                 form = (form + 1) % availableForms().size();
             } else if (page == 2 && dataShowType == 2) {
                 movePage++;
@@ -86,9 +102,27 @@ public final class DexEntryView {
             if (page == 2 && seen()) {
                 dataShowType = (dataShowType + 1) % DATA_MSG.length;
                 movePage = 0;
+                pokemon.runtime.audio.UiSounds.named(audio, "GUI naming tab swap start");   // :1064-1075
             }
         }
         return false;
+    }
+
+    /** pbSEStop, then the cry on the first page of a seen species, else the cursor sound. */
+    private void neighbourSound(pokemon.runtime.audio.AudioManager audio) {
+        audio.stopSe();
+        if (page == 1 && seen()) {
+            playCry(audio);
+        } else {
+            pokemon.runtime.audio.UiSounds.cursor(audio);
+        }
+    }
+
+    private void playCry(pokemon.runtime.audio.AudioManager audio) {
+        PbsData.Species s = species();
+        if (s != null) {
+            audio.playCry(s.id);
+        }
     }
 
     private PbsData.Species species() {

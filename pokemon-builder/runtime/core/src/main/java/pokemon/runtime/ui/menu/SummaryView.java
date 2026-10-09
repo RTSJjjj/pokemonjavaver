@@ -8,6 +8,7 @@ import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
+import pokemon.runtime.pokemon.PBExperience;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
@@ -34,6 +35,8 @@ public final class SummaryView {
     private static final int MOVE_DETAIL = 2;
     private static final int RIBBON_SELECT = 3;
     private static final int MARKING = 4;
+    /** pbStartForgetScene / pbChooseMoveToForget (303_BW_PScreen_Summary:229-262, 1449-1481). */
+    private static final int FORGET = 5;
 
     private static final Color WHITE = new Color(1f, 1f, 1f, 1f);
     private static final Color HEAD_SHADOW = new Color(132f / 255f, 132f / 255f, 132f / 255f, 1f);
@@ -79,6 +82,32 @@ public final class SummaryView {
     private int markingValue;
     private boolean markingDirty;
     private String notice = "";
+    // Forget mode: the move to learn (null = pbStartChooseMoveScreen-like plain choice of one of the known moves).
+    private PbsData.Move moveToLearn;
+    private boolean forgetDone;
+    private int forgetResult = -1;
+
+    /** {@code pbStartForgetScreen(party, partyindex, moveToLearn)}: choose the move that makes room for {@code moveToLearn}. */
+    public static SummaryView forForget(RuntimeContext context, Pokemon pokemon, PbsData.Move moveToLearn) {
+        Array<Pokemon> single = new Array<>();
+        single.add(pokemon);
+        SummaryView view = new SummaryView(context, single, 0);
+        view.page = 4;
+        view.mode = FORGET;
+        view.moveToLearn = moveToLearn;
+        view.moveIndex = 0;
+        return view;
+    }
+
+    /** True once the player chose (or backed out of) the forget screen. */
+    public boolean forgetDone() {
+        return forgetDone;
+    }
+
+    /** {@code pbChooseMoveToForget}'s answer: the slot to forget, or -1 (cancelled / the new move itself chosen). */
+    public int forgetResult() {
+        return forgetResult;
+    }
 
     public SummaryView(RuntimeContext context, Array<Pokemon> party, int index) {
         this(context, party, index, null);
@@ -106,6 +135,7 @@ public final class SummaryView {
         }
         switch (mode) {
             case MOVE_DETAIL: return updateMoveDetail(input, p);
+            case FORGET: return updateForget(input, p);
             case RIBBON_SELECT: return updateRibbonSelect(input, p);
             case OPTIONS: return updateOptions(input, p);
             case MARKING: return updateMarking(input, p);
@@ -252,6 +282,36 @@ public final class SummaryView {
         return false;
     }
 
+    /** pbChooseMoveToForget (303:1449-1481): the five rows are the four moves and the one to learn. */
+    private boolean updateForget(InputManager input, Pokemon p) {
+        int maxmove = moveToLearn != null ? 4 : 3;
+        int numMoves = p.moves.size;
+        if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
+            if (moveToLearn != null) MenuSe.close(context.audioManager());      // :1458 pbPlayCloseMenuSE if moveToLearn>0
+            forgetDone = true;
+            forgetResult = -1;                                                  // selmove = 4
+            return true;
+        }
+        if (input.wasPressed(GameAction.CONFIRM)) {
+            MenuSe.decision(context.audioManager());                            // :1461
+            forgetDone = true;
+            forgetResult = moveIndex == 4 ? -1 : moveIndex;                     // :1480
+            return true;
+        }
+        if (input.wasPressed(GameAction.UP)) {
+            moveIndex -= 1;
+            if (moveIndex < 0) moveIndex = maxmove;
+            if (moveIndex < 4 && moveIndex >= numMoves) moveIndex = numMoves - 1;
+            MenuSe.cursor(context.audioManager());
+        } else if (input.wasPressed(GameAction.DOWN)) {
+            moveIndex += 1;
+            if (moveIndex > maxmove) moveIndex = 0;
+            if (moveIndex < 4 && moveIndex >= numMoves) moveIndex = moveToLearn != null ? maxmove : 0;
+            MenuSe.cursor(context.audioManager());
+        }
+        return false;
+    }
+
     private static void swapMoves(Pokemon p, int a, int b) {
         if (a < 0 || b < 0 || a >= p.moves.size || b >= p.moves.size || a == b) {
             return;
@@ -380,7 +440,7 @@ public final class SummaryView {
             return;
         }
         drawBackground(b, a, w, h);
-        if (mode == MOVE_DETAIL) {
+        if (mode == MOVE_DETAIL || mode == FORGET) {
             drawMoveDetail(b, a, f, p, h);
             return;
         }
@@ -555,7 +615,7 @@ public final class SummaryView {
         f.draw(b, "下个等级所需要的经验", 34f, h - (292f + 64f), WHITE, WHITE_SHADOW);
         f.drawCentered(b, format(p.experienceToNextLevel()), 177f, h - (324f + 64f), BASE, SHADOW);
         drawTypes(b, a, p, h, 164f, 232f);
-        if (p.level < 100) {
+        if (p.level < PBExperience.maxLevel()) {
             Texture exp = a.graphic("Pictures/Summary", "overlay_exp");
             float frac = expFraction(p);
             float ew = Math.round(frac * 128f / 2f) * 2f;
@@ -709,7 +769,8 @@ public final class SummaryView {
     // drawSelectedMove / drawMoveSelection (page 4 Z).
     // ------------------------------------------------------------------
     private void drawMoveDetail(SpriteBatch b, MenuAssets a, MenuFont f, Pokemon p, float h) {
-        Texture menu = a.graphic("Pictures/Summary", "bg_movedetail");
+        boolean learn = mode == FORGET && moveToLearn != null;
+        Texture menu = a.graphic("Pictures/Summary", learn ? "bg_learnmove" : "bg_movedetail");   // drawMoveSelection:1019-1023
         if (menu != null) {
             b.draw(menu, 0f, 0f, ScreenMetrics.logicalWidth(), h);
         }
@@ -719,9 +780,13 @@ public final class SummaryView {
         f.draw(b, "威力", 20f, h - 122f, WHITE, MOVE_SHADOW);
         f.draw(b, "命中", 20f, h - 154f, WHITE, MOVE_SHADOW);
         f.draw(b, "标签", 20f, h - 186f, WHITE, MOVE_SHADOW);
-        float yPos = 98f;
-        for (int i = 0; i < 4; i++) {
+        float yPos = learn ? 98f - 76f : 98f;                                    // :1042-1043
+        for (int i = 0; i < (learn ? 5 : 4); i++) {
             Pokemon.MoveSlot slot = i < p.moves.size ? p.moves.get(i) : null;
+            if (i == 4) {
+                slot = new Pokemon.MoveSlot(moveToLearn);                         // :1046-1048 the move to learn
+                yPos += 20f;
+            }
             PbsData.Move move = slot == null ? null : slot.move;
             if (move != null) {
                 PbsData.TypeInfo info = typeInfo(move.type);
@@ -763,14 +828,19 @@ public final class SummaryView {
         Texture cursor = a.graphic("Pictures/Summary", "cursor_move");
         if (cursor != null && p.moves.size > 0) {
             int frameH = cursor.getHeight() / 2;
-            int srcY = moveIndex == movePresel ? frameH : 0;
-            drawImg(b, cursor, h, 286f, 91f + 64f * moveIndex, 272, frameH, 0, srcY);
+            int srcY = mode != FORGET && moveIndex == movePresel ? frameH : 0;
+            float cursorY = 91f + 64f * moveIndex;                                // MoveSelectionSprite#refresh (:69-83)
+            if (learn) {
+                cursorY -= 76f;
+                if (moveIndex == 4) cursorY += 20f;
+            }
+            drawImg(b, cursor, h, 286f, cursorY, 272, frameH, 0, srcY);
         }
     }
 
     private void drawSelectedMove(SpriteBatch b, MenuAssets a, MenuFont f, Pokemon p, float h) {
         Pokemon.MoveSlot slot = moveIndex < p.moves.size ? p.moves.get(moveIndex) : null;
-        PbsData.Move move = slot == null ? null : slot.move;
+        PbsData.Move move = mode == FORGET && moveIndex == 4 ? moveToLearn : slot == null ? null : slot.move;
         int power = move == null ? 0 : move.power;
         int accuracy = move == null ? 0 : move.accuracy;
         String powerText = power == 0 ? "---" : power == 1 ? "???" : String.valueOf(power);
@@ -1131,12 +1201,7 @@ public final class SummaryView {
     }
 
     private Texture itemIcon(MenuAssets a, String id) {
-        if (id == null || id.isEmpty()) return null;
-        PbsData.Item item = context.pbsData() == null ? null : context.pbsData().item(id);
-        Texture icon = null;
-        if (item != null) icon = a.icon(String.format("item%03d", item.id));
-        if (icon == null) icon = a.icon("item" + id);
-        return icon;
+        return ItemIcons.of(a, context.pbsData(), id);
     }
 
     private static void drawImg(SpriteBatch b, Texture t, float h, float x, float topY) {

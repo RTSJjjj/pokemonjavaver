@@ -5,7 +5,15 @@ import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.battle.PBNatures;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
+import pokemon.runtime.field.EvolutionWorld;
+import pokemon.runtime.field.ItemHandlers;
+import pokemon.runtime.field.ItemScene;
+import pokemon.runtime.field.ItemTask;
+import pokemon.runtime.field.TaskItemScene;
 import pokemon.runtime.pokemon.BallTypes;
+import pokemon.runtime.pokemon.ItemUse;
+import pokemon.runtime.pokemon.PBEvolution;
+import pokemon.runtime.pokemon.PBExperience;
 import pokemon.runtime.pokemon.Party;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
@@ -17,6 +25,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 段 PScreen_Party (Scripts.rxdata #210, 1697 行；原文抽取见
@@ -53,7 +62,7 @@ public final class PartyView {
     private static final int BORDER = 32;            // SpriteWindow:445/453 borderX/borderY
     private static final char PAUSE = '\u0001';      // _INTL("...\1")
 
-    private enum Mode { CHOOSE, COMMANDS, MESSAGE, CONFIRM, WAIT, SUMMARY }
+    private enum Mode { CHOOSE, COMMANDS, MESSAGE, CONFIRM, WAIT, SUMMARY, NUMBER, TOPRIGHT }
 
     /** pbChoosePokemon 的返回续体: result = 选中的格号/-1，switchRequested = {@code return [1,@activecmd]}。 */
     private interface ChooseDone {
@@ -67,11 +76,22 @@ public final class PartyView {
     private final RuntimeContext context;
     private final MenuClock clock = new MenuClock();
     private final TrainerState trainer;
-    private final Party party;
+    private Party party;
+    /** Battle only: display slot -> index in the trainer's party (pbPlayerDisplayParty puts the active battlers first). */
+    private int[] displayMap;
     private java.util.function.Consumer<Pokemon> bagHost;
     private Runnable storageHost;
     private boolean pendingHardRefresh;
     private SummaryView summary;
+    /** 226 PokemonEvolutionScene, running over the party screen (the command 进化, or an evolution stone's handler). */
+    private EvolutionView evolutionView;
+    private Runnable evolutionDone;
+    private RelearnerView relearnView;
+    private Runnable relearnDone;
+    /** :592-598 pbCheckEvolution(@pokemon)>0 of each panel, recomputed on the next draw after a refresh (null = stale). */
+    private final Boolean[] evolvable = new Boolean[6];
+    /** The summary screen's forget mode of an item handler's pbForgetMove. */
+    private SummaryView forgetSummary;
     private Runnable summaryYield;
     private Runnable summaryThen;
 
@@ -120,12 +140,18 @@ public final class PartyView {
     private int chosenIndex = -1;
 
     public PartyView(RuntimeContext context) {
+        this(context, true);
+    }
+
+    private PartyView(RuntimeContext context, boolean top) {
         this.context = context;
         this.trainer = context.gameState().trainer();
         this.party = trainer.party;
         // :1297-1300 pbPokemonScreen -> @scene.pbStartScene(@party, 请选择宝可梦。, nil, false, $Trainer.pokepc)
-        startScene(party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。", trainer.pokepc);
-        startTop();
+        startScene(party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。", top && trainer.pokepc);
+        if (top) {
+            startTop();
+        }
     }
 
     /** The summary's "携带道具" hands off to the bag (the host owns both views). */
@@ -146,7 +172,30 @@ public final class PartyView {
         battleChoose(value, true);
     }
 
+    /**
+     * Battle_Phase_Command:109-115 {@code pbPlayerDisplayParty}: the party as the battle shows it. {@code order[i]} is
+     * the trainer's party index shown in slot i; results of the chooser are mapped back.
+     */
+    public void displayOrder(int[] order) {
+        Party shown = new Party();
+        for (int index : order) {
+            shown.add(trainer.party.get(index));
+        }
+        this.party = shown;
+        this.displayMap = order.clone();
+        startScene(party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。", false);
+    }
+
+    /** The trainer's party index of a displayed slot. */
+    public int realIndex(int shown) {
+        return displayMap != null && shown >= 0 && shown < displayMap.length ? displayMap[shown] : shown;
+    }
+
     public void battleChoose(boolean value, boolean canCancel) {
+        if (!value) {
+            party = trainer.party;                                // the battle's display order ends with the screen
+            displayMap = null;
+        }
         battleChoose = value;
         battleCanCancel = canCancel;
         chosenIndex = -1;
@@ -169,7 +218,7 @@ public final class PartyView {
             beginChoose(false, -1, 0, this::battleChosen);
             return;
         }
-        chosenIndex = result;
+        chosenIndex = result < 0 ? result : realIndex(result);
         finished = true;
     }
 
@@ -290,11 +339,62 @@ public final class PartyView {
         if (bagHost != null) bagHost.accept(target);
     }
 
-    /** :857-873 pbUseItem — 登记: 背包的“使用于宝可梦”选择流程未建模。 */
-    private void pbUseItem(Pokemon target) {
-        // 登记: 空实现。原文 pbChooseItemScreen(Proc{ pbCanUseOnPokemon? / pbIsMachine? ... }) 后
-        // :1522-1525 pbUseItemOnPokemon(item,pkmn,self)。
+    private java.util.function.BiConsumer<java.util.function.Predicate<String>, java.util.function.Consumer<String>> itemHost;
+    private ItemHandlers itemHandlers;
+
+    /** The host opens the bag to pick one item (pbChooseItemScreen) and hands the item back; null when cancelled. */
+    public void itemHost(java.util.function.BiConsumer<java.util.function.Predicate<String>, java.util.function.Consumer<String>> host,
+                         ItemHandlers handlers) {
+        this.itemHost = host;
+        this.itemHandlers = handlers;
     }
+
+    /** :857-873 pbUseItem, then :1522-1525 pbUseItemOnPokemon(item, pkmn, self). */
+    private void pbUseItem(Pokemon target, int pkmnid, Runnable next) {
+        if (itemHost == null || itemHandlers == null) {
+            next.run();
+            return;
+        }
+        itemHost.accept(item -> {                              // :861-868 the bag's filter
+            if (!itemHandlers.hasUseOnPokemon(item) && !itemHandlers.isMachine(item)) return false;   // pbCanUseOnPokemon?
+            if (itemHandlers.isMachine(item)) {
+                String machine = itemHandlers.machineMove(item);
+                PbsData.Move move = machine == null ? null : context.pbsData().move(machine);
+                if (move == null) return false;
+                for (Pokemon.MoveSlot known : target.moves) {  // pokemon.hasMove?(move)
+                    if (known.move != null && known.move.internalName.equals(move.internalName)) return false;
+                }
+                return itemHandlers.compatibleWithMove(target, move);
+            }
+            return true;
+        }, picked -> {
+            if (picked == null) {                              // :1522 item>0
+                pbSetHelpText(party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。");   // :1520
+                next.run();
+                return;
+            }
+            pbSetHelpText(party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。");
+            runItemTask(scene -> itemHandlers.pbUseItemOnPokemon(picked, target, scene), () -> {
+                pbRefreshSingle(pkmnid);                       // :1524
+                next.run();
+            });
+        });
+    }
+
+    /** Runs a handler on this screen (the screen is already open: no pbStartScene of its own) and then {@code then}. */
+    private void runItemTask(java.util.function.Consumer<ItemScene> body, Runnable then) {
+        itemTask = ItemTask.start(body);
+        Runnable previous = itemDone;
+        itemDone = null;
+        itemAfter = () -> {
+            itemAfter = null;
+            itemDone = previous;
+            then.run();
+        };
+        pumpItemTask();
+    }
+
+    private Runnable itemAfter;
 
     /** :874-936 pbChoosePokemon 的开头(:875-880)。 */
     private void beginChoose(boolean sw, int initialsel, int canswitch, ChooseDone done) {
@@ -469,6 +569,7 @@ public final class PartyView {
      */
     private void refreshPanel(int i) {
         if (i < 0 || i >= 6) return;
+        evolvable[i] = null;
         Pokemon pokemon = party.get(i);
         if (pokemon != null && selected[i]) {                  // :599
             if (annotations[i] != null) detailsText = annotations[i];   // :603 @details.text = @text (text= 只接受 String，nil 被忽略 :227)
@@ -604,11 +705,9 @@ public final class PartyView {
                     }
                 });
             } else if (fNickname >= 0 && command == fNickname) {   // :1437
-                nickname(pkmn, pkmnid);                        // :1438-1448
-                next.run();
+                nickname(pkmn, pkmnid, next);                  // :1438-1448
             } else if (fEvolution >= 0 && command == fEvolution) { // :1449
-                evolution(pkmn);                               // :1450-1460
-                next.run();
+                evolution(pkmn, next);                         // :1450-1460
             } else if (fRelearn >= 0 && command == fRelearn) { // :1461
                 relearnMenu(pkmn, pkmnid, 0, next);            // :1462-1490
             } else if (fMail >= 0 && command == fMail) {       // :1491
@@ -632,9 +731,32 @@ public final class PartyView {
         return slot.move != null && internalName.equals(slot.move.internalName);
     }
 
-    /** 登记: HiddenMoveHandlers 未建模，hasHandler 恒为 false。 */
+    /** {@code HiddenMoveHandlers.hasHandler(move.id)} (179_PField_FieldMoves:21-23). */
     private boolean hasHiddenMoveHandler(Pokemon.MoveSlot slot) {
-        return false;
+        return slot.move != null && pokemon.runtime.field.HiddenMoves.hasHandler(slot.move.internalName);
+    }
+
+    /** The hidden move the player chose ({@code return [pkmn, move]}, :1401/:1407), for the pause menu to run once it closed. */
+    private Pokemon hiddenMovePokemon;
+    private String hiddenMoveId;
+    /** {@code PokemonRegionMapScreen#pbStartFlyScreen} (:1396-1398): the host picks the map and hands [map, x, y] back, or null. */
+    private java.util.function.Consumer<java.util.function.Consumer<int[]>> flyHost;
+
+    public void flyHost(java.util.function.Consumer<java.util.function.Consumer<int[]>> host) {
+        this.flyHost = host;
+    }
+
+    public Pokemon hiddenMovePokemon() {
+        return hiddenMovePokemon;
+    }
+
+    public String hiddenMoveId() {
+        return hiddenMoveId;
+    }
+
+    public void clearHiddenMove() {
+        hiddenMovePokemon = null;
+        hiddenMoveId = null;
     }
 
     /** :1357-1413 隐藏招式(乳饮/鸡蛋炸弹式的“治疗”招式、其余走 HiddenMoveHandlers)。 */
@@ -649,10 +771,57 @@ public final class PartyView {
             pbSetHelpText("要对哪只宝可梦使用？");             // :1367
             softboiledLoop(pkmn, pkmnid, pkmnid, amt, slot);   // :1368-1391
         } else {
-            // :1392-1411 pbCanUseHiddenMove?/pbConfirmUseHiddenMove/飞天地图
-            // 登记: HiddenMoveHandlers、PokemonRegionMap(pbStartFlyScreen) 未建模，空实现。
-            startTop();
+            // :1392-1411 pbCanUseHiddenMove? / pbConfirmUseHiddenMove / the fly map
+            final String move = slot.move.internalName;
+            pokemon.runtime.state.GameState gameState = context.gameState();
+            pokemon.runtime.field.HiddenMoves.World world = new pokemon.runtime.field.MapPortWorld(
+                    context.mapPort(), gameState, context.database());
+            pokemon.runtime.field.HiddenMoves.Check check = pokemon.runtime.field.HiddenMoves.canUse(
+                    move, pkmn, gameState, context.pbsData(), world);
+            if (!check.ok) {
+                if (check.message != null) {
+                    display(check.message, this::startTop);        // showmsg: the line, then the party list again (:1409-1410 break)
+                } else {
+                    startTop();
+                }
+                return;
+            }
+            String question = pokemon.runtime.field.HiddenMoves.confirmQuestion(move, gameState, context.pbsData(), world);
+            Runnable proceed = () -> useHiddenMove(pkmn, move);
+            if (question == null) {
+                proceed.run();                                     // no ConfirmUseMove handler: true
+            } else if (question.isEmpty()) {
+                startTop();                                        // the handler answers false without asking
+            } else {
+                confirm(question, yes -> {
+                    if (yes) proceed.run(); else startTop();
+                });
+            }
         }
+    }
+
+    /** :1394-1407 the party screen ends and the move is used from the map. */
+    private void useHiddenMove(Pokemon pkmn, String move) {
+        if ("FLY".equals(move)) {                                  // :1395-1406 the fly map first
+            if (flyHost == null) {
+                startTop();                                        // 登记: no host opens the fly map
+                return;
+            }
+            flyHost.accept(destination -> {
+                if (destination == null) {
+                    startTop();                                    // :1403-1405 back to the party screen
+                    return;
+                }
+                context.gameState().flyData(destination);          // :1400 $PokemonTemp.flydata = ret
+                hiddenMovePokemon = pkmn;
+                hiddenMoveId = move;
+                finished = true;
+            });
+            return;
+        }
+        hiddenMovePokemon = pkmn;                                  // :1407
+        hiddenMoveId = move;
+        finished = true;
     }
 
     private void softboiledLoop(Pokemon pkmn, int oldpkmnid, int current, int amt, Pokemon.MoveSlot slot) {
@@ -709,17 +878,47 @@ public final class PartyView {
         // dorefresh = true
     }
 
-    /** :1438-1448 昵称 — 登记: pbEnterPokemonName 未接，空实现。 */
-    private void nickname(Pokemon pkmn, int pkmnid) {
-        // speciesname = PBSpecies.getName(pkmn.species)
-        // oldname = (pkmn.name && pkmn.name!=speciesname) ? pkmn.name : ""
-        // newname = pbEnterPokemonName(_INTL("{1}的昵称是？",speciesname), 0, MAX_POKEMON_NAME_SIZE, oldname, pkmn)
-        // newname != "" -> pkmn.name = newname; newname == "" -> pkmn.name = speciesname; pbRefreshSingle(pkmnid)
+    private TextEntryView nameEntry;
+    private Consumer<String> nameDone;
+
+    /** :1438-1448 昵称 — 登记: the name screen shows no Pokemon icon (pbEnterPokemonName's pokemon argument). */
+    private void nickname(Pokemon pkmn, int pkmnid, Runnable next) {
+        String speciesname = pkmn.species == null ? "" : pkmn.species.name;                  // :1439
+        String oldname = pkmn.name != null && !pkmn.name.equals(speciesname) ? pkmn.name : "";   // :1440
+        nameEntry = new TextEntryView(context, intl("{1}的昵称是？", speciesname), 0, 10, oldname, null);   // :1441-1442
+        nameDone = newname -> {
+            if (!newname.isEmpty()) {                                                        // :1443
+                pkmn.name = newname;                                                         // :1444
+            } else {
+                pkmn.name = speciesname;                                                     // :1447
+            }
+            pbRefreshSingle(pkmnid);                                                         // :1445 / :1448
+            next.run();
+        };
     }
 
-    /** :1450-1460 进化 — 登记: PokemonEvolutionScene 未接，空实现。 */
-    private void evolution(Pokemon pkmn) {
-        // 记下 BGM/音量 -> PokemonEvolutionScene#pbStartScreen(pkmn,ret)/pbEvolution(true)/pbEndScreen -> 还原 BGM
+    /** :1450-1460 进化: the evolution scene (cancellable), the saved BGM comes back when it closes. */
+    private void evolution(Pokemon pkmn, Runnable next) {
+        PbsData.Species target = evolutionTarget(pkmn);                  // :1315 ret
+        if (target == null) {
+            next.run();
+            return;
+        }
+        startEvolution(pkmn, target, true, next);
+    }
+
+    private void startEvolution(Pokemon pkmn, PbsData.Species target, boolean canCancel, Runnable then) {
+        evolutionView = new EvolutionView(context, pkmn, target, canCancel);   // pbStartScreen(pkmn,ret)
+        evolutionDone = then;
+    }
+
+    private void evolutionClosed() {                                   // pbEndScreen, then the scene refreshes
+        evolutionView = null;
+        Runnable then = evolutionDone;
+        evolutionDone = null;
+        pbHardRefresh();
+        mode = Mode.CHOOSE;
+        if (then != null) then.run();
     }
 
     /** :1462-1490 招式：回忆/忘记 */
@@ -731,8 +930,17 @@ public final class PartyView {
         showCommands(intl("要对{1}的招式做什么？", pkmn.name), commands, null, command, picked -> {   // :1464-1465
             switch (picked) {
                 case 0:                                        // :1467
-                    // :1468-1474 pbHasRelearnableMove?/pbRelearnMoveScreen — 登记: 招式回忆未建模，空实现。
-                    relearnMenu(pkmn, pkmnid, picked, next);
+                    if (pokemon.runtime.pokemon.MoveRelearner.hasRelearnableMove(pkmn, context.pbsData())) {   // :1468
+                        relearnView = new RelearnerView(context, pkmn);        // :1469 pbRelearnMoveScreen(pkmn)
+                        relearnDone = () -> {
+                            pbHardRefresh();                                   // :1470
+                            pbRefreshSingle(pkmnid);                           // :1471
+                            relearnMenu(pkmn, pkmnid, picked, next);
+                        };
+                    } else {
+                        display(intl("{1}没有可以回忆的招式。", pkmn.name),        // :1473
+                                () -> relearnMenu(pkmn, pkmnid, picked, next));
+                    }
                     break;
                 case 1:                                        // :1475
                     if (pkmn.moves.size > 1 && pkmn.moves.get(1).move != null) {   // :1476
@@ -795,9 +1003,7 @@ public final class PartyView {
         final int fUse = cmdUseItem, fGive = cmdGiveItem, fTake = cmdTakeItem, fMove = cmdMoveItem;
         showCommands("用道具做什么？", itemcommands, null, 0, command -> {   // :1517
             if (fUse >= 0 && command == fUse) {                // :1518 Use
-                pbUseItem(pkmn);                               // :1519-1525
-                pbRefreshSingle(pkmnid);
-                next.run();
+                pbUseItem(pkmn, pkmnid, next);                 // :1519-1525
             } else if (fGive >= 0 && command == fGive) {       // :1526 Give
                 pbChooseItem(pkmn);                            // :1527-1534
                 pbRefreshSingle(pkmnid);
@@ -919,6 +1125,316 @@ public final class PartyView {
     /** :1270-1296 pbChooseTradablePokemon — 登记: 空实现(无调用方)。 */
     public int pbChooseTradablePokemon() {
         return -1;
+    }
+
+    // =====================================================================
+    // 道具处理器的屏幕: ItemHandlers 的阻塞 Ruby 在 ItemTask 线程里跑，每个 scene 调用在这里用状态机应答
+    // =====================================================================
+
+    private ItemTask itemTask;
+    private Runnable itemDone;
+    private com.badlogic.gdx.graphics.Texture pixel;
+
+    // Window_InputNumberPokemon (065_SpriteWindow_text:612-): pbMessageChooseNumber
+    private int numberDigits, numberValue, numberIndex, numberMax, numberMin, numberCancel, numberFrame;
+    private IntDone numberDone;
+    // pbTopRightWindow (188_PItem_Items:547-562)
+    private String topRightText = "";
+    private Runnable topRightDone;
+
+    /**
+     * The party screen the item handlers run on (pbUseItem / pbUseItemOnPokemon / pbMoveTutorChoose): the screen is
+     * started by the handler's own {@code pbStartScene} and closes when the handler returns.
+     *
+     * @param done runs when the screen has closed (the host returns to the bag)
+     */
+    public static PartyView forItem(RuntimeContext context, java.util.function.Consumer<ItemScene> body, Runnable done) {
+        return forItem(context, body, done, null);
+    }
+
+    /** {@link #forItem(RuntimeContext, java.util.function.Consumer, Runnable)} for a battle: the party in its display order. */
+    public static PartyView forItem(RuntimeContext context, java.util.function.Consumer<ItemScene> body, Runnable done,
+                                    int[] displayOrder) {
+        PartyView view = new PartyView(context, false);
+        if (displayOrder != null) {
+            view.displayOrder(displayOrder);
+        }
+        view.itemTask = ItemTask.start(body);
+        view.itemDone = done;
+        view.pumpItemTask();
+        return view;
+    }
+
+    /** Runs the handler up to its next screen call and starts that call. */
+    private void pumpItemTask() {
+        while (itemTask != null) {
+            if (itemTask.resume()) {                           // the handler returned
+                itemTask = null;
+                if (itemAfter != null) {                       // started from this screen's own item menu
+                    itemAfter.run();
+                } else {
+                    endScene();                                // pbEndScene
+                }
+                return;
+            }
+            TaskItemScene.Request r = itemTask.pending();
+            switch (r.kind) {
+                case START_SCENE:
+                    pbSetHelpText(r.text);                     // :681 / :884
+                    pbAnnotate(r.annotations);
+                    itemTask.answer(null);
+                    break;
+                case HELP_TEXT:
+                    pbSetHelpText(r.text);
+                    itemTask.answer(null);
+                    break;
+                case ANNOTATIONS: {                            // :1143-1151 pbRefreshAnnotations
+                    if (pbHasAnnotations()) {
+                        String[] annot = new String[party.size()];
+                        for (int i = 0; i < annot.length; i++) {
+                            annot[i] = r.able.test(party.get(i)) ? "可以使用" : "无效";
+                        }
+                        pbAnnotate(annot);
+                    }
+                    itemTask.answer(null);
+                    break;
+                }
+                case CLEAR_ANNOTATIONS:
+                    pbClearAnnotations();
+                    itemTask.answer(null);
+                    break;
+                case REFRESH:
+                    pbRefresh();
+                    itemTask.answer(null);
+                    break;
+                case HARD_REFRESH:
+                    pbHardRefresh();
+                    itemTask.answer(null);
+                    break;
+                case SE:
+                    if (!r.text.isEmpty()) playSe(r.text, 100);
+                    itemTask.answer(null);
+                    break;
+                case EVOLUTION:                                // 189:408-415 PokemonEvolutionScene.pbEvolution(false)
+                    startEvolution(r.pokemon, r.species, false, () -> answerItem(null));
+                    return;
+                case DISPLAY:
+                case MESSAGE:
+                    display(itemText(r.text), () -> answerItem(null));
+                    return;
+                case CONFIRM:
+                    confirm(itemText(r.text), yes -> answerItem(yes));
+                    return;
+                case CHOOSE_POKEMON:
+                    if (r.text != null && !r.text.isEmpty()) pbSetHelpText(r.text);
+                    beginChoose(false, -1, 0, (picked, switchRequested) -> answerItem(picked));
+                    return;
+                case CHOOSE_MOVE: {                            // :1131-1142 pbChooseMove
+                    List<String> names = new ArrayList<>();
+                    for (Pokemon.MoveSlot slot : r.pokemon.moves) {
+                        String name = slot.move == null ? "" : slot.move.name;
+                        if (slot.totalPp() <= 0) names.add(intl("{1} (PP：---)", name));
+                        else names.add(intl("{1} (PP：{2}/{3})", name, slot.pp, slot.totalPp()));
+                    }
+                    showCommands(r.text, names, null, 0, index -> answerItem(index));
+                    return;
+                }
+                case SHOW_COMMANDS:
+                    showCommands(r.text, r.commands, null, r.number, index -> answerItem(index));
+                    return;
+                case MESSAGE_COMMANDS:
+                    messageCommands(r);
+                    return;
+                case CHOOSE_NUMBER:
+                    startNumber(itemText(r.text), r.number, r.defaultValue, r.cancelValue);
+                    return;
+                case TOP_RIGHT:
+                    startTopRight(r.text);
+                    return;
+                case FORGET_MOVE:                              // 303_BW_PScreen_Summary:1566-1580 pbStartForgetScreen
+                    forgetSummary = SummaryView.forForget(context, r.pokemon, r.move);
+                    return;
+                default:
+                    itemTask.answer(null);
+                    break;
+            }
+        }
+    }
+
+    private void answerItem(Object value) {
+        if (itemTask != null) {
+            itemTask.answer(value);
+            pumpItemTask();
+        }
+    }
+
+    /** pbMessage(text, commands, cmdIfCancel) (071_Messages): B answers cmdIfCancel-1, -1 stays -1, 0 cannot cancel. */
+    private void messageCommands(TaskItemScene.Request r) {
+        showCommands(r.text, r.commands, null, 0, index -> {
+            if (index < 0) {
+                if (r.cancelValue > 0) {
+                    answerItem(r.cancelValue - 1);
+                } else if (r.cancelValue == 0) {
+                    messageCommands(r);                        // the question cannot be cancelled
+                } else {
+                    answerItem(-1);
+                }
+            } else {
+                answerItem(index);
+            }
+        });
+    }
+
+    /** The control codes of a handler's text: {@code \se[name]} plays the SE, {@code \wt[n]} and other waits are dropped. */
+    private String itemText(String text) {
+        if (text == null) return "";
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\\\(se|wt|wtnp|me|bgm)\\[([^\\]]*)\\]").matcher(text);
+        StringBuffer out = new StringBuffer();
+        while (m.find()) {
+            if ("se".equals(m.group(1)) && !m.group(2).isEmpty()) playSe(m.group(2), 100);
+            m.appendReplacement(out, "");
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    // ---- pbMessageChooseNumber
+
+    private void startNumber(String text, int max, int defaultValue, int cancelValue) {
+        messageText = text;
+        messageShown = 0;
+        messagePausing = false;
+        helpVisible = false;
+        numberMax = max;
+        numberMin = 1;
+        numberDigits = String.valueOf(Math.max(1, max)).length();       // ChooseNumberParams#setRange
+        numberValue = Math.max(0, Math.min(defaultValue, (int) Math.pow(10, numberDigits) - 1));
+        numberIndex = numberDigits - 1;
+        numberCancel = cancelValue;
+        numberFrame = 0;
+        numberDone = value -> answerItem(value);
+        mode = Mode.NUMBER;
+    }
+
+    private void updateNumber(InputManager input, int ticks) {
+        for (int t = 0; t < ticks; t++) advanceMessage();
+        if (messageBusy()) {
+            if (input.wasPressed(GameAction.CONFIRM) && messagePausing) {
+                playDecisionSe();
+                messagePausing = false;
+                messageShown++;
+            }
+            return;
+        }
+        numberFrame = (numberFrame + ticks) % 30;
+        if (input.wasRepeated(GameAction.UP) || input.wasRepeated(GameAction.DOWN)) {   // :679-694
+            playCursorSe();
+            int place = (int) Math.pow(10, numberDigits - 1 - numberIndex);
+            int n = numberValue / place % 10;
+            numberValue -= n * place;
+            n = input.wasRepeated(GameAction.UP) ? (n + 1) % 10 : (n + 9) % 10;
+            numberValue += n * place;
+        } else if (input.wasRepeated(GameAction.RIGHT)) {                 // :695-701
+            if (numberDigits >= 2) {
+                playCursorSe();
+                numberIndex = (numberIndex + 1) % numberDigits;
+                numberFrame = 0;
+            }
+        } else if (input.wasRepeated(GameAction.LEFT)) {                  // :702-708
+            if (numberDigits >= 2) {
+                playCursorSe();
+                numberIndex = (numberIndex + numberDigits - 1) % numberDigits;
+                numberFrame = 0;
+            }
+        }
+        if (input.wasPressed(GameAction.CONFIRM)) {                       // 071_Messages:781-790
+            if (numberValue > numberMax || numberValue < numberMin) {
+                MenuSe.buzzer(context.audioManager());
+            } else {
+                playDecisionSe();
+                finishNumber(numberValue);
+            }
+        } else if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
+            playSe("GUI sel cancel", 80);                                 // pbPlayCancelSE
+            finishNumber(numberCancel);
+        }
+    }
+
+    private void finishNumber(int value) {
+        IntDone done = numberDone;
+        numberDone = null;
+        helpVisible = true;
+        mode = Mode.CHOOSE;
+        if (done != null) done.done(value);
+    }
+
+    private void drawNumber(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, Color[] tc, float w, float h) {
+        drawMessage(b, a, f, skin, tc, w, h);
+        if (messageBusy()) return;
+        float width = numberDigits * 24 + 8 + BORDER;                    // :622
+        float height = 32 + BORDER;                                       // :623
+        float x = w - width, top = h - (BORDER + 2 * ROW) - height;       // pbPositionNearMsgWindow(:right)
+        window(b, a, skin, x, top, width, height);
+        String digits = String.format("%0" + numberDigits + "d", numberValue);
+        for (int i = 0; i < numberDigits; i++) {
+            float cx = x + 16f + i * 24f + 12f;
+            txt(b, f, digits.substring(i, i + 1), cx, top + 16f + (32f - f.lineHeight()) / 2f, 2, tc[0], tc[1]);
+            if (i == numberIndex && numberFrame / 15 == 0) {              // :719 underline
+                float tw = f.width(digits.substring(i, i + 1));
+                fillRect(b, cx - tw / 2f, top + 16f + 30f, tw, 2f, tc[0]);
+            }
+        }
+    }
+
+    private void fillRect(SpriteBatch b, float x, float top, float width, float height, Color color) {
+        if (pixel == null) {
+            com.badlogic.gdx.graphics.Pixmap pm = new com.badlogic.gdx.graphics.Pixmap(1, 1, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+            pm.setColor(1f, 1f, 1f, 1f);
+            pm.fill();
+            pixel = new Texture(pm);
+            pm.dispose();
+        }
+        Color old = b.getColor().cpy();
+        b.setColor(color);
+        b.draw(pixel, x, screenH - top - height, width, height);
+        b.setColor(old);
+    }
+
+    // ---- pbTopRightWindow
+
+    private void startTopRight(String text) {
+        topRightText = text;
+        topRightDone = () -> answerItem(null);
+        playDecisionSe();                                                 // :553 pbPlayDecisionSE
+        mode = Mode.TOPRIGHT;
+    }
+
+    private void updateTopRight(InputManager input) {
+        if (input.wasPressed(GameAction.CONFIRM)) {                       // :559 break if Input.trigger?(Input::C)
+            Runnable done = topRightDone;
+            topRightDone = null;
+            mode = Mode.CHOOSE;
+            if (done != null) done.run();
+        }
+    }
+
+    private void drawTopRight(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, Color[] tc, float w) {
+        String[] lines = topRightText.split("\r\n");
+        float width = 198f;                                               // :549
+        float height = BORDER + lines.length * ROW;
+        float x = w - width;
+        window(b, a, skin, x, 0f, width, height);
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            int tag = line.indexOf("<r>");
+            float y = 16f + i * ROW + (ROW - f.lineHeight()) / 2f;
+            if (tag < 0) {
+                txt(b, f, line, x + 16f, y, 0, tc[0], tc[1]);
+            } else {
+                txt(b, f, line.substring(0, tag), x + 16f, y, 0, tc[0], tc[1]);
+                txt(b, f, line.substring(tag + 3), x + width - 16f, y, 1, tc[0], tc[1]);
+            }
+        }
     }
 
     // =====================================================================
@@ -1085,8 +1601,41 @@ public final class PartyView {
             pendingHardRefresh = false;
             pbHardRefresh();                                   // :929
         }
+        if (forgetSummary != null) {
+            if (forgetSummary.update(input)) {
+                int chosen = forgetSummary.forgetResult();
+                forgetSummary = null;
+                answerItem(chosen);
+            }
+            return finishedNow();
+        }
         if (summary != null) {
             if (summary.update(input)) summaryClosed();
+            return finishedNow();
+        }
+        if (evolutionView != null) {
+            if (evolutionView.update(input)) evolutionClosed();
+            return finishedNow();
+        }
+        if (nameEntry != null) {
+            if (nameEntry.update(input)) {
+                String typed = nameEntry.result();
+                nameEntry.dispose();
+                nameEntry = null;
+                Consumer<String> then = nameDone;
+                nameDone = null;
+                if (then != null) then.accept(typed == null ? "" : typed);
+            }
+            return finishedNow();
+        }
+        if (relearnView != null) {
+            if (relearnView.update(input)) {
+                relearnView = null;
+                Runnable then = relearnDone;
+                relearnDone = null;
+                mode = Mode.CHOOSE;
+                if (then != null) then.run();
+            }
             return finishedNow();
         }
         int ticks = clock.advance();                           // RGSS 的 40fps
@@ -1103,6 +1652,12 @@ public final class PartyView {
                 break;
             case CONFIRM:
                 updateConfirm(input, ticks);
+                break;
+            case NUMBER:
+                updateNumber(input, ticks);
+                break;
+            case TOPRIGHT:
+                updateTopRight(input);
                 break;
             case WAIT:
                 waitFrames -= ticks;
@@ -1122,6 +1677,11 @@ public final class PartyView {
     private boolean finishedNow() {
         if (finished) {
             finished = false;
+            if (itemDone != null) {
+                Runnable done = itemDone;
+                itemDone = null;
+                done.run();
+            }
             return true;
         }
         return false;
@@ -1168,8 +1728,24 @@ public final class PartyView {
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, MenuFont smallFont) {
         float w = ScreenMetrics.logicalWidth(), h = ScreenMetrics.logicalHeight();
         screenH = h;
+        if (forgetSummary != null) {
+            forgetSummary.render(b, a, f, skin);
+            return;
+        }
         if (summary != null) {
             summary.render(b, a, f, skin);
+            return;
+        }
+        if (evolutionView != null && !evolutionView.hostVisible()) {
+            evolutionView.render(b, a, f, skin);
+            return;
+        }
+        if (nameEntry != null) {
+            nameEntry.render(b, a, f, skin);
+            return;
+        }
+        if (relearnView != null && !relearnView.hostVisible()) {
+            relearnView.render(b, a, f, skin);
             return;
         }
         // The details panel's battler sprite is decoded from disk the first time a
@@ -1211,9 +1787,17 @@ public final class PartyView {
                 drawMessage(b, a, f, skin, tc, w, h);
                 if (!messageBusy()) drawConfirmWindow(b, a, f, skin, tc, w, h);
                 break;
+            case NUMBER:
+                drawNumber(b, a, f, skin, tc, w, h);
+                break;
+            case TOPRIGHT:
+                drawTopRight(b, a, f, skin, tc, w);
+                break;
             default:
                 break;
         }
+        if (evolutionView != null) evolutionView.render(b, a, f, skin);   // the black fades over the party screen
+        if (relearnView != null) relearnView.render(b, a, f, skin);
     }
 
     private void plane(SpriteBatch b, MenuAssets a, String name, float w, float h) {
@@ -1246,6 +1830,11 @@ public final class PartyView {
     }
 
     /** :540-612 SelectionPanel#refresh 的绘制部分 + :425-471 初始坐标。 */
+    private boolean evolvableOf(int index, Pokemon p) {
+        if (evolvable[index] == null) evolvable[index] = canEvolveNow(p);
+        return evolvable[index];
+    }
+
     private void drawSlot(SpriteBatch b, MenuAssets a, int index, Pokemon p, float w) {
         if (p == null) return;                                 // :687 BlankPanel 不画
         float x = (w - 430f) / 2f + SLOT_WIDTH * index;        // :430-431
@@ -1280,7 +1869,7 @@ public final class PartyView {
         if (status >= 0 && statuses != null && status * 16 + 16 <= statuses.getHeight()) {   // :587-590
             img(b, statuses, x + 12f, y + 12f, 0, status * 16, 44, 16);
         }
-        if (canEvolveNow(p)) {                                 // :592-598
+        if (evolvableOf(index, p)) {                           // :592-598
             Texture evo = a.graphic("Pictures/Party", "icon_evo");
             if (evo != null) img(b, evo, x + 12f, y + 64f, 0, 0, Math.min(34, evo.getWidth()), Math.min(13, evo.getHeight()));
         }
@@ -1597,10 +2186,10 @@ public final class PartyView {
         }
     }
 
-    /** 他段: PokeBattle_Pokemon:153-160 expFraction (PBExperience.maxLevel=100 — 登记)。 */
+    /** 他段: PokeBattle_Pokemon:153-160 expFraction (PBExperience.maxLevel=210)。 */
     private static float pokemonExpFraction(Pokemon p) {
         int l = p.level;
-        if (l >= 100) return 0f;
+        if (l >= PBExperience.maxLevel()) return 0f;
         int startexp = PokemonStats.experienceForLevel(p.growthRate(), l);
         int endexp = PokemonStats.experienceForLevel(p.growthRate(), l + 1);
         return 1f * (p.exp - startexp) / (endexp - startexp);
@@ -1657,87 +2246,17 @@ public final class PartyView {
     }
 
     /**
-     * {@code pbCheckEvolutionEx} over the {@code levelUpCheck} methods
-     * (Pokemon_Evolution:296+): true when one of the Pokemon's evolutions is a
-     * level-up method it already satisfies (PScreen_Party:592-598 / :1315-1318).
-     * 登记: 日夜/地点/天气方法的覆盖沿用旧实现，未对 PBEvolution 原文逐行核对。
+     * {@code pbCheckEvolution(pkmn)} (201_Pokemon_Evolution:280-283) > 0 (PScreen_Party:592-598 / :1315-1318): the check
+     * of every level-up evolution method of the species, with the world they read ({@link EvolutionWorld}).
      */
     private boolean canEvolveNow(Pokemon p) {
-        if (p == null || p.species == null || p.egg) return false;
-        for (PbsData.Evolution e : p.species.evolutions) {
-            String method = e.method;
-            if (method == null) continue;
-            int level = intParameter(e.parameter);
-            int attack = p.stat(PokemonStats.ATTACK);
-            int defense = p.stat(PokemonStats.DEFENSE);
-            switch (method) {
-                case "Level":
-                case "Ninjask":
-                    if (p.level >= level) return true;
-                    break;
-                case "LevelMale":
-                    if (p.level >= level && p.gender == PokemonStats.MALE) return true;
-                    break;
-                case "LevelFemale":
-                    if (p.level >= level && p.gender == PokemonStats.FEMALE) return true;
-                    break;
-                case "Happiness":
-                case "Shedinja":
-                    if (p.happiness >= 220) return true;
-                    break;
-                case "HappinessMale":
-                    if (p.happiness >= 220 && p.gender == PokemonStats.MALE) return true;
-                    break;
-                case "HappinessFemale":
-                    if (p.happiness >= 220 && p.gender == PokemonStats.FEMALE) return true;
-                    break;
-                case "Silcoon":
-                    if (p.level >= level && (((p.personalID >> 16) & 0xFFFF) % 10) < 5) return true;
-                    break;
-                case "Cascoon":
-                    if (p.level >= level && (((p.personalID >> 16) & 0xFFFF) % 10) >= 5) return true;
-                    break;
-                case "LevelDay":
-                    if (p.level >= level && pokemon.runtime.map.DayNightTone.test("isDay?")) return true;
-                    break;
-                case "LevelNight":
-                    if (p.level >= level && pokemon.runtime.map.DayNightTone.test("isNight?")) return true;
-                    break;
-                case "LevelMorning":
-                    if (p.level >= level && pokemon.runtime.map.DayNightTone.test("isMorning?")) return true;
-                    break;
-                case "LevelAfternoon":
-                    if (p.level >= level && pokemon.runtime.map.DayNightTone.test("isAfternoon?")) return true;
-                    break;
-                case "LevelEvening":
-                    if (p.level >= level && pokemon.runtime.map.DayNightTone.test("isEvening?")) return true;
-                    break;
-                case "HappinessDay":
-                    if (p.happiness >= 220 && pokemon.runtime.map.DayNightTone.test("isDay?")) return true;
-                    break;
-                case "HappinessNight":
-                    if (p.happiness >= 220 && pokemon.runtime.map.DayNightTone.test("isNight?")) return true;
-                    break;
-                case "AttackGreater":
-                    if (p.level >= level && attack > defense) return true;
-                    break;
-                case "DefenseGreater":
-                    if (p.level >= level && attack < defense) return true;
-                    break;
-                case "AtkDefEqual":
-                    if (p.level >= level && attack == defense) return true;
-                    break;
-                case "LevelDarkInParty":
-                    if (p.level >= level && partyHasType("DARK")) return true;
-                    break;
-                case "HasInParty":
-                    if (ownedSpecies(e.parameter)) return true;
-                    break;
-                default:
-                    break;
-            }
-        }
-        return false;
+        return evolutionTarget(p) != null;
+    }
+
+    private PbsData.Species evolutionTarget(Pokemon p) {
+        if (p == null || p.species == null || p.egg || context.pbsData() == null) return null;
+        String name = PBEvolution.checkEvolution(p, null, new EvolutionWorld(context));
+        return name == null ? null : context.pbsData().species(name);
     }
 
     private boolean partyHasType(String type) {
@@ -1770,13 +2289,9 @@ public final class PartyView {
         return icon;
     }
 
-    /** PSystem_FileUtilities:273-300 pbItemIconFile: item<NAME> -> item%03d -> item000. 登记: TM/机器图标分支未接。 */
+    /** PSystem_FileUtilities:273-300 pbItemIconFile: item<NAME> -> item%03d -> item000. */
     private Texture itemIcon(MenuAssets a, String id) {
-        PbsData.Item item = context.pbsData() == null ? null : context.pbsData().item(id);
-        Texture icon = a.icon("item" + id);
-        if (icon == null && item != null) icon = a.icon(String.format("item%03d", item.id));
-        if (icon == null) icon = a.icon("item000");
-        return icon;
+        return ItemIcons.of(a, context.pbsData(), id);
     }
 
     /** ES's Battle Info Display:597-617 pbHeldItemIconFile: item%03d, 否则 icon_item。 */

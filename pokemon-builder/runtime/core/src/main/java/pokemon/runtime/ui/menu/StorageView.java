@@ -55,7 +55,7 @@ public final class StorageView {
     private static final Color BOX_NAME = new Color(41f / 255f, 41f / 255f, 41f / 255f, 1f);        // :463
     private static final Color WHITE = new Color(1f, 1f, 1f, 1f);
 
-    private enum Mode { SELECT_BOX, SELECT_PARTY, COMMANDS, DISPLAY, MARKING, ANIM, MESSAGE, SUMMARY, BAG, IDLE }
+    private enum Mode { SELECT_BOX, SELECT_PARTY, COMMANDS, DISPLAY, MARKING, ANIM, MESSAGE, SUMMARY, BAG, TEXT, IDLE }
 
     // ------------------------------------------------------------------
     // 精灵 (PokemonBoxIcon / PokemonBoxSprite / PokemonBoxPartySprite / PokemonBoxArrow)
@@ -382,6 +382,7 @@ public final class StorageView {
         if (command != 2) {                                      // :661 Drop down tab only on Deposit
             boxparty.x = 182;
             boxparty.y = screenHeightOrDefault();
+            boxparty.refresh();                                  // :525-540 x= / y= move the icons with the tab
         }
         arrowGrabbed(null);
         grabbingState = 0;
@@ -1064,9 +1065,23 @@ public final class StorageView {
 
     /** :1275-1284 pbBoxName — 登记: pbEnterBoxName(文字输入)未建模，空实现。 */
     private void pbBoxName(String helptext, int minchars, int maxchars, Runnable then) {
-        // ret = pbEnterBoxName(helptext,minchars,maxchars); storage[currentBox].name = ret if ret.length>0
-        // box.refreshBox = true; pbRefresh
-        then.run();
+        enterText(helptext, minchars, maxchars, "", ret -> {     // :1277 pbEnterBoxName (:1276 fades the sprites out)
+            if (ret.length() > 0) {                              // :1278
+                storage.box(storage.currentBox).name = ret;      // :1279
+            }
+            box = new BoxSprite(storage.currentBox);             // :1281 @sprites["box"].refreshBox = true
+            then.run();                                          // :1282 pbRefresh
+        });
+    }
+
+    private TextEntryView textEntry;
+    private Consumer<String> textDone;
+
+    /** {@code pbEnterBoxName / pbEnterPokemonName}: the text entry scene over the storage screen. 登记: no subject sprite. */
+    private void enterText(String helptext, int min, int max, String initial, Consumer<String> done) {
+        textEntry = new TextEntryView(context, helptext, min, max, initial, null);
+        textDone = done;
+        mode = Mode.TEXT;
     }
 
     /** :1286-1294 pbChooseItem */
@@ -1633,9 +1648,16 @@ public final class StorageView {
             pbDisplay("无法修改宝可梦蛋的昵称。", () -> finished = true);       // :1752-1753 return
             return;
         }
-        // :1755-1765 pbEnterPokemonName(请输入昵称, 0, MAX_POKEMON_NAME_SIZE=10, oldname, pokemon)
-        // 登记: 文字输入未建模，空实现。
-        next.run();
+        String speciesname = pokemon.species == null ? "" : pokemon.species.name;        // :1755
+        String oldname = pokemon.name != null && !pokemon.name.equals(speciesname) ? pokemon.name : "";   // :1756
+        enterText("请输入昵称", 0, 10, oldname, newname -> {                  // :1757-1758 MAX_POKEMON_NAME_SIZE = 10
+            if (!newname.isEmpty()) {                            // :1759
+                pokemon.name = newname;                          // :1760
+            } else {
+                pokemon.name = speciesname;                      // :1763 (the plugin's pbRefreshSingle here is an undefined variable)
+            }
+            next.run();
+        });
     }
 
     /** :1849-1851 pbConfirm = pbShowCommands(str,[是,否])==0 */
@@ -1963,9 +1985,7 @@ public final class StorageView {
                     break;
                 }
                 case 2:                                          // :2142 搜索宝可梦
-                    // :2143-2184 pbMessage(范围) + pbEnterPokemonName(模糊搜索) + 逐盒查找 + pbJumpToBox
-                    // 登记: 文字输入未建模，空实现。
-                    then.run();
+                    searchPokemon(then);
                     break;
                 case 3:                                          // :2185
                     pbMessageConfirm("确定提交当前盒子内的所有宝可梦吗？", yes -> {   // :2186 pbConfirmMessage
@@ -2015,6 +2035,59 @@ public final class StorageView {
                     break;
             }
         });
+    }
+
+    /** 306_B2W2_PC:2142-2184 搜索宝可梦. */
+    private void searchPokemon(Runnable then) {
+        final int max = storage.maxBoxes();
+        Consumer<Integer> afterRange = range -> {
+            enterText("要搜索的名称是?(支持模糊搜索)", 0, 10, "", pkmnName -> {     // :2152
+                if (pkmnName.isEmpty()) {                                          // :2154
+                    then.run();
+                    return;
+                }
+                int start = 0, end = max;                                          // :2157-2168
+                if (range == 1) {
+                    end = storage.currentBox;
+                } else if (range == 2) {
+                    start = storage.currentBox;
+                }
+                int destbox = -1;
+                String found = pkmnName;
+                for (int j = start; j < end; j++) {                                // :2169
+                    for (int i = 0; i < storage.maxPokemon(j); i++) {
+                        Pokemon pkmn = storage.get(j, i);
+                        if (pkmn != null && pkmn.species != null && pkmn.species.name.contains(pkmnName)) {   // :2173 speciesName.include?
+                            found = pkmn.species.name;                              // :2174
+                            destbox = j;                                            // :2175
+                            break;
+                        }
+                    }
+                }
+                if (destbox >= 0) {                                                // :2179
+                    final int target = destbox;
+                    pbMessagePlain(intl("在盒子{1}内搜索到{2}了!", target + 1, found),
+                            () -> pbJumpToBox(target, () -> afterJump(then)));     // :2180-2181
+                } else {
+                    pbMessagePlain(intl("未在指定范围内搜索到\n名字包含{1}的精灵。", found), then);   // :2183
+                }
+            });
+        };
+        if (storage.currentBox == 0 || storage.currentBox == max - 1) {            // :2144
+            afterRange.accept(0);
+        } else {
+            mode = Mode.MESSAGE;                                                   // :2147 pbMessage(范围, [...], -1)
+            pbMessage.start("要在什么范围搜索宝可梦？", java.util.Arrays.asList("全部盒子",
+                    intl("盒子1~盒子{1}", storage.currentBox), intl("盒子{1}~盒子{2}", storage.currentBox + 1, max)),
+                    -1, 0, picked -> {
+                        mode = Mode.IDLE;
+                        if (picked == -1) {                                        // :2151
+                            then.run();
+                        } else {
+                            afterRange.accept(picked);
+                        }
+                    });
+        }
     }
 
     private void afterJump(Runnable then) {
@@ -2143,6 +2216,18 @@ public final class StorageView {
         if (mode == Mode.BAG) {
             return finished;
         }
+        if (mode == Mode.TEXT && textEntry != null) {
+            if (textEntry.update(input)) {
+                String typed = textEntry.result();
+                textEntry.dispose();
+                textEntry = null;
+                mode = Mode.IDLE;
+                Consumer<String> done = textDone;
+                textDone = null;
+                if (done != null) done.accept(typed == null ? "" : typed);
+            }
+            return finished;
+        }
         for (int t = 0; t < ticks && !finished; t++) {
             sceneTick();
             if (mode == Mode.ANIM && animStep.getAsBoolean()) {
@@ -2178,6 +2263,10 @@ public final class StorageView {
         screenW = w;
         if (mode == Mode.SUMMARY && summary != null) {
             summary.render(b, a, f, skin);
+            return;
+        }
+        if (mode == Mode.TEXT && textEntry != null) {
+            textEntry.render(b, a, f, skin);
             return;
         }
         if (box == null) {                                       // 菜单入口被地图拦下: 只有那条提示

@@ -1,5 +1,6 @@
 package pokemon.runtime.ui.menu;
 
+import pokemon.runtime.audio.UiSounds;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
@@ -188,10 +189,10 @@ final class PbMessage {
         int n = commands.size();
         if (input.wasRepeated(GameAction.UP)) {
             cmdIndex = Math.floorMod(cmdIndex - 1, n);
-            MenuSe.cursor(context.audioManager());
+            UiSounds.cursor(context.audioManager());
         } else if (input.wasRepeated(GameAction.DOWN)) {
             cmdIndex = Math.floorMod(cmdIndex + 1, n);
-            MenuSe.cursor(context.audioManager());
+            UiSounds.cursor(context.audioManager());
         }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {    // :1370
             if (cmdIfCancel > 0) {

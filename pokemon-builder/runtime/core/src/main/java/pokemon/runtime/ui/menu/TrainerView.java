@@ -58,11 +58,11 @@ public final class TrainerView {
         if (bgX <= -64f) bgX = 0f;
         if (bgY <= -64f) bgY = 0f;
         if (input.wasPressed(GameAction.CONFIRM)) {
-            MenuSe.decision(audio);
+            audio.playSe("BW2MenuChoose", 100, 100);                   // 300_B2W2_Trainer_Card:1044/1050
             scene = scene == 0 ? 1 : 0;
         }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
-            MenuSe.buzzer(audio);
+            audio.playSe("BW2Cancel", 100, 100);                       // :1060
             return Result.BACK;
         }
         return Result.NONE;

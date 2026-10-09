@@ -35,7 +35,7 @@ public final class PauseMenuOverlay implements Disposable {
         LOAD,
         OPTIONS,
         TRAINER
-        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE, SETUP, MAP
+        , PARTY, BAG, POKEDEX, STORAGE, PC, TRADE_SCENE, FORGET, RELEARN, HATCH, SETUP, MAP, MART, STARTER
     }
 
     private static final float ROW_HEIGHT = 56f;
@@ -67,10 +67,40 @@ public final class PauseMenuOverlay implements Disposable {
     private PokedexView pokedexView;
     private StorageView storageView;
     private PokeCenterPcView pcView;
-    private TradeView tradeView;
+    private MartView martView;
+    private StarterSelectionView starterView;
+    private TradeSceneView tradeView;
+    private SummaryView forgetView;
+    private RelearnerView relearnView;
+    private HatchSceneView hatchView;
     private GenderSelectorView genderView;
     private TownMapView townMapView;
     private Texture snapshot;
+    private pokemon.runtime.field.ItemHandlers itemHandlers;
+    /** Set while the party screen runs an item of the bag: the view that returns to the bag. */
+    private Sub partyReturnSub;
+
+    private pokemon.runtime.field.ItemHandlers itemHandlers() {
+        if (itemHandlers == null) {
+            itemHandlers = new pokemon.runtime.field.ItemHandlers(context.pbsData(), context.gameState(), java.time.LocalTime::now);
+        }
+        return itemHandlers;
+    }
+
+    private BagView newBagView() {
+        BagView view = new BagView(context);
+        view.useHost(this::openPartyForItem);
+        view.endScreen(this::close);
+        return view;
+    }
+
+    /** pbUseItem: {@code pbFadeOutIn { PokemonParty_Scene ... }} runs the item handler on the party screen. */
+    private void openPartyForItem(java.util.function.Consumer<pokemon.runtime.field.ItemScene> body) {
+        partyView = PartyView.forItem(context, body, null);
+        partyReturnSub = sub;
+        sub = Sub.PARTY;
+    }
+
     /** The view a bag opened from it returns to (party / storage / PC). */
     private Sub bagReturnSub;
     private java.util.function.Consumer<String> itemPickCallback;
@@ -78,7 +108,7 @@ public final class PauseMenuOverlay implements Disposable {
 
     /** The party summary's "携带道具": open the bag to pick a held item. */
     private void openBagForHold(pokemon.runtime.pokemon.Pokemon target) {
-        bagView = new BagView(context);
+        bagView = newBagView();
         bagView.chooseHold(target);
         bagReturnSub = sub;
         sub = Sub.BAG;
@@ -86,7 +116,7 @@ public final class PauseMenuOverlay implements Disposable {
 
     /** B2W2 PC:1286-1294 pbChooseItem: the bag picks one item and hands it back to the storage screen. */
     private void openBagForStorageItem(java.util.function.Predicate<String> filter, java.util.function.Consumer<String> callback) {
-        bagView = new BagView(context);
+        bagView = newBagView();
         bagView.chooseItem(filter);
         itemPickCallback = callback;
         bagReturnSub = sub;
@@ -121,6 +151,67 @@ public final class PauseMenuOverlay implements Disposable {
     }
     private pokemon.runtime.event.MenuService.Request request;
 
+    /** {@code PokemonPartyScreen#pbChooseAblePokemon} (210_PScreen_Party:1244-1269) with {@code proc { |pkmn| !pkmn.egg? }}. */
+    private void chooseAble(pokemon.runtime.event.MenuService.Request value, pokemon.runtime.field.ItemScene scene) {
+        pokemon.runtime.pokemon.Party party = context.gameState().trainer().party;
+        String[] annot = new String[party.size()];
+        boolean[] eligibility = new boolean[party.size()];
+        for (int i = 0; i < annot.length; i++) {
+            pokemon.runtime.pokemon.Pokemon pkmn = party.get(i);
+            if ("relearnable".equals(value.ableProc)) {
+                eligibility[i] = pokemon.runtime.pokemon.MoveRelearner.hasRelearnableMove(pkmn, context.pbsData());   // proc { |p| pbHasRelearnableMove?(p) }
+            } else {
+                eligibility[i] = pkmn != null && !pkmn.egg;                                               // 252:269 pbChooseNonEggPokemon
+            }
+            annot[i] = eligibility[i] ? "可以授予" : "不能被授予";                                            // :1250
+        }
+        String help = party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。";                                // :1254
+        scene.pbStartScene(help, annot);
+        int ret = -1;
+        while (true) {
+            scene.pbSetHelpText(help);                                                                    // :1256-1257
+            int pkmnid = scene.pbChoosePokemon(help);                                                     // :1258
+            if (pkmnid < 0) break;                                                                        // :1259
+            if (!eligibility[pkmnid] && !value.allowIneligible) {                                         // :1260
+                scene.pbDisplay("这个宝可梦不能参加。");                                                     // :1261
+            } else {
+                ret = pkmnid;                                                                             // :1263
+                break;
+            }
+        }
+        value.complete(ret, ret >= 0 ? party.get(ret).name : "");                                          // 252:260-265 pbSet
+    }
+
+    /** {@code PokemonPartyScreen#pbChooseTradablePokemon} (210_PScreen_Party:1270-1296) for {@code pbChoosePokemonForTrade}. */
+    private void chooseTradable(pokemon.runtime.event.MenuService.Request value, pokemon.runtime.field.ItemScene scene) {
+        pokemon.runtime.pokemon.Party party = context.gameState().trainer().party;
+        String[] annot = new String[party.size()];
+        boolean[] eligibility = new boolean[party.size()];
+        for (int i = 0; i < annot.length; i++) {
+            pokemon.runtime.pokemon.Pokemon pkmn = party.get(i);
+            boolean elig = pkmn != null && pkmn.species != null && pkmn.species.internalName.equals(value.wanted);   // :299-303 pkmn.species==wanted
+            if (pkmn == null || pkmn.egg) elig = false;                                                              // :1275
+            eligibility[i] = elig;
+            annot[i] = elig ? "可以使用" : "无效";                                                                     // :1277
+        }
+        String help = party.size() > 1 ? "请选择宝可梦。" : "选择宝可梦或取消。";                                          // :1281
+        scene.pbStartScene(help, annot);
+        int ret = -1;
+        while (true) {                                                                                               // :1282
+            scene.pbSetHelpText(help);                                                                               // :1283
+            int pkmnid = scene.pbChoosePokemon(help);                                                                // :1285
+            if (pkmnid < 0) break;                                                                                   // :1286
+            if (!eligibility[pkmnid]) {                                                                              // :1287
+                scene.pbDisplay("这个宝可梦不能参加。");                                                                 // :1288
+            } else {
+                ret = pkmnid;                                                                                        // :1290
+                break;
+            }
+        }
+        // 252:284-293 pbSet(variable, chosen); pbSet(nameVar, name or "")
+        value.complete(ret, ret >= 0 ? party.get(ret).name : "");
+    }
+
     public void openRequest(pokemon.runtime.event.MenuService.Request value) {
         open(); request = value;
         if (value.kind == pokemon.runtime.event.MenuService.Kind.STORAGE) {
@@ -133,16 +224,68 @@ public final class PauseMenuOverlay implements Disposable {
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.GENDER) { genderView = new GenderSelectorView(context, value); sub = Sub.SETUP; }
         // pbChooseItemScreen(filter): the bag is only there to pick one item.
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.CHOOSE_ITEM) {
-            bagView = new BagView(context);
+            bagView = newBagView();
             bagView.chooseItem(value.filter);
             sub = Sub.BAG;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.TUTOR) {
+            // pbMoveTutorChoose: the party screen with the tutor's annotations (253_PSystem_Utilities:982-1018).
+            pokemon.runtime.pokemon.PbsData.Move tutorMove = context.pbsData() == null ? null : context.pbsData().move(value.move);
+            partyView = PartyView.forItem(context, scene -> {
+                int chosen = tutorMove == null ? -1
+                        : itemHandlers().pbMoveTutorChoose(tutorMove, value.movelist, value.byMachine, scene);
+                value.complete(chosen, "");
+            }, null);
+            partyReturnSub = null;
+            sub = Sub.PARTY;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.STARTER) {
+            // DiegoWTsStarterSelection.new(a,b,c) (Starter Selection script, section 333).
+            starterView = new StarterSelectionView(context, value.dex);
+            sub = Sub.STARTER;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.MART) {
+            // pbPokemonMart(stock, speech, cantsell) (PScreen_Mart:807-846).
+            martView = new MartView(context, value.items, value.speech, value.cantSell);
+            sub = Sub.MART;
         }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.SHOW_MAP) {
             // pbShowMap(region, wallmap) (PScreen_RegionMap:431-437).
             townMapView = new TownMapView(context, assets, value.region, value.wallmap);
             sub = Sub.MAP;
         }
-        else { tradeView = new TradeView(context, value); sub = Sub.TRADE; }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.CHOOSE_NON_EGG) {
+            // pbChooseNonEggPokemon -> pbChoosePokemon(.., proc { !egg? }) -> PokemonPartyScreen#pbChooseAblePokemon
+            partyView = PartyView.forItem(context, scene -> chooseAble(value, scene), null);
+            partyReturnSub = null;
+            sub = Sub.PARTY;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.CHOOSE_ABLE) {
+            // pbChoosePokemon with an able proc -> PokemonPartyScreen#pbChooseAblePokemon (210_PScreen_Party:1244-1269)
+            partyView = PartyView.forItem(context, scene -> chooseAble(value, scene), null);
+            partyReturnSub = null;
+            sub = Sub.PARTY;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.HATCH) {
+            hatchView = new HatchSceneView(context, value.pokemon);               // pbHatchAnimation
+            sub = Sub.HATCH;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.RELEARN) {
+            relearnView = new RelearnerView(context, value.pokemon);          // pbRelearnMoveScreen
+            sub = Sub.RELEARN;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.FORGET_MOVE) {
+            // pbForgetMove (188_PItem_Items:823-830): the summary screen's forget mode
+            forgetView = SummaryView.forForget(context, value.pokemon, value.learnMove);
+            sub = Sub.FORGET;
+        }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.CHOOSE_TRADE) {
+            // pbChoosePokemonForTrade -> pbChooseTradablePokemon (252_PSystem_PokemonUtilities:277-296, 210_PScreen_Party:1270-1296)
+            partyView = PartyView.forItem(context, scene -> chooseTradable(value, scene), null);
+            partyReturnSub = null;
+            sub = Sub.PARTY;
+        }
+        else { tradeView = new TradeSceneView(context, value.index, value.offered, value.nickname, value.trainerName); sub = Sub.TRADE_SCENE; }
     }
     private void back() {
         if (request == null) sub = Sub.MAIN;
@@ -230,7 +373,36 @@ public final class PauseMenuOverlay implements Disposable {
         return open;
     }
 
+    private pokemon.runtime.pokemon.Pokemon hiddenMovePokemon;
+    private String hiddenMoveId;
+
+    /** {@code PokemonRegionMapScreen#pbStartFlyScreen} (214_PScreen_RegionMap:415-420). 登记: the fly map is not wired yet. */
+    private void openFlyMap(java.util.function.Consumer<int[]> done) {
+        townMapView = new TownMapView(context, assets, -1, false);
+        townMapView.flyMode(true);
+        flyCallback = done;
+        sub = Sub.MAP;
+    }
+
+    private java.util.function.Consumer<int[]> flyCallback;
+
+    /** The hidden move chosen in the party screen, once; null when none. */
+    public String takeHiddenMove(pokemon.runtime.pokemon.Pokemon[] pokemonOut) {
+        String move = hiddenMoveId;
+        if (move != null) {
+            pokemonOut[0] = hiddenMovePokemon;
+        }
+        hiddenMoveId = null;
+        hiddenMovePokemon = null;
+        return move;
+    }
+
+    /** 292_Splash_Message: the tagline picked when the menu opens (287_Modular_Pause_Menu:165). */
+    private String splashMessage = "";
+    private final java.util.Random splashRandom = new java.util.Random();
+
     public void open() {
+        splashMessage = SplashMessages.sample(splashRandom);
         open = true;
         sub = Sub.MAIN;
         MenuSe.open(context.audioManager());
@@ -292,7 +464,24 @@ public final class PauseMenuOverlay implements Disposable {
                 }
                 break;
             case PARTY:
-                if (partyView.update(input)) sub = Sub.MAIN;
+                if (partyView.update(input)) {
+                    if (partyView.hiddenMovePokemon() != null) {
+                        // 206_PScreen_PauseMenu:183 pbUseHiddenMove(hiddenmove[0], hiddenmove[1]) once the menu has closed.
+                        hiddenMovePokemon = partyView.hiddenMovePokemon();
+                        hiddenMoveId = partyView.hiddenMoveId();
+                        partyView.clearHiddenMove();
+                        partyReturnSub = null;
+                        close();
+                    } else if (partyReturnSub != null) {
+                        sub = partyReturnSub;
+                        partyReturnSub = null;
+                        if (bagView != null) bagView.afterUse();
+                    } else if (request != null) {
+                        back();                                          // a request's party screen (the move tutor)
+                    } else {
+                        sub = Sub.MAIN;
+                    }
+                }
                 break;
             case BAG:
                 if (bagView.update(input)) {
@@ -334,14 +523,54 @@ public final class PauseMenuOverlay implements Disposable {
             case PC:
                 if (pcView.update(input)) back();
                 break;
-            case TRADE:
-                if (tradeView.update(input)) back();
+            case MART:
+                if (martView.update(input)) { martView.dispose(); back(); }
+                break;
+            case STARTER:
+                if (starterView.update(input)) {
+                    if (request != null) request.complete(starterView.chosen(), "");
+                    starterView.dispose();
+                    back();
+                }
+                break;
+            case HATCH:
+                if (hatchView.update(input)) {
+                    request.complete(1, "");
+                    hatchView = null;
+                    back();
+                }
+                break;
+            case RELEARN:
+                if (relearnView.update(input)) {
+                    request.complete(relearnView.learned() ? 1 : 0, "");
+                    relearnView = null;
+                    back();
+                }
+                break;
+            case FORGET:
+                if (forgetView.update(input)) {
+                    request.complete(forgetView.forgetResult(), "");
+                    forgetView = null;
+                    back();
+                }
+                break;
+            case TRADE_SCENE:
+                if (tradeView.update(input)) { request.complete(1, ""); back(); }
                 break;
             case SETUP:
                 if (genderView.update(input)) { genderView.dispose(); back(); }
                 break;
             case MAP:
-                if (townMapView.update(input, delta)) back();
+                if (townMapView.update(input, delta)) {
+                    if (flyCallback != null) {
+                        java.util.function.Consumer<int[]> callback = flyCallback;
+                        flyCallback = null;
+                        sub = Sub.PARTY;                                // the party screen goes on (or ends with the chosen place)
+                        callback.accept(townMapView.flyResult());
+                    } else {
+                        back();
+                    }
+                }
                 break;
             default:
                 break;
@@ -375,9 +604,11 @@ public final class PauseMenuOverlay implements Disposable {
         switch (action) {
             case PARTY:
                 partyView = new PartyView(context); partyView.bagHost(this::openBagForHold);
-                partyView.storageHost(this::openStorageFromParty); sub = Sub.PARTY; break;
+                partyView.itemHost(this::openBagForStorageItem, itemHandlers());
+                partyView.storageHost(this::openStorageFromParty);
+                partyView.flyHost(this::openFlyMap); sub = Sub.PARTY; break;
             case BAG:
-                bagView = new BagView(context); sub = Sub.BAG; break;
+                bagView = newBagView(); sub = Sub.BAG; break;
             case POKEDEX:
                 pokedexView = new PokedexView(context); sub = Sub.POKEDEX; break;
             case STORAGE:
@@ -479,7 +710,12 @@ public final class PauseMenuOverlay implements Disposable {
             case POKEDEX: pokedexView.render(batch, assets, font, skin, detailFont); break;
             case STORAGE: storageView.render(batch, assets, font, skin, speech, detailFont); break;
             case PC: pcView.render(batch, assets, font, skin, speech, detailFont); break;
-            case TRADE: tradeView.render(batch, assets, font, skin); break;
+            case MART: martView.render(batch, assets, font, skin, speech, detailFont); break;
+            case STARTER: starterView.render(batch, assets, font, skin, speech, detailFont); break;
+            case HATCH: hatchView.render(batch, assets, font, skin); break;
+            case RELEARN: relearnView.render(batch, assets, font, skin); break;
+            case FORGET: forgetView.render(batch, assets, font, skin); break;
+            case TRADE_SCENE: tradeView.render(batch, assets, font, skin); break;
             case SAVE:
                 saveView.render(batch, assets, font, skin, speech, detailFont);
                 break;
@@ -561,8 +797,30 @@ public final class PauseMenuOverlay implements Disposable {
         // The plugin's own overlay text: the date/time (top-left) and the
         // version name (bottom-left, CURRENT_NAME from title.json).
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        com.badlogic.gdx.graphics.Color white = com.badlogic.gdx.graphics.Color.WHITE;
+        com.badlogic.gdx.graphics.Color shade = new com.badlogic.gdx.graphics.Color(0f, 0f, 0f, 65 / 255f);
         font.draw(batch, String.format("%d年%d月%d日 %02d:%02d", now.getYear(), now.getMonthValue(),
-                now.getDayOfMonth(), now.getHour(), now.getMinute()), 16f, height - 24f);
+                now.getDayOfMonth(), now.getHour(), now.getMinute()) + " "
+                + pokemon.runtime.field.PBDayNight.name(now.toLocalTime()), 16f, height - 24f, white, shade);   // :157-162
+        font.draw(batch, splashMessage, 286f, height - 24f,                                                // :165-169
+                new com.badlogic.gdx.graphics.Color(1f, 216 / 255f, 0f, 1f),
+                new com.badlogic.gdx.graphics.Color(216 / 255f, 128 / 255f, 0f, 1f));
+        // :171-186 the mode the game was started in
+        String difficulty;
+        if (context.gameState().switches().get(197)) {
+            difficulty = "懒狗模式";
+        } else {
+            int mode = context.gameState().variables().get(100);
+            difficulty = mode == 2 ? "平均等级" : mode == 1 ? "最高等级" : "简单难度";
+        }
+        font.draw(batch, "模式：" + difficulty, 16f, height - 50f, white, shade);
+        // :188-200 the catching chain
+        pokemon.runtime.pokemon.ChainCatching chain = context.gameState().trainer().chainCatching;
+        if (chain.chainTimes > 1 && chain.species != null) {
+            pokemon.runtime.pokemon.PbsData.Species chained = context.pbsData() == null ? null : context.pbsData().species(chain.species);
+            font.draw(batch, "连锁：" + (chained == null ? chain.species : chained.name) + " " + chain.chainTimes + "次",
+                    176f, height - 50f, new com.badlogic.gdx.graphics.Color(1f, 1f, 100 / 255f, 1f), shade);
+        }
         if (database != null && database.title() != null && !database.title().footerLeft.isEmpty()) {
             font.draw(batch, "版本号：" + database.title().footerLeft, 16f, font.lineHeight() + 4f);
         }

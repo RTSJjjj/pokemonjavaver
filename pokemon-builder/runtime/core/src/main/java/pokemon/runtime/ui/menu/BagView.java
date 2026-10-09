@@ -1,6 +1,8 @@
 package pokemon.runtime.ui.menu;
 
 import pokemon.runtime.app.RuntimeContext;
+import pokemon.runtime.field.ItemHandlers;
+import pokemon.runtime.field.ItemScene;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.input.*;
 import pokemon.runtime.pokemon.*;
@@ -53,6 +55,38 @@ public final class BagView {
     private java.util.function.BiConsumer<String, Integer> battleUse;
     private boolean itemPick;
     private String pickedItem;
+    private final PbMessage pbMessage;
+    private final NumberPrompt numberPrompt;
+    private pokemon.runtime.state.PcItemStorage depositTo;
+    private final MenuClock messageClock = new MenuClock();
+    private final ItemHandlers handlers;
+    private java.util.function.Consumer<java.util.function.Consumer<ItemScene>> useHost;
+    private static final int CMD_USE = 0, CMD_GIVE = 1, CMD_TOSS = 2, CMD_CANCEL = 3;
+    private final List<Integer> actionKinds = new ArrayList<>();
+    private List<String> actionRows = new ArrayList<>();
+
+    private Runnable endScreen;
+
+    /** UseFromBag's return 2 (188_PItem_Items:922 "Item used, end screen"): the host closes the bag and the pause menu. */
+    public void endScreen(Runnable host) {
+        this.endScreen = host;
+    }
+
+    private static boolean isBicycle(String item) {
+        return "BICYCLE".equals(item) || "MACHBIKE".equals(item) || "ACROBIKE".equals(item);
+    }
+
+    /** The host opens the party screen and runs the handler on it ({@code pbFadeOutIn { PokemonParty_Scene ... }}). */
+    public void useHost(java.util.function.Consumer<java.util.function.Consumer<ItemScene>> host) {
+        this.useHost = host;
+    }
+
+    /** Back from the party screen of an item use: the bag shows the new quantities (:914 bagscene.pbRefresh). */
+    public void afterUse() {
+        step = Step.ITEMS;
+        notice = "";
+        model.refresh();
+    }
 
     /**
      * {@code pbChooseItemScreen(filter)}: the bag is opened only to pick one item
@@ -70,6 +104,22 @@ public final class BagView {
         notice = "";
     }
 
+    /**
+     * The pocketed bag opened only to pick one item, without a filter
+     * ({@code PokemonMart_Scene#pbStartSellScene2}: {@code @subscene.pbStartScene(bag)} then
+     * {@code @subscene.pbChooseItem}, 230_PScreen_Mart:384-413 / :685-690).
+     */
+    public void pickFromBag() {
+        battleUse = null;
+        holdTarget = null;
+        model.chooseFilter(null);
+        model.cursor.select(0);
+        itemPick = true;
+        pickedItem = null;
+        step = Step.ITEMS;
+        notice = "";
+    }
+
     /** The item chosen by {@link #chooseItem}, or null when the player cancelled. */
     public String pickedItem() {
         return pickedItem;
@@ -79,6 +129,9 @@ public final class BagView {
         this.context = context;
         model = new BagModel(context.gameState().inventory(), context.pbsData());
         party = new PartyModel(context.gameState().trainer().party, context.pbsData());
+        pbMessage = new PbMessage(context);
+        numberPrompt = new NumberPrompt(context);
+        handlers = new ItemHandlers(context.pbsData(), context.gameState(), java.time.LocalTime::now);
         action.size(4);
     }
 
@@ -96,6 +149,13 @@ public final class BagView {
      * {@code battle=true} (Scene_Commands:235). The consumer receives the item
      * and the party index (-1 for items without a target, e.g. Poké Balls).
      */
+    /** Scene_Commands:235-348: in battle a chosen item asks "使用/取消", then the real party screen picks the Pokemon. */
+    private java.util.function.Consumer<String> battleItemHost;
+
+    public void battleItemHost(java.util.function.Consumer<String> host) {
+        this.battleItemHost = host;
+    }
+
     public void battleMode(java.util.function.BiConsumer<String, Integer> use) {
         battleUse = use;
         holdTarget = null;
@@ -105,24 +165,46 @@ public final class BagView {
     }
 
     public boolean update(InputManager input) {
+        int messageTicks = messageClock.advance();
+        if (pbMessage.active()) {                             // a pbMessage / pbConfirmMessage of the Use flow
+            pbMessage.update(input, messageTicks);
+            return false;
+        }
+        if (numberPrompt.active()) {                          // UIHelper.pbChooseNumber
+            numberPrompt.update(input);
+            return false;
+        }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
-            if (step == Step.ITEMS) return true;
+            if (step == Step.ITEMS) {
+                pokemon.runtime.audio.UiSounds.named(context.audioManager(), "BW2CloseMenu");   // 305_BW_Bag:633-634
+                return true;
+            }
             step = step == Step.REPLACE ? Step.TARGET : Step.ITEMS;
             notice = ""; return false;
         }
         MenuListModel cursor = step == Step.ITEMS ? model.cursor : step == Step.ACTION ? action : step == Step.TARGET ? party.cursor : moves;
+        int cursorBefore = cursor.index();
         if (input.wasPressed(GameAction.UP)) cursor.move(-1);
         if (input.wasPressed(GameAction.DOWN)) cursor.move(1);
+        if (cursor.index() != cursorBefore) {
+            pokemon.runtime.audio.UiSounds.cursor(context.audioManager());       // 065_SpriteWindow_text:851-866 pbPlayCursorSE
+        }
         if (step == Step.ITEMS) {
+            int pocketBefore = model.pocket();
             if (input.wasPressed(GameAction.LEFT)) { model.changePocket(-1); notice = ""; }
             if (input.wasPressed(GameAction.RIGHT)) { model.changePocket(1); notice = ""; }
+            if (model.pocket() != pocketBefore) {
+                pokemon.runtime.audio.UiSounds.named(context.audioManager(), "BW2BagSound");   // 305_BW_Bag:463/487
+            }
         }
         if (!input.wasPressed(GameAction.CONFIRM)) return false;
         switch (step) {
             case ITEMS:
+                pokemon.runtime.audio.UiSounds.decision(context.audioManager());  // 305_BW_Bag:636-637 pbPlayDecisionSE
                 if (model.onCloseRow()) return true; // 关闭背包
                 item = model.selected();
                 if (item == null) break;
+                if (depositTo != null) { deposit(item); break; }
                 if (itemPick) { pickedItem = item; return true; }
                 if (battleUse != null) {
                     // In battle a Poké Ball is used straight away; everything else
@@ -130,6 +212,18 @@ public final class BagView {
                     if (context.pbsData().item(item).pocket == 3) {
                         battleUse.accept(item, -1);
                         return true;
+                    }
+                    if (battleItemHost != null) {
+                        actionKinds.clear();                                       // :258-262 [使用, 取消]
+                        actionRows = new ArrayList<>();
+                        actionKinds.add(CMD_USE);
+                        actionRows.add("使用");
+                        actionKinds.add(CMD_CANCEL);
+                        actionRows.add("取消");
+                        action.size(actionRows.size());
+                        action.select(0);
+                        step = Step.ACTION;
+                        break;
                     }
                     party.refresh(); step = Step.TARGET;
                     break;
@@ -142,45 +236,250 @@ public final class BagView {
                     notice = "不能携带这个道具。";
                     break;
                 }
-                { step = Step.ACTION; action.select(0); notice = ""; }
+                openActionMenu();
                 break;
-            case ACTION:
-                if (action.index() == 3) step = Step.ITEMS;       // 取消
-                else if (action.index() == 2) toss();             // 丢弃
-                else { party.refresh(); step = Step.TARGET; }     // 使用 / 给予
+            case ACTION: {
+                int kind = action.index() < actionKinds.size() ? actionKinds.get(action.index()) : CMD_CANCEL;
+                if (kind == CMD_CANCEL) step = Step.ITEMS;        // 取消
+                else if (kind == CMD_TOSS) toss();                // 丢弃
+                else if (kind == CMD_USE && battleUse != null && battleItemHost != null) {
+                    step = Step.ITEMS;                            // Scene_Commands:263-346: the battle's party screen takes over
+                    battleItemHost.accept(item);
+                }
+                else if (kind == CMD_USE) useItem();              // 使用 (211_PScreen_Bag:491-496 pbUseItem)
+                else giveItem();                                  // 给予
                 break;
+            }
             case TARGET:
                 if (party.selected() == null) break;
                 if (battleUse != null) {
                     battleUse.accept(item, party.cursor.index());
                     return true;
                 }
-                if (action.index() == 1) {
+                {
                     finish(PartyModel.giveItem(party.selected(), item, context.gameState().inventory(), context.pbsData())
                             ? "已交给宝可梦。" : "不能携带这个道具。");
-                } else use(-1);
+                }
                 break;
-            case REPLACE: use(moves.index()); break;
+            case REPLACE: break;
         }
         return false;
     }
 
-    private void toss() {
-        context.gameState().inventory().remove(item, 1);
-        finish("丢弃了1个" + model.name(item) + "。");
+    private String plural(String id) {
+        PbsData.Item data = context.pbsData().item(id);
+        return data == null || data.namePlural == null ? model.name(id) : data.namePlural;
     }
 
-    private void use(int replace) {
-        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        ItemUse.Result result = ItemUse.use(item, party.selected(), context.gameState().trainer(),
-                context.gameState().inventory(), context.pbsData(), replace, hour >= 6 && hour < 20);
-        if (result == ItemUse.Result.REPLACE_MOVE) {
-            moves.size(party.selected().moves.size); moves.select(0); step = Step.REPLACE;
-        } else if (!ItemUse.lastMessage.isEmpty()) {
-            // PItem_Items: the handler's own scene.pbDisplay text (success or
-            // "这没有任何效果。"); an ineffective item is never consumed.
-            finish(ItemUse.lastMessage);
-        } else finish("");
+    /** 211_PScreen_Bag:510-523 the Toss command. */
+    private void toss() {
+        final String tossed = item;
+        step = Step.ITEMS;
+        int qty = context.gameState().inventory().count(tossed);                     // :511
+        if (qty > 1) {                                                                // :512
+            numberPrompt.start("要丢弃几个" + plural(tossed) + "？", qty, 1, n -> tossAfter(tossed, n));   // :513-514
+        } else {
+            tossAfter(tossed, qty);
+        }
+    }
+
+    private void tossAfter(String tossed, int qty) {
+        if (qty <= 0) return;                                                         // :516
+        String itemname = qty > 1 ? plural(tossed) : model.name(tossed);              // :517
+        confirm("确定要丢弃" + qty + "个" + itemname + "？", yes -> {                   // :518
+            if (!yes) return;
+            say("丢弃了" + qty + "个" + itemname + "。", () -> {                          // :519
+                context.gameState().inventory().remove(tossed, qty);                 // :520
+                model.refresh();                                                      // :521
+            });
+        });
+    }
+
+    /** 211_PScreen_Bag:624-656 pbDepositItemScreen: the bag picks the items to store in the PC. */
+    public void depositMode(pokemon.runtime.state.PcItemStorage storage) {
+        depositTo = storage;
+        battleUse = null;
+        holdTarget = null;
+        model.chooseFilter(null);
+        model.cursor.select(0);
+        step = Step.ITEMS;
+        notice = "";
+    }
+
+    private void deposit(String stored) {
+        int qty = context.gameState().inventory().count(stored);                     // :634
+        PbsData.Item data = context.pbsData().item(stored);
+        if (qty > 1 && !important(data)) {                                            // :635
+            numberPrompt.start("想要储存几个？", qty, 1, n -> depositAfter(stored, n));   // :636
+        } else {
+            depositAfter(stored, qty);
+        }
+    }
+
+    private void depositAfter(String stored, int qty) {
+        if (qty <= 0) return;                                                         // :638
+        if (!depositTo.pbCanStore(stored, qty)) {                                     // :639
+            say("电脑里的储存盒已经满了……", null);                                       // :640
+            return;
+        }
+        context.gameState().inventory().remove(stored, qty);                         // :642
+        depositTo.pbStoreItem(stored, qty);                                           // :645
+        model.refresh();                                                              // :648
+        int dispqty = important(context.pbsData().item(stored)) ? 1 : qty;            // :649
+        String itemname = dispqty > 1 ? plural(stored) : model.name(stored);          // :650
+        say("储存了" + dispqty + "个" + itemname + "。", null);                          // :651
+    }
+
+    /** 211_PScreen_Bag:467-483: the commands of the chosen item. */
+    private void openActionMenu() {
+        PbsData.Item data = context.pbsData().item(item);
+        actionKinds.clear();
+        actionRows = new ArrayList<>();
+        boolean hasParty = context.gameState().trainer().pokemonCount() > 0;
+        if (handlers.hasUseOnPokemon(item) || handlers.hasBagFieldHandler(item) || (handlers.isMachine(item) && context.gameState().trainer().party.size() > 0)) {
+            actionKinds.add(CMD_USE);                          // :468-474 (UseText is only registered for the bicycles)
+            // UseText (189_PItem_ItemEffects:4-8): the bicycles say "步行" while riding and the plugin's own "Use" otherwise.
+            actionRows.add(isBicycle(item) ? (context.gameState().fieldGlobals().bicycle ? "步行" : "Use") : "使用");
+        }
+        if (hasParty && data != null && !important(data)) {    // :475 pbCanHoldItem?
+            actionKinds.add(CMD_GIVE);
+            actionRows.add("给予");
+        }
+        if (!important(data)) {                                // :476
+            actionKinds.add(CMD_TOSS);
+            actionRows.add("丢弃");
+        }
+        actionKinds.add(CMD_CANCEL);                           // :483
+        actionRows.add("取消");
+        action.size(actionRows.size());
+        step = Step.ACTION;
+        action.select(0);
+        notice = "";
+    }
+
+    /** 211_PScreen_Bag:497-509: the party screen asks who holds the item (pbPokemonGiveScreen). */
+    private void giveItem() {
+        step = Step.ITEMS;
+        if (handlers.noPokemonMessage() != null) {                          // :498
+            say("没有宝可梦。", null);
+        } else if (important(context.pbsData().item(item))) {               // :500
+            say("宝可梦不能携带" + model.name(item) + "。", null);
+        } else if (useHost != null) {
+            final String given = item;
+            useHost.accept(scene -> handlers.pbPokemonGiveScreen(given, scene));
+        }
+    }
+
+    private pokemon.runtime.state.GameState state() {
+        return context.gameState();
+    }
+
+    private pokemon.runtime.field.ItemTask fieldTask;
+
+    /** Runs a state-only item handler on the bag: its messages are the bag's pbMessage windows. */
+    private void runFieldTask(java.util.function.Consumer<ItemScene> body) {
+        fieldTask = pokemon.runtime.field.ItemTask.start(body);
+        pumpFieldTask();
+    }
+
+    private void pumpFieldTask() {
+        while (fieldTask != null) {
+            if (fieldTask.resume()) {
+                fieldTask = null;
+                afterUse();
+                return;
+            }
+            pokemon.runtime.field.TaskItemScene.Request r = fieldTask.pending();
+            switch (r.kind) {
+                case MESSAGE:
+                case DISPLAY:
+                    say(r.text, () -> answerField(null));
+                    return;
+                case CONFIRM:
+                    confirm(r.text, yes -> answerField(yes));
+                    return;
+                default:
+                    fieldTask.answer(null);
+                    break;
+            }
+        }
+    }
+
+    private void answerField(Object value) {
+        if (fieldTask != null) {
+            fieldTask.answer(value);
+            pumpFieldTask();
+        }
+    }
+
+    private void say(String text, Runnable then) {
+        pbMessage.start(text, null, 0, 0, ignored -> {
+            if (then != null) then.run();
+        });
+    }
+
+    private void confirm(String text, java.util.function.Consumer<Boolean> then) {
+        pbMessage.start(text, Arrays.asList("是", "否"), 2, 0, index -> then.accept(index == 0));   // pbConfirmMessage
+    }
+
+    /** 188_PItem_Items:844-931 pbUseItem for the items used on a Pokemon, TMs / HMs included. */
+    private void useItem() {
+        PbsData.Item data = context.pbsData().item(item);
+        int useType = data == null ? 0 : data.fieldUse;
+        String none = handlers.noPokemonMessage();
+        if (handlers.isMachine(item)) {                        // :847
+            if (none != null) {                                // :848-851
+                say(none, null);
+                return;
+            }
+            String machine = handlers.machineMove(item);       // :852
+            PbsData.Move move = machine == null ? null : context.pbsData().move(machine);
+            if (move == null) {
+                return;                                        // :853
+            }
+            String moveName = move.name == null ? move.internalName : move.name;
+            say("\\se[PC access]启动了" + model.name(item) + "。\u0001", () ->   // :855
+                    confirm("想教" + moveName + "给宝可梦吗？", yes -> {      // :856
+                        if (yes && useHost != null) {
+                            useHost.accept(scene -> handlers.pbUseMachine(item, move, scene));   // :858
+                        }
+                    }));
+            return;
+        }
+        if (useType == 1 || useType == 5) {                    // :867
+            if (none != null) {                                // :868-870
+                say(none, null);
+                return;
+            }
+            if (useHost != null) {
+                final String used = item;
+                useHost.accept(scene -> handlers.pbUseItemOnParty(used, useType, scene));   // :872-916
+            }
+            return;
+        }
+        if (item.equals("SACREDASH") && useHost != null) {     // UseInField :SACREDASH opens the party screen from the bag
+            final String ash = item;
+            useHost.accept(scene -> {
+                if (handlers.sacredAsh(scene) == 3) {
+                    state().inventory().remove(ash, 1);                // :923 3 = used, consume
+                }
+            });
+            return;
+        }
+        if (handlers.hasBagFieldHandler(item)) {               // :917-927 triggerUseFromBag falls back to UseInField
+            final String used = item;
+            runFieldTask(scene -> {
+                int ret = handlers.useInField(used, scene);
+                if (ret == 3) {
+                    state().inventory().remove(used, 1);               // :923 3 = used, consume
+                }
+                if (ret == 1 && isBicycle(used) && endScreen != null) {
+                    endScreen.run();                                   // UseFromBag :49-51 returns 2: the screens end, the bike is used
+                }
+            });
+            return;
+        }
+        say("这里不能使用。", null);                            // :929
     }
 
     private void finish(String text) { notice = text; step = Step.ITEMS; model.refresh(); }
@@ -205,6 +504,10 @@ public final class BagView {
         if (!notice.isEmpty()) {
             f.draw(b, notice, 20f, h - 396f, TEXT_BASE, TEXT_SHADOW);
         }
+        if (pbMessage.active()) {
+            pbMessage.render(b, a, f, skin, speech, w, h);
+        }
+        numberPrompt.render(b, a, f, skin, speech, w, h);
     }
 
     private boolean female() {
@@ -371,7 +674,7 @@ public final class BagView {
         MenuListModel cursor;
         List<String> detail = new ArrayList<>();
         if (step == Step.ACTION) {
-            rows = Arrays.asList("使用", "给予", "丢弃", "取消");
+            rows = actionRows;
             cursor = action;
         } else if (step == Step.TARGET) {
             party.refresh();
@@ -410,15 +713,7 @@ public final class BagView {
     }
 
     private Texture itemIcon(MenuAssets a, String id) {
-        PbsData.Item data = context.pbsData() == null ? null : context.pbsData().item(id);
-        Texture icon = null;
-        if (data != null) {
-            icon = a.icon(String.format("item%03d", data.id));
-        }
-        if (icon == null) {
-            icon = a.icon("item" + id);
-        }
-        return icon;
+        return ItemIcons.of(a, context.pbsData(), id);
     }
 
     private String description(String id) {

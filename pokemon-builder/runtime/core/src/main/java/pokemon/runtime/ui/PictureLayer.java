@@ -8,6 +8,7 @@ import com.badlogic.gdx.utils.ObjectSet;
 import pokemon.runtime.event.PictureService;
 import pokemon.runtime.map.GraphicsLocator;
 import pokemon.runtime.map.TextureRepository;
+import pokemon.runtime.map.ToneShader;
 
 import java.io.File;
 
@@ -22,6 +23,10 @@ public final class PictureLayer {
     private final TextureRepository textures;
     private final GraphicsLocator locator;
     private final ObjectSet<String> missing = new ObjectSet<>();
+    private final com.badlogic.gdx.utils.Array<PictureService.Picture> sorted = new com.badlogic.gdx.utils.Array<>();
+    /** Built on first use (needs a GL context): a picture's own RGSS tone. */
+    private ToneShader toneShader;
+    private boolean toneShaderFailed;
 
     public PictureLayer(PictureService pictures, TextureRepository textures, GraphicsLocator locator) {
         this.pictures = pictures;
@@ -33,7 +38,14 @@ public final class PictureLayer {
         if (pictures.isEmpty()) {
             return;
         }
+        // RMXP draws the pictures by number, the higher ones on top (Spriteset_Map: @picture_sprites[n].z = 100 + n);
+        // the map of ids has no order, so a picture shown with a higher number could end up under the lower ones.
+        sorted.clear();
         for (PictureService.Picture picture : pictures.values()) {
+            sorted.add(picture);
+        }
+        sorted.sort((a, b) -> Integer.compare(a.id, b.id));
+        for (PictureService.Picture picture : sorted) {
             if (picture.name == null || picture.name.isEmpty()) {
                 continue;
             }
@@ -57,9 +69,35 @@ public final class PictureLayer {
             if (picture.blendType == 1) {
                 batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
             }
+            boolean toned = hasTone(picture) && toneShader() != null;
+            if (toned) {
+                batch.setShader(toneShader.program());
+                toneShader.setTone(picture.toneRed, picture.toneGreen, picture.toneBlue, picture.toneGray);
+            }
             batch.draw(texture, x, y, width, height);
+            if (toned) {
+                batch.setShader(null);
+            }
             batch.setColor(1f, 1f, 1f, 1f);
             batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         }
+    }
+
+    private static boolean hasTone(PictureService.Picture picture) {
+        return picture.toneRed != 0f || picture.toneGreen != 0f || picture.toneBlue != 0f
+                || picture.toneGray != 0f;
+    }
+
+    private ToneShader toneShader() {
+        if (toneShader == null && !toneShaderFailed) {
+            ToneShader shader = new ToneShader();
+            if (shader.isCompiled()) {
+                toneShader = shader;
+            } else {
+                toneShaderFailed = true;
+                Gdx.app.error("PictureLayer", "picture tone shader failed to compile: " + shader.log());
+            }
+        }
+        return toneShader;
     }
 }

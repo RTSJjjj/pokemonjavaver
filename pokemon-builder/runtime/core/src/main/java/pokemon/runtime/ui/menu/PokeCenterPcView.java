@@ -38,7 +38,7 @@ public final class PokeCenterPcView {
     private static final int ROW = 32;
     private static final int BORDER = 32;
 
-    private enum Mode { MESSAGE, HELPMENU, STORAGE, IDLE }
+    private enum Mode { MESSAGE, HELPMENU, STORAGE, ITEMSTORAGE, DEPOSIT, IDLE }
 
     private final RuntimeContext context;
     private final TrainerState trainer;
@@ -48,6 +48,9 @@ public final class PokeCenterPcView {
     private boolean finished;
     private StorageView storageView;
     private Runnable storageDone;
+    private ItemStorageView itemStorageView;
+    private BagView depositBag;
+    private Runnable itemDone;
     private java.util.function.BiConsumer<Predicate<String>, Consumer<String>> itemHost;
     private Consumer<Pokemon> bagHost;
     private float screenH;
@@ -208,22 +211,41 @@ public final class PokeCenterPcView {
         pbShowCommandsWithHelp(commands, help, -1, command, picked -> {   // :7
             switch (picked) {
                 case 0:                                          // :18 Withdraw Item
-                    // 登记: PCItemStorage / WithdrawItemScene(PScreen_ItemStorage) 未建模，空实现。
-                    pbPCItemStorage(picked, then);
+                case 2: {                                        // :37 Toss Item
+                    pokemon.runtime.state.PcItemStorage storage = pcItemStorage();   // :19-21
+                    Runnable again = () -> pbPCItemStorage(picked, then);
+                    if (storage.empty()) {                       // :22
+                        pbMessage("没有道具。", again);          // :23
+                    } else {                                     // :25 pbFadeOutIn { WithdrawItemScene / TossItemScene }
+                        itemStorageView = new ItemStorageView(context,
+                                picked == 0 ? ItemStorageView.Kind.WITHDRAW : ItemStorageView.Kind.TOSS, storage);
+                        itemDone = again;
+                        mode = Mode.ITEMSTORAGE;
+                    }
                     break;
-                case 1:                                          // :31 Deposit Item
-                    // 登记: pbDepositItemScreen 未建模，空实现。
-                    pbPCItemStorage(picked, then);
+                }
+                case 1: {                                        // :31 Deposit Item: the bag in deposit mode
+                    depositBag = new BagView(context);
+                    depositBag.depositMode(pcItemStorage());
+                    itemDone = () -> pbPCItemStorage(picked, then);
+                    mode = Mode.DEPOSIT;
                     break;
-                case 2:                                          // :37 Toss Item
-                    // 登记: TossItemScene 未建模，空实现。
-                    pbPCItemStorage(picked, then);
-                    break;
+                }
                 default:
                     then.run();                                  // :51 break
                     break;
             }
         });
+    }
+
+    /** {@code $PokemonGlobal.pcItemStorage} created on first use (:19-21, PCItemStorage#initialize: a Potion). */
+    private pokemon.runtime.state.PcItemStorage pcItemStorage() {
+        pokemon.runtime.state.FieldGlobals globals = context.gameState().fieldGlobals();
+        if (globals.pcItemStorage == null) {
+            globals.pcItemStorage = pokemon.runtime.state.PcItemStorage.withPotion(
+                    context.pbsData() != null && context.pbsData().item("POTION") != null);
+        }
+        return globals.pcItemStorage;
     }
 
     /** :56-103 pbPCMailbox — 登记: 邮件未建模，邮箱恒空 ⇒ 走 :57-58 的「电脑里没有邮件。」。 */
@@ -321,6 +343,18 @@ public final class PokeCenterPcView {
             }
             return finished;
         }
+        if (mode == Mode.ITEMSTORAGE || mode == Mode.DEPOSIT) {
+            boolean closed = mode == Mode.ITEMSTORAGE ? itemStorageView.update(input) : depositBag.update(input);
+            if (closed) {
+                itemStorageView = null;
+                depositBag = null;
+                Runnable then = itemDone;
+                itemDone = null;
+                mode = Mode.IDLE;
+                if (then != null) then.run();
+            }
+            return finished;
+        }
         if (mode == Mode.MESSAGE) {
             pbMessage.update(input, ticks);
         } else if (mode == Mode.HELPMENU) {
@@ -334,6 +368,14 @@ public final class PokeCenterPcView {
         screenH = h;
         if (mode == Mode.STORAGE && storageView != null) {
             storageView.render(b, a, f, skin, speech, smallFont);
+            return;
+        }
+        if (mode == Mode.ITEMSTORAGE && itemStorageView != null) {
+            itemStorageView.render(b, a, f, skin, speech);
+            return;
+        }
+        if (mode == Mode.DEPOSIT && depositBag != null) {
+            depositBag.render(b, a, f, skin, speech, smallFont);
             return;
         }
         if (mode == Mode.MESSAGE) {

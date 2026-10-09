@@ -2,33 +2,39 @@ package pokemon.runtime.ui.menu;
 
 import pokemon.runtime.pokemon.*;
 
-/** NPC trades preserve the offered object's IVs, form and shininess. */
+/** {@code pbStartTrade}'s first half (227_PScreen_Trading:192-218): the Pokemon the player is going to get. */
 public final class TradeModel {
     private TradeModel() { }
-    public static boolean eligible(Pokemon pokemon, String wanted) {
-        return pokemon != null && !pokemon.egg && pokemon.species != null
-                && (wanted == null || wanted.equals(pokemon.species.internalName));
-    }
-    public static boolean trade(TrainerState trainer, int index, Pokemon offered, String nickname,
-                                String trainerName, PbsData data) {
-        Pokemon mine = trainer.party.get(index);
-        if (!eligible(mine, null) || offered == null || offered.egg || offered == mine) return false;
-        offered.name = nickname == null || nickname.isEmpty() ? offered.name : nickname;
-        offered.originalTrainer = trainerName;
-        trainer.party.members().set(index, offered);
-        trainer.registerOwned(offered);
-        if (offered.species != null && data != null) for (PbsData.Evolution evolution : offered.species.evolutions) {
-            boolean matches = "Trade".equals(evolution.method)
-                    || "TradeMale".equals(evolution.method) && offered.gender == PokemonStats.MALE
-                    || "TradeFemale".equals(evolution.method) && offered.gender == PokemonStats.FEMALE
-                    || "TradeItem".equals(evolution.method) && evolution.parameter.equals(offered.item)
-                    || "TradeSpecies".equals(evolution.method) && evolution.parameter.equals(mine.species.internalName);
-            if (matches && !"EVERSTONE".equals(offered.item) && data.species(evolution.species) != null) {
-                PokemonGrowth.evolve(offered, data.species(evolution.species));
-                if ("TradeItem".equals(evolution.method)) offered.item = null;
-                trainer.registerOwned(offered); break;
-            }
+
+    /**
+     * Builds {@code yourPokemon}: an offered Pokemon object keeps its moves; a species name makes a new Pokemon of the
+     * traded one's level. Either way the foreign trainer is its OT with a fresh id, it gets the nickname, the traded
+     * obtain mode and its first moves, and the player has now seen and owned the species.
+     */
+    public static Pokemon prepare(TrainerState trainer, Pokemon mine, Object newpoke, String nickname,
+                                  String trainerName, PbsData data, java.util.Random random) {
+        Pokemon yours;
+        boolean resetMoves = true;
+        if (newpoke instanceof Pokemon) {                                   // :197-203
+            yours = (Pokemon) newpoke;
+            resetMoves = false;
+        } else if (newpoke instanceof String && data != null && data.species((String) newpoke) != null) {   // :204-209
+            yours = new Pokemon(data.species((String) newpoke), mine.level, data);
+        } else {
+            return null;                                                    // :206 the species does not exist
         }
-        return true;
+        int foreignId = random.nextInt();                                   // :195 opponent.setForeignID($Trainer)
+        yours.trainerID = foreignId;
+        yours.publicID = foreignId & 0xFFFF;
+        yours.originalTrainer = trainerName;                                // :198-200 ot, otgender
+        yours.otGender = 0;                                                 // trainerGender default 0
+        yours.name = nickname;                                              // :212
+        yours.obtainMode = 2;                                               // :213 traded
+        if (resetMoves) {
+            yours.resetMoves(data);                                         // :214
+        }
+        yours.recordFirstMoves();                                           // :215
+        trainer.registerOwned(yours);                                       // :216-218
+        return yours;
     }
 }

@@ -132,12 +132,12 @@ class P4MenuTest {
         assertTrue(saves.fromJson("{\"saveVersion\":1,\"map\":{\"id\":1,\"x\":0,\"y\":0}}", loaded));
         assertEquals(0, loaded.trainer().playSeconds);
     }
-    @Test void tradeKeepsCustomPokemonAndRegistersBothEvolutionStages() {
+    @Test void tradePreparesTheIncomingPokemonLikePbStartTrade() {
         state.trainer().party.add(pokemon()); Pokemon offered = pokemon(); offered.shiny = true; offered.ivs[0] = 31;
-        PbsData.Evolution e = new PbsData.Evolution(); e.method = "Trade"; e.species = "B"; offered.species.evolutions.add(e);
-        assertTrue(TradeModel.trade(state.trainer(), 0, offered, "礼物", "交换者", data));
-        assertSame(offered, state.trainer().first()); assertEquals("B", offered.internalName); assertEquals("礼物", offered.name);
-        assertEquals(31, offered.ivs[0]); assertTrue(offered.shiny); assertEquals(2, state.trainer().owned.size());
-        assertFalse(TradeModel.trade(state.trainer(), -1, pokemon(), "", "", data));
+        Pokemon yours = TradeModel.prepare(state.trainer(), state.trainer().first(), offered, "礼物", "交换者", data, new java.util.Random(1));
+        assertSame(offered, yours); assertEquals("礼物", yours.name); assertEquals("交换者", yours.originalTrainer);
+        assertEquals(2, yours.obtainMode); assertEquals(31, yours.ivs[0]); assertTrue(yours.shiny);
+        assertTrue(state.trainer().owned.contains(yours.species.internalName));
+        assertNull(TradeModel.prepare(state.trainer(), state.trainer().first(), "NOSUCHSPECIES", "", "", data, new java.util.Random(1)));
     }
 }

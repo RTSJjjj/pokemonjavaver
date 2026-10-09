@@ -109,13 +109,66 @@ public final class MessageWindow implements Disposable {
         if (!skinName.isEmpty()) {
             skin(skinName);
         }
-        if (messages.choiceMode() || (messages.speaker() != null && !messages.speaker().isEmpty())) {
+        if (messages.numberMode() || messages.choiceMode()
+                || (messages.speaker() != null && !messages.speaker().isEmpty())) {
             skin(CHOICE_SKIN);
             ui("selarrow", "Pictures/selarrow.png");
         }
-        if (messages.waiting() && !messages.choiceMode()) {
+        if (messages.waiting() && !messages.choiceMode() && !messages.numberMode()) {
             ui("pause", "Pictures/pause.png");
         }
+    }
+
+    /**
+     * {@code pbDrawTextPositions}' text with the three-copy shadow (+2,0), (0,+2), (+2,+2) (MenuFont#draw); {@code y} is the
+     * top of the text line.
+     */
+    public void drawShadowText(SpriteBatch batch, String text, float x, float y, com.badlogic.gdx.graphics.Color main,
+                               com.badlogic.gdx.graphics.Color shadow) {
+        if (!ready) {
+            return;
+        }
+        font.setColor(shadow);
+        font.draw(batch, text, x + 2f, y);
+        font.draw(batch, text, x, y - 2f);
+        font.draw(batch, text, x + 2f, y - 2f);
+        font.setColor(main);
+        font.draw(batch, text, x, y);
+        font.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /** {@code pbDrawTextPositions} with alignment 2 (centred on {@code centerX}) and the one-shadow style 0 of Headtop_Name. */
+    public void drawCenteredShadowText(SpriteBatch batch, String text, float centerX, float y,
+                                       com.badlogic.gdx.graphics.Color main, com.badlogic.gdx.graphics.Color shadow, float alpha) {
+        if (!ready) {
+            return;
+        }
+        layout.setText(font, text);
+        float x = centerX - layout.width / 2f;
+        font.setColor(shadow.r, shadow.g, shadow.b, alpha);
+        font.draw(batch, text, x + 2f, y);
+        font.draw(batch, text, x, y - 2f);
+        font.draw(batch, text, x + 2f, y - 2f);
+        font.setColor(main.r, main.g, main.b, alpha);
+        font.draw(batch, text, x, y);
+        font.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * Small text with a shadow for the boxes of the map (308_ItemFindSimple_Scene:42-58: white on dark grey);
+     * {@code x} is the left edge, or the right edge when {@code right}; {@code y} is the top of the text line.
+     */
+    public void drawToastText(SpriteBatch batch, String text, float x, float y, boolean right) {
+        if (!ready) {
+            return;
+        }
+        layout.setText(font, text);
+        float left = right ? x - layout.width : x;
+        font.setColor(64 / 255f, 64 / 255f, 64 / 255f, 1f);
+        font.draw(batch, text, left + 1f, y - 1f);
+        font.setColor(248 / 255f, 248 / 255f, 248 / 255f, 1f);
+        font.draw(batch, text, left, y);
+        font.setColor(1f, 1f, 1f, 1f);
     }
 
     /**
@@ -141,6 +194,12 @@ public final class MessageWindow implements Disposable {
         float windowX = originX;
         float windowY = originY;
         float windowWidth = viewWidth;
+        // \wm / \wu (071_Messages:1198-1217): the window in the middle or at the top of the screen.
+        if (messages.position() == 1) {
+            windowY = originY + (viewHeight - windowHeight) / 2f;
+        } else if (messages.position() == 2) {
+            windowY = originY + viewHeight - windowHeight;
+        }
 
         if (!messages.lines().isEmpty()) {
             if (skin != null) {
@@ -151,7 +210,13 @@ public final class MessageWindow implements Disposable {
         if (messages.speaker() != null && !messages.speaker().isEmpty()) {
             drawSpeaker(batch, windowX, windowY + windowHeight);
         }
-        if (messages.choiceMode()) {
+        if (messages.gold()) {
+            drawGold(batch, originX, originY, viewHeight, messages.position() == 2);
+        }
+        if (messages.numberMode()) {
+            float messageTop = messages.lines().isEmpty() ? originY : windowY + windowHeight;
+            drawNumberInput(batch, originX, originY, viewWidth, viewHeight, messageTop);
+        } else if (messages.choiceMode()) {
             float messageTop = messages.lines().isEmpty()
                     ? originY : windowY + windowHeight;
             drawChoices(batch, originX, originY, viewWidth, viewHeight, messageTop);
@@ -186,8 +251,7 @@ public final class MessageWindow implements Disposable {
             collectRuns(line, palette, runs);
             float lineWidth = 0f;
             for (Run run : runs) {
-                layout.setText(font, run.text);
-                lineWidth += layout.width;
+                lineWidth += runWidth(run);
             }
             float x = centered ? contentX + Math.max(0f, (contentWidth - lineWidth) / 2f) : contentX;
             float y = contentTop - i * LINE_HEIGHT;
@@ -198,10 +262,16 @@ public final class MessageWindow implements Disposable {
                 }
                 remaining -= run.text.length();
                 if (!visible.isEmpty()) {
-                    drawRun(batch, new Run(visible, run.base, run.shadow), x, y);
+                    if (run.icon != null) {
+                        Texture icon = iconTexture(run.icon);
+                        if (icon != null) {
+                            batch.draw(icon, x, y - icon.getHeight() + 6f);
+                        }
+                    } else {
+                        drawRun(batch, new Run(visible, run.base, run.shadow), x, y);
+                    }
                 }
-                layout.setText(font, run.text);
-                x += layout.width;
+                x += runWidth(run);
             }
             if (lower.contains("</ac>")) {
                 centered = false;
@@ -256,12 +326,42 @@ public final class MessageWindow implements Disposable {
         final String text;
         final int base;
         final int shadow;
+        /** {@code <icon=X>} (070_DrawText:604-610): a picture of Graphics/Icons drawn in the line, or null. */
+        final String icon;
 
         Run(String text, int base, int shadow) {
+            this(text, base, shadow, null);
+        }
+
+        Run(String text, int base, int shadow, String icon) {
             this.text = text;
             this.base = base;
             this.shadow = shadow;
+            this.icon = icon;
         }
+    }
+
+    /** The icon placeholder: one revealed character, drawn as the picture. */
+    private static final String ICON_CHAR = "\uFFFC";
+    private final ObjectMap<String, Texture> iconTextures = new ObjectMap<>();
+
+    private Texture iconTexture(String name) {
+        if (iconTextures.containsKey(name)) {
+            return iconTextures.get(name);
+        }
+        File file = locator == null ? null : locator.find("Icons", name + ".png");
+        Texture texture = file == null ? null : textures.load("icon:" + name, file);
+        iconTextures.put(name, texture);
+        return texture;
+    }
+
+    private float runWidth(Run run) {
+        if (run.icon != null) {
+            Texture icon = iconTexture(run.icon);
+            return icon == null ? 0f : icon.getWidth();
+        }
+        layout.setText(font, run.text);
+        return layout.width;
     }
 
     /**
@@ -306,6 +406,15 @@ public final class MessageWindow implements Disposable {
                 if (close > 0) {
                     String tag = line.substring(i, close + 1);
                     String lower = tag.toLowerCase();
+                    if (lower.startsWith("<icon=")) {                       // 070_DrawText:604-610
+                        if (text.length() > 0) {
+                            runs.add(new Run(text.toString(), base, shadow));
+                            text.setLength(0);
+                        }
+                        runs.add(new Run(ICON_CHAR, base, shadow, tag.substring(6, tag.length() - 1).trim()));
+                        i = close + 1;
+                        continue;
+                    }
                     if (lower.equals("<ac>")) {
                         centered = true;
                         i = close + 1;
@@ -356,6 +465,38 @@ public final class MessageWindow implements Disposable {
     // ------------------------------------------------------------------
     // Speaker, choices, cursor
     // ------------------------------------------------------------------
+
+    /** Provides the player's money for {@link #drawGold}. */
+    public java.util.function.IntSupplier money = () -> 0;
+
+    /**
+     * {@code pbDisplayGoldWindow} (071_Messages:926-940): the "零花钱" box with the money right-aligned; it sits at the top of
+     * the screen unless the message is there ({@code msgwindow.y == 0}), then at the bottom.
+     */
+    private void drawGold(SpriteBatch batch, float originX, float originY, float viewHeight, boolean messageAtTop) {
+        WindowSkin skin = skin("goldskin");
+        if (skin == null) {
+            skin = skin(CHOICE_SKIN);
+        }
+        if (skin == null) {
+            return;
+        }
+        String label = "零花钱：";
+        String moneyText = "$" + String.format(java.util.Locale.ROOT, "%,d", money.getAsInt());
+        layout.setText(font, label);
+        float labelWidth = layout.width;
+        layout.setText(font, moneyText);
+        float width = Math.max(160f, Math.max(labelWidth, layout.width) + skin.geometry.borderX + 4f);
+        float height = 2 * LINE_HEIGHT + skin.geometry.borderY;
+        float y = messageAtTop ? originY : originY + viewHeight - height;
+        skin.draw(batch, originX, y, width, height);
+        MessagePalette palette = new MessagePalette(skin.dark);
+        float top = y + height - skin.geometry.trimStartY;
+        drawRun(batch, new Run(label, palette.base, palette.shadow), originX + skin.geometry.trimStartX, top);
+        layout.setText(font, moneyText);
+        drawRun(batch, new Run(moneyText, palette.base, palette.shadow),
+                originX + width - skin.geometry.trimStartX - layout.width, top - LINE_HEIGHT);
+    }
 
     private void drawSpeaker(SpriteBatch batch, float x, float messageTop) {
         String speaker = messages.speaker();
@@ -413,6 +554,60 @@ public final class MessageWindow implements Disposable {
                 textX += layout.width;
             }
         }
+    }
+
+    /**
+     * Window_InputNumberPokemon (065_SpriteWindow_text:612-): one 24px cell per
+     * digit, {@code width = digits*24 + 8 + borderX}, {@code height = 32 + borderY},
+     * the digit under the cursor underlined and blinking ({@code @frame/15 == 0} of a
+     * 30 frame cycle at 40 fps). 071_Messages {@code pbPositionNearMsgWindow(...,:right)}
+     * puts it at the right edge of the screen, just above or below the message window.
+     */
+    private void drawNumberInput(SpriteBatch batch, float originX, float originY,
+                                 float viewWidth, float viewHeight, float messageTop) {
+        WindowSkin skin = skin(CHOICE_SKIN);
+        if (skin == null) {
+            return;
+        }
+        MessagePalette palette = new MessagePalette(skin.dark);
+        int digits = messages.numberDigits();
+        float width = digits * 24f + 8f + skin.geometry.borderX;
+        float height = 32f + skin.geometry.borderY;
+        float x = originX + viewWidth - width;
+        float y = messageTop;
+        if (y + height > originY + viewHeight) {
+            y = Math.max(originY, originY + viewHeight - height);
+        }
+        skin.draw(batch, x, y, width, height);
+        String text = String.format("%0" + digits + "d", messages.number());
+        float rowTop = y + height - skin.geometry.trimStartY;
+        float left = x + skin.geometry.trimStartX;
+        boolean blinkOn = (System.nanoTime() / 375_000_000L) % 2L == 0L;      // 15 of 30 frames at 40 fps
+        for (int i = 0; i < digits; i++) {
+            String digit = text.substring(i, i + 1);
+            layout.setText(font, digit);
+            float cellX = left + i * 24f + (12f - layout.width / 2f);
+            drawRun(batch, new Run(digit, palette.base, palette.shadow), cellX, rowTop);
+            if (i == messages.numberIndex() && blinkOn) {
+                batch.setColor((palette.base >>> 16 & 0xff) / 255f, (palette.base >>> 8 & 0xff) / 255f,
+                        (palette.base & 0xff) / 255f, 1f);
+                batch.draw(underline(), cellX, rowTop - 30f, Math.max(1f, layout.width), 2f);
+                batch.setColor(1f, 1f, 1f, 1f);
+            }
+        }
+    }
+
+    private Texture underlineTexture;
+
+    private Texture underline() {
+        if (underlineTexture == null) {
+            Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+            pixmap.setColor(1f, 1f, 1f, 1f);
+            pixmap.fill();
+            underlineTexture = new Texture(pixmap);
+            pixmap.dispose();
+        }
+        return underlineTexture;
     }
 
     private void drawPauseCursor(SpriteBatch batch, float windowX, float windowY,
@@ -477,6 +672,9 @@ public final class MessageWindow implements Disposable {
 
     @Override
     public void dispose() {
+        if (underlineTexture != null) {
+            underlineTexture.dispose();
+        }
         if (font != null) {
             font.dispose();
         }

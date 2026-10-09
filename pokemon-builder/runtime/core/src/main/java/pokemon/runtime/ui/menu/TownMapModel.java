@@ -151,6 +151,30 @@ public final class TownMapModel {
     }
 
     /**
+     * {@code pbGetHealingSpot} as the fly mode reads it (PScreen_RegionMap:258-270): the point's own heal fields, without
+     * the switch check the name lookup applies.
+     */
+    public int[] flySpot() {
+        PbsData.TownMapRegion regionData = currentRegion();
+        PbsData.TownMapPoint point = regionData == null ? null : regionData.pointAt(mapX, mapY);
+        return point == null || !point.isHealingSpot() ? null : new int[] {point.healMapId, point.healX, point.healY};
+    }
+
+    /** Every healing spot of the current region (for the fly mode's markers). */
+    public java.util.List<int[]> flySpots() {
+        java.util.List<int[]> spots = new java.util.ArrayList<>();
+        PbsData.TownMapRegion regionData = currentRegion();
+        if (regionData != null) {
+            for (PbsData.TownMapPoint point : regionData.points) {
+                if (point.isHealingSpot()) {
+                    spots.add(new int[] {point.x, point.y, point.healMapId, point.healX, point.healY});
+                }
+            }
+        }
+        return spots;
+    }
+
+    /**
      * The visible point at the cursor: the plugin hides a point with a switch
      * unless {@code !loc[7] || (!@wallmap && $game_switches[loc[7]])}
      * (PScreen_RegionMap:208,247).
