@@ -60,10 +60,11 @@ class SaveSlotsTest {
             state.enterMap(2, 7, 5);
             StoragePort storage = new StoragePort();
             SaveManager saves = new SaveManager();
+            assertFalse(saves.saveAuto(storage, state), "no manual save yet: last_saved is nil and the plugin's pbSave rescues");
             saves.saveManual(storage, "3", state);
             long manual = state.trainer().lastSaved;
             assertEquals("3", state.trainer().saveSlot);
-            saves.saveAuto(storage, state);
+            assertTrue(saves.saveAuto(storage, state));
             assertEquals(manual - 1, state.trainer().lastSaved);
 
             var load = SaveSlots.listForLoad(storage, null);

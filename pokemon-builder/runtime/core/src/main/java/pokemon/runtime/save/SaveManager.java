@@ -1079,10 +1079,19 @@ public final class SaveManager {
         save(storage, slot, state);
     }
 
-    /** 380_003_MSF_UI_Save:19-21 {@code pbSave(nil, true)}: the autosave slot, one second older than the manual save it follows. */
-    public void saveAuto(StoragePort storage, GameState state) {
+    /**
+     * 380_003_MSF_UI_Save:19-21 {@code pbSave(nil, true)}: the autosave slot, one second older than the manual save it follows.
+     * 登记: {@code $Trainer.last_saved} is nil until the first manual save, and {@code nil -= 1} raises inside the plugin's
+     * {@code begin ... rescue return false}: the plugin's autosave does nothing until the player has saved by hand once, and so
+     * does this (returns false).
+     */
+    public boolean saveAuto(StoragePort storage, GameState state) {
+        if (state.trainer().lastSaved == 0L) {
+            return false;
+        }
         state.trainer().lastSaved -= 1;
         save(storage, AUTO_SLOT, state);
+        return true;
     }
 
     public boolean load(StoragePort storage, String slot, GameState state) {
