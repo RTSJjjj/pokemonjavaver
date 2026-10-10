@@ -112,7 +112,7 @@ public final class PokemonGame extends Game {
         } else {
             // No Builder output yet: keep the window responsive instead of
             // pretending the game is running.
-            setScreen(new ScreenManager(context));
+            setScreen(new ScreenManager(context, dataRoot));
         }
     }
 
