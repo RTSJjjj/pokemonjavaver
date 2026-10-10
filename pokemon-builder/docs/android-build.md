@@ -7,7 +7,7 @@
 
 | 模块 | 类型 | 说明 |
 |---|---|---|
-| `runtime/android` | AGP 应用（Modern） | `AndroidLauncher` + `AndroidKeyStateSource`；API 21+；四 ABI |
+| `runtime/android` | AGP 应用（Modern） | `AndroidLauncher` + `AndroidKeyStateSource`；API 26+（Android 8.0；存档与数据读取用到 java.time / java.nio.file）；四 ABI |
 | `runtime/android-legacy` | AGP 应用（Legacy 占位，§50） | 原脚手架 `AndroidLauncherLegacy`（外置数据目录 + `LegacyKeyStateSource`）+ `LegacyRuntime` 复用证明（`GameDatabase.load` / `InputManager` 编译在 `:core` 上） |
 
 两模块只共享 `generated/` 游戏数据，**不共享构建配置**。Modern 模块默认打包

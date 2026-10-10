@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         applicationId 'pokemon.runtime.android'
-        minSdk 21
+        minSdk 26   // java.time and java.nio.file (the save/data code uses them) exist from API 26 without desugaring
         targetSdk 34
         versionCode 100
         versionName project.version.toString()

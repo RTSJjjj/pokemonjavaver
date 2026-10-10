@@ -74,6 +74,7 @@ public final class PokemonGame extends Game {
             context.bindKeySource(keySource);
         }
 
+        CrashLog.install(context.storage());                  // startup.log + crash.log in the user directory
         Gdx.app.setLogLevel(com.badlogic.gdx.Application.LOG_DEBUG);
         Gdx.app.log("PokemonGame", "runtime " + RUNTIME_VERSION + " starting");
 

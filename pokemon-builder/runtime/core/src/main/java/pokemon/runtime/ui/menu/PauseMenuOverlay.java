@@ -896,6 +896,7 @@ public final class PauseMenuOverlay implements Disposable {
             saveView.notice("已将进度保存到 " + slot.label + "。");
         } catch (RuntimeException error) {
             Gdx.app.error("PauseMenu", "save failed: " + error.getMessage());
+            pokemon.runtime.app.CrashLog.note(context.storage(), "save failed (" + slot.id + ")", error);
             saveView.notice("保存失败，请检查是否拥有文件夹权限。");      // 380_003_MSF_UI_Save:99
         }
         saveView.refresh(context.storage(), database);
