@@ -13,7 +13,7 @@
         <!-- The launcher entry: unpacks the data pack behind a progress bar, then starts the game activity. -->
         <activity
             android:name=".PrepareActivity"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|layoutDirection|colorMode|locale"
             android:exported="true"
             android:screenOrientation="landscape">
 
@@ -25,7 +25,7 @@
 
         <activity
             android:name=".AndroidLauncher"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|layoutDirection|colorMode|locale"
             android:exported="false"
             android:screenOrientation="landscape" />
     </application>
