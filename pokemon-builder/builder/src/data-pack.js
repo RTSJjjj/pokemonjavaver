@@ -12,7 +12,7 @@ import { closeSync, copyFileSync, mkdirSync, openSync, readFileSync, readdirSync
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { deflateRawSync } from "node:zlib";
-import { HEADER_SIZE, encryptBuffer } from "./resource-crypto.js";
+import { HEADER_SIZE, encryptBuffer, shouldEncrypt } from "./resource-crypto.js";
 
 const CRC_TABLE = (() => {
   const table = new Int32Array(256);
@@ -102,7 +102,7 @@ export function createDataPack(sources, zipPath, options = {}) {
     for (const entry of entries) {
       const plain = readFileSync(entry.diskPath);
       hash.update(entry.entryName).update("\u0000").update(plain); // the version follows the content, not the nonce
-      const data = options.encrypt ? encryptBuffer(plain) : plain;
+      const data = options.encrypt && shouldEncrypt(entry.entryName) ? encryptBuffer(plain) : plain;
       let method = 8;
       let payload = deflateRawSync(data, { level: 1 });
       if (payload.length >= data.length) {

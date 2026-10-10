@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, statSync, utimesSync } from "
 import os from "node:os";
 import path from "node:path";
 import {
-  decryptBuffer, encryptBuffer, encryptFileInPlace, encryptTree, isEncryptedFile, HEADER_SIZE,
+  decryptBuffer, encryptBuffer, encryptFileInPlace, encryptTree, isEncryptedFile, shouldEncrypt, HEADER_SIZE,
 } from "../src/resource-crypto.js";
 
 // The same vector is in ResourceCryptoTest.java.
@@ -35,4 +35,13 @@ test("encryptFileInPlace keeps the mtime, adds the header once and encryptTree c
   assert.equal(decryptBuffer(readFileSync(file)).toString(), '{"a":1}');
   writeFileSync(path.join(dir, "b.png"), Buffer.from([1, 2, 3]));
   assert.equal(encryptTree(dir), 1);
+});
+
+test("the audio is left plain, everything else is encrypted", () => {
+  assert.equal(shouldEncrypt("audio/bgm/Title.ogg"), false);
+  assert.equal(shouldEncrypt("generated/audio/se/GUI sel cursor.ogg"), false);
+  assert.equal(shouldEncrypt(["audio", "se", "x.ogg"].join("\\")), false);
+  assert.equal(shouldEncrypt("maps/map-001.json"), true);
+  assert.equal(shouldEncrypt("Graphics/Pictures/a.png"), true);
+  assert.equal(shouldEncrypt("audio-manifest.json"), true);
 });

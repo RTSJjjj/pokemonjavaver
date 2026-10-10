@@ -74,7 +74,17 @@ export function encryptFileInPlace(file) {
   return true;
 }
 
-/** Encrypts every file below a directory; returns how many were converted. */
+/**
+ * Whether a packaged file is encrypted. The audio stays plain: MediaPlayer / SoundPool (Android) need real files, and
+ * decrypting hundreds of MB of music on first play bought nothing. `relative` uses "/" and is relative to the data root
+ * (runtime-data/ or the pack's generated/ prefix removed).
+ */
+export function shouldEncrypt(relative) {
+  const normalized = String(relative).split("\\").join("/").replace(/^\/+/, "").replace(/^generated\//, "");
+  return !/^audio\//i.test(normalized);
+}
+
+/** Encrypts every file below a directory (audio excluded); returns how many were converted. */
 export function encryptTree(root) {
   let count = 0;
   const walk = (dir) => {
@@ -87,7 +97,7 @@ export function encryptTree(root) {
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && encryptFileInPlace(full)) count++;
+      else if (entry.isFile() && shouldEncrypt(path.relative(root, full)) && encryptFileInPlace(full)) count++;
     }
   };
   walk(root);
