@@ -830,4 +830,39 @@ class EventInterpreterTest {
         }
         return array;
     }
+
+    @Test
+    @DisplayName("Ready Menu item: a repel is used with its line and consumed (221:263-272, 189:150)")
+    void readyItemRepel() {
+        state.inventory().add("REPEL", 1);
+        interpreter.attachInventory(state.inventory());
+        interpreter.startReadyItem("REPEL");
+        for (int i = 0; i < 8 && interpreter.running(); i++) {
+            interpreter.update(0f);
+            if (messages.visible()) press(GameAction.CONFIRM);
+        }
+        assertFalse(interpreter.running());
+        assertEquals(100, state.fieldGlobals().repel);
+        assertEquals(0, state.inventory().count("REPEL"));
+        assertFalse(interpreter.takeReadyBack(), "used: the menu is over");
+    }
+
+    @Test
+    @DisplayName("Ready Menu item that cannot be used: the line, then the menu comes back (221:267-268, 188:971-972)")
+    void readyItemRefused() {
+        state.inventory().add("POTION", 1);
+        interpreter.attachInventory(state.inventory());
+        interpreter.startReadyItem("POTION");
+        boolean sawLine = false;
+        for (int i = 0; i < 8 && interpreter.running(); i++) {
+            interpreter.update(0f);
+            if (messages.visible()) {
+                sawLine |= messages.lines().size > 0 && "这里不能使用。".equals(messages.lines().first());
+                press(GameAction.CONFIRM);
+            }
+        }
+        assertTrue(sawLine);
+        assertEquals(1, state.inventory().count("POTION"));
+        assertTrue(interpreter.takeReadyBack());
+    }
 }
