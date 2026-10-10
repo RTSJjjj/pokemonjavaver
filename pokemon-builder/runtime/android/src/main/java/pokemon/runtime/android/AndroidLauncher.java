@@ -103,7 +103,12 @@ public final class AndroidLauncher extends AndroidApplication {
         // Release plan P1: the screen keys stand in for physical keys, so a
         // keyboard still works and the game sees ordinary GameActions.
         TouchControls touch = new TouchControls();
-        initialize(new PokemonGame(dataRoot, -1, touch.wrap(new AndroidKeyStateSource()), touch), config);
+        PokemonGame game = new PokemonGame(dataRoot, -1, touch.wrap(new AndroidKeyStateSource()), touch);
+        // A saved-instance bundle means the system is restoring the activity after it had been destroyed in the background
+        // (the process was killed): continue from the autosave rather than starting over at the title.
+        game.resumeAutosave(savedInstanceState != null);
+        lifecycle("onCreate restored=" + (savedInstanceState != null));
+        initialize(game, config);
     }
 
     /**

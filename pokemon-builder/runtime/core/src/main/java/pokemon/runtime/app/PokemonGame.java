@@ -118,12 +118,40 @@ public final class PokemonGame extends Game {
                 setScreen(new MapScreen(context, startMap));
             } else {
                 // P4: the icons and menu pictures are decoded once, behind a loading bar, and kept until the game closes.
-                setScreen(new pokemon.runtime.ui.menu.PreloadScreen(context, () -> new TitleScreen(context)));
+                setScreen(new pokemon.runtime.ui.menu.PreloadScreen(context, () -> {
+                    com.badlogic.gdx.Screen resumed = resumeAutosave ? loadAutosave() : null;
+                    return resumed != null ? resumed : new TitleScreen(context);
+                }));
             }
         } else {
             // No Builder output yet: keep the window responsive instead of
             // pretending the game is running.
             setScreen(new ScreenManager(context, dataRoot));
+        }
+    }
+
+    private boolean resumeAutosave;
+
+    /**
+     * The system recreated the game after killing it in the background: after the preload, continue from the autosave
+     * (written when the app went to the background) instead of the title screen, if there is one.
+     */
+    public void resumeAutosave(boolean value) {
+        resumeAutosave = value;
+    }
+
+    private com.badlogic.gdx.Screen loadAutosave() {
+        try {
+            pokemon.runtime.state.GameState state = context.gameState();
+            if (!context.saveManager().load(context.storage(), pokemon.runtime.save.SaveManager.AUTO_SLOT, state)) {
+                return null;
+            }
+            context.audioManager().stopBgm();
+            log("resumed from the autosave after the app was recreated");
+            return new MapScreen(context, state.currentMapId(), state.playerX(), state.playerY(), state.playerDirection());
+        } catch (RuntimeException error) {
+            log("autosave resume failed: " + error.getMessage());
+            return null;
         }
     }
 
