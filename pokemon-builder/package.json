@@ -1,6 +1,6 @@
 {
   "name": "pokemon-builder",
-  "version": "1.0.0",
+  "version": "1.0.1-alpha",
   "private": true,
   "description": "Automation builder for RPG Maker XP / Pokemon Essentials projects",
   "type": "module",

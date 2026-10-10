@@ -20,7 +20,7 @@ import pokemon.runtime.ui.ScreenManager;
  */
 public final class PokemonGame extends Game {
 
-    public static final String RUNTIME_VERSION = "1.0.0";
+    public static final String RUNTIME_VERSION = "1.0.1-alpha";
     /** Quick save slot of the R11 desktop entry (F6 / F9). */
     public static final String QUICK_SLOT = "quick";
 
