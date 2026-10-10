@@ -22,5 +22,6 @@
     "analyzeSilence": true,
     "trimSilence": false,
     "normalize": false
-  }
+  },
+  "appName": "昕纪元影辞"
 }

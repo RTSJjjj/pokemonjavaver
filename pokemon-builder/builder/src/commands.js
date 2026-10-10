@@ -43,6 +43,7 @@ import {
 import { runtimeDataSummary, validateRuntimeData } from "./runtime-data.js";
 import { copyRuntimeAssets, createDataPack } from "./data-pack.js";
 import { encryptTree } from "./resource-crypto.js";
+import { writeLauncherAssets } from "./launcher-assets.js";
 import { createBuildReport, formatBuildReport, writeBuildReport } from "./build-report.js";
 
 export const EXIT_OK = 0;
@@ -92,6 +93,7 @@ const USAGE = [
   "  --no-assets        build-pc: skip copying Graphics/ + Fonts/ into dist",
   "  --no-data          build-android: skip the L3 data pack (slim APK for adb push)",
   "  --no-encrypt       build-pc / build-android: leave the packaged game files plain (P3 encryption off)",
+  "  --app-name <text>  build-android: the application name on the phone (default: appName in builder-config.json)",
   "  --release          build-android: signed release APK (preview keystore, L3)",
   "",
   "Exit codes:",
@@ -112,6 +114,15 @@ function parseArgs(argv) {
     }
     if (token.startsWith("--project=")) {
       parsed.flags.project = token.slice("--project=".length);
+      continue;
+    }
+    if (token === "--app-name") {
+      parsed.flags.appName = rest[i + 1];
+      i += 1;
+      continue;
+    }
+    if (token.startsWith("--app-name=")) {
+      parsed.flags.appName = token.slice("--app-name=".length);
       continue;
     }
     if (token === "--runtime-image") {
@@ -767,6 +778,16 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
     );
   }
 
+  if (!legacy) {
+    // the game's icon (Icon192.png / Game.ico / Game.exe) and name become the app's launcher icon and label
+    const appName = String(parsed.flags.appName || ctx.config.appName || ctx.config.projectName || "Pokemon Game");
+    try {
+      const launcher = writeLauncherAssets(validated.projectPath, path.join(ctx.builderRoot, "runtime", "android"), appName);
+      ctx.logger.step("      launcher: name \"" + launcher.appName + "\", icon " + (launcher.icon || "(none found, default icon)"));
+    } catch (error) {
+      ctx.logger.warn("launcher icon / name could not be prepared: " + error.message);
+    }
+  }
   ctx.logger.step("      " + formatTargetStatus(target));
   const gradleTasks = [target.gradleModule + ":" + target.gradleTask];
   ctx.logger.step("[7/8] Gradle Android build (gradlew " + gradleTasks.join(" ") + ")...");

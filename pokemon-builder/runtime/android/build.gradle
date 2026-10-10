@@ -43,6 +43,15 @@ android {
         }
     }
 
+    // Launcher icon + application name: the Builder stages the game project's icon and name (on top of a copy of the defaults)
+    // in build/launcher-info/res; without it the defaults in src/main/launcher-default are used.
+    sourceSets {
+        main {
+            def stagedLauncherRes = file('build/launcher-info/res')
+            res.srcDirs = [stagedLauncherRes.directory ? stagedLauncherRes : file('src/main/launcher-default')]
+        }
+    }
+
     // The data pack zip is already compressed; never deflate it again into the
     // APK (the APK stays close to the pack size and the build stays linear).
     androidResources {
