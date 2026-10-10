@@ -210,6 +210,12 @@ public final class PauseMenuOverlay implements Disposable {
     /** {@code PokemonPartyScreen#pbChooseAblePokemon} (210_PScreen_Party:1244-1269) with {@code proc { |pkmn| !pkmn.egg? }}. */
     private void chooseAble(pokemon.runtime.event.MenuService.Request value, pokemon.runtime.field.ItemScene scene) {
         pokemon.runtime.pokemon.Party party = context.gameState().trainer().party;
+        if ("any".equals(value.ableProc)) {                                                               // 252:249-254 no ableProc
+            scene.pbStartScene("请选择宝可梦", null);                                                        // screen.pbStartScene(...); pbChoosePokemon
+            int any = scene.pbChoosePokemon("请选择宝可梦");
+            value.complete(any, any >= 0 && party.get(any) != null ? party.get(any).name : "");
+            return;
+        }
         String[] annot = new String[party.size()];
         boolean[] eligibility = new boolean[party.size()];
         for (int i = 0; i < annot.length; i++) {

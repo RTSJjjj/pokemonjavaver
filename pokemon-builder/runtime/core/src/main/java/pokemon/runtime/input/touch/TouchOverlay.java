@@ -35,6 +35,7 @@ public final class TouchOverlay {
     private final Texture crossLit = shape(TouchButton.Shape.CROSS, false);
     private final Texture pillLit = shape(TouchButton.Shape.PILL, false);
     private final Texture arrow = arrowTexture();
+    private final Texture gear = gearTexture();
     private final MenuFont bigFont;
     private final MenuFont smallFont;
     private final OrthographicCamera camera = new OrthographicCamera();
@@ -70,10 +71,48 @@ public final class TouchOverlay {
                 batch.draw(arrow, button.centerX() - a / 2, gy + button.h / 2 - a / 2, a / 2, a / 2, a, a,
                         1f, 1f, rotation, 0, 0, SIZE, SIZE, false, false);
             }
+            if (TouchLayout.GEAR.equals(button.id)) {                       // the layout editor's key carries a drawn gear
+                float a = Math.min(button.w, button.h) * 0.7f;
+                batch.setColor(1f, 1f, 1f, opacity);
+                batch.draw(gear, button.centerX() - a / 2, gy + button.h / 2 - a / 2, a, a);
+            }
             batch.setColor(Color.WHITE);
             text(batch, button, gy);
         }
         batch.end();
+    }
+
+    /**
+     * The layout editor: every key as usual, the key being moved lit, then the editor's bar and a one-line hint above it.
+     *
+     * @param selectedId the key picked for moving / resizing, or null
+     */
+    public void renderEditor(SpriteBatch batch, int width, int height, List<TouchButton> buttons, String selectedId,
+                             List<TouchButton> bar, TouchPad barPad, String hint) {
+        render(batch, width, height, buttons, null);
+        camera.setToOrtho(false, width, height);
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (TouchButton button : buttons) {
+            if (button.id.equals(selectedId)) {
+                float gy = height - button.y - button.h;
+                batch.setColor(1f, 1f, 1f, 1f);
+                batch.draw(litShape(button.shape), button.x, gy, button.w, button.h);
+                batch.draw(litShape(button.shape), button.x, gy, button.w, button.h);   // twice: clearly brighter than a press
+            }
+        }
+        batch.setColor(Color.WHITE);
+        if (hint != null && !bar.isEmpty()) {
+            TouchButton first = bar.get(0);
+            float gy = height - first.y - first.h;
+            Color main = new Color(TEXT.r, TEXT.g, TEXT.b, 1f);
+            smallFont.drawCentered(batch, hint, width / 2f, gy + first.h + smallFont.lineHeight() * 1.6f, main, TEXT_SHADOW);
+        }
+        batch.end();
+        float saved = opacity;
+        opacity = 1f;                                                       // the bar is always readable
+        render(batch, width, height, bar, barPad);
+        opacity = saved;
     }
 
     /** Arm highlights (a lit arm is its own key) and the four arrow glyphs. */
@@ -195,6 +234,29 @@ public final class TouchOverlay {
         return texture;
     }
 
+    /** A cogwheel: eight rounded teeth around a ring with a hole, anti-aliased by the distance to its edge. */
+    private static Texture gearTexture() {
+        Pixmap pixmap = new Pixmap(SIZE, SIZE, Pixmap.Format.RGBA8888);
+        pixmap.setBlending(Pixmap.Blending.None);
+        float half = SIZE / 2f;
+        float body = SIZE * 0.30f, tooth = SIZE * 0.12f, hole = SIZE * 0.13f;
+        for (int py = 0; py < SIZE; py++) {
+            for (int px = 0; px < SIZE; px++) {
+                float x = px + 0.5f - half, y = py + 0.5f - half;
+                float r = (float) Math.sqrt(x * x + y * y);
+                float angle = (float) Math.atan2(y, x);
+                float wave = clamp(((float) Math.sin(angle * 8f) * 2.2f + 1f) / 2f);   // 0..1, flat tops and gaps
+                float edge = r - (body + tooth * wave);                  // < 0 inside the outline
+                float alpha = clamp(0.5f - edge) * clamp(0.5f + (r - hole));
+                pixmap.drawPixel(px, py, Color.rgba8888(1f, 1f, 1f, 0.92f * alpha));
+            }
+        }
+        Texture texture = new Texture(pixmap);
+        texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        pixmap.dispose();
+        return texture;
+    }
+
     private static float clamp(float value) {
         return value < 0f ? 0f : value > 1f ? 1f : value;
     }
@@ -209,5 +271,6 @@ public final class TouchOverlay {
         cross.dispose();
         crossLit.dispose();
         arrow.dispose();
+        gear.dispose();
     }
 }

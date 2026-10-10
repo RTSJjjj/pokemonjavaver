@@ -213,6 +213,8 @@ public final class EventInterpreter {
             scriptTaskDone = null;
             scriptTaskAnswer = null;
             scriptQuestion = null;
+            scriptNumber = null;
+            numberTask = false;
         }
         if (menuRequest != null) menuRequest.complete(-1, "");
         menuRequest = null;
@@ -1180,6 +1182,21 @@ public final class EventInterpreter {
             }
             messages.moveDigitCursor(-1);
         }
+        if (numberTask) {
+            if (input.wasPressed(GameAction.CONFIRM)) {                     // 071_Messages:775-783
+                int entered = messages.number();
+                if (entered > numberTaskMax || entered < numberTaskMin) {
+                    pokemon.runtime.audio.UiSounds.buzzer(audio);           // :778-781 pbPlayBuzzerSE
+                    return;
+                }
+                pokemon.runtime.audio.UiSounds.decision(audio);             // :783
+                finishNumberTask(entered);
+            } else if (input.wasPressed(GameAction.CANCEL)) {               // :786-789 ret = cancelNumber
+                pokemon.runtime.audio.UiSounds.cancel(audio);
+                finishNumberTask(numberTaskCancel);
+            }
+            return;
+        }
         if (input.wasPressed(GameAction.CONFIRM)) {                         // :784 Input::C -> ret = number
             pokemon.runtime.audio.UiSounds.decision(audio);                 // :789
             numberInputResult = messages.number();
@@ -1191,6 +1208,13 @@ public final class EventInterpreter {
             messages.close();
             finishNumberInput();
         }
+    }
+
+    private void finishNumberTask(int value) {
+        messages.close();
+        numberTask = false;
+        scriptTaskAnswer = () -> value;
+        interpreterState = InterpreterState.RUNNING;
     }
 
     private void finishNumberInput() {
@@ -3141,6 +3165,19 @@ public final class EventInterpreter {
     }
 
     /**
+     * 049_Scene_Map:200-201 {@code goldFinger} (371_goldFinger): the F8 menu runs as an event of its own, started when the
+     * player is standing still with no event or message running.
+     */
+    public void startGoldFinger() {
+        Array<EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 0));
+        start(list, state.currentMapId(), -1);
+        startFieldTask(scene -> new GoldFinger(state, pbs, scene,
+                new pokemon.runtime.field.ItemHandlers(pbs, state, java.time.LocalTime::now),
+                regionalDexCount() + 1).goldFinger());
+    }
+
+    /**
      * 221_PScreen_ReadyMenu:229-262: a move of the Ready Menu. {@code question} is the {@code ConfirmUseMove} text (null: none, empty:
      * the handler answers no); the fly map comes first for Fly. The menu comes back when the move is not used.
      */
@@ -3736,6 +3773,11 @@ public final class EventInterpreter {
     private java.util.List<String> scriptQuestion;
     private int scriptQuestionCancel;
     private int scriptQuestionDefault;
+    /** A number prompt of a task waiting for its message to finish: {@code {min, max, initial, cancel, digits}}. */
+    private int[] scriptNumber;
+    /** The number window belongs to a task ({@code pbMessageChooseNumber} with a range) rather than command 103. */
+    private boolean numberTask;
+    private int numberTaskMin, numberTaskMax, numberTaskCancel;
 
     private ScriptCondition parseCondition(String text) {
         ScriptCondition cached = conditionCache.get(text);
@@ -3818,6 +3860,17 @@ public final class EventInterpreter {
                 interpreterState = InterpreterState.WAIT_MESSAGE;
                 return;
             }
+            if (scriptNumber != null) {                                         // the message is done: open the number window
+                int[] range = scriptNumber;
+                scriptNumber = null;
+                numberTaskMin = range[0];
+                numberTaskMax = range[1];
+                numberTaskCancel = range[3];
+                numberTask = true;
+                messages.showNumberInput(range[4], range[2]);                   // 071_Messages:761-770 pbChooseNumber
+                interpreterState = InterpreterState.WAIT_MESSAGE;
+                return;
+            }
             if (scriptTaskAnswer != null) {
                 scriptTask.answer(scriptTaskAnswer.get());
                 scriptTaskAnswer = null;
@@ -3847,6 +3900,39 @@ public final class EventInterpreter {
                     scriptQuestionDefault = r.number;
                     showHandlerQuestion(r.text, r.commands, cancel < 0 ? 100 : cancel);
                     scriptTaskAnswer = () -> choiceResult >= 99 ? -1 : choiceResult;
+                    return;
+                }
+                case CHOOSE_NUMBER: {
+                    // ChooseNumberParams (071_Messages:644-742): setRange without negatives, maxDigits from the range
+                    int min = Math.max(0, r.min);
+                    int max = Math.max(min, r.max);                             // :681 maxNumber=minNumber if min>max
+                    int initial = Math.max(min, Math.min(max, r.number));       // :701 initialNumber clamp
+                    int digits = Math.max(String.valueOf(min).length(), String.valueOf(max).length());   // :733-739
+                    showHandlerNumber(r.text, new int[] {min, max, initial, r.cancel, digits});
+                    return;
+                }
+                case CHOOSE_LIST: {
+                    final int cancel = r.cancel;
+                    messages.close();                                           // pbCommands2 draws a list window of its own
+                    Array<String> options = new Array<>();
+                    for (String option : r.commands) {
+                        options.add(option);
+                    }
+                    choiceResult = Integer.MIN_VALUE;
+                    messages.showChoices(options, 100, Math.max(0, r.number));
+                    interpreterState = InterpreterState.WAIT_MESSAGE;
+                    scriptTaskAnswer = () -> choiceResult >= 99 ? -1 : choiceResult;
+                    return;
+                }
+                case CHOOSE_ANY: {
+                    MenuService.Request any = new MenuService.Request(MenuService.Kind.CHOOSE_ABLE);
+                    any.ableProc = "any";                                       // 252_PSystem_PokemonUtilities:249-254
+                    if (menuService == null) {
+                        scriptTask.answer(-1);
+                        break;
+                    }
+                    menuRequest = menuService.submit(any);
+                    scriptTaskAnswer = () -> any.result;
                     return;
                 }
                 case TUTOR: {
@@ -4007,6 +4093,13 @@ public final class EventInterpreter {
         interpreterState = InterpreterState.WAIT_MESSAGE;
         scriptQuestion = options;
         scriptQuestionCancel = cancelType;
+    }
+
+    /** {@code pbMessageChooseNumber}: the text stays while the number window is open. */
+    private void showHandlerNumber(String text, int[] range) {
+        showHandlerQuestion(text, java.util.Collections.<String>emptyList(), 0);
+        scriptQuestion = null;
+        scriptNumber = range;
     }
 
     private void conditionalBranch(EventProgram program, EventCommand command) {

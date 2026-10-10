@@ -7,7 +7,7 @@ import java.util.function.Function;
 
 /** The {@link FieldScene} of a field script running on a {@code BlockingTask}: each call is a request for the interpreter. */
 final class TaskFieldScene implements FieldScene {
-    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL, FLY_MAP, DIMENSION_WARP, SHOW_MAP }
+    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL, FLY_MAP, DIMENSION_WARP, SHOW_MAP, CHOOSE_NUMBER, CHOOSE_ANY, CHOOSE_LIST }
 
     static final class Request {
         final Kind kind;
@@ -15,6 +15,8 @@ final class TaskFieldScene implements FieldScene {
         List<String> commands;
         int number;
         int cancel;
+        /** CHOOSE_NUMBER: {@code setRange(min, max)}, the initial value ({@link #number}) and the cancel value ({@link #cancel}). */
+        int min, max;
         List<String> movelist;
         boolean flag;
         java.util.function.Supplier<Float> action;
@@ -69,6 +71,39 @@ final class TaskFieldScene implements FieldScene {
         Request r = new Request(Kind.WAIT_CANCEL);
         r.number = frames;
         return Boolean.TRUE.equals(caller.apply(r));
+    }
+
+    /**
+     * {@code pbMessageChooseNumber(text, params)} (071_Messages:1328-1336) with {@code setRange(min, max)},
+     * {@code setDefaultValue(initial)} and {@code setCancelValue(cancel)}: the number the player confirmed, or the cancel value.
+     */
+    public int pbMessageChooseNumber(String text, int min, int max, int initial, int cancel) {
+        Request r = new Request(Kind.CHOOSE_NUMBER);
+        r.text = text;
+        r.min = min;
+        r.max = max;
+        r.number = initial;
+        r.cancel = cancel;
+        return (Integer) caller.apply(r);
+    }
+
+    /**
+     * {@code pbCommands2(cmdwin, commands, cmdIfCancel, defaultCmd, true)} on a list window of its own (no message): the
+     * index chosen, or -1 on cancel.
+     */
+    public int pbChooseFromList(List<String> commands, int defaultCmd) {
+        Request r = new Request(Kind.CHOOSE_LIST);
+        r.commands = commands;
+        r.number = defaultCmd;
+        return (Integer) caller.apply(r);
+    }
+
+    /**
+     * {@code pbChoosePokemon(1, 3)} without a proc (252_PSystem_PokemonUtilities:246-266): the whole party can be picked,
+     * eggs included; the party index, or -1.
+     */
+    public int pbChoosePokemon() {
+        return (Integer) caller.apply(new Request(Kind.CHOOSE_ANY));
     }
 
     @Override

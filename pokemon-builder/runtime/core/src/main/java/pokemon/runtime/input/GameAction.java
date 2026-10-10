@@ -27,6 +27,11 @@ public enum GameAction {
      * screen's "[F]:寄存系统" (PScreen_Party:918).
      */
     F5,
+    /**
+     * RMXP {@code Input::F8} (049_Scene_Map:200-201): the {@code goldFinger} cheat menu (371_goldFinger). Outside the
+     * cheat switches it only offers to refresh the habitat list.
+     */
+    F8,
     /** 296_Follower_Config:44 {@code TOGGLEFOLLOWERKEY = :CTRL}: the following Pokemon on / off. */
     TOGGLE_FOLLOWER,
     /** 338_004_ESMM_Overwrite:213-217 {@code Input::MAP = 97}: the M key. */

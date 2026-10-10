@@ -124,6 +124,7 @@ public final class PokemonGame extends Game {
         int height = Gdx.graphics.getHeight();
         touch.create(new pokemon.runtime.ui.menu.MenuFont(file, Math.round(height * 0.06f)),
                 new pokemon.runtime.ui.menu.MenuFont(file, Math.round(height * 0.028f)));
+        touch.attachStorage(context.storage());                 // touch-layout.json: the player's key arrangement
         touchBatch = new com.badlogic.gdx.graphics.g2d.SpriteBatch();
     }
 

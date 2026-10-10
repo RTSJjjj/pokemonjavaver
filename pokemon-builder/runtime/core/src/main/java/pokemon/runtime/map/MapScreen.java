@@ -955,6 +955,14 @@ public final class MapScreen extends ScreenAdapter {
             context.inputManager().consumePressed();
             openReadyMenu();                                                      // 049_Scene_Map:192-195, :213-216 pbUseKeyItem
         }
+        if (!menuHandled && interpreter != null && context.inputManager().wasPressed(GameAction.F8)
+                && !context.messageService().visible() && !player.isMoving() && !player.isJumping()
+                && !interpreter.running() && !context.transferPending()
+                && playerRoute == null && battleEntry == null) {
+            context.inputManager().consumePressed();
+            interpreter.startGoldFinger();                                        // 049_Scene_Map:200-201 goldFinger (371_goldFinger)
+            menuHandled = true;
+        }
         if (!menuHandled && pauseMenu != null && context.inputManager().wasPressed(GameAction.MENU)
                 && !context.messageService().visible()
                 && !(interpreter != null && interpreter.running())

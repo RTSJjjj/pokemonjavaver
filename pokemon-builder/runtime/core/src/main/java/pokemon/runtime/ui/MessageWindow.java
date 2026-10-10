@@ -654,7 +654,13 @@ public final class MessageWindow implements Disposable {
             maxText = Math.max(maxText, layout.width);
         }
         float width = maxText + skin.geometry.borderX + 36f;
-        float height = messages.choices().size * LINE_HEIGHT + skin.geometry.borderY;
+        // A long list (goldFinger's natures and move list) scrolls: only the rows that fit above/below the message show,
+        // the window follows the cursor (Window_CommandPokemon keeps the cursor row in view).
+        int total = messages.choices().size;
+        int fit = (int) Math.floor((originY + viewHeight - messageTop - skin.geometry.borderY) / LINE_HEIGHT);
+        int rows = total <= 8 ? total : Math.min(total, Math.max(8, fit));          // short lists are drawn whole, as before
+        int first = Math.max(0, Math.min(total - rows, messages.cursor() - rows / 2));
+        float height = rows * LINE_HEIGHT + skin.geometry.borderY;
         float x = originX + viewWidth - width;
         float y = messageTop;
         if (y + height > originY + viewHeight) {
@@ -662,8 +668,9 @@ public final class MessageWindow implements Disposable {
         }
         skin.draw(batch, x, y, width, height);
 
-        for (int i = 0; i < messages.choices().size; i++) {
-            float rowTop = y + height - skin.geometry.trimStartY - i * LINE_HEIGHT;
+        for (int row = 0; row < rows; row++) {
+            int i = first + row;
+            float rowTop = y + height - skin.geometry.trimStartY - row * LINE_HEIGHT;
             if (i == messages.cursor()) {
                 Texture arrow = ui("selarrow", "Pictures/selarrow.png");
                 if (arrow != null) {
