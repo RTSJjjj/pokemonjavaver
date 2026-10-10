@@ -21,6 +21,24 @@ import java.io.File;
  */
 public final class AndroidLauncherLegacy extends AndroidApplication {
 
+    private android.app.AlertDialog exitDialog;
+
+    /** The Back key / back gesture asks before quitting, so a stray swipe does not close the game. */
+    @Override
+    public void onBackPressed() {
+        runOnUiThread(() -> {
+            if (exitDialog != null && exitDialog.isShowing()) {
+                return;
+            }
+            exitDialog = new android.app.AlertDialog.Builder(this)
+                    .setMessage("是否退出游戏？")
+                    .setPositiveButton("退出", (dialog, which) -> finish())
+                    .setNegativeButton("取消", null)
+                    .create();
+            exitDialog.show();
+        });
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

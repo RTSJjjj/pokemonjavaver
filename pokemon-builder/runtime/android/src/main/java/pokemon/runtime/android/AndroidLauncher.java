@@ -44,6 +44,30 @@ public final class AndroidLauncher extends AndroidApplication {
         }
     }
 
+    private android.app.AlertDialog exitDialog;
+
+    /**
+     * The system Back key / edge-swipe back gesture used to close the game at once, so one stray swipe quit it. It now asks
+     * first; the game keeps running behind the dialog and "取消" simply returns to it.
+     */
+    @Override
+    public void onBackPressed() {
+        runOnUiThread(() -> {
+            if (exitDialog != null && exitDialog.isShowing()) {
+                return;
+            }
+            exitDialog = new android.app.AlertDialog.Builder(this)
+                    .setMessage("是否退出游戏？")
+                    .setPositiveButton("退出", (dialog, which) -> {
+                        lifecycle("exit confirmed");
+                        finish();
+                    })
+                    .setNegativeButton("取消", null)
+                    .create();
+            exitDialog.show();
+        });
+    }
+
     @Override
     protected void onPause() {
         lifecycle("onPause finishing=" + isFinishing());
