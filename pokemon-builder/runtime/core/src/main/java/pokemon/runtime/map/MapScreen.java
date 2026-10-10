@@ -4150,6 +4150,27 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     /**
+     * 378_001_MSF_AutoSave {@code Events.onStepTaken}: every 200 steps the game is saved to the autosave slot (not on maps 1, 119 and
+     * 426). 登记: {@code next if $PokemonGlobal.sliding} - ice sliding is not modelled in this engine, so every step counts.
+     */
+    private void autosaveStep() {
+        int map = gameState.currentMapId();
+        if (map == 1 || map == 119 || map == 426) {
+            return;
+        }
+        pokemon.runtime.pokemon.TrainerState trainer = gameState.trainer();
+        trainer.autosaveSteps += 1;
+        if (trainer.autosaveSteps >= 200) {
+            trainer.autosaveSteps = 0;
+            try {
+                context.saveManager().saveAuto(context.storage(), gameState);
+            } catch (RuntimeException error) {
+                context.game().log("autosave failed: " + error.getMessage());   // pbSave rescues and returns false
+            }
+        }
+    }
+
+    /**
      * L6: {@code pbSave} - the project's quiet save writes the quick slot, the
      * same file the F5/F9 shortcuts use (stage 2 has no single-save file).
      */
@@ -4202,6 +4223,7 @@ public final class MapScreen extends ScreenAdapter {
             lastPlayerTile[1] = player.y();
             rustleAt(player.x(), player.y());
             stepEggs();
+            autosaveStep();
             onPlayerStep();
         }
         onPlayerDirection();

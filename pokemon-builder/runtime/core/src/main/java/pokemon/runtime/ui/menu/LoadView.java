@@ -56,7 +56,7 @@ public final class LoadView {
 
     public void refresh(StoragePort storage, GameDatabase database) {
         slots.clear();
-        slots.addAll(SaveSlots.list(storage, database));
+        slots.addAll(SaveSlots.listForLoad(storage, database));
         showContinue = false;
         for (SaveSlots.Slot slot : slots) {
             if (slot.exists) {
@@ -198,7 +198,7 @@ public final class LoadView {
 
     /** 004's selected_title: ←自动保存→ / ←存档N→. */
     private static String continueTitle(SaveSlots.Slot slot) {
-        if ("quick".equals(slot.id)) {
+        if ("quick".equals(slot.id) || pokemon.runtime.save.SaveManager.AUTO_SLOT.equals(slot.id)) {
             return "←自动保存→";
         }
         return "←存档" + slot.id + "→";

@@ -48,4 +48,36 @@ class SaveSlotsTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("the autosave slot comes first on the load screens, one second older than the manual save (378 / 380)")
+    void autosaveSlot() throws Exception {
+        File home = Files.createTempDirectory("pb-auto-").toFile();
+        String previous = System.getProperty("user.home");
+        System.setProperty("user.home", home.getAbsolutePath());
+        try {
+            GameState state = new GameState();
+            state.enterMap(2, 7, 5);
+            StoragePort storage = new StoragePort();
+            SaveManager saves = new SaveManager();
+            saves.saveManual(storage, "3", state);
+            long manual = state.trainer().lastSaved;
+            assertEquals("3", state.trainer().saveSlot);
+            saves.saveAuto(storage, state);
+            assertEquals(manual - 1, state.trainer().lastSaved);
+
+            var load = SaveSlots.listForLoad(storage, null);
+            assertEquals(9, load.size);
+            assertEquals("auto", load.get(0).id);
+            assertTrue(load.get(0).exists);
+            assertEquals(manual * 1000L - 1000L, load.get(0).savedAtMillis);
+            assertEquals(8, SaveSlots.list(storage, null).size, "the save screen only offers the manual slots");
+
+            GameState restored = new GameState();
+            assertTrue(saves.load(storage, "auto", restored));
+            assertEquals("3", restored.trainer().saveSlot);
+        } finally {
+            if (previous == null) System.clearProperty("user.home"); else System.setProperty("user.home", previous);
+        }
+    }
 }

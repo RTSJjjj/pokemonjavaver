@@ -56,6 +56,10 @@ public final class TrainerState {
     /** {@code $PokemonGlobal.hallOfFameLastNumber}: how many entries were ever recorded. */
     public int hallOfFameLastNumber;
     public double playSeconds;
+    /** 378_001_MSF_AutoSave: steps since the last autosave; {@code save_slot} / {@code last_saved} (380:11-18, unix seconds) of the last manual save. */
+    public int autosaveSteps;
+    public String saveSlot;
+    public long lastSaved;
     public int region;
 
     public Storage storageForRegion(int value) {
@@ -110,7 +114,7 @@ public final class TrainerState {
         name = "训练家"; gender = PokemonStats.MALE; money = 0;
         newId(null);                       // a new game rolls a new trainer id
         party.members().clear(); storage.clear(); regionalStorage.clear();
-        seen.clear(); owned.clear(); habitats.clear(); badges.clear(); playSeconds = 0; region = 0;
+        seen.clear(); owned.clear(); habitats.clear(); badges.clear(); playSeconds = 0; autosaveSteps = 0; saveSlot = null; lastSaved = 0; region = 0;
         pokedex = false; pokepc = false; expPot = 0; chainCatching.reset(); dayCare.reset(); java.util.Arrays.fill(hatcherEggs, null); hallOfFame.clear(); hallOfFameLastNumber = 0; mysteryGiftAccess = false;
         healMapId = -1; healX = 0; healY = 0; healDirection = 0;
     }

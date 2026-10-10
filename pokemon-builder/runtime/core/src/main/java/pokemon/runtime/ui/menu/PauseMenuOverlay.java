@@ -885,7 +885,7 @@ public final class PauseMenuOverlay implements Disposable {
             return;
         }
         try {
-            context.saveManager().save(context.storage(), slot.id, context.gameState());
+            context.saveManager().saveManual(context.storage(), slot.id, context.gameState());
             MenuSe.save(context.audioManager());
             saveView.notice("已将进度保存到 " + slot.label + "。");
         } catch (RuntimeException error) {

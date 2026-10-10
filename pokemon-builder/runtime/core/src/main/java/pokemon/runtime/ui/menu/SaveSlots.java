@@ -90,6 +90,14 @@ public final class SaveSlots {
     private SaveSlots() {
     }
 
+    /** The load screens' list (381_004_MSF_UI_Load:100): the autosave slot first, then the manual slots. */
+    public static Array<Slot> listForLoad(StoragePort storage, GameDatabase database) {
+        Array<Slot> slots = new Array<>();
+        slots.add(read(storage, database, pokemon.runtime.save.SaveManager.AUTO_SLOT));
+        slots.addAll(list(storage, database));
+        return slots;
+    }
+
     public static Array<Slot> list(StoragePort storage, GameDatabase database) {
         Array<Slot> slots = new Array<>();
         for (String id : SLOT_IDS) {
@@ -99,7 +107,7 @@ public final class SaveSlots {
     }
 
     public static Slot read(StoragePort storage, GameDatabase database, String id) {
-        String label = "存档" + id;
+        String label = pokemon.runtime.save.SaveManager.AUTO_SLOT.equals(id) ? "自动保存" : "存档" + id;
         if (storage == null) {
             return new Slot(id, label, false, "", -1, "", 0L, 0, 0, 0, -1, -1, new Array<Slot.PartyEntry>());
         }
@@ -108,6 +116,7 @@ public final class SaveSlots {
             return new Slot(id, label, false, "", -1, "", 0L, 0, 0, 0, -1, -1, new Array<Slot.PartyEntry>());
         }
         String playerName = "";
+        long lastSaved = 0L;
         int mapId = -1;
         int badges = 0;
         int seen = 0;
@@ -132,6 +141,7 @@ public final class SaveSlots {
                 seen = seenList != null && seenList.isArray() ? seenList.size : 0;
                 // playSeconds is written as a number; accept either int or double.
                 playSeconds = (int) trainer.getDouble("playSeconds", 0);
+                lastSaved = trainer.getLong("lastSaved", 0L);                       // 379:get_newest_slot / 381:393 trainer.last_saved
                 if (trainer.has("gender")) {
                     gender = trainer.getInt("gender", -1);
                 }
@@ -160,7 +170,7 @@ public final class SaveSlots {
                 mapName = "";
             }
         }
-        return new Slot(id, label, true, playerName, mapId, mapName, file.lastModified(),
+        return new Slot(id, label, true, playerName, mapId, mapName, lastSaved > 0 ? lastSaved * 1000L : file.lastModified(),
                 badges, seen, playSeconds, gender, playerId, party);
     }
 }

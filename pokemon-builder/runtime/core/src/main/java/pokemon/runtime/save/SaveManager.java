@@ -35,6 +35,8 @@ public final class SaveManager {
     public static final int SAVE_VERSION = 2;
     private static final int OLDEST_SAVE_VERSION = 1;
     private static final String SAVE_DIRECTORY = "saves";
+    /** SaveData::AUTO_SLOTS (379_002_MSF_SaveData:6-8). */
+    public static final String AUTO_SLOT = "auto";
 
     /** PBS data used to rebuild Pokemon on load; null keeps the party empty. */
     private PbsData pbs;
@@ -269,6 +271,9 @@ public final class SaveManager {
         node.addChild("money", new JsonValue(trainer.money));
         node.addChild("region", new JsonValue(trainer.region));
         node.addChild("playSeconds", new JsonValue(trainer.playSeconds));
+        node.addChild("autosaveSteps", new JsonValue(trainer.autosaveSteps));
+        if (trainer.saveSlot != null) node.addChild("saveSlot", new JsonValue(trainer.saveSlot));
+        node.addChild("lastSaved", new JsonValue(trainer.lastSaved));
         node.addChild("pokedex", new JsonValue(trainer.pokedex));
         node.addChild("pokepc", new JsonValue(trainer.pokepc));
         node.addChild("mysteryGiftAccess", new JsonValue(trainer.mysteryGiftAccess));
@@ -784,6 +789,9 @@ public final class SaveManager {
         trainer.money = node.getInt("money", 0);
         trainer.region = Math.max(0, node.getInt("region", 0));
         trainer.playSeconds = Math.max(0, node.getDouble("playSeconds", 0));
+        trainer.autosaveSteps = node.getInt("autosaveSteps", 0);
+        trainer.saveSlot = node.getString("saveSlot", null);
+        trainer.lastSaved = node.getLong("lastSaved", 0L);
         trainer.pokedex = node.getBoolean("pokedex", false);
         trainer.pokepc = node.getBoolean("pokepc", false);
         trainer.mysteryGiftAccess = node.getBoolean("mysteryGiftAccess", false);
@@ -1026,6 +1034,19 @@ public final class SaveManager {
 
     public void save(StoragePort storage, String slot, GameState state) {
         storage.writeUtf8(relativePath(slot), toJson(state));
+    }
+
+    /** 380_003_MSF_UI_Save:12-18 {@code pbSave(slot, false)}: the slot and the time are remembered, then the file is written. */
+    public void saveManual(StoragePort storage, String slot, GameState state) {
+        state.trainer().lastSaved = System.currentTimeMillis() / 1000L;
+        state.trainer().saveSlot = slot;
+        save(storage, slot, state);
+    }
+
+    /** 380_003_MSF_UI_Save:19-21 {@code pbSave(nil, true)}: the autosave slot, one second older than the manual save it follows. */
+    public void saveAuto(StoragePort storage, GameState state) {
+        state.trainer().lastSaved -= 1;
+        save(storage, AUTO_SLOT, state);
     }
 
     public boolean load(StoragePort storage, String slot, GameState state) {

@@ -35,7 +35,7 @@ public final class SaveLoadView {
 
     public void refresh(StoragePort storage, GameDatabase database) {
         slots.clear();
-        slots.addAll(SaveSlots.list(storage, database));
+        slots.addAll(saveMode ? SaveSlots.list(storage, database) : SaveSlots.listForLoad(storage, database));
         index = Math.max(0, Math.min(index, slots.size - 1));
     }
 

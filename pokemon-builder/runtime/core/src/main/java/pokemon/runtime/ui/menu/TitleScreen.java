@@ -675,7 +675,7 @@ public final class TitleScreen extends ScreenAdapter {
     }
 
     private void refreshSaves() {
-        slots = SaveSlots.list(context.storage(), database);
+        slots = SaveSlots.listForLoad(context.storage(), database);
         hasSaves = false;
         int newest = -1;
         for (int i = 0; i < slots.size; i++) {
