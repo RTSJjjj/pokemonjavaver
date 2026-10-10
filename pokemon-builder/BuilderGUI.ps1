@@ -317,7 +317,7 @@ $form.Controls.Add($lblProjectState)
 $grpExport = New-Object System.Windows.Forms.GroupBox
 $grpExport.Text = '导出'
 $grpExport.Location = New-Object System.Drawing.Point(16, 106)
-$grpExport.Size = New-Object System.Drawing.Size(788, 128)
+$grpExport.Size = New-Object System.Drawing.Size(788, 140)
 $grpExport.Anchor = 'Top,Left,Right'
 $form.Controls.Add($grpExport)
 
@@ -362,6 +362,12 @@ $chkRelease.AutoSize = $true
 $chkRelease.Checked = $settings.release
 $grpExport.Controls.Add($chkRelease)
 
+$chkSlim = New-Object System.Windows.Forms.CheckBox
+$chkSlim.Text = '安卓：不含游戏数据的瘦包（手机上已装过数据时用，包小、构建快）'
+$chkSlim.Location = New-Object System.Drawing.Point(18, 110)
+$chkSlim.AutoSize = $true
+$grpExport.Controls.Add($chkSlim)
+
 $chkNoCache = New-Object System.Windows.Forms.CheckBox
 $chkNoCache.Text = '忽略缓存，全部重建'
 $chkNoCache.Location = New-Object System.Drawing.Point(598, 88)
@@ -371,7 +377,7 @@ $grpExport.Controls.Add($chkNoCache)
 
 $grpEnv = New-Object System.Windows.Forms.GroupBox
 $grpEnv.Text = '运行环境（不随包提供，需要你自己装好）'
-$grpEnv.Location = New-Object System.Drawing.Point(16, 244)
+$grpEnv.Location = New-Object System.Drawing.Point(16, 256)
 $grpEnv.Size = New-Object System.Drawing.Size(788, 88)
 $grpEnv.Anchor = 'Top,Left,Right'
 $form.Controls.Add($grpEnv)
@@ -407,22 +413,22 @@ New-LocateButton 406 'ffmpeg'
 New-LocateButton 546 'sdk'
 
 $progress = New-Object System.Windows.Forms.ProgressBar
-$progress.Location = New-Object System.Drawing.Point(16, 344)
+$progress.Location = New-Object System.Drawing.Point(16, 356)
 $progress.Size = New-Object System.Drawing.Size(560, 12)
 $progress.Anchor = 'Top,Left,Right'
 $progress.Style = 'Blocks'
 $form.Controls.Add($progress)
 
 $lblResult = New-Object System.Windows.Forms.Label
-$lblResult.Location = New-Object System.Drawing.Point(590, 340)
+$lblResult.Location = New-Object System.Drawing.Point(590, 352)
 $lblResult.Size = New-Object System.Drawing.Size(214, 20)
 $lblResult.Anchor = 'Top,Right'
 $lblResult.TextAlign = 'MiddleRight'
 $form.Controls.Add($lblResult)
 
 $logBox = New-Object System.Windows.Forms.RichTextBox
-$logBox.Location = New-Object System.Drawing.Point(16, 368)
-$logBox.Size = New-Object System.Drawing.Size(788, 238)
+$logBox.Location = New-Object System.Drawing.Point(16, 380)
+$logBox.Size = New-Object System.Drawing.Size(788, 226)
 $logBox.Anchor = 'Top,Bottom,Left,Right'
 $logBox.ReadOnly = $true
 $logBox.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 250)
@@ -473,6 +479,7 @@ $btnAndroid.Add_Click({
     $flags = @()
     if (-not $chkEncrypt.Checked) { $flags += '--no-encrypt' }
     if ($chkRelease.Checked) { $flags += '--release' }
+    if ($chkSlim.Checked) { $flags += '--no-data' }
     if ($chkNoCache.Checked) { $flags += '--no-cache' }
     Start-Build 'build-android' $flags '导出 安卓版' $true
 })

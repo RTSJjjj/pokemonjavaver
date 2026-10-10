@@ -16,17 +16,35 @@ public final class RuntimeDataLocator {
     private RuntimeDataLocator() {
     }
 
+    /**
+     * A root that holds no {@code project.json} itself but has {@code runtime-data/} or {@code generated/} below it is that
+     * folder: the Android launcher hands over the app's files directory, where the data pack unpacks the Builder output as
+     * {@code generated/} (and {@code Graphics/}, {@code Fonts/} next to it).
+     */
+    static File withLayout(File root) {
+        if (new File(root, "project.json").isFile()) {
+            return root;
+        }
+        for (String child : new String[] {"runtime-data", "generated"}) {
+            File candidate = new File(root, child);
+            if (new File(candidate, "project.json").isFile()) {
+                return candidate;
+            }
+        }
+        return root;
+    }
+
     public static File resolve(String explicit, File baseDir) {
         if (explicit != null && !explicit.isEmpty()) {
-            return new File(explicit);
+            return withLayout(new File(explicit));
         }
         String fromEnv = System.getenv("POKEMON_RUNTIME_DATA");
         if (fromEnv != null && !fromEnv.isEmpty()) {
-            return new File(fromEnv);
+            return withLayout(new File(fromEnv));
         }
         String fromProperty = System.getProperty("pokemon.runtime.data");
         if (fromProperty != null && !fromProperty.isEmpty()) {
-            return new File(fromProperty);
+            return withLayout(new File(fromProperty));
         }
         File generated = new File(baseDir, "generated");
         if (generated.isDirectory()) {

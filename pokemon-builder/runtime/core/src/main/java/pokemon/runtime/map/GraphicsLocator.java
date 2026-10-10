@@ -32,10 +32,28 @@ public final class GraphicsLocator {
     public GraphicsLocator(File sourceRoot, File dataRoot) {
         this.sourceRoot = sourceRoot;
         this.dataRoot = dataRoot;
-        File packed = dataRoot == null ? null : new File(dataRoot, "Graphics");
+        File packed = packedFolder("Graphics");
         this.graphicsRoot = packed != null && packed.isDirectory()
                 ? packed
                 : (sourceRoot == null ? null : new File(sourceRoot, "Graphics"));
+    }
+
+    /**
+     * {@code <dataRoot>/<name>}, or - when the data pack unpacked as {@code generated/} with {@code Graphics/} and
+     * {@code Fonts/} beside it (the Android layout) - {@code <parent of dataRoot>/<name>}.
+     */
+    private File packedFolder(String name) {
+        if (dataRoot == null) {
+            return null;
+        }
+        File inside = new File(dataRoot, name);
+        if (inside.isDirectory()) {
+            return inside;
+        }
+        File parent = dataRoot.getAbsoluteFile().getParentFile();
+        File beside = parent == null ? null : new File(parent, name);
+        return beside != null && beside.isDirectory() && new File(parent, "generated").equals(dataRoot.getAbsoluteFile())
+                ? beside : inside;
     }
 
     public File graphicsRoot() {
@@ -74,7 +92,8 @@ public final class GraphicsLocator {
             return null;
         }
         if (dataRoot != null) {
-            File packed = lookup(new File(dataRoot, "Fonts"), name);
+            File fonts = packedFolder("Fonts");
+            File packed = fonts == null ? null : lookup(fonts, name);
             if (packed != null) {
                 return packed;
             }
