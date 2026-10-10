@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1597,6 +1597,34 @@ public final class MenuCapture extends ApplicationAdapter {
                     for (int i = 0; i < 90; i++) advanceMap(1f / 40f, 1);
                     shotMap("weather-" + names[t]);
                 }
+                break;
+            }
+            case "ready": {
+                pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+                pokemon.runtime.pokemon.Pokemon lead = context.gameState().trainer().party.get(0);
+                for (String move : new String[] {"CUT", "FLASH", "SURF"}) {
+                    lead.moves.add(new pokemon.runtime.pokemon.Pokemon.MoveSlot(pbs.move(move)));
+                }
+                for (int badge = 0; badge < 8; badge++) context.gameState().trainer().badges.add(badge);
+                for (String item : new String[] {"BICYCLE", "TOWNMAP", "SUPERROD", "REPEL", "COINCASE"}) {
+                    context.gameState().inventory().add(item, item.equals("REPEL") ? 120 : 1);
+                    context.gameState().inventory().bagMemory().register(item);
+                }
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                stepMap(GameAction.F5);
+                advanceMap(1f / 40f, 3);
+                shotMap("ready-1-items");
+                stepMap(GameAction.UP);
+                advanceMap(1f / 40f, 3);
+                shotMap("ready-2-up");
+                stepMap(GameAction.LEFT);
+                advanceMap(1f / 40f, 3);
+                shotMap("ready-3-moves");
+                stepMap(GameAction.CANCEL);
+                advanceMap(1f / 40f, 3);
+                shotMap("ready-4-closed");
                 break;
             }
             case "quests": {

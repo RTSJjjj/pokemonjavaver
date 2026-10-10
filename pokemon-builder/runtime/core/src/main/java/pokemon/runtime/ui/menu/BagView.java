@@ -61,7 +61,7 @@ public final class BagView {
     private final MenuClock messageClock = new MenuClock();
     private final ItemHandlers handlers;
     private java.util.function.Consumer<java.util.function.Consumer<ItemScene>> useHost;
-    private static final int CMD_USE = 0, CMD_GIVE = 1, CMD_TOSS = 2, CMD_CANCEL = 3;
+    private static final int CMD_USE = 0, CMD_GIVE = 1, CMD_TOSS = 2, CMD_CANCEL = 3, CMD_REGISTER = 4;
     private final List<Integer> actionKinds = new ArrayList<>();
     private List<String> actionRows = new ArrayList<>();
 
@@ -282,6 +282,12 @@ public final class BagView {
                 int kind = action.index() < actionKinds.size() ? actionKinds.get(action.index()) : CMD_CANCEL;
                 if (kind == CMD_CANCEL) step = Step.ITEMS;        // 取消
                 else if (kind == CMD_TOSS) toss();                // 丢弃
+                else if (kind == CMD_REGISTER) {                  // :524-531
+                    pokemon.runtime.state.BagMemory memory = state().inventory().bagMemory();
+                    if (memory.isRegistered(item)) memory.unregister(item); else memory.register(item);
+                    step = Step.ITEMS;                            // @scene.pbRefresh
+                    model.refresh();
+                }
                 else if (kind == CMD_USE && battleUse != null && battleItemHost != null) {
                     step = Step.ITEMS;                            // Scene_Commands:263-346: the battle's party screen takes over
                     battleItemHost.accept(item);
@@ -388,6 +394,13 @@ public final class BagView {
         if (!important(data)) {                                // :476
             actionKinds.add(CMD_TOSS);
             actionRows.add("丢弃");
+        }
+        if (state().inventory().bagMemory().isRegistered(item)) {          // :477-481
+            actionKinds.add(CMD_REGISTER);
+            actionRows.add("取消登录");
+        } else if (ItemHandlers.hasUseInFieldHandler(item)) {              // pbCanRegisterItem?
+            actionKinds.add(CMD_REGISTER);
+            actionRows.add("登录");
         }
         actionKinds.add(CMD_CANCEL);                           // :483
         actionRows.add("取消");
@@ -660,9 +673,12 @@ public final class BagView {
                 f.drawRight(b, String.format("x%3d", qty), CONTENT_X + CONTENT_W - 16f, h - (rowTop + 21f),
                         NAME_BASE, NAME_SHADOW);
             } else if (register != null) {
-                // pbDrawImagePositions: (rect.x+rect.width-64, ypos+4), src row 24.
-                b.draw(register, CONTENT_X + CONTENT_W - 64f, h - (rowTop + 25f) - 24f, 56f, 24f,
-                        0, 24, 56, 24, false, false);
+                // :85-95: the registered icon (row 0), or the "can be registered" one (row 24); (rect.x+rect.width-72, ypos+4)
+                boolean registered = state().inventory().bagMemory().isRegistered(id);
+                if (registered || ItemHandlers.hasUseInFieldHandler(id)) {
+                    b.draw(register, CONTENT_X + CONTENT_W - 72f, h - (rowTop + 25f) - 24f, 56f, 24f,
+                            0, registered ? 0 : 24, 56, 24, false, false);
+                }
             }
         }
     }

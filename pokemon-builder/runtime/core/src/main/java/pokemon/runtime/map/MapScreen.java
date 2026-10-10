@@ -943,6 +943,16 @@ public final class MapScreen extends ScreenAdapter {
             }
             context.inputManager().consumePressed();
         }
+        if (readyMenu != null) {
+            updateReadyMenu();                                                    // 221_PScreen_ReadyMenu: the menu owns the player's input
+            menuHandled = true;
+        } else if (!menuHandled && pauseMenu != null && context.inputManager().wasPressed(GameAction.F5)
+                && !context.messageService().visible() && !player.isMoving() && !player.isJumping()
+                && !(interpreter != null && interpreter.running()) && !context.transferPending()
+                && playerRoute == null && battleEntry == null) {
+            context.inputManager().consumePressed();
+            openReadyMenu();                                                      // 049_Scene_Map:192-195, :213-216 pbUseKeyItem
+        }
         if (!menuHandled && pauseMenu != null && context.inputManager().wasPressed(GameAction.MENU)
                 && !context.messageService().visible()
                 && !(interpreter != null && interpreter.running())
@@ -998,7 +1008,7 @@ public final class MapScreen extends ScreenAdapter {
         // A step an event route started has to land even though the interpreter
         // owns the input: RMXP updates every character before it runs commands,
         // and without this the hero is stuck mid-step forever (map353/EV006).
-        boolean scriptDriven = playerRoute != null || context.transferPending() || playerWait > 0f
+        boolean scriptDriven = playerRoute != null || context.transferPending() || playerWait > 0f || readyMenu != null
                 || battleEntry != null
                 || (interpreter != null && interpreter.running());
         if (safariGoToStartAfterMessages && !(interpreter != null && interpreter.running())
@@ -1159,6 +1169,7 @@ public final class MapScreen extends ScreenAdapter {
             renderMessageWindow();
         }
         renderItemToasts();
+        renderReadyMenu();
         renderScreenEffects();
         if (blackBackdrop) {
             renderMessageWindow();                                                 // the window sits above the black screen (the white-out lines)
@@ -2483,6 +2494,123 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     private WeatherLayer weatherLayer;
+
+    // ---- 221_PScreen_ReadyMenu: F5 on the map ----
+
+    private pokemon.runtime.ui.menu.ReadyMenuView readyMenu;
+    /** A move / item of the menu is being used: the menu is hidden until the script ends. */
+    private boolean readyFlow;
+
+    private static final String[] READY_MOVES = {"CUT", "DEFOG", "DIG", "DIVE", "FLASH", "FLY", "HEADBUTT", "ROCKCLIMB", "ROCKSMASH",
+            "SECRETPOWER", "STRENGTH", "SURF", "SWEETSCENT", "TELEPORT", "WATERFALL", "WHIRLPOOL"};
+
+    /** {@code pbUseKeyItem} (221:297-322): the moves the party can use here and the registered items; a hint when there are none. */
+    private void openReadyMenu() {
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        if (pbs == null) {
+            return;
+        }
+        // 登记: $game_player.straighten (049_Scene_Map:215) - the walking frame is not reset here.
+        pokemon.runtime.field.HiddenMoves.World world = new pokemon.runtime.field.MapPortWorld(context.mapPort(), gameState, database);
+        java.util.List<pokemon.runtime.ui.menu.ReadyMenuView.Command> moves = new java.util.ArrayList<>();
+        com.badlogic.gdx.utils.Array<pokemon.runtime.pokemon.Pokemon> party = gameState.trainer().party.members();
+        for (String move : READY_MOVES) {
+            pokemon.runtime.pokemon.PbsData.Move data = pbs.move(move);
+            if (data == null) {
+                continue;                                                          // :307 next if move == 0
+            }
+            for (int j = 0; j < party.size; j++) {
+                pokemon.runtime.pokemon.Pokemon pkmn = party.get(j);
+                if (pkmn == null || pkmn.egg) {
+                    continue;
+                }
+                boolean has = false;
+                for (pokemon.runtime.pokemon.Pokemon.MoveSlot slot : pkmn.moves) {
+                    if (slot != null && slot.move != null && move.equals(slot.move.internalName)) {
+                        has = true;
+                        break;
+                    }
+                }
+                if (!has) {
+                    continue;
+                }
+                if (pokemon.runtime.field.HiddenMoves.canUse(move, pkmn, gameState, pbs, world).ok) {
+                    moves.add(new pokemon.runtime.ui.menu.ReadyMenuView.Command(move, data.name == null ? move : data.name, true, j));
+                }
+                break;                                                             // :313 the first Pokemon that knows it
+            }
+        }
+        java.util.List<pokemon.runtime.ui.menu.ReadyMenuView.Command> items = new java.util.ArrayList<>();
+        for (String item : gameState.inventory().bagMemory().registered) {
+            if (gameState.inventory().count(item) > 0) {                           // pbHasItem?
+                pokemon.runtime.pokemon.PbsData.Item data = pbs.item(item);
+                items.add(new pokemon.runtime.ui.menu.ReadyMenuView.Command(item, data == null || data.name == null ? item : data.name, false, -1));
+            }
+        }
+        if (items.isEmpty() && moves.isEmpty()) {
+            startMessages(java.util.Collections.singletonList("可以先登陆道具，\n再用此键快速使用登陆的道具。"));   // :317
+            return;
+        }
+        moves.sort((a, b) -> a.name.compareTo(b.name));                            // :228-234 sort! by name
+        items.sort((a, b) -> a.name.compareTo(b.name));
+        readyMenu = new pokemon.runtime.ui.menu.ReadyMenuView(context, moves, items);
+        pokemon.runtime.ui.menu.MenuSe.open(context.audioManager());               // :146 pbSEPlay("GUI menu open")
+    }
+
+    private void updateReadyMenu() {
+        if (readyFlow) {
+            if (interpreter != null && !interpreter.running() && !context.messageService().visible() && !context.transferPending()) {
+                readyFlow = false;
+                if (interpreter.takeReadyBack()) {
+                    readyMenu.visible(true);                                       // :241 / :253 / :267 pbShowMenu
+                } else {
+                    readyMenu = null;                                              // used: the menu ended (break)
+                }
+            }
+            return;
+        }
+        pokemon.runtime.ui.menu.ReadyMenuView.Result result = readyMenu.update(context.inputManager(), context.audioManager());
+        if (result == null) {
+            return;
+        }
+        context.inputManager().consumePressed();
+        if (result.side < 0) {
+            readyMenu = null;                                                      // :181-184 B
+            return;
+        }
+        readyMenu.visible(false);                                                  // pbHideMenu
+        readyFlow = true;
+        if (result.side == 0) {
+            pokemon.runtime.pokemon.Pokemon user = gameState.trainer().party.get(result.command.partyIndex);
+            String question = null;
+            if (!"FLY".equals(result.command.id)) {
+                pokemon.runtime.field.HiddenMoves.World world = new pokemon.runtime.field.MapPortWorld(context.mapPort(), gameState, database);
+                question = pokemon.runtime.field.HiddenMoves.confirmQuestion(result.command.id, gameState, context.pbsData(), world);
+            }
+            interpreter.startReadyMove(user, result.command.id, question);
+        } else {
+            interpreter.startReadyItem(result.command.id);
+        }
+    }
+
+    private void renderReadyMenu() {
+        if (readyMenu == null || !readyMenu.visible()) {
+            return;
+        }
+        pokemon.runtime.ui.menu.MenuAssets menuAssets = context.sharedMenuAssets(locator);
+        pokemon.runtime.ui.menu.MenuFont menuFont = context.sharedMenuFont(locator.font(messageFontName), 22);
+        float savedX = camera.position.x;
+        float savedY = camera.position.y;
+        camera.position.set(camera.viewportWidth / 2f, camera.viewportHeight / 2f, 0f);
+        camera.update();
+        batch.setShader(null);
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        readyMenu.render(batch, menuAssets, menuFont);
+        batch.end();
+        camera.position.set(savedX, savedY, 0f);
+        camera.update();
+    }
 
     /** Spriteset_Map:156-160: the weather sprites follow the game screen's weather and the map's display origin. */
     private void updateWeather(float delta) {

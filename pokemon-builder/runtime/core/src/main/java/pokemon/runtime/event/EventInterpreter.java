@@ -3141,6 +3141,45 @@ public final class EventInterpreter {
     }
 
     /**
+     * 221_PScreen_ReadyMenu:229-262: a move of the Ready Menu. {@code question} is the {@code ConfirmUseMove} text (null: none, empty:
+     * the handler answers no); the fly map comes first for Fly. The menu comes back when the move is not used.
+     */
+    public void startReadyMove(Pokemon pkmn, String move, String question) {
+        readyBack = false;
+        Array<EventCommand> list = new Array<>();
+        list.add(syntheticCommand(0, 0));
+        start(list, state.currentMapId(), -1);
+        pokemon.runtime.field.BlockingTask[] holder = new pokemon.runtime.field.BlockingTask[1];
+        TaskFieldScene scene = new TaskFieldScene(request -> holder[0].call(request));
+        HiddenMoveTask task = new HiddenMoveTask(state, pbs, mapPort, scene, this::pbEncounter, encounterRandom, audio);
+        scriptTaskResult = null;
+        holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            boolean go;
+            if ("FLY".equals(move)) {                                                // :232-243
+                int[] destination = scene.chooseFlyDestination();
+                go = destination != null && destination.length >= 3;
+                if (go) state.flyData(destination);                                  // $PokemonTemp.flydata = ret
+            } else if (question == null) {
+                go = true;                                                           // no ConfirmUseMove handler: true
+            } else {
+                go = !question.isEmpty() && scene.pbConfirmMessage(question);        // :247-255 pbConfirmUseHiddenMove
+            }
+            if (!go) {
+                readyBack = true;
+                scriptTaskResult = true;
+                return;
+            }
+            task.use(move, pkmn);                                                    // :239 / :249 pbUseHiddenMove
+            scriptTaskResult = true;
+        });
+        scriptTaskDone = result -> {
+        };
+        scriptTaskAnswer = null;
+        scriptQuestion = null;
+        scriptTask = holder[0];
+    }
+
+    /**
      * {@code pbSetEscapePoint} (170_PField_Field:1370-1381): the tile in front of the cave mouth the player is leaving, seen from
      * the way out - {@code [map, x, y, direction]}. The escape rope, Dig and the Infinite Rope take the player back there.
      */
@@ -3162,6 +3201,25 @@ public final class EventInterpreter {
      * (the fishing rod), started after the bag and the pause menu have closed.
      */
     public void startFieldItem(String item) {
+        startFieldItemTask(item, false);
+    }
+
+    /** 221_PScreen_ReadyMenu:263-272: the item of the Ready Menu: {@code ConfirmUseInField}, then {@code pbUseKeyItemInField}. */
+    public void startReadyItem(String item) {
+        startFieldItemTask(item, true);
+    }
+
+    private boolean readyBack;
+
+    /** The Ready Menu's item / move was not used (a refusal, a "no", the fly map left): the menu comes back ({@code pbShowMenu}). */
+    public boolean takeReadyBack() {
+        boolean back = readyBack;
+        readyBack = false;
+        return back;
+    }
+
+    private void startFieldItemTask(String item, boolean ready) {
+        readyBack = false;
         Array<EventCommand> list = new Array<>();
         list.add(syntheticCommand(0, 0));
         start(list, state.currentMapId(), -1);
@@ -3183,9 +3241,17 @@ public final class EventInterpreter {
         }, encounterRandom);
         scriptTaskResult = null;
         holder[0] = new pokemon.runtime.field.BlockingTask(() -> {
+            if (ready && !task.confirmUse(item, mapNames)) {                         // 221:263 ItemHandlers.triggerConfirmUseInField
+                readyBack = true;
+                scriptTaskResult = true;
+                return;
+            }
             int ret = task.use(item);
             if (ret == 3 && inventory != null) {
                 inventory.remove(item, 1);                                           // 188:978-980 pbUseKeyItemInField: 3 = used and consumed
+            }
+            if (ready && (ret == -1 || ret == 0)) {
+                readyBack = true;                                                    // 221:267-268 not used: back to the menu
             }
             scriptTaskResult = true;
         });
@@ -3847,6 +3913,18 @@ public final class EventInterpreter {
                     }
                     menuRequest = menuService.submit(warp);
                     scriptTaskAnswer = () -> warp.flyResult;
+                    return;
+                }
+                case SHOW_MAP: {
+                    MenuService.Request map = new MenuService.Request(MenuService.Kind.SHOW_MAP);
+                    map.region = -1;
+                    map.wallmap = false;
+                    if (menuService == null) {
+                        scriptTask.answer(null);
+                        break;
+                    }
+                    menuRequest = menuService.submit(map);
+                    scriptTaskAnswer = () -> null;
                     return;
                 }
                 case FLY_MAP: {

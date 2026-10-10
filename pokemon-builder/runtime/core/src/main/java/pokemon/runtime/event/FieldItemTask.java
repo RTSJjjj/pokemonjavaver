@@ -60,9 +60,46 @@ final class FieldItemTask {
                 return eonFlute();
             case "ETHEREALNEXUS":
                 return etherealNexus();
-            default:
-                return 0;
+            case "TOWNMAP":                                                            // :372-375 pbShowMap(-1, false)
+                scene.showMap();
+                return 1;
+            default: {
+                pokemon.runtime.field.ItemHandlers handlers = new pokemon.runtime.field.ItemHandlers(pbs, state, java.time.LocalTime::now);
+                if (!pokemon.runtime.field.ItemHandlers.hasUseInFieldHandler(item) || !handlers.hasBagFieldHandler(item)) {
+                    scene.pbMessage("这里不能使用。");                                      // 188:971-972 ret == -1 (登记: the Honey, Itemfinder,
+                    return -1;                                                          // Poke Radar and Heaven Seal bodies are not modelled)
+                }
+                return handlers.useInField(item, new EggMoveTutor(state, pbs, scene, handlers).itemSceneFor());
+            }
         }
+    }
+
+    /** {@code ItemHandlers.triggerConfirmUseInField(item)} (189:78-115): the ropes ask first; every other item answers true. */
+    boolean confirmUse(String item, java.util.function.IntFunction<String> mapNames) {
+        if (!"ESCAPEROPE".equals(item) && !"INFINITEROPE".equals(item)) {
+            return true;
+        }
+        int[] escape = state.fieldGlobals().escapePoint;
+        if (escape == null || escape.length < 4) {
+            scene.pbMessage("这里不能使用。");
+            return false;
+        }
+        for (int map : ROPE_BANNED_MAPS) {
+            if (state.currentMapId() == map) {
+                scene.pbMessage("这里不能使用。");
+                return false;
+            }
+        }
+        boolean[] partnered = {false};
+        scene.runAction(() -> {
+            partnered[0] = port.hasDependentEvents();
+            return 0f;
+        });
+        if (partnered[0]) {
+            scene.pbMessage("与他人同行时不能使用。");
+            return false;
+        }
+        return scene.pbConfirmMessage("想从这里出去回到" + mapNames.apply(escape[0]) + "吗？");
     }
 
     /** {@code pbUseItemMessage(item)} (188_PItem_Items:984-991). */

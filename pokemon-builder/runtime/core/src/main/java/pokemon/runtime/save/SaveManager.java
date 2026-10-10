@@ -127,6 +127,16 @@ public final class SaveManager {
             bagChoices.addChild(new JsonValue(choice));
         }
         bagMemory.addChild("choices", bagChoices);
+        JsonValue registered = array();                                                   // 195_PItem_Bag:23-24 @registeredItems / @registeredIndex
+        for (String item : state.inventory().bagMemory().registered) {
+            registered.addChild(new JsonValue(item));
+        }
+        bagMemory.addChild("registered", registered);
+        JsonValue registeredIndex = array();
+        for (int value : state.inventory().bagMemory().registeredIndex) {
+            registeredIndex.addChild(new JsonValue(value));
+        }
+        bagMemory.addChild("registeredIndex", registeredIndex);
         root.addChild("bagMemory", bagMemory);
         JsonValue quests = array();
         for (pokemon.runtime.state.QuestLog.Entry entry : state.quests().entries()) {
@@ -632,9 +642,22 @@ public final class SaveManager {
         pokemon.runtime.state.BagMemory memory = state.inventory().bagMemory();            // optional: older saves start at pocket 1
         memory.lastPocket = 1;
         for (int i = 0; i < pokemon.runtime.state.BagMemory.POCKETS; i++) memory.choice(i, 0);
+        memory.registered.clear();
+        memory.registeredIndex[0] = 0;
+        memory.registeredIndex[1] = 0;
+        memory.registeredIndex[2] = 1;
         JsonValue bagMemoryJson = root.get("bagMemory");
         if (bagMemoryJson != null && bagMemoryJson.isObject()) {
             memory.lastPocket = Math.max(1, Math.min(pokemon.runtime.state.BagMemory.POCKETS - 1, bagMemoryJson.getInt("lastPocket", 1)));
+            JsonValue registeredNode = bagMemoryJson.get("registered");
+            if (registeredNode != null && registeredNode.isArray()) {
+                for (JsonValue item = registeredNode.child; item != null; item = item.next) memory.register(item.asString());
+            }
+            JsonValue registeredIndexNode = bagMemoryJson.get("registeredIndex");
+            if (registeredIndexNode != null && registeredIndexNode.isArray()) {
+                int k = 0;
+                for (JsonValue v = registeredIndexNode.child; v != null && k < 3; v = v.next, k++) memory.registeredIndex[k] = v.asInt();
+            }
             JsonValue choices = bagMemoryJson.get("choices");
             if (choices != null && choices.isArray()) {
                 int i = 0;

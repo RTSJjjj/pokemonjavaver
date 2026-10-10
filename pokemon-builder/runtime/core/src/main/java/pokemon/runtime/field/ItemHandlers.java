@@ -378,6 +378,20 @@ public final class ItemHandlers {
             "REPEL", "SUPERREPEL", "MAXREPEL", "INFINITEREPEL", "BLACKFLUTE", "WHITEFLUTE", "EXPALL", "EXPALLOFF",
             "COINCASE", "BICYCLE", "MACHBIKE", "ACROBIKE", "TOWNMAP"));
 
+    /**
+     * {@code ItemHandlers.hasUseInFieldHandler(item)} (188_PItem_Items:373-375): the items that have a {@code UseInField} handler in
+     * the plugin (189_PItem_ItemEffects, 192_PItem_PokeRadar:246, 323_Egg_Hatcher:349) - the ones the bag lets the player register.
+     * The bicycles other than {@code BICYCLE} are copies of UseText / UseFromBag only.
+     */
+    public static boolean hasUseInFieldHandler(String item) {
+        return item != null && USE_IN_FIELD.contains(item);
+    }
+
+    private static final Set<String> USE_IN_FIELD = new HashSet<>(Arrays.asList(
+            "INFINITEREPEL", "REPEL", "SUPERREPEL", "MAXREPEL", "BLACKFLUTE", "WHITEFLUTE", "HONEY", "ESCAPEROPE", "INFINITEROPE",
+            "SACREDASH", "BICYCLE", "SUPERROD", "ITEMFINDER", "DOWSINGMCHN", "DOWSINGMACHINE", "TOWNMAP", "COINCASE", "EXPALL",
+            "EXPALLOFF", "LANTERN", "EONFLUTE", "ETHEREALNEXUS", "HEAVENCRYSEAL", "POKERADAR", "EGGHATCHER"));
+
     /** Whether {@link #useInField} handles the item (SACREDASH needs the party screen: {@link #sacredAsh}). */
     public boolean hasBagFieldHandler(String item) {
         return item != null && (BAG_FIELD_ITEMS.contains(item) || "SACREDASH".equals(item) || isMapItem(item));
