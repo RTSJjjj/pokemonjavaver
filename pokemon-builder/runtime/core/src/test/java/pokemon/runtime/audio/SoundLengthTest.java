@@ -35,8 +35,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class SoundLengthTest {
 
     /**
-     * The project's own generated cry. {@code 001Cry.ogg}: mono (channels 1),
-     * identification-header sample rate 44100, last page's granule 41397.
+     * The project's own generated cry ({@code 001Cry.ogg}). Its length, sample
+     * rate and channel count depend on the project and on the encoder that
+     * transcoded it, so every expectation below is derived from the file's own
+     * header and pages, never a constant of one particular project.
      */
     @Test
     @DisplayName("001Cry.ogg measures granule / the dword at body+11, exactly like oggfiletime (:1075-1077)")
@@ -46,18 +48,21 @@ class SoundLengthTest {
 
         byte[] bytes = Files.readAllBytes(cry);
         int packetStart = 27 + (bytes[26] & 0xFF);                  // getOggPage (:1019-1025)
-        assertEquals(1, bytes[packetStart + 11] & 0xFF, "channels byte of the identification header");
-        assertEquals(44100L, readLe(bytes, packetStart + 12, 4),
-                "the real sample rate, the byte Audio_Utilities:1077 never reaches");
-        assertEquals(11289601L, readLe(bytes, packetStart + 11, 4),
-                "what :1077 reads instead: channels(1) + ((44100 & 0xFFFFFF) << 8)");
-        assertEquals(41397L, lastGranule(bytes), "the last Ogg page's granule position (:1058-1066)");
+        long channels = bytes[packetStart + 11] & 0xFFL;
+        long sampleRate = readLe(bytes, packetStart + 12, 4);
+        long granule = lastGranule(bytes);
+        assertTrue(channels >= 1, "channels byte of the identification header");
+        assertTrue(sampleRate > 0L, "the real sample rate, the byte Audio_Utilities:1077 never reaches");
+        assertTrue(granule > 0L, "the last Ogg page's granule position (:1058-1066)");
+        // What :1077 reads instead: channels + ((sampleRate & 0xFFFFFF) << 8).
+        long misread = readLe(bytes, packetStart + 11, 4);
+        assertEquals(channels | ((sampleRate & 0xFFFFFFL) << 8), misread,
+                "what :1077 reads instead: channels + ((rate & 0xFFFFFF) << 8)");
 
         float duration = SoundLength.duration(cry.toFile());
-        // 41397/11289601 = 0.003667 s. The correct offset would give
-        // 41397/44100 = 0.9387 s, and pbCryFrameLength 42 instead of 5
-        // (BattlerFaintAnimation's delay would be 21 instead of 2).
-        assertEquals(41397f / 11289601f, duration, 1e-9f);
+        // granule / misread, not granule / sampleRate: the plugin's offset bug is
+        // reproduced on purpose (see the class comment).
+        assertEquals((float) granule / (float) misread, duration, 1e-9f);
         assertTrue(duration > 0f);
     }
 
@@ -124,7 +129,8 @@ class SoundLengthTest {
         manager.attach(manifest("001Cry", "SE/001Cry.ogg"), root.toFile());
 
         float first = manager.sePlayTime("001Cry");
-        assertEquals(41397f / 11289601f, first, 1e-9f);
+        assertEquals(SoundLength.duration(source.toFile()), first, 1e-9f);
+        assertTrue(first > 0f);
 
         // A 2 s WAV in the same place: a re-read would return 2, the cache keeps
         // the value measured from the OGG.
