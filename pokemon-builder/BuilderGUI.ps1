@@ -86,8 +86,9 @@ function Get-AndroidSdkPath {
             if (Test-Path $dir) { return $dir }
         }
     }
-    $default = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
-    if (Test-Path (Join-Path $default 'platforms')) { return $default }
+    foreach ($candidate in (Join-Path $env:LOCALAPPDATA 'Android\Sdk'), 'C:\Android\Sdk', 'D:\Android\Sdk', 'E:\Android\Sdk', (Join-Path $env:USERPROFILE 'Android\Sdk')) {
+        if (Test-Path (Join-Path $candidate 'platforms')) { return $candidate }
+    }
     return $null
 }
 
