@@ -582,6 +582,34 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         playSe(logicalId, 100, 100);
     }
 
+    /** P4: the SE ids of the manifest that start with one of the prefixes ("GUI ", "Battle "), for the loading screen. */
+    public java.util.List<String> seIdsWithPrefix(String... prefixes) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        if (!ready()) {
+            return ids;
+        }
+        for (ObjectMap.Entry<String, AudioManifestData.Entry> entry : manifest.entries) {
+            if (!"SE".equals(entry.value.type)) {
+                continue;
+            }
+            for (String prefix : prefixes) {
+                if (entry.key.startsWith(prefix)) {
+                    ids.add(entry.key);
+                    break;
+                }
+            }
+        }
+        java.util.Collections.sort(ids);
+        return ids;
+    }
+
+    /** P4: loads the sample now (the first play then does not decode it); nothing is played. */
+    public void preloadSe(String logicalId) {
+        if (ready()) {
+            sound(logicalId, "SE");
+        }
+    }
+
     public void playSe(String logicalId, int volume, int pitch) {
         play(logicalId, "SE", volume, pitch);
     }

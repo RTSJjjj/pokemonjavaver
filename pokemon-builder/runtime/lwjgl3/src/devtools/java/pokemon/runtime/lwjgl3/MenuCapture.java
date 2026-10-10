@@ -196,6 +196,20 @@ public final class MenuCapture extends ApplicationAdapter {
             projection.update();
             buffer = new FrameBuffer(Pixmap.Format.RGBA8888, width, height, false);
 
+            if (args.length > 2 && "preload".equals(args[2])) {                 // P4: the loading screen
+                pokemon.runtime.ui.menu.PreloadScreen loading = new pokemon.runtime.ui.menu.PreloadScreen(context,
+                        () -> new com.badlogic.gdx.ScreenAdapter() { });
+                loading.resize(width, height);
+                for (int frame = 0; frame < 400; frame++) {
+                    loading.render(1f / 40f);
+                    if (frame == 0 || frame == 12 || frame == 40 || frame == 120) {
+                        buffer.begin();
+                        loading.render(0f);
+                        writeShot("preload-" + frame);
+                    }
+                }
+                return;
+            }
             title = new TitleScreen(context);
             title.resize(width, height); // not driven by Game#setScreen here
             // Splash (no show(): the capture stays silent).
