@@ -27,12 +27,19 @@ public final class ScreenMetrics {
 
     private static int logicalWidth = LOGICAL_WIDTH;
     private static int logicalHeight = LOGICAL_HEIGHT;
+    private static boolean configured;
+
+    /** True once a launcher (or the project's own size, see {@link PokemonGame}) has set the resolution. */
+    public static boolean configured() {
+        return configured;
+    }
 
     /** Called once by the launcher before the game window is created. */
     public static void configure(int width, int height) {
         if (width > 0 && height > 0) {
             logicalWidth = width;
             logicalHeight = height;
+            configured = true;
         }
     }
 

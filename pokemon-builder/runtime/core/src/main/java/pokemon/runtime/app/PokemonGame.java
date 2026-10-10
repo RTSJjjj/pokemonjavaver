@@ -82,6 +82,16 @@ public final class PokemonGame extends Game {
         // loads the game database and reports a clear error when the Builder
         // output is missing.
         context.loadRuntimeConfig();
+        // The desktop launcher applies the project's own screen size (672x448) before the window opens; the Android launcher
+        // cannot know the data root that early, so without this the Android screen stayed at the 672x488 default and every
+        // picture / window laid out against the bottom edge sat 40 px too high.
+        if (!ScreenMetrics.configured() && context.database() != null) {
+            int[] projectSize = pokemon.runtime.data.ProjectInfo.screenSize(context.database().dataRoot());
+            if (projectSize != null) {
+                ScreenMetrics.configure(projectSize[0], projectSize[1]);
+                log("logical screen " + projectSize[0] + "x" + projectSize[1] + " (project.json)");
+            }
+        }
 
         // L1: the options screen remembers fullscreen; reapply it at boot.
         if (context.settings().fullscreen() && Gdx.graphics != null
