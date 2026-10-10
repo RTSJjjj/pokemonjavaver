@@ -953,6 +953,14 @@ final class AiNegativeEffects {
                         || battle.field.effects.intVal(PBEffects.Field.Gravity) > 0) r.viability -= 10;
                 return true;
             }
+            case "1A4": {                                                                         // 手术 (127_Move_Effects_180-1FF:664-703): fails on a target without a status
+                if (!def.statused() || def.effects.truthy(PBEffects.Battler.Operation) || def.pokemon.battleRank > 2) {
+                    r.viability -= 10;                                                            // pbFailsAgainstTarget? shows "但是失败了！"
+                } else {
+                    substituteCheck(move, atk, def, r);
+                }
+                return true;
+            }
             case "152": {                                                                         // MOVE_FAIRYLOCK (:3093)
                 if (battle.field.effects.intVal(PBEffects.Field.FairyLock) > 0) r.viability -= 10;
                 return true;

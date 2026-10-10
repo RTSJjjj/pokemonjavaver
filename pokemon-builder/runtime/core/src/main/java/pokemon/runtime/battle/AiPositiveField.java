@@ -131,6 +131,11 @@ final class AiPositiveField {
                     }
                 }
                 return viability;
+            case "1A4":                                                                            // 手术: only worth it when the target has a status to cure
+                if (def.statused() && !def.effects.truthy(PBEffects.Battler.Operation) && def.pokemon.battleRank <= 2) {
+                    return inc(viability, 9);                                                      // cures it, leaves the target on 1 HP and heals the user a quarter
+                }
+                return viability;
             case "05B":                                                                            // MOVE_TAILWIND (:2658)
                 return AiDoublesScore.increaseTailwind(ctx, viability, cls, atk, def);
             case "0A1":                                                                            // MOVE_LUCKYCHANT (:2662)
