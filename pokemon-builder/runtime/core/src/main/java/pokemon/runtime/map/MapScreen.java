@@ -946,7 +946,8 @@ public final class MapScreen extends ScreenAdapter {
         if (readyMenu != null) {
             updateReadyMenu();                                                    // 221_PScreen_ReadyMenu: the menu owns the player's input
             menuHandled = true;
-        } else if (!menuHandled && pauseMenu != null && context.inputManager().wasPressed(GameAction.F5)
+        } else if (!menuHandled && pauseMenu != null && (context.inputManager().wasPressed(GameAction.F5)
+                || (context.touchBuild() && context.inputManager().wasPressed(GameAction.SHOULDER_RIGHT)))   // P1: the touch R key is F5
                 && !context.messageService().visible() && !player.isMoving() && !player.isJumping()
                 && !(interpreter != null && interpreter.running()) && !context.transferPending()
                 && playerRoute == null && battleEntry == null) {
