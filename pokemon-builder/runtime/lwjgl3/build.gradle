@@ -120,7 +120,7 @@ tasks.register('jpackageImage') {
                        '--input', input.absolutePath,
                        '--main-jar', 'PokemonGame.jar',
                        '--main-class', application.mainClass.get(),
-                       '--app-version', project.version.toString(),
+                       '--app-version', project.version.toString().replaceFirst(/[^0-9.].*$/, ''),   // jpackage takes digits and dots only (1.0.1-alpha -> 1.0.1)
                        '--vendor', 'pokemon-builder',
                        '--description', 'RMXP / Pokemon Essentials runtime (stage 2 technical preview)',
                        '--dest', dest.absolutePath]
