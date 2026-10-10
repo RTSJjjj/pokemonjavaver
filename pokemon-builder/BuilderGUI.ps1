@@ -14,6 +14,7 @@ $script:process = $null
 $script:logFile = Join-Path ([System.IO.Path]::GetTempPath()) ('pokemon-builder-gui-' + $PID + '.log')
 $script:logPosition = 0L
 $script:currentLabel = ''
+$script:manual = @{ node = ''; java = ''; ffmpeg = ''; sdk = '' }
 
 function Load-Settings {
     $s = @{ project = ''; encrypt = $true; release = $false; noCache = $false }
@@ -24,6 +25,10 @@ function Load-Settings {
             if ($null -ne $json.encrypt) { $s.encrypt = [bool]$json.encrypt }
             if ($null -ne $json.release) { $s.release = [bool]$json.release }
             if ($null -ne $json.noCache) { $s.noCache = [bool]$json.noCache }
+            foreach ($key in 'node', 'java', 'ffmpeg', 'sdk') {
+                $value = $json.manual.$key
+                if ($value) { $script:manual[$key] = [string]$value }
+            }
         }
     } catch { }
     return $s
@@ -37,6 +42,7 @@ function Save-Settings {
             encrypt = $chkEncrypt.Checked
             release = $chkRelease.Checked
             noCache = $chkNoCache.Checked
+            manual = $script:manual
         }
         ($obj | ConvertTo-Json) | Set-Content -Encoding UTF8 $settingsFile
     } catch { }
@@ -47,7 +53,16 @@ function Test-Project([string]$path) {
     return (Test-Path -LiteralPath (Join-Path $path 'Data\System.rxdata'))
 }
 
+function Test-Sdk([string]$path) {
+    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path -LiteralPath $path -PathType Container)) { return $false }
+    foreach ($sub in 'platforms', 'build-tools', 'platform-tools') {
+        if (Test-Path -LiteralPath (Join-Path $path $sub)) { return $true }
+    }
+    return $false
+}
+
 function Get-JavaStatus {
+    if ($script:manual.java -and (Test-Path (Join-Path $script:manual.java 'bin\java.exe'))) { return "已找到（手动定位）" }
     if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin\java.exe'))) { return "已找到（JAVA_HOME）" }
     $java = Get-Command java -ErrorAction SilentlyContinue
     if ($java) { return "已找到（PATH）" }
@@ -55,6 +70,7 @@ function Get-JavaStatus {
 }
 
 function Get-AndroidSdkPath {
+    if (Test-Sdk $script:manual.sdk) { return $script:manual.sdk }
     foreach ($name in 'ANDROID_HOME', 'ANDROID_SDK_ROOT') {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($value -and (Test-Path $value)) { return $value }
@@ -95,9 +111,9 @@ function Update-Environment {
     $okColor = [System.Drawing.Color]::FromArgb(40, 150, 70)
     $badColor = [System.Drawing.Color]::FromArgb(200, 60, 50)
     $items = @(
-        @{ name = 'Node.js'; value = $(if (Get-Command node -ErrorAction SilentlyContinue) { '已找到' } else { $null }); lbl = $lblNode },
+        @{ name = 'Node.js'; value = $(if ($script:manual.node -and (Test-Path $script:manual.node)) { '已找到（手动定位）' } elseif (Get-Command node -ErrorAction SilentlyContinue) { '已找到' } else { $null }); lbl = $lblNode },
         @{ name = 'Java (JDK)'; value = (Get-JavaStatus); lbl = $lblJava },
-        @{ name = 'ffmpeg'; value = $(if (Test-Path (Join-Path $root 'tools\ffmpeg\bin\ffmpeg.exe')) { '已内置' } elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) { '已找到（PATH）' } else { $null }); lbl = $lblFfmpeg },
+        @{ name = 'ffmpeg'; value = $(if (Test-Path (Join-Path $root 'tools\ffmpeg\bin\ffmpeg.exe')) { '已内置' } elseif ($script:manual.ffmpeg -and (Test-Path $script:manual.ffmpeg)) { '已找到（手动定位）' } elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) { '已找到（PATH）' } else { $null }); lbl = $lblFfmpeg },
         @{ name = 'Android SDK'; value = (Get-AndroidSdkStatus); lbl = $lblSdk }
     )
     foreach ($item in $items) {
@@ -109,6 +125,42 @@ function Update-Environment {
             $item.lbl.Text = $item.name + '：' + $suffix
             $item.lbl.ForeColor = $badColor
         }
+    }
+}
+
+# Pick a tool by hand when it is not found: Explorer opens, the choice is checked, remembered and handed to the builds.
+function Locate-Tool([string]$kind) {
+    $picked = $null
+    switch ($kind) {
+        'sdk' {
+            $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+            $dialog.Description = '选择 Android SDK 文件夹（里面有 platforms、build-tools、platform-tools）'
+            $dialog.ShowNewFolderButton = $false
+            if ($dialog.ShowDialog($form) -eq 'OK') {
+                if (Test-Sdk $dialog.SelectedPath) { $picked = $dialog.SelectedPath }
+                else { [System.Windows.Forms.MessageBox]::Show('这个文件夹里没有 platforms / build-tools / platform-tools，不像 Android SDK。', '手动定位', 'OK', 'Warning') | Out-Null }
+            }
+        }
+        'java' {
+            $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+            $dialog.Description = '选择 JDK 文件夹（里面有 bin\java.exe）'
+            $dialog.ShowNewFolderButton = $false
+            if ($dialog.ShowDialog($form) -eq 'OK') {
+                if (Test-Path (Join-Path $dialog.SelectedPath 'bin\java.exe')) { $picked = $dialog.SelectedPath }
+                else { [System.Windows.Forms.MessageBox]::Show('这个文件夹里没有 bin\java.exe。', '手动定位', 'OK', 'Warning') | Out-Null }
+            }
+        }
+        default {
+            $dialog = New-Object System.Windows.Forms.OpenFileDialog
+            $dialog.Title = if ($kind -eq 'node') { '选择 node.exe' } else { '选择 ffmpeg.exe' }
+            $dialog.Filter = if ($kind -eq 'node') { 'node.exe|node.exe|程序 (*.exe)|*.exe' } else { 'ffmpeg.exe|ffmpeg.exe|程序 (*.exe)|*.exe' }
+            if ($dialog.ShowDialog($form) -eq 'OK') { $picked = $dialog.FileName }
+        }
+    }
+    if ($picked) {
+        $script:manual[$kind] = $picked
+        Save-Settings
+        Update-Environment
     }
 }
 
@@ -174,8 +226,18 @@ function Start-Build([string]$command, [string[]]$flags, [string]$label, [bool]$
     foreach ($flag in $flags) { $argText += ' ' + $flag }
     $cmd = 'chcp 65001 >nul & call "' + $builderBat + '" ' + $argText + ' > "' + $script:logFile + '" 2>&1'
     $sdkPath = Get-AndroidSdkPath                       # hand the SDK to the build even when this window started before it was set
-    if ($sdkPath -and -not $env:ANDROID_HOME) { $env:ANDROID_HOME = $sdkPath }
-    if ($sdkPath -and -not $env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT = $sdkPath }
+    if (Test-Sdk $script:manual.sdk) {
+        $env:ANDROID_HOME = $script:manual.sdk
+        $env:ANDROID_SDK_ROOT = $script:manual.sdk
+    } elseif ($sdkPath) {
+        if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = $sdkPath }
+        if (-not $env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT = $sdkPath }
+    }
+    if ($script:manual.java -and (Test-Path (Join-Path $script:manual.java 'bin\java.exe'))) { $env:JAVA_HOME = $script:manual.java }
+    foreach ($key in 'node', 'ffmpeg') {                 # the folder of a located program goes first on PATH
+        $file = $script:manual[$key]
+        if ($file -and (Test-Path $file)) { $env:PATH = (Split-Path -Parent $file) + ';' + $env:PATH }
+    }
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = 'cmd.exe'
     $psi.Arguments = '/d /c "' + $cmd + '"'
@@ -308,7 +370,7 @@ $grpExport.Controls.Add($chkNoCache)
 $grpEnv = New-Object System.Windows.Forms.GroupBox
 $grpEnv.Text = '运行环境（不随包提供，需要你自己装好）'
 $grpEnv.Location = New-Object System.Drawing.Point(16, 244)
-$grpEnv.Size = New-Object System.Drawing.Size(788, 56)
+$grpEnv.Size = New-Object System.Drawing.Size(788, 88)
 $grpEnv.Anchor = 'Top,Left,Right'
 $form.Controls.Add($grpEnv)
 
@@ -325,23 +387,40 @@ $lblSdk = New-Object System.Windows.Forms.Label
 $lblSdk.Location = New-Object System.Drawing.Point(546, 24); $lblSdk.Size = New-Object System.Drawing.Size(236, 20)
 $grpEnv.Controls.Add($lblSdk)
 
+function New-LocateButton([int]$x, [string]$kind) {
+    $b = New-Object System.Windows.Forms.Button
+    $b.Text = '手动定位…'
+    $b.Location = New-Object System.Drawing.Point($x, 52)
+    $b.Size = New-Object System.Drawing.Size(100, 26)
+    $b.Tag = $kind
+    $b.Add_Click({
+        param($sender, $e)
+        Locate-Tool ([string]$sender.Tag)
+    })
+    $grpEnv.Controls.Add($b)
+}
+New-LocateButton 16 'node'
+New-LocateButton 186 'java'
+New-LocateButton 406 'ffmpeg'
+New-LocateButton 546 'sdk'
+
 $progress = New-Object System.Windows.Forms.ProgressBar
-$progress.Location = New-Object System.Drawing.Point(16, 312)
+$progress.Location = New-Object System.Drawing.Point(16, 344)
 $progress.Size = New-Object System.Drawing.Size(560, 12)
 $progress.Anchor = 'Top,Left,Right'
 $progress.Style = 'Blocks'
 $form.Controls.Add($progress)
 
 $lblResult = New-Object System.Windows.Forms.Label
-$lblResult.Location = New-Object System.Drawing.Point(590, 308)
+$lblResult.Location = New-Object System.Drawing.Point(590, 340)
 $lblResult.Size = New-Object System.Drawing.Size(214, 20)
 $lblResult.Anchor = 'Top,Right'
 $lblResult.TextAlign = 'MiddleRight'
 $form.Controls.Add($lblResult)
 
 $logBox = New-Object System.Windows.Forms.RichTextBox
-$logBox.Location = New-Object System.Drawing.Point(16, 336)
-$logBox.Size = New-Object System.Drawing.Size(788, 270)
+$logBox.Location = New-Object System.Drawing.Point(16, 368)
+$logBox.Size = New-Object System.Drawing.Size(788, 238)
 $logBox.Anchor = 'Top,Bottom,Left,Right'
 $logBox.ReadOnly = $true
 $logBox.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 250)
