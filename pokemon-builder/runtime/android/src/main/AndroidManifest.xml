@@ -9,8 +9,9 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name">
 
+        <!-- The launcher entry: unpacks the data pack behind a progress bar, then starts the game activity. -->
         <activity
-            android:name=".AndroidLauncher"
+            android:name=".PrepareActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout"
             android:exported="true"
             android:screenOrientation="landscape">
@@ -20,6 +21,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".AndroidLauncher"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout"
+            android:exported="false"
+            android:screenOrientation="landscape" />
     </application>
 
 </manifest>

@@ -1,22 +1,15 @@
 package pokemon.runtime.android;
 
-import android.content.res.AssetManager;
 import android.os.Bundle;
-import android.util.Log;
-import android.widget.Toast;
 
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
 
 import pokemon.runtime.app.PokemonGame;
 import pokemon.runtime.app.StoragePort;
-import pokemon.runtime.data.DataPackUnpacker;
 import pokemon.runtime.input.touch.TouchControls;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * Modern Android entry point (project3 sections 48-49, 54): API 21+, the
@@ -37,10 +30,6 @@ import java.io.InputStream;
  */
 public final class AndroidLauncher extends AndroidApplication {
 
-    private static final String TAG = "PokemonLauncher";
-    private static final String PACK_ASSET = "runtime-data.zip";
-    private static final String PACK_VERSION_ASSET = "runtime-data.version";
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,7 +38,6 @@ public final class AndroidLauncher extends AndroidApplication {
         // Saves and settings live in the app's files directory too: Android has no usable user.home, and the default
         // location (<user.home>/.pokemon-runtime) is not writable there - a save would silently fail.
         System.setProperty(StoragePort.USER_DIR_PROPERTY, new File(dataRoot, "user").getAbsolutePath());
-        unpackDataPack(dataRoot);
 
         AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
         // The runtime polls the logical actions itself (section 51); the
@@ -76,88 +64,5 @@ public final class AndroidLauncher extends AndroidApplication {
             base = getFilesDir();
         }
         return base.getAbsolutePath();
-    }
-
-    /**
-     * L3: unpacks the data pack into the data root once per pack version. Two
-     * delivery modes: the fat APK carries {@code assets/runtime-data.zip}, or
-     * the pack zip (with its optional {@code runtime-data.version} file) is
-     * copied next to the game data (adb push / file manager). Without any pack
-     * the R13 adb-push workflow stays untouched. Runs before
-     * {@code initialize} so the game never boots against a half-unpacked tree.
-     */
-    private void unpackDataPack(String dataRoot) {
-        try {
-            AssetManager assets = getAssets();
-            boolean hasAssetPack = false;
-            boolean hasAssetVersion = false;
-            for (String entry : assets.list("")) {
-                hasAssetPack |= PACK_ASSET.equals(entry);
-                hasAssetVersion |= PACK_VERSION_ASSET.equals(entry);
-            }
-            File packFile = new File(dataRoot, PACK_ASSET);
-            boolean hasFilePack = !hasAssetPack && packFile.isFile();
-            if (!hasAssetPack && !hasFilePack) {
-                return; // adb-push workflow: the data (or its absence) is final
-            }
-
-            String version = null;
-            if (hasAssetPack && hasAssetVersion) {
-                version = readAssetText(assets, PACK_VERSION_ASSET);
-            }
-            if (version == null || version.isEmpty()) {
-                File versionFile = new File(dataRoot, PACK_VERSION_ASSET);
-                if (versionFile.isFile()) {
-                    version = new String(readFileBytes(versionFile), "UTF-8").trim();
-                }
-            }
-            if (version == null || version.isEmpty()) {
-                // Without a version file the pack identity is its size+mtime,
-                // so replacing the zip re-unpacks while a relaunch does not.
-                version = packFile.isFile() ? packFile.length() + "-" + packFile.lastModified() : "asset-default";
-            }
-
-            File target = new File(dataRoot);
-            if (DataPackUnpacker.isCurrent(target, version)) {
-                Log.i(TAG, "data pack is current: " + version);
-                return;
-            }
-            Toast.makeText(this, "首次启动：正在解包游戏数据，请稍候…", Toast.LENGTH_LONG).show();
-            long started = System.currentTimeMillis();
-            try (InputStream stream = hasAssetPack ? assets.open(PACK_ASSET)
-                    : new java.io.FileInputStream(packFile)) {
-                int files = DataPackUnpacker.unpack(stream, target, version);
-                Log.i(TAG, "data pack unpacked: " + files + " files, version " + version + ", "
-                        + (System.currentTimeMillis() - started) + " ms");
-            }
-        } catch (IOException error) {
-            Log.e(TAG, "data pack unpack failed; the game will report missing data", error);
-        }
-    }
-
-    private static String readAssetText(AssetManager assets, String name) throws IOException {
-        return new String(readAssetBytes(assets, name), "UTF-8").trim();
-    }
-
-    private static byte[] readAssetBytes(AssetManager assets, String name) throws IOException {
-        try (InputStream in = assets.open(name)) {
-            return readAll(in);
-        }
-    }
-
-    private static byte[] readFileBytes(File file) throws IOException {
-        try (InputStream in = new java.io.FileInputStream(file)) {
-            return readAll(in);
-        }
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int count;
-        while ((count = in.read(buffer)) > 0) {
-            out.write(buffer, 0, count);
-        }
-        return out.toByteArray();
     }
 }
