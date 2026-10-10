@@ -44,4 +44,17 @@ class RegisteredItemsSaveTest {
         assertFalse(ItemHandlers.hasUseInFieldHandler("MACHBIKE"));
         assertFalse(ItemHandlers.hasUseInFieldHandler("POTION"));
     }
+
+    @Test
+    @DisplayName("the field weather is part of the save")
+    void weatherRoundTrip() {
+        SaveManager saves = new SaveManager();
+        GameState state = new GameState();
+        state.enterMap(3, 2, 2);
+        state.weather().set(3, 4, 0);                     // snow, power 4, at once
+        GameState restored = new GameState();
+        assertTrue(saves.fromJson(saves.toJson(state), restored));
+        assertEquals(3, restored.weather().type());
+        assertEquals(20f, restored.weather().max(), 0.001f);
+    }
 }

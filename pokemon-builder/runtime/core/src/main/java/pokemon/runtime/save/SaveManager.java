@@ -138,6 +138,11 @@ public final class SaveManager {
         }
         bagMemory.addChild("registeredIndex", registeredIndex);
         root.addChild("bagMemory", bagMemory);
+        JsonValue weather = array();                                                      // 019_Game_Screen: the weather is part of $game_screen
+        for (float value : state.weather().snapshot()) {
+            weather.addChild(new JsonValue(value));
+        }
+        root.addChild("weather", weather);
         JsonValue quests = array();
         for (pokemon.runtime.state.QuestLog.Entry entry : state.quests().entries()) {
             JsonValue quest = object();
@@ -639,6 +644,14 @@ public final class SaveManager {
             }
         }
 
+        JsonValue weatherNode = root.get("weather");
+        float[] weatherValues = null;
+        if (weatherNode != null && weatherNode.isArray()) {
+            weatherValues = new float[weatherNode.size];
+            int w = 0;
+            for (JsonValue v = weatherNode.child; v != null; v = v.next) weatherValues[w++] = v.asFloat();
+        }
+        state.weather().restore(weatherValues);
         pokemon.runtime.state.BagMemory memory = state.inventory().bagMemory();            // optional: older saves start at pocket 1
         memory.lastPocket = 1;
         for (int i = 0; i < pokemon.runtime.state.BagMemory.POCKETS; i++) memory.choice(i, 0);

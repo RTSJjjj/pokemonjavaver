@@ -92,6 +92,23 @@ public final class ScreenWeather {
         }
     }
 
+    /** The saved weather ({@code $game_screen} is part of the save): type, max, targets and the remaining duration. */
+    public float[] snapshot() {
+        return new float[] {type, max, typeTarget, maxTarget, duration};
+    }
+
+    public void restore(float[] values) {
+        reset();
+        if (values == null || values.length < 5) {
+            return;
+        }
+        type = (int) values[0];
+        max = values[1];
+        typeTarget = (int) values[2];
+        maxTarget = values[3];
+        duration = (int) values[4];
+    }
+
     /** A new game: {@code Game_Screen#initialize} (:35-38). */
     public void reset() {
         type = 0;
