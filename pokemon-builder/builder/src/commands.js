@@ -44,6 +44,7 @@ import { runtimeDataSummary, validateRuntimeData } from "./runtime-data.js";
 import { copyRuntimeAssets, createDataPack } from "./data-pack.js";
 import { encryptTree } from "./resource-crypto.js";
 import { writeLauncherAssets } from "./launcher-assets.js";
+import { purgeAndroidAssetCaches, removeAndroidBuild } from "./android-cache.js";
 import { createBuildReport, formatBuildReport, writeBuildReport } from "./build-report.js";
 
 export const EXIT_OK = 0;
@@ -788,6 +789,9 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
       ctx.logger.warn("launcher icon / name could not be prepared: " + error.message);
     }
   }
+  // Gradle's asset merge cache may still hold an earlier export's data pack; start from the current staging only.
+  const purged = purgeAndroidAssetCaches(path.join(ctx.builderRoot, "runtime", "android", "build"));
+  if (purged.length > 0) ctx.logger.step("      cleared " + purged.length + " stale Android asset cache folder(s)");
   ctx.logger.step("      " + formatTargetStatus(target));
   const gradleTasks = [target.gradleModule + ":" + target.gradleTask];
   ctx.logger.step("[7/8] Gradle Android build (gradlew " + gradleTasks.join(" ") + ")...");
@@ -990,6 +994,10 @@ function cmdClean(ctx, parsed) {
       rmSync(path.join(ctx.paths.logs, name), { force: true });
       ctx.logger.info("Removed log: " + name);
     }
+  }
+  const androidBuild = path.join(ctx.builderRoot, "runtime", "android", "build");
+  if (removeAndroidBuild(androidBuild)) {
+    ctx.logger.info("Removed: " + androidBuild);
   }
   ctx.logger.info("Clean finished" + (all ? " (--all)" : ""));
   console.log("CLEAN SUCCESS");
