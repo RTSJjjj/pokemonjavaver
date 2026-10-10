@@ -231,8 +231,9 @@ function Start-Build([string]$command, [string[]]$flags, [string]$label, [bool]$
         $env:ANDROID_HOME = $script:manual.sdk
         $env:ANDROID_SDK_ROOT = $script:manual.sdk
     } elseif ($sdkPath) {
-        if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = $sdkPath }
-        if (-not $env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT = $sdkPath }
+        # always overwrite: a stale value inherited by this window would otherwise win and Gradle rejects it
+        $env:ANDROID_HOME = $sdkPath
+        $env:ANDROID_SDK_ROOT = $sdkPath
     }
     if ($script:manual.java -and (Test-Path (Join-Path $script:manual.java 'bin\java.exe'))) { $env:JAVA_HOME = $script:manual.java }
     foreach ($key in 'node', 'ffmpeg') {                 # the folder of a located program goes first on PATH

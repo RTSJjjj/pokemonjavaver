@@ -85,6 +85,36 @@ export function gradleWrapper(builderRoot) {
   return path.join(builderRoot, "runtime", process.platform === "win32" ? "gradlew.bat" : "gradlew");
 }
 
+/** An Android SDK folder: it exists and has at least one of the folders every SDK install carries. */
+export function isAndroidSdk(dir, exists = existsSync) {
+  if (!dir || !exists(dir)) return false;
+  return ["platforms", "build-tools", "platform-tools"].some((sub) => exists(path.join(dir, sub)));
+}
+
+/**
+ * Makes ANDROID_HOME / ANDROID_SDK_ROOT trustworthy before Gradle reads them. settings.gradle includes the Android
+ * modules as soon as either variable is non-empty, and the Android Gradle plugin then rejects a value that points
+ * nowhere ("SDK location not found") - which is what a stale variable left over in a long-open window does.
+ * A valid SDK replaces both variables; with none valid they are removed so the build says "SDK not found" and skips
+ * the Android modules instead of failing half way. runtime/local.properties (sdk.dir) is left to Gradle.
+ */
+export function sanitizeAndroidSdkEnv(env, options = {}) {
+  const exists = options.exists || existsSync;
+  const candidates = [env.ANDROID_HOME, env.ANDROID_SDK_ROOT];
+  if (env.LOCALAPPDATA) candidates.push(path.join(env.LOCALAPPDATA, "Android", "Sdk"));
+  if (env.USERPROFILE) candidates.push(path.join(env.USERPROFILE, "Android", "Sdk"));
+  if (env.HOME) candidates.push(path.join(env.HOME, "Android", "Sdk"));
+  const valid = candidates.find((dir) => isAndroidSdk(dir, exists));
+  if (valid) {
+    env.ANDROID_HOME = valid;
+    env.ANDROID_SDK_ROOT = valid;
+  } else {
+    delete env.ANDROID_HOME;
+    delete env.ANDROID_SDK_ROOT;
+  }
+  return valid || null;
+}
+
 /** Windows: batch files can only run through cmd.exe (Node cannot spawn .bat). */
 function windowsCommandLine(wrapper, tasks) {
   const quote = (part) => (/[\s"]/.test(part) ? '"' + part.replace(/"/g, '""') + '"' : part);
@@ -128,6 +158,7 @@ export function runGradleTasks(builderRoot, tasks, options = {}) {
 
   const env = { ...process.env, ...(options.env || {}) };
   if (options.javaHome) env.JAVA_HOME = options.javaHome;
+  sanitizeAndroidSdkEnv(env, { exists });
   const command = platform === "win32"
     ? { executable: "cmd.exe", args: ["/d", "/s", "/c", windowsCommandLine(wrapper, tasks)] }
     : { executable: wrapper, args: tasks };

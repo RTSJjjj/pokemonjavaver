@@ -10,11 +10,13 @@ import {
   desktopArtifacts,
   fileSizeLabel,
   findFreeDrive,
+  isAndroidSdk,
   isAscii,
   missingArtifacts,
   mountAsciiDrive,
   needsAsciiDrive,
   runGradleTasks,
+  sanitizeAndroidSdkEnv,
 } from "../src/gradle.js";
 
 test("isAscii accepts every byte of an ASCII path and rejects CJK", () => {
@@ -124,4 +126,27 @@ test("fileSizeLabel formats bytes, KB and MB", () => {
   assert.equal(fileSizeLabel("f", { stat: () => ({ size: 2048 }) }), "2 KB");
   assert.equal(fileSizeLabel("f", { stat: () => ({ size: 2 * 1024 * 1024 }) }), "2.0 MB");
   assert.equal(fileSizeLabel("f", { stat: () => { throw new Error("nope"); } }), "");
+});
+
+test("sanitizeAndroidSdkEnv replaces a stale ANDROID_HOME with a valid SDK", () => {
+  const good = path.join("C:\Users\me\AppData\Local", "Android", "Sdk");
+  const exists = (file) => file === good || file === path.join(good, "platforms");
+  const env = { ANDROID_HOME: "D:\gone\Sdk", ANDROID_SDK_ROOT: "D:\gone\Sdk", LOCALAPPDATA: "C:\Users\me\AppData\Local" };
+  assert.equal(sanitizeAndroidSdkEnv(env, { exists }), good);
+  assert.equal(env.ANDROID_HOME, good);
+  assert.equal(env.ANDROID_SDK_ROOT, good);
+});
+
+test("sanitizeAndroidSdkEnv keeps a valid variable and drops invalid ones when no SDK exists", () => {
+  const sdk = "C:\sdk";
+  const exists = (file) => file === sdk || file === path.join(sdk, "build-tools");
+  const env = { ANDROID_HOME: sdk };
+  assert.equal(sanitizeAndroidSdkEnv(env, { exists }), sdk);
+  assert.equal(env.ANDROID_SDK_ROOT, sdk);
+
+  const stale = { ANDROID_HOME: "D:\gone", ANDROID_SDK_ROOT: "D:\gone2" };
+  assert.equal(sanitizeAndroidSdkEnv(stale, { exists: () => false }), null);
+  assert.equal("ANDROID_HOME" in stale, false);
+  assert.equal("ANDROID_SDK_ROOT" in stale, false);
+  assert.equal(isAndroidSdk("C:\empty", (file) => file === "C:\empty"), false);
 });

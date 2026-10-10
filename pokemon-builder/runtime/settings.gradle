@@ -41,9 +41,12 @@ include 'lwjgl3'
 // agent check (`gradlew agentCheck`, project3 section 44) never depends on the
 // Android SDK. Install the SDK (or open the project in Android Studio, which
 // writes local.properties) and both come back.
+// The variables count only when they point at a folder that exists: a stale value
+// would include the modules and then fail in the Android Gradle plugin.
+def sdkFolder = { String value -> value != null && !value.isEmpty() && new File(value).isDirectory() }
 def androidSdkPresent =
-    System.getenv("ANDROID_HOME") != null ||
-    System.getenv("ANDROID_SDK_ROOT") != null ||
+    sdkFolder(System.getenv("ANDROID_HOME")) ||
+    sdkFolder(System.getenv("ANDROID_SDK_ROOT")) ||
     file("local.properties").exists()
 
 if (androidSdkPresent) {
