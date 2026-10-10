@@ -300,6 +300,7 @@ public final class MapScreen extends ScreenAdapter {
         }
         new pokemon.runtime.field.Vehicles(database.pbs(), gameState).onMapChange(mapId);   // Events.onMapChange (170:603-608)
         noteMapChange(mapId);
+        applyMapWeather(previousMapId, mapId);
         refreshDarkness(mapId);
         flyArrivalBird = gameState.takeFlyArrivalBird();
         if (gameState.takeFlyArrival()) {
@@ -1116,6 +1117,7 @@ public final class MapScreen extends ScreenAdapter {
             cameraScroll.reset();
         }
         followPlayer();
+        updateWeather(delta);
         updateNeighbourViews(); // R6.23: neighbours in range of the new camera
         warmNeighbourViews();   // R6.24: spread their character sheets out
         updateDayNightTone();
@@ -1136,6 +1138,7 @@ public final class MapScreen extends ScreenAdapter {
         }
         renderer.render(batch, mapCamera, this::renderWorldDepth);
         renderAnimations(); // R6.27: Show Animation (207) sits on the toned map
+        renderWeather();    // Spriteset_Map @weather (RPG::Weather sprites, z 1000)
         renderHeadNames();
         batch.setShader(null);
         renderFog();
@@ -2438,6 +2441,68 @@ public final class MapScreen extends ScreenAdapter {
         batch.begin();
         flyBird.render(batch, mapCamera.originX(), mapCamera.originY(), mapCamera.viewPixelHeight());
         batch.end();
+    }
+
+    private static final String[] WEATHER_NAMES = {"None", "Rain", "Storm", "Snow", "Blizzard", "Sandstorm", "HeavyRain", "Sun", "Fog"};
+
+    private static int weatherNumber(String name) {
+        for (int i = 0; i < WEATHER_NAMES.length; i++) {
+            if (WEATHER_NAMES[i].equalsIgnoreCase(name)) return i;
+        }
+        return 0;
+    }
+
+    /**
+     * 170_PField_Field:517-550 {@code Events.onMapChanging / onMapChange}: the old map's weather is cleared when the new map has another
+     * name or no weather of its own, and the new map's weather starts with its chance ({@code weather(type, 4, 20)}).
+     */
+    private void applyMapWeather(int oldId, int newId) {
+        if (oldId <= 0 || oldId == newId || context.pbsData() == null) {
+            return;
+        }
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        pokemon.runtime.pokemon.PbsData.Metadata oldMeta = pbs.mapMetadata(oldId);
+        pokemon.runtime.pokemon.PbsData.Metadata newMeta = pbs.mapMetadata(newId);
+        boolean oldWeather = oldMeta != null && oldMeta.weatherType != null;
+        boolean newWeather = newMeta != null && newMeta.weatherType != null;
+        String oldName = null;
+        try {
+            oldName = database.map(oldId).name;
+        } catch (RuntimeException error) {
+            // an old map that cannot be read has no name of its own
+        }
+        boolean sameName = oldName != null && oldName.equals(mapData.name);
+        if (!sameName) {
+            if (oldWeather) gameState.weather().set(0, 0, 0);                      // onMapChanging:524-525
+        } else if (oldWeather && !newWeather) {
+            gameState.weather().set(0, 0, 0);                                      // :527-528
+        }
+        if (newWeather && (!sameName || !oldWeather) && encounterRandom.nextInt(100) < newMeta.weatherProbability) {
+            gameState.weather().set(weatherNumber(newMeta.weatherType), 4, 20);   // onMapChange:543-548
+        }
+    }
+
+    private WeatherLayer weatherLayer;
+
+    /** Spriteset_Map:156-160: the weather sprites follow the game screen's weather and the map's display origin. */
+    private void updateWeather(float delta) {
+        if (weatherLayer == null) {
+            weatherLayer = new WeatherLayer(encounterRandom, viewWidth, viewHeight);
+        }
+        pokemon.runtime.state.ScreenWeather weather = gameState.weather();
+        float displayY = tileMap.height() * (float) TilesetGeometry.TILE_SIZE - mapCamera.originY() - viewHeight;
+        weatherLayer.update(delta, weather.type(), weather.max(), mapCamera.originX(), displayY);
+    }
+
+    private void renderWeather() {
+        if (weatherLayer == null) {
+            return;
+        }
+        applyWorldTone();                                                          // pbDayNightTint(sprite)
+        batch.begin();
+        weatherLayer.render(batch, mapCamera.originX(), mapCamera.originY());
+        batch.end();
+        batch.setShader(null);
     }
 
     /** {@code Events.onMapChange} (170_PField_Field:535-540): the healing spot and the visited maps. */
@@ -4584,6 +4649,10 @@ public final class MapScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         pixel.dispose();
+        if (weatherLayer != null) {
+            weatherLayer.dispose();
+            weatherLayer = null;
+        }
         worldTone.dispose();
         if (darkness != null) {
             darkness.dispose();

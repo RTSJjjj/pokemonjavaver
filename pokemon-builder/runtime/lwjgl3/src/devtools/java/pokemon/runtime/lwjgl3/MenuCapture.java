@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1584,6 +1584,19 @@ public final class MenuCapture extends ApplicationAdapter {
                 idle(10);
                 renderOverlay();
                 shot("habitat-5-area");
+                break;
+            }
+            case "weather": {
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                int[] types = {1, 2, 3, 4, 5};
+                String[] names = {"rain", "storm", "snow", "blizzard", "sandstorm"};
+                for (int t = 0; t < types.length; t++) {
+                    context.gameState().weather().set(types[t], 4, 0);
+                    for (int i = 0; i < 90; i++) advanceMap(1f / 40f, 1);
+                    shotMap("weather-" + names[t]);
+                }
                 break;
             }
             case "quests": {
