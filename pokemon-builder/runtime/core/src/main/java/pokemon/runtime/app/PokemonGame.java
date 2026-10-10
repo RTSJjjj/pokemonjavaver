@@ -21,7 +21,7 @@ import pokemon.runtime.ui.ScreenManager;
 public final class PokemonGame extends Game {
 
     public static final String RUNTIME_VERSION = "0.1.0";
-    /** Quick save slot of the R11 desktop entry (F5 / F9). */
+    /** Quick save slot of the R11 desktop entry (F6 / F9). */
     public static final String QUICK_SLOT = "quick";
 
     private final String dataRoot;
@@ -175,10 +175,10 @@ public final class PokemonGame extends Game {
         }
         handleSpeedKeys();
         if ((context.battlePort() != null && context.battlePort().pending()) || context.menuService().pending() != null) return;
-        // The pause menu's party screen owns F5 (Input::F5 = 寄存系统).
+        // F5 is Input::F5 (the Ready Menu on the map, the party screen's 寄存系统, the battle info): the desktop quick save is on F6.
         boolean pauseMenuOpen = getScreen() instanceof pokemon.runtime.map.MapScreen
                 && ((pokemon.runtime.map.MapScreen) getScreen()).pauseMenuOpen();
-        if (!pauseMenuOpen && Gdx.input.isKeyJustPressed(Input.Keys.F5)) {
+        if (!pauseMenuOpen && Gdx.input.isKeyJustPressed(Input.Keys.F6)) {
             saveQuick();
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F9)) {

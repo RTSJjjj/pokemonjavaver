@@ -42,7 +42,7 @@ GameDatabase.load(...)  →  RuntimeContext  →  TitleScreen → MapScreen / Sc
 - **音频**：`generated/audio/`（ogg）由 `AudioManager` 播放；BGM 过场按原工程
   `pbCueBGM` 语义 1 秒交叉淡出（R6.24）。
 - **存档**：`SaveManager`（JSON、`saveVersion=1`）经 `StoragePort` 写到 `saves/`；
-  Desktop 入口 F5 快速存档、F9 读取、F11 全屏；L1 起可通过标题屏/暂停菜单用
+  Desktop 入口 F6 快速存档（F5 是游戏按键）、F9 读取、F11 全屏；L1 起可通过标题屏/暂停菜单用
   菜单槽位（1/2/3/快速）存取。设置写 `settings.json`（音量/全屏）。
 - **启动流程（L1）**：无地图参数 → 标题屏（splash → 提示 → 新游戏/继续/退出）；
   显式地图参数（探针/测试/调试）仍直进 `MapScreen`；地图内 X/Esc 开暂停菜单。

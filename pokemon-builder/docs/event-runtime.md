@@ -75,7 +75,7 @@ transfer/setEventLocation/eraseEvent/透明/色调/闪光/震动/滚动/雾/动�
 
 `GameState` 保存玩家位置与朝向、开关、变量、自开关、物品、任务、强度门控等；
 `SaveManager` 写 JSON（`saveVersion=1`，`saves/` 经 `StoragePort`）。Desktop 入口
-F5 快速存档 / F9 读取；地图/事件状态在加载后由 `MapScreen` 重建。
+F6 快速存档 / F9 读取；地图/事件状态在加载后由 `MapScreen` 重建。
 
 ## 7. 无头可测性（§61）
 

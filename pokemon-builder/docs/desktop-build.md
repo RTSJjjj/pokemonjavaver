@@ -40,7 +40,7 @@ PokemonGame [runtime-data-root] [mapId] [--fullscreen|--size WxH|--logical WxH|-
 ```
 
 - 逻辑分辨率默认取工程 `project.json.runtime.screenWidth/Height`（本工程 672×448），
-  窗口按屏幕取最大整数倍（F11 全屏、F5 快速存档、F9 读取）。
+  窗口按屏幕取最大整数倍（F11 全屏、F6 快速存档、F9 读取）。
 - **启动流程（L1）**：不给 `mapId` 时先进入标题屏（splash → 提示 → 新游戏/继续/退出）；
   给 `mapId` 时直进该地图（探针/测试口径）；地图内 X/Esc 打开暂停菜单，菜单里含
   保存/读档/设置（音量、全屏，写 `settings.json`）/回到标题/退出游戏。
