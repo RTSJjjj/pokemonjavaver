@@ -216,6 +216,7 @@ public final class BagView {
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
             if (step == Step.ITEMS) {
                 pokemon.runtime.audio.UiSounds.named(context.audioManager(), "BW2CloseMenu");   // 305_BW_Bag:633-634
+                pickedItem = null;                            // a cancel picks nothing (the last sold item must not be picked again)
                 return true;
             }
             step = step == Step.REPLACE ? Step.TARGET : Step.ITEMS;
@@ -241,7 +242,7 @@ public final class BagView {
         switch (step) {
             case ITEMS:
                 pokemon.runtime.audio.UiSounds.decision(context.audioManager());  // 305_BW_Bag:636-637 pbPlayDecisionSE
-                if (model.onCloseRow()) return true; // 关闭背包
+                if (model.onCloseRow()) { pickedItem = null; return true; } // 关闭背包: picks nothing
                 item = model.selected();
                 if (item == null) break;
                 if (depositTo != null) { deposit(item); break; }
