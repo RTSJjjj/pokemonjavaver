@@ -37,7 +37,7 @@ public final class PinyinTable {
         }
         try {
             JsonValue root = new JsonReader().parse(
-                    new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+                    pokemon.runtime.data.ResourceCrypto.readString(file));
             JsonValue map = root.get("table");
             if (map != null && map.isObject()) {
                 for (JsonValue entry = map.child; entry != null; entry = entry.next) {

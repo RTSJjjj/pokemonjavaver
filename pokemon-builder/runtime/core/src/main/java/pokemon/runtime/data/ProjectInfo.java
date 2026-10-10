@@ -46,7 +46,7 @@ public class ProjectInfo {
             return null;
         }
         try {
-            JsonValue root = new JsonReader().parse(new FileHandle(manifest));
+            JsonValue root = new JsonReader().parse(pokemon.runtime.data.ResourceCrypto.handle(manifest));
             JsonValue runtime = root.get("runtime");
             if (runtime == null) {
                 return null;

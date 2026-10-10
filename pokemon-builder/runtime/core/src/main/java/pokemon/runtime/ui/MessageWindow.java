@@ -84,7 +84,7 @@ public final class MessageWindow implements Disposable {
         String path = fontFile.getAbsolutePath();
         if (sharedFont == null || !path.equals(sharedFontPath)) {
             releaseSharedFont();
-            FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.absolute(path));
+            FreeTypeFontGenerator generator = new FreeTypeFontGenerator(pokemon.runtime.data.ResourceCrypto.handle(fontFile));
             try {
                 FreeTypeFontParameter parameter = new FreeTypeFontParameter();
                 parameter.size = FONT_SIZE;
@@ -770,7 +770,7 @@ public final class MessageWindow implements Disposable {
             return null;
         }
         Texture texture = textures.load("windowskin:" + name, file);
-        Pixmap pixmap = new Pixmap(new FileHandle(file));
+        Pixmap pixmap = new Pixmap(pokemon.runtime.data.ResourceCrypto.handle(file));
         WindowSkin created = new WindowSkin(name, texture, pixmap);
         pixmap.dispose();
         skins.put(name, created);

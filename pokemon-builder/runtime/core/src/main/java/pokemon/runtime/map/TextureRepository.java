@@ -15,8 +15,14 @@ import java.io.File;
 
 /** AssetManager owns all textures; large tilesets use tile-aligned texture pages. */
 public final class TextureRepository implements Disposable {
+    /** P3: resolves absolute paths to handles that decrypt the packaged (encrypted) files. */
+    private static final class EncryptedResolver implements com.badlogic.gdx.assets.loaders.FileHandleResolver {
+        @Override public FileHandle resolve(String fileName) {
+            return "".equals(fileName) ? new FileHandle(fileName) : pokemon.runtime.data.ResourceCrypto.handle(new File(fileName));
+        }
+    }
     public static final int PAGE_HEIGHT = 2048;
-    private final AssetManager assets = new AssetManager(new AbsoluteFileHandleResolver());
+    private final AssetManager assets = new AssetManager(new EncryptedResolver());
     /**
      * R6.24: page count per tileset file. Without it, loading a tileset that was
      * already in memory decoded the whole PNG again just to measure it.
@@ -44,7 +50,7 @@ public final class TextureRepository implements Disposable {
             }
             return cached;
         }
-        Pixmap source = new Pixmap(new FileHandle(file));
+        Pixmap source = new Pixmap(pokemon.runtime.data.ResourceCrypto.handle(file));
         int width = source.getWidth(), height = source.getHeight();
         if (width != 256 || height < TilesetGeometry.TILE_SIZE) {
             source.dispose();
@@ -95,7 +101,7 @@ public final class TextureRepository implements Disposable {
         PageParameters(File file, int y, int height) { this.file = file; this.y = y; this.height = height; }
     }
     private static final class PageLoader extends SynchronousAssetLoader<Texture, PageParameters> {
-        PageLoader() { super(new AbsoluteFileHandleResolver()); }
+        PageLoader() { super(new EncryptedResolver()); }
         @Override public Texture load(AssetManager manager, String name, FileHandle file, PageParameters p) {
             return new Texture(new PageData(p));
         }
@@ -113,7 +119,7 @@ public final class TextureRepository implements Disposable {
         @Override public void prepare() {
             if (isPrepared()) throw new IllegalStateException("Texture page already prepared");
             Pixmap source = p.sharedSource != null ? p.sharedSource
-                    : new Pixmap(new FileHandle(p.file));
+                    : new Pixmap(pokemon.runtime.data.ResourceCrypto.handle(p.file));
             try {
                 pixels = new Pixmap(256, p.height, Pixmap.Format.RGBA8888);
                 pixels.setBlending(Pixmap.Blending.None);

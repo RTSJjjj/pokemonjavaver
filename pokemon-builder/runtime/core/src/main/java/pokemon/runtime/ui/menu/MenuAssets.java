@@ -58,7 +58,7 @@ public final class MenuAssets implements Disposable {
             return null;
         }
         try {
-            Pixmap pixmap = new Pixmap(new FileHandle(found));
+            Pixmap pixmap = new Pixmap(pokemon.runtime.data.ResourceCrypto.handle(found));
             HueShift.apply(pixmap, hue);
             Texture texture = new Texture(pixmap);
             pixmap.dispose();
@@ -198,8 +198,8 @@ public final class MenuAssets implements Disposable {
             return null;
         }
         try {
-            Pixmap pixmap = new Pixmap(new FileHandle(file));
-            Texture texture = new Texture(new FileHandle(file));
+            Pixmap pixmap = new Pixmap(pokemon.runtime.data.ResourceCrypto.handle(file));
+            Texture texture = new Texture(pokemon.runtime.data.ResourceCrypto.handle(file));
             texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             WindowSkin created = new WindowSkin(name, texture, pixmap);
             pixmap.dispose();
@@ -226,7 +226,7 @@ public final class MenuAssets implements Disposable {
             return null;
         }
         try {
-            Texture texture = new Texture(new FileHandle(found));
+            Texture texture = new Texture(pokemon.runtime.data.ResourceCrypto.handle(found));
             texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             textures.put(key, texture);
             return texture;

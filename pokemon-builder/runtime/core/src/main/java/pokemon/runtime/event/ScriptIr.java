@@ -25,7 +25,7 @@ public final class ScriptIr {
 
     /** Reads the {@code {version, commands:[{id, ir}]}} document R7.1 writes. */
     public static ScriptIr load(File file) throws IOException {
-        String text = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        String text = pokemon.runtime.data.ResourceCrypto.readString(file);
         return of(new JsonReader().parse(text));
     }
 

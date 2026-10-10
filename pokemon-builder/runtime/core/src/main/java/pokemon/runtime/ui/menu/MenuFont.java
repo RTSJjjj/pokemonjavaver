@@ -36,7 +36,7 @@ public final class MenuFont implements Disposable {
             Gdx.app.error("MenuFont", "menu font not found; menu text stays hidden");
             return;
         }
-        generator = new FreeTypeFontGenerator(Gdx.files.absolute(fontFile.getAbsolutePath()));
+        generator = new FreeTypeFontGenerator(pokemon.runtime.data.ResourceCrypto.handle(fontFile));
         try {
             FreeTypeFontGenerator.FreeTypeFontParameter parameter =
                     new FreeTypeFontGenerator.FreeTypeFontParameter();

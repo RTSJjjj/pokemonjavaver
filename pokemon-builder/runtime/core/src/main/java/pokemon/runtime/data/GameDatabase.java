@@ -100,7 +100,7 @@ public final class GameDatabase {
         ProjectInfo project;
         try {
             project = json.fromJson(ProjectInfo.class,
-                    new String(Files.readAllBytes(new File(root, "project.json").toPath()), StandardCharsets.UTF_8));
+                    pokemon.runtime.data.ResourceCrypto.readString(new File(root, "project.json")));
         } catch (Exception error) {
             throw new RuntimeDataException("cannot read project.json: " + error.getMessage(), error);
         }
@@ -139,7 +139,7 @@ public final class GameDatabase {
         if (audioManifestFile.isFile()) {
             try {
                 audioManifest = AudioManifestData.parse(
-                        new JsonReader().parse(new String(Files.readAllBytes(audioManifestFile.toPath()), StandardCharsets.UTF_8)));
+                        new JsonReader().parse(pokemon.runtime.data.ResourceCrypto.readString(audioManifestFile)));
             } catch (Exception error) {
                 throw new RuntimeDataException("cannot read audio-manifest.json: " + error.getMessage(), error);
             }
@@ -179,7 +179,7 @@ public final class GameDatabase {
             return null;
         }
         try {
-            return new JsonReader().parse(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+            return new JsonReader().parse(pokemon.runtime.data.ResourceCrypto.readString(file));
         } catch (Exception error) {
             throw new RuntimeDataException("cannot read " + relative + ": " + error.getMessage(), error);
         }
@@ -191,7 +191,7 @@ public final class GameDatabase {
             return null;
         }
         try {
-            return json.fromJson(type, new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+            return json.fromJson(type, pokemon.runtime.data.ResourceCrypto.readString(file));
         } catch (Exception error) {
             throw new RuntimeDataException("cannot read " + relative + ": " + error.getMessage(), error);
         }
@@ -377,7 +377,7 @@ public final class GameDatabase {
         }
         try {
             JsonValue root = jsonReader.parse(
-                    new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+                    pokemon.runtime.data.ResourceCrypto.readString(file));
             return parser.apply(root);
         } catch (RuntimeException error) {
             throw error;

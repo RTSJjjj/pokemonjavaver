@@ -4209,7 +4209,7 @@ public final class MapScreen extends ScreenAdapter {
             java.io.File file = locator.find("Characters", name.endsWith(".png") ? name : name + ".png");
             heights = new float[] {TilesetGeometry.TILE_SIZE, TilesetGeometry.TILE_SIZE};
             if (file != null) {
-                Pixmap pixels = new Pixmap(new com.badlogic.gdx.files.FileHandle(file));
+                Pixmap pixels = new Pixmap(pokemon.runtime.data.ResourceCrypto.handle(file));
                 try {
                     int frameHeight = pixels.getHeight() / 4;
                     int top = frameHeight;

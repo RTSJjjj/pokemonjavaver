@@ -29,14 +29,45 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     private static final Backend GDX_BACKEND = new Backend() {
         @Override
         public Music newMusic(File file) {
-            return Gdx.audio.newMusic(Gdx.files.absolute(file.getAbsolutePath()));
+            return Gdx.audio.newMusic(playable(file));
         }
 
         @Override
         public Sound newSound(File file) {
-            return Gdx.audio.newSound(Gdx.files.absolute(file.getAbsolutePath()));
+            return Gdx.audio.newSound(playable(file));
         }
     };
+
+    /**
+     * P3: the packaged audio is encrypted. The desktop backend decodes through the handle's decrypting stream; the Android
+     * players (MediaPlayer / SoundPool) need a real file, so the file is decrypted once into the app's cache directory.
+     */
+    private static com.badlogic.gdx.files.FileHandle playable(File file) {
+        if (!pokemon.runtime.data.ResourceCrypto.isEncrypted(file)) {
+            return Gdx.files.absolute(file.getAbsolutePath());
+        }
+        if (Gdx.app != null && Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Desktop) {
+            return pokemon.runtime.data.ResourceCrypto.handle(file);
+        }
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        String extension = dot < 0 ? "" : name.substring(dot);
+        File cache = new File(System.getProperty("java.io.tmpdir", "."),
+                "pkre-" + Integer.toHexString((file.getAbsolutePath() + file.length() + file.lastModified()).hashCode()) + extension);
+        if (!cache.isFile()) {
+            try (java.io.InputStream in = pokemon.runtime.data.ResourceCrypto.open(file);
+                 java.io.OutputStream out = new java.io.FileOutputStream(cache)) {
+                byte[] buffer = new byte[65536];
+                int n;
+                while ((n = in.read(buffer)) >= 0) {
+                    out.write(buffer, 0, n);
+                }
+            } catch (java.io.IOException error) {
+                throw new com.badlogic.gdx.utils.GdxRuntimeException("cannot decrypt " + file, error);
+            }
+        }
+        return Gdx.files.absolute(cache.getAbsolutePath());
+    }
 
     private final ObjectMap<String, Music> musics = new ObjectMap<>();
     private final ObjectMap<String, Sound> sounds = new ObjectMap<>();

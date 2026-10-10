@@ -42,6 +42,7 @@ import {
 } from "./gradle.js";
 import { runtimeDataSummary, validateRuntimeData } from "./runtime-data.js";
 import { copyRuntimeAssets, createDataPack } from "./data-pack.js";
+import { encryptTree } from "./resource-crypto.js";
 import { createBuildReport, formatBuildReport, writeBuildReport } from "./build-report.js";
 
 export const EXIT_OK = 0;
@@ -90,6 +91,7 @@ const USAGE = [
   "                     runtime (for JDKs without jmods/; also POKEMON_RUNTIME_IMAGE)",
   "  --no-assets        build-pc: skip copying Graphics/ + Fonts/ into dist",
   "  --no-data          build-android: skip the L3 data pack (slim APK for adb push)",
+  "  --no-encrypt       build-pc / build-android: leave the packaged game files plain (P3 encryption off)",
   "  --release          build-android: signed release APK (preview keystore, L3)",
   "",
   "Exit codes:",
@@ -659,6 +661,14 @@ function cmdBuildPc(ctx, parsed) {
     ctx.logger.step(
       "      L4 assets: Graphics/ + Fonts/ -> runtime-data (" + copied.files + " new/changed files)",
     );
+    // P3: nothing readable is left in the package (the runtime also plays plain files: --no-encrypt)
+    if (parsed.flags["no-encrypt"] !== true) {
+      const started = Date.now();
+      const encrypted = encryptTree(runtimeDataRoot);
+      ctx.logger.step(
+        "      P3 encryption: " + encrypted + " files in runtime-data (" + ((Date.now() - started) / 1000).toFixed(1) + " s)",
+      );
+    }
   }
   const outputs = [
     artifacts.runnableJar + " (" + fileSizeLabel(artifacts.runnableJar) + ")",
@@ -745,6 +755,7 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
         { root: path.join(validated.projectPath, "Fonts"), prefix: "Fonts" },
       ],
       packZip,
+      { encrypt: parsed.flags["no-encrypt"] !== true }, // P3: stored encrypted; the app reads them through ResourceCrypto
     );
     writeFileSync(path.join(stagedAssets, "runtime-data.version"), pack.version + "\n", "utf8");
     mkdirSync(ctx.paths.dist, { recursive: true });

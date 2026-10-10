@@ -12,6 +12,7 @@ import { closeSync, copyFileSync, mkdirSync, openSync, readFileSync, readdirSync
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { deflateRawSync } from "node:zlib";
+import { HEADER_SIZE, encryptBuffer } from "./resource-crypto.js";
 
 const CRC_TABLE = (() => {
   const table = new Int32Array(256);
@@ -80,10 +81,11 @@ function writeAll(fd, buffer) {
  *
  * @param {{root: string, prefix: string}[]} sources directory + in-zip prefix
  * @param {string} zipPath target zip file
+ * @param {{encrypt?: boolean}} [options] encrypt: every entry is stored encrypted (P3, resource-crypto.js)
  * @returns {{zipPath: string, files: number, bytes: number, version: string}}
  *          version is a content hash usable as the unpack marker
  */
-export function createDataPack(sources, zipPath) {
+export function createDataPack(sources, zipPath, options = {}) {
   const entries = [];
   for (const source of sources) {
     entries.push(...collectFiles(source.root, source.prefix));
@@ -98,8 +100,9 @@ export function createDataPack(sources, zipPath) {
   let bytes = 0;
   try {
     for (const entry of entries) {
-      const data = readFileSync(entry.diskPath);
-      hash.update(entry.entryName).update("\u0000").update(data);
+      const plain = readFileSync(entry.diskPath);
+      hash.update(entry.entryName).update("\u0000").update(plain); // the version follows the content, not the nonce
+      const data = options.encrypt ? encryptBuffer(plain) : plain;
       let method = 8;
       let payload = deflateRawSync(data, { level: 1 });
       if (payload.length >= data.length) {
@@ -222,7 +225,9 @@ function copyTree(source, target, logger) {
       } catch (error) {
         existing = null;
       }
-      if (existing && existing.size === stat.size && existing.mtimeMs >= stat.mtimeMs) {
+      // P3: an encrypted copy is HEADER_SIZE bytes longer and keeps the source's mtime
+      if (existing && (existing.size === stat.size || existing.size === stat.size + HEADER_SIZE)
+          && existing.mtimeMs >= stat.mtimeMs) {
         continue; // up to date
       }
       mkdirSync(path.dirname(to), { recursive: true });

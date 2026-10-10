@@ -80,7 +80,18 @@ public final class SoundLength {
         if (file == null || !file.isFile()) {
             return -1f;                                          // :1104 return -1 if !safeExists?
         }
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        File plain = file;
+        boolean temporary = false;
+        try {
+            if (pokemon.runtime.data.ResourceCrypto.isEncrypted(file)) {   // P3: read the length of the decrypted content
+                plain = File.createTempFile("pkre-len", ".snd");
+                temporary = true;
+                java.nio.file.Files.write(plain.toPath(), pokemon.runtime.data.ResourceCrypto.readBytes(file));
+            }
+        } catch (IOException e) {
+            return -1f;
+        }
+        try (RandomAccessFile raf = new RandomAccessFile(plain, "r")) {
             raf.seek(0);                                         // :1112 file.pos=0
             long magic = dword(raf);                             // :1113 fdw=fgetdw.call(file)
             if (magic == RIFF) {                                 // :1114
@@ -94,6 +105,10 @@ public final class SoundLength {
             return -1f;                                          // :1103
         } catch (IOException e) {
             return -1f;                                          // :1103
+        } finally {
+            if (temporary) {
+                plain.delete();
+            }
         }
     }
 

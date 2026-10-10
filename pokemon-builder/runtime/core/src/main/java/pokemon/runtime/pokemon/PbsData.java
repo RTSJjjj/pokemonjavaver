@@ -765,7 +765,7 @@ public final class PbsData {
             return null;
         }
         try {
-            return new JsonReader().parse(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+            return new JsonReader().parse(pokemon.runtime.data.ResourceCrypto.readString(file));
         } catch (Exception error) {
             return null; // a corrupt document must not take the game down
         }

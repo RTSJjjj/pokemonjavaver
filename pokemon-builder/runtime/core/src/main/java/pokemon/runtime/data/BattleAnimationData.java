@@ -147,7 +147,7 @@ public final class BattleAnimationData {
             return new BattleAnimationData(dir, null);
         }
         try {
-            String text = new String(Files.readAllBytes(index.toPath()), StandardCharsets.UTF_8);
+            String text = pokemon.runtime.data.ResourceCrypto.readString(index);
             return new BattleAnimationData(dir, new JsonReader().parse(text));
         } catch (IOException | RuntimeException error) {
             System.err.println("[battle-animations] cannot read " + index + ": " + error);
@@ -186,7 +186,7 @@ public final class BattleAnimationData {
         }
         File file = new File(dir, files[index]);
         try {
-            String text = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            String text = pokemon.runtime.data.ResourceCrypto.readString(file);
             Animation animation = parse(new JsonReader().parse(text));
             loaded.put(id, animation);
             return animation;
