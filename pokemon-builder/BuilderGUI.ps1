@@ -54,13 +54,29 @@ function Get-JavaStatus {
     return $null
 }
 
-function Get-AndroidSdkStatus {
+function Get-AndroidSdkPath {
     foreach ($name in 'ANDROID_HOME', 'ANDROID_SDK_ROOT') {
         $value = [Environment]::GetEnvironmentVariable($name)
-        if ($value -and (Test-Path $value)) { return "已找到（$name）" }
+        if ($value -and (Test-Path $value)) { return $value }
+        # a variable set after this window's parent process started is still in the user's environment
+        $value = [Environment]::GetEnvironmentVariable($name, 'User')
+        if ($value -and (Test-Path $value)) { return $value }
     }
     $props = Join-Path $root 'runtime\local.properties'
-    if ((Test-Path $props) -and (Select-String -Path $props -Pattern '^sdk\.dir=' -Quiet)) { return "已找到（local.properties）" }
+    if (Test-Path $props) {
+        $line = Select-String -Path $props -Pattern '^sdk\.dir=(.+)$' | Select-Object -First 1
+        if ($line) {
+            $dir = $line.Matches[0].Groups[1].Value.Replace('\\', '\').Replace('\:', ':')
+            if (Test-Path $dir) { return $dir }
+        }
+    }
+    $default = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+    if (Test-Path (Join-Path $default 'platforms')) { return $default }
+    return $null
+}
+
+function Get-AndroidSdkStatus {
+    if (Get-AndroidSdkPath) { return '已找到' }
     return $null
 }
 
@@ -81,7 +97,7 @@ function Update-Environment {
     $items = @(
         @{ name = 'Node.js'; value = $(if (Get-Command node -ErrorAction SilentlyContinue) { '已找到' } else { $null }); lbl = $lblNode },
         @{ name = 'Java (JDK)'; value = (Get-JavaStatus); lbl = $lblJava },
-        @{ name = 'ffmpeg'; value = $(if (Test-Path (Join-Path $root 'tools\ffmpeg\bin\ffmpeg.exe')) { '已内置' } else { $null }); lbl = $lblFfmpeg },
+        @{ name = 'ffmpeg'; value = $(if (Test-Path (Join-Path $root 'tools\ffmpeg\bin\ffmpeg.exe')) { '已内置' } elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) { '已找到（PATH）' } else { $null }); lbl = $lblFfmpeg },
         @{ name = 'Android SDK'; value = (Get-AndroidSdkStatus); lbl = $lblSdk }
     )
     foreach ($item in $items) {
@@ -157,6 +173,9 @@ function Start-Build([string]$command, [string[]]$flags, [string]$label, [bool]$
     if ($withProject) { $argText += ' "' + $txtProject.Text.TrimEnd('\') + '"' }
     foreach ($flag in $flags) { $argText += ' ' + $flag }
     $cmd = 'chcp 65001 >nul & call "' + $builderBat + '" ' + $argText + ' > "' + $script:logFile + '" 2>&1'
+    $sdkPath = Get-AndroidSdkPath                       # hand the SDK to the build even when this window started before it was set
+    if ($sdkPath -and -not $env:ANDROID_HOME) { $env:ANDROID_HOME = $sdkPath }
+    if ($sdkPath -and -not $env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT = $sdkPath }
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = 'cmd.exe'
     $psi.Arguments = '/d /c "' + $cmd + '"'

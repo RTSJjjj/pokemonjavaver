@@ -889,7 +889,10 @@ function runAudioStep(ctx, parsed, stepLabel, projectPath) {
         return {};
       }
     })(),
-    ffmpegPath: path.join(ctx.builderRoot, "tools", "ffmpeg", "bin", "ffmpeg.exe"),
+    // the bundled ffmpeg when the package has it, else whatever "ffmpeg" the PATH offers
+    ffmpegPath: existsSync(path.join(ctx.builderRoot, "tools", "ffmpeg", "bin", "ffmpeg.exe"))
+      ? path.join(ctx.builderRoot, "tools", "ffmpeg", "bin", "ffmpeg.exe")
+      : "ffmpeg",
   };
   const scan = scanAudio(projectPath, options);
   const build = runAudioBuild({
