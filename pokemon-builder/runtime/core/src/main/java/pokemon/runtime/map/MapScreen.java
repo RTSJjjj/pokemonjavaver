@@ -779,6 +779,10 @@ public final class MapScreen extends ScreenAdapter {
         // @moved_this_frame), so an arrival must NOT trigger the event it landed
         // on - that made stair and door pairs bounce straight back. Arrival
         // animations belong to the destination event's autorun page (trigger 3).
+        // The fallback check in update() (a page that turns Player Touch after the landing, the floating plates) would
+        // otherwise start the page of the tile the player was placed on: nothing is latched on a fresh map. Latch it, as
+        // a transfer on the same map does - the ladder pairs of map 113 / 114 bounced straight back (user report).
+        latchOwnTouchTile();
         if (context.screenEffects().fade() > 0f) {
             context.screenEffects().fade(12, false); // arriving through a fade
         }
