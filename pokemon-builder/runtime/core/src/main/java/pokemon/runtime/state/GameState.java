@@ -14,6 +14,14 @@ import pokemon.runtime.pokemon.TrainerState;
  */
 public final class GameState {
 
+    /**
+     * The positions of the current map's events, as {@code [mapId, id, x, y, direction, id, x, y, direction ...]}: what a
+     * save writes (Essentials marshals {@code $game_map}, events included) and what a load leaves for the map screen to apply.
+     * {@link #eventPositionSource} is set by the running map screen; {@link #pendingEventPositions} is filled by a load.
+     */
+    public java.util.function.Supplier<int[]> eventPositionSource;
+    public int[] pendingEventPositions;
+
     /** RMXP direction codes: 2 down, 4 left, 6 right, 8 up. */
     public static final int DEFAULT_DIRECTION = 2;
 

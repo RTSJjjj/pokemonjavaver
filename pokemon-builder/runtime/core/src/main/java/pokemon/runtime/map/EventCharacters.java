@@ -38,6 +38,7 @@ public final class EventCharacters {
     public EventCharacters(MapData data, TileMap map, GameState state) {
         this.data = data;
         this.state = state;
+        data.restorePristine();                    // a new screen starts from the parsed events, not from where the last visit left them
         players = new MoveRoutePlayer[data.events.size];
         transparent = new boolean[data.events.size];
         activePages = new MapData.EventPageData[data.events.size];
@@ -67,6 +68,38 @@ public final class EventCharacters {
     /** Runtime character per event index; null when the event has no sprite. */
     public Array<MapCharacter> characters() {
         return characters;
+    }
+
+    /** The events' places as {@code [mapId, id, x, y, direction ...]} (what a save keeps of {@code $game_map}'s events). */
+    public int[] positions() {
+        int[] flat = new int[1 + data.events.size * 4];
+        flat[0] = data.mapId;
+        for (int i = 0; i < data.events.size; i++) {
+            MapCharacter character = characters.get(i);
+            flat[1 + i * 4] = data.events.get(i).id;
+            flat[2 + i * 4] = character.x();
+            flat[3 + i * 4] = character.y();
+            flat[4 + i * 4] = character.direction();
+        }
+        return flat;
+    }
+
+    /** Puts the events back where a save had them; false (nothing applied) when the save is of another map. */
+    public boolean restorePositions(int[] flat) {
+        if (flat == null || flat.length < 1 || flat[0] != data.mapId) {
+            return false;
+        }
+        for (int at = 1; at + 3 < flat.length; at += 4) {
+            int index = indexOf(flat[at]);
+            if (index < 0) {
+                continue;
+            }
+            MapCharacter character = characters.get(index);
+            character.teleport(flat[at + 1], flat[at + 2]);
+            character.face(flat[at + 3]);
+            sync(index);
+        }
+        return true;
     }
 
     public MapCharacter character(int eventId) {

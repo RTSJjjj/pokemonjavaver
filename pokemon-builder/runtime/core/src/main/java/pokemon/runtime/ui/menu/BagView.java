@@ -224,8 +224,8 @@ public final class BagView {
         }
         MenuListModel cursor = step == Step.ITEMS ? model.cursor : step == Step.ACTION ? action : step == Step.TARGET ? party.cursor : moves;
         int cursorBefore = cursor.index();
-        if (input.wasPressed(GameAction.UP)) cursor.move(-1);
-        if (input.wasPressed(GameAction.DOWN)) cursor.move(1);
+        if (input.wasRepeated(GameAction.UP)) cursor.move(-1);        // Window_DrawableCommand: Input.repeat? - holding scrolls
+        if (input.wasRepeated(GameAction.DOWN)) cursor.move(1);
         if (cursor.index() != cursorBefore) {
             pokemon.runtime.audio.UiSounds.cursor(context.audioManager());       // 065_SpriteWindow_text:851-866 pbPlayCursorSE
         }

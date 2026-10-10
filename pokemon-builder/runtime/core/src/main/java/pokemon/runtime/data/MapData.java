@@ -47,6 +47,53 @@ public final class MapData {
     public Array<Encounter> encounters = new Array<>();
     public TileData tileData;
     public Array<EventData> events = new Array<>();
+
+    /** The events' state as parsed: x, y and per page direction / opacity / through. */
+    private int[] pristineXY;
+    private int[][] pristinePage;
+
+    /**
+     * The runtime writes event positions, directions and visibility back into this (cached, shared) document, so a screen
+     * built later from the same {@code MapData} - after loading a save, or coming back to the map - would otherwise see the
+     * events where the last visit left them. The first call records the parsed state; every later call restores it, which is
+     * what a fresh {@code Game_Map} setup does.
+     */
+    public void restorePristine() {
+        if (pristineXY == null) {
+            pristineXY = new int[events.size * 2];
+            pristinePage = new int[events.size][];
+            for (int i = 0; i < events.size; i++) {
+                EventData event = events.get(i);
+                pristineXY[i * 2] = event.x;
+                pristineXY[i * 2 + 1] = event.y;
+                int[] pages = new int[event.pages.size * 3];
+                for (int p = 0; p < event.pages.size; p++) {
+                    EventPageData page = event.pages.get(p);
+                    pages[p * 3] = page.graphic == null ? 0 : page.graphic.direction;
+                    pages[p * 3 + 1] = page.graphic == null ? 0 : page.graphic.opacity;
+                    pages[p * 3 + 2] = page.movement != null && page.movement.through ? 1 : 0;
+                }
+                pristinePage[i] = pages;
+            }
+            return;
+        }
+        for (int i = 0; i < events.size && i * 2 + 1 < pristineXY.length; i++) {
+            EventData event = events.get(i);
+            event.x = pristineXY[i * 2];
+            event.y = pristineXY[i * 2 + 1];
+            int[] pages = pristinePage[i];
+            for (int p = 0; p < event.pages.size && p * 3 + 2 < pages.length; p++) {
+                EventPageData page = event.pages.get(p);
+                if (page.graphic != null) {
+                    page.graphic.direction = pages[p * 3];
+                    page.graphic.opacity = pages[p * 3 + 1];
+                }
+                if (page.movement != null) {
+                    page.movement.through = pages[p * 3 + 2] != 0;
+                }
+            }
+        }
+    }
     public Array<String> scriptBlockIds = new Array<>();
 
     public static MapData parse(JsonValue root) {

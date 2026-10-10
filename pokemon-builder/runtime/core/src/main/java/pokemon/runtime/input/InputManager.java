@@ -25,6 +25,8 @@ public final class InputManager {
     private final Set<GameAction> repeatedThisFrame = EnumSet.noneOf(GameAction.class);
     private final Set<GameAction> repeatChecked = EnumSet.noneOf(GameAction.class);
     private java.util.function.LongSupplier clock = System::nanoTime;
+    /** Actions pressed since a frame that has not counted its first (repeat) frame yet. */
+    private final Set<GameAction> firstFramePending = EnumSet.noneOf(GameAction.class);
 
     public InputManager() {
         for (GameAction action : GameAction.values()) {
@@ -37,6 +39,7 @@ public final class InputManager {
             pressedThisFrame.add(action);
             downSince.put(action, clock.getAsLong());
             countAtLastFrame.put(action, 0);
+            firstFramePending.add(action);
         }
         down.put(action, Boolean.TRUE);
     }
@@ -45,6 +48,7 @@ public final class InputManager {
         down.put(action, Boolean.FALSE);
         downSince.remove(action);
         countAtLastFrame.remove(action);
+        firstFramePending.remove(action);
     }
 
     /** Syncs the held state of one action (the frame sampler calls this). */
@@ -113,13 +117,29 @@ public final class InputManager {
         pressedThisFrame.clear();
     }
 
+    /**
+     * The frame a button went down is RGSS repeat frame 1 whether or not anyone asked {@link #wasRepeated} that frame
+     * (a screen that tests {@code wasPressed(x) || wasRepeated(x)} short-circuits it). Without this, the next frame
+     * counted frame 1 again and a tap moved a cursor twice.
+     */
+    private void countFirstFrames() {
+        for (GameAction action : firstFramePending) {
+            if (down.get(action)) {
+                countAtLastFrame.merge(action, 1, Math::max);
+            }
+        }
+        firstFramePending.clear();
+    }
+
     public void beginFrame() {
+        countFirstFrames();
         pressedThisFrame.clear();
         repeatedThisFrame.clear();
         repeatChecked.clear();
     }
 
     public void endFrame() {
+        countFirstFrames();
         pressedThisFrame.clear();
         repeatedThisFrame.clear();
         repeatChecked.clear();

@@ -288,9 +288,7 @@ public final class BattleInfoView {
 
     private Texture iconTexture(MenuAssets a, PbsData.Species species, boolean shiny) {
         if (species == null) return null;
-        String suffix = shiny ? "s" : "";
-        Texture icon = a.icon(String.format("icon%03d%s", species.id, suffix));
-        if (icon == null) icon = a.icon("icon" + species.internalName + suffix);
+        Texture icon = PokemonIcons.of(a, species, false, shiny, false, 0, false, false);
         return icon;
     }
 

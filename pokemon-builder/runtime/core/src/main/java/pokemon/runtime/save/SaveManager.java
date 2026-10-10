@@ -60,6 +60,15 @@ public final class SaveManager {
         map.addChild("direction", new JsonValue(state.playerDirection()));
         root.addChild("map", map);
 
+        int[] events = state.eventPositionSource != null ? state.eventPositionSource.get() : state.pendingEventPositions;
+        if (events != null && events.length >= 1) {                       // the current map's events where they stand
+            JsonValue list = array();
+            for (int value : events) {
+                list.addChild(new JsonValue(value));
+            }
+            root.addChild("eventPositions", list);
+        }
+
         JsonValue switches = array();
         for (int id : state.switches().onIds()) {
             switches.addChild(new JsonValue(id));
@@ -601,6 +610,17 @@ public final class SaveManager {
                 if (value.isString()) state.variables().setText(id, value.asString());
                 else state.variables().set(id, value.asInt());
             }
+        }
+
+        state.pendingEventPositions = null;
+        JsonValue eventPositions = root.get("eventPositions");
+        if (eventPositions != null && eventPositions.isArray() && eventPositions.size >= 1) {
+            int[] flat = new int[eventPositions.size];
+            int at = 0;
+            for (JsonValue value = eventPositions.child; value != null; value = value.next) {
+                flat[at++] = value.asInt();
+            }
+            state.pendingEventPositions = flat;
         }
 
         state.selfSwitches().clear();

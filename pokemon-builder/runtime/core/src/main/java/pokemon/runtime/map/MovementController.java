@@ -18,6 +18,15 @@ public final class MovementController {
     /** {@code @moved_last_frame}: the character was walking at the end of the previous frame. */
     private boolean movedLastFrame;
     private boolean runToggle;
+
+    /** {@code $PokemonGlobal.runtoggle}: kept by the game state, so a new map screen carries the toggled run over. */
+    public boolean runToggle() {
+        return runToggle;
+    }
+
+    public void runToggle(boolean value) {
+        runToggle = value;
+    }
     /** 0 = hold to run, 1 = toggle auto-run (PScreen_Options 跑步键). */
     public int runStyle;
     /** 026_Game_Player_Visuals:56-66: the move speed level of the vehicle (5 cycling, 4 surfing), 0 = none. */

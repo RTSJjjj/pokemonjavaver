@@ -196,9 +196,7 @@ public final class ReadyMenuView {
         if (p == null || p.species == null) {
             return;
         }
-        String suffix = (p.shiny ? "s" : "") + (p.egg ? "egg" : "");
-        Texture icon = a.icon(String.format("icon%03d%s", p.species.id, suffix));
-        if (icon == null) icon = a.icon("icon" + p.species.internalName + suffix);
+        Texture icon = PokemonIcons.of(a, p);   // pbPokemonIconFile: shiny / form fall back to the plain icon
         if (icon == null) {
             return;
         }

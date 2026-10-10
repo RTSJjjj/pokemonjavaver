@@ -67,6 +67,8 @@ public final class FieldGlobals {
     public boolean followerHoldItem;
     /** {@code $PokemonGlobal.flashUsed} (170_PField_Field:570-580): Flash lit the dark map. */
     public boolean flashUsed;
+    /** {@code $PokemonGlobal.runtoggle} (049_Scene_Map:197-199): the toggled auto-run of the "切换" run key setting. */
+    public boolean runToggle;
     /** {@code $PokemonGlobal.escapePoint} (170_PField_Field:1370-1385): map, x, y, direction; empty = none. */
     public int[] escapePoint = new int[0];
     /** {@code $PokemonGlobal.healingSpot} (170_PField_Field:535-537): map, x, y of the last map that had one; null = none. */
@@ -90,6 +92,7 @@ public final class FieldGlobals {
     /** A new game. */
     public void reset() {
         surfing = false;
+        runToggle = false;
         diving = false;
         bicycle = false;
         repel = 0;

@@ -358,6 +358,12 @@ public final class MapScreen extends ScreenAdapter {
         pictureLayer = new PictureLayer(context.pictureService(), textures, locator);
         context.pictureService().clear(); // RMXP clears pictures when the map changes
         eventCharacters = new EventCharacters(mapData, tileMap, gameState);
+        if (gameState.pendingEventPositions != null) {                       // a load: the events stand where the save left them
+            eventCharacters.restorePositions(gameState.pendingEventPositions);
+            gameState.pendingEventPositions = null;
+        }
+        final EventCharacters ownCharacters = eventCharacters;
+        gameState.eventPositionSource = () -> ownCharacters.positions();       // a save writes them
         berryPlants = new BerryPlantSprites(mapData, eventCharacters, gameState,
                 database == null ? null : database.pbs(), this::startTileAnimation, textures, locator);
         autoplayMapAudio();
@@ -1062,7 +1068,9 @@ public final class MapScreen extends ScreenAdapter {
             int beforeY = player.y();
             blockedStep = false;
             movement.runStyle = context.settings().runstyle;
+            movement.runToggle(gameState.fieldGlobals().runToggle);          // inherited from the previous map
             movement.update(context.inputManager(), delta, player, stepMover);
+            gameState.fieldGlobals().runToggle = movement.runToggle();
             // P0d: a jump's tile changed when it started; its step triggers
             // run on the landing frame (Game_Character:833 requires !jumping?).
             boolean playerLanded = playerWasJumping && !player.isJumping();
@@ -1662,6 +1670,17 @@ public final class MapScreen extends ScreenAdapter {
      * Player Touch (1) and Event Touch (2) pages on the blocked tile.
      */
     private boolean startBlockedTouch(int x, int y) {
+        // 025_Game_Player:313-319: a Trainer(N) / Counter(N) event only starts when it sees the player (pbEventCanReachPlayer? /
+        // pbEventFacesPlayer?); bumping into one from the side or from behind starts nothing.
+        for (SightTriggers.Sight sight : sightEvents) {
+            if (eventCharacters == null) {
+                break;
+            }
+            MapCharacter character = eventCharacters.character(sight.eventId);
+            if (character != null && character.x() == x && character.y() == y && !sightSpotsPlayerLine(sight)) {
+                return false;
+            }
+        }
         return startEvent(x, y, EventTriggers.PLAYER_TOUCH)
                 || startEvent(x, y, EventTriggers.EVENT_TOUCH);
     }
@@ -1756,6 +1775,20 @@ public final class MapScreen extends ScreenAdapter {
 
     /** The events of {@link #checkSightTriggers()} that have not started yet. */
     private final java.util.ArrayDeque<Integer> sightQueue = new java.util.ArrayDeque<>();
+
+    /** The facing line of a sight event reaches the player (the page is not looked at). */
+    private boolean sightSpotsPlayerLine(SightTriggers.Sight sight) {
+        MapCharacter character = eventCharacters.character(sight.eventId);
+        if (character == null) {
+            return false;
+        }
+        int steps = SightTriggers.lineSteps(character.x(), character.y(), character.direction(),
+                player.x(), player.y(), sight.distance);
+        if (steps < 0) {
+            return false;
+        }
+        return sight.kind != SightTriggers.Kind.TRAINER || lineOfSightClear(character, steps);
+    }
 
     /** One sight event sees the player now and its current page is an Event Touch page. */
     private boolean sightSpotsPlayer(SightTriggers.Sight sight) {
@@ -3479,7 +3512,9 @@ public final class MapScreen extends ScreenAdapter {
         renderer.render(batch, mapCamera, this::renderWorldDepth);
         renderAnimations();
         batch.setShader(null);
-        renderFog(); renderPictures(); renderScreenEffects();
+        renderFog(); renderPictures();
+        renderDarkness();            // Graphics.snap_to_bitmap includes the DarknessSprite: a dark cave stays dark behind the bag
+        renderScreenEffects();
         pauseMenu.captureBackground(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
     }
 

@@ -2695,10 +2695,7 @@ public final class StorageView {
 
     private Texture pokemonIcon(MenuAssets a, Pokemon p) {
         if (p == null || p.species == null) return null;
-        String suffix = (p.shiny ? "s" : "") + (p.egg ? "egg" : "");
-        Texture icon = a.icon(String.format("icon%03d%s", p.species.id, suffix));
-        if (icon == null) icon = a.icon("icon" + p.species.internalName + suffix);
-        if (icon == null && p.egg) icon = a.icon("iconEgg");
+        Texture icon = PokemonIcons.of(a, p);   // pbPokemonIconFile: shiny / form fall back to the plain icon
         return icon;
     }
 

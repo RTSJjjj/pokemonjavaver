@@ -152,6 +152,9 @@ public final class DexEntryView {
         if (background != null) {
             drawScrolling(b, background, w, h);
         }
+        if (page == 5) {
+            drawAreaMap(b, a, s, w, h);                          // areamap, areahighlight, areaoverlay sit below the page overlay
+        }
         Texture frame = a.graphic("Pictures/Pokedex", overlay);
         if (frame != null) {
             b.draw(frame, 0f, 0f, w, h);
@@ -273,49 +276,49 @@ public final class DexEntryView {
         }
         for (int i = 0; i < abilities.size() && i < 3; i++) {
             String abilityName = abilityName(abilities.get(i));
-            f.draw(b, "特性" + (i + 1) + ":" + abilityName, 24f, h - (i == 0 ? y0 : i == 1 ? y1 : y2), NAME, GRAY_SHADOW);
+            f.draw(b, "特性" + (i + 1) + ":" + abilityName, 24f, h - (i == 0 ? y0 : i == 1 ? y1 : y2), WHITE, GRAY_SHADOW);
         }
         if (s.hiddenAbility != null && !s.hiddenAbility.isEmpty()) {
-            f.draw(b, "隐藏特性:" + abilityName(s.hiddenAbility), 24f, h - y2, NAME, GRAY_SHADOW);
+            f.draw(b, "隐藏特性:" + abilityName(s.hiddenAbility), 24f, h - y2, WHITE, GRAY_SHADOW);
         }
         int total = 0;
         for (int i = 0; i < 6; i++) {
             total += s.baseStat(i);
         }
         f.drawCentered(b, "种族值总和:" + total, 266f + 32f + 64f, h - 40f, HIGH, HIGH_SHADOW);
-        f.draw(b, "HP:  " + s.baseStat(0), 184f + 32f + 64f, h - y0, NAME, GRAY_SHADOW);
-        f.draw(b, "攻击:" + s.baseStat(1), 184f + 32f + 64f, h - y1, NAME, GRAY_SHADOW);
-        f.draw(b, "防御:" + s.baseStat(2), 184f + 32f + 64f, h - y2, NAME, GRAY_SHADOW);
-        f.draw(b, "速度:" + s.baseStat(3), 266f + 32f + 64f, h - y0, NAME, GRAY_SHADOW);
-        f.draw(b, "特攻:" + s.baseStat(4), 266f + 32f + 64f, h - y1, NAME, GRAY_SHADOW);
-        f.draw(b, "特防:" + s.baseStat(5), 266f + 32f + 64f, h - y2, NAME, GRAY_SHADOW);
+        f.draw(b, "HP:  " + s.baseStat(0), 184f + 32f + 64f, h - y0, WHITE, GRAY_SHADOW);
+        f.draw(b, "攻击:" + s.baseStat(1), 184f + 32f + 64f, h - y1, WHITE, GRAY_SHADOW);
+        f.draw(b, "防御:" + s.baseStat(2), 184f + 32f + 64f, h - y2, WHITE, GRAY_SHADOW);
+        f.draw(b, "速度:" + s.baseStat(3), 266f + 32f + 64f, h - y0, WHITE, GRAY_SHADOW);
+        f.draw(b, "特攻:" + s.baseStat(4), 266f + 32f + 64f, h - y1, WHITE, GRAY_SHADOW);
+        f.draw(b, "特防:" + s.baseStat(5), 266f + 32f + 64f, h - y2, WHITE, GRAY_SHADOW);
         // Wild items.
         f.drawCentered(b, "野生持有物", 450f + 32f + 64f, h - 40f, HIGH, HIGH_SHADOW);
         String common = itemName(s.wildItems == null ? null : s.wildItems.common);
         String uncommon = itemName(s.wildItems == null ? null : s.wildItems.uncommon);
         String rare = itemName(s.wildItems == null ? null : s.wildItems.rare);
         if (common == null && uncommon == null && rare == null) {
-            f.draw(b, "100%:----", 380f + 32f + 64f, h - 60f, NAME, GRAY_SHADOW);
+            f.draw(b, "100%:----", 380f + 32f + 64f, h - 60f, WHITE, GRAY_SHADOW);
         } else if (java.util.Objects.equals(common, uncommon) && java.util.Objects.equals(uncommon, rare)) {
-            f.draw(b, "100%:" + (common == null ? "----" : common), 380f + 32f + 64f, h - 60f, NAME, GRAY_SHADOW);
+            f.draw(b, "100%:" + (common == null ? "----" : common), 380f + 32f + 64f, h - 60f, WHITE, GRAY_SHADOW);
         } else {
-            f.draw(b, "50%: " + (common == null ? "----" : common), 380f + 32f + 64f, h - 60f, NAME, GRAY_SHADOW);
-            f.draw(b, "5%:  " + (uncommon == null ? "----" : uncommon), 380f + 32f + 64f, h - 80f, NAME, GRAY_SHADOW);
-            f.draw(b, "1%:  " + (rare == null ? "----" : rare), 380f + 32f + 64f, h - 100f, NAME, GRAY_SHADOW);
+            f.draw(b, "50%: " + (common == null ? "----" : common), 380f + 32f + 64f, h - 60f, WHITE, GRAY_SHADOW);
+            f.draw(b, "5%:  " + (uncommon == null ? "----" : uncommon), 380f + 32f + 64f, h - 80f, WHITE, GRAY_SHADOW);
+            f.draw(b, "1%:  " + (rare == null ? "----" : rare), 380f + 32f + 64f, h - 100f, WHITE, GRAY_SHADOW);
         }
         // Move kind selector.
         int last = dataShowType > 0 ? dataShowType - 1 : DATA_MSG.length - 1;
         int next = dataShowType < DATA_MSG.length - 1 ? dataShowType + 1 : 0;
-        f.drawRight(b, "◀[A]:" + DATA_MSG[last], ScreenMetrics.logicalWidth() / 2f - 80f - 32f, h - 122f, NAME, GRAY_SHADOW);
+        f.drawRight(b, "◀[A]:" + DATA_MSG[last], ScreenMetrics.logicalWidth() / 2f - 80f - 32f, h - 122f, WHITE, GRAY_SHADOW);
         f.drawCentered(b, "【" + DATA_MSG[dataShowType] + "】", ScreenMetrics.logicalWidth() / 2f, h - 122f, HIGH, HIGH_SHADOW);
-        f.draw(b, "[S]:" + DATA_MSG[next] + "▶", ScreenMetrics.logicalWidth() / 2f + 80f + 32f, h - 122f, NAME, GRAY_SHADOW);
+        f.draw(b, "[S]:" + DATA_MSG[next] + "▶", ScreenMetrics.logicalWidth() / 2f + 80f + 32f, h - 122f, WHITE, GRAY_SHADOW);
         drawMoveList(b, f, s, h);
     }
 
     private void drawMoveList(SpriteBatch b, MenuFont f, PbsData.Species s, float h) {
         if (!seen()) {
             f.drawCentered(b, "尚未记录招式数据，请发现宝可梦后查看",
-                    ScreenMetrics.logicalWidth() / 2f, h - ScreenMetrics.logicalHeight() / 2f, NAME, GRAY_SHADOW);
+                    ScreenMetrics.logicalWidth() / 2f, h - ScreenMetrics.logicalHeight() / 2f, WHITE, GRAY_SHADOW);
             return;
         }
         float[] xs = {24f, 24f + ScreenMetrics.logicalWidth() / 3f, 24f + ScreenMetrics.logicalWidth() / 3f * 2f};
@@ -347,11 +350,11 @@ public final class DexEntryView {
                 break;
         }
         if (lines.size() == 1 && lines.get(0).startsWith("没有")) {
-            f.drawCentered(b, lines.get(0), ScreenMetrics.logicalWidth() / 2f, h - ys[0], NAME, GRAY_SHADOW);
+            f.drawCentered(b, lines.get(0), ScreenMetrics.logicalWidth() / 2f, h - ys[0], WHITE, GRAY_SHADOW);
             return;
         }
         for (int i = 0; i < lines.size() && i < 30; i++) {
-            f.draw(b, lines.get(i), xs[i % 3], h - ys[i / 3], NAME, GRAY_SHADOW);
+            f.draw(b, lines.get(i), xs[i % 3], h - ys[i / 3], WHITE, GRAY_SHADOW);
         }
     }
 
@@ -362,7 +365,7 @@ public final class DexEntryView {
         String name = seen() ? s.name : "??????";
         f.drawRight(b, "进化", 88f, h - 4f, HEAD, HEAD_SHADOW);
         f.drawRight(b, name + "-" + formName(s), ScreenMetrics.logicalWidth() - 66f, h - 4f, HEAD, HEAD_SHADOW);
-        f.drawCentered(b, "进化成谁", ScreenMetrics.logicalWidth() / 2f, h - 54f, NAME, GRAY_SHADOW);
+        f.drawCentered(b, "进化成谁", ScreenMetrics.logicalWidth() / 2f, h - 54f, WHITE, GRAY_SHADOW);
         float[] xs = {16f, ScreenMetrics.logicalWidth() / 2f + 16f};
         int[] ys = {96, 118, 140, 162, 184, 206, 228, 250, 272, 294, 316};
         List<String> lines = new ArrayList<>();
@@ -377,11 +380,11 @@ public final class DexEntryView {
             }
         }
         if (lines.isEmpty()) {
-            f.drawCentered(b, "无法继续进化", ScreenMetrics.logicalWidth() / 2f, h - ys[0], NAME, GRAY_SHADOW);
+            f.drawCentered(b, "无法继续进化", ScreenMetrics.logicalWidth() / 2f, h - ys[0], WHITE, GRAY_SHADOW);
             return;
         }
         for (int i = 0; i < lines.size() && i < 22; i++) {
-            f.draw(b, lines.get(i), xs[i / 11], h - ys[i % 11], NAME, GRAY_SHADOW);
+            f.draw(b, lines.get(i), xs[i / 11], h - ys[i % 11], WHITE, GRAY_SHADOW);
         }
     }
 
@@ -390,8 +393,8 @@ public final class DexEntryView {
     // ------------------------------------------------------------------
     private void drawForms(SpriteBatch b, MenuAssets a, MenuFont f, PbsData.Species s, float h) {
         f.drawRight(b, "形象", 88f, h - 4f, HEAD, HEAD_SHADOW);
-        f.drawCentered(b, seen() ? s.name : "??????", 384f - 32f, h - 72f, NAME, GRAY_SHADOW);
-        f.drawCentered(b, currentFormName(s), 384f - 32f, h - (72f + 32f), NAME, GRAY_SHADOW);
+        f.drawCentered(b, seen() ? s.name : "??????", 384f - 32f, h - 72f, WHITE, GRAY_SHADOW);
+        f.drawCentered(b, currentFormName(s), 384f - 32f, h - (72f + 32f), WHITE, GRAY_SHADOW);
         if (seen()) {
             f.drawCentered(b, "[C]:切换形态 [Z]:切换" + SWITCH_MSG[showShiny],
                     ScreenMetrics.logicalWidth() / 1.6f, h - 4f, WHITE, HEAD_SHADOW);
@@ -447,14 +450,147 @@ public final class DexEntryView {
     // "unknown habitat" fallback is shown).
     // ------------------------------------------------------------------
     private void drawArea(SpriteBatch b, MenuAssets a, MenuFont f, PbsData.Species s, float h) {
-        Texture none = a.graphic("Pictures/Pokedex", "overlay_areanone");
-        if (none != null) {
-            drawImg(b, none, h, 108f + 32f, 148f);
+        if (areaPoints(s).isEmpty()) {                                          // :571-577 no square: "栖息地不明"
+            Texture none = a.graphic("Pictures/Pokedex", "overlay_areanone");
+            if (none != null) {
+                drawImg(b, none, h, 108f + 32f, 148f);
+            }
+            f.drawCentered(b, "栖息地不明", ScreenMetrics.logicalWidth() / 2f, h - 152f, WHITE, GRAY_SHADOW);
         }
-        f.drawCentered(b, "栖息地不明", ScreenMetrics.logicalWidth() / 2f, h - 152f, WHITE, GRAY_SHADOW);
         f.drawCentered(b, "地区", 88f, h - 4f, HEAD, HEAD_SHADOW);
         String pkmnname = seen() ? s.name : "??????";
         f.drawCentered(b, pkmnname + "的分布", ScreenMetrics.logicalWidth() / 1.4f + 32f, h - 4f, HEAD, HEAD_SHADOW);
+    }
+
+    private static final int SQUARE = 16;                                   // PokemonRegionMap_Scene::SQUAREWIDTH / SQUAREHEIGHT
+    private static final int MAP_WIDTH = 30;                                 // 1 + RIGHT - LEFT
+    private static final Color POINT = new Color(0f, 248f / 255f, 248f / 255f, 1f);
+    private static final Color POINT_HIGHLIGHT = new Color(192f / 255f, 248f / 255f, 248f / 255f, 1f);
+    private String areaSpecies;
+    private java.util.Set<Integer> areaCache = new java.util.HashSet<>();
+
+    /** The region the page shows: the current map's own (@region falls back to it, :78-80); 0 without a position. */
+    private int areaRegion() {
+        PbsData pbs = context.pbsData();
+        PbsData.Metadata meta = pbs == null ? null : pbs.mapMetadata(context.gameState().currentMapId());
+        return meta != null && meta.mapPosition != null && meta.mapPosition.length >= 3 ? meta.mapPosition[0] : 0;
+    }
+
+    /**
+     * 330_PokedexEntry_BW_Style:506-541 drawPageArea: the region-map squares of every map whose encounter tables hold the
+     * species (the MetadataMapPosition square; a square whose town-map point has an off switch is hidden).
+     * 登记: MetadataMapSize is not exported, so a map is always one square.
+     */
+    private java.util.Set<Integer> areaPoints(PbsData.Species s) {
+        if (areaSpecies != null && areaSpecies.equals(s.internalName)) {
+            return areaCache;
+        }
+        areaSpecies = s.internalName;
+        areaCache = new java.util.HashSet<>();
+        PbsData pbs = context.pbsData();
+        if (pbs == null) {
+            return areaCache;
+        }
+        int region = areaRegion();
+        PbsData.TownMapRegion townRegion = pbs.townMap == null ? null : pbs.townMap.region(region);
+        for (com.badlogic.gdx.utils.ObjectMap.Entry<String, PbsData.EncounterMap> entry : pbs.encounters) {
+            if (!hasSpecies(entry.value, s.internalName)) {
+                continue;
+            }
+            int mapId;
+            try {
+                mapId = Integer.parseInt(entry.key);
+            } catch (NumberFormatException invalid) {
+                continue;
+            }
+            PbsData.Metadata meta = pbs.mapMetadata(mapId);
+            if (meta == null || meta.mapPosition == null || meta.mapPosition.length < 3 || meta.mapPosition[0] != region) {
+                continue;
+            }
+            int x = meta.mapPosition[1];
+            int y = meta.mapPosition[2];
+            boolean show = true;
+            if (townRegion != null) {
+                for (PbsData.TownMapPoint point : townRegion.points) {                     // :520-524
+                    if (point.x == x && point.y == y && point.switchId != null && point.switchId > 0
+                            && !context.gameState().switches().get(point.switchId)) {
+                        show = false;
+                    }
+                }
+            }
+            if (show && x >= 0 && y >= 0 && x < MAP_WIDTH) {
+                areaCache.add(x + y * MAP_WIDTH);
+            }
+        }
+        return areaCache;
+    }
+
+    /** pbFindEncounter(encounter, species) (:36-45). */
+    private static boolean hasSpecies(PbsData.EncounterMap map, String species) {
+        for (com.badlogic.gdx.utils.ObjectMap.Entry<String, com.badlogic.gdx.utils.Array<PbsData.EncounterEntry>> method : map.methods) {
+            if (method.value == null) {
+                continue;
+            }
+            for (PbsData.EncounterEntry entry : method.value) {
+                if (entry != null && species.equals(entry.species)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The region map, its highlighted squares (pulsing, :226-231) and the area overlay (:81-94, :543-566). */
+    private void drawAreaMap(SpriteBatch b, MenuAssets a, PbsData.Species s, float w, float h) {
+        PbsData pbs = context.pbsData();
+        PbsData.TownMapRegion townRegion = pbs == null || pbs.townMap == null ? null : pbs.townMap.region(areaRegion());
+        Texture map = null;
+        if (townRegion != null && townRegion.filename != null) {
+            String name = townRegion.filename.endsWith(".png")
+                    ? townRegion.filename.substring(0, townRegion.filename.length() - 4) : townRegion.filename;
+            map = a.graphic("Pictures", name);
+        }
+        float mapWidth = map == null ? 0f : map.getWidth();
+        float mapHeight = map == null ? 0f : map.getHeight();
+        float originX = (w - mapWidth) / 2f;
+        float originY = (h - mapHeight) / 2f;
+        if (map != null) {
+            b.setColor(Color.WHITE);
+            b.draw(map, originX, h - originY - mapHeight);
+        }
+        java.util.Set<Integer> points = areaPoints(s);
+        if (!points.isEmpty()) {
+            int tick = (int) ((System.nanoTime() / 25_000_000L) % 40L);                // Graphics.frame_count % 40 at 40 fps
+            int intensity = tick * 12;
+            if (intensity > 240) {
+                intensity = 480 - intensity;
+            }
+            float alpha = Math.max(0, Math.min(255, intensity)) / 255f;
+            for (int j : points) {
+                float x = originX + (j % MAP_WIDTH) * SQUARE;
+                float y = originY + (j / MAP_WIDTH) * SQUARE;
+                float gy = h - y - SQUARE;
+                MenuPanel.fill(b, a, x, gy, SQUARE, SQUARE, POINT.r, POINT.g, POINT.b, alpha);
+                float hr = POINT_HIGHLIGHT.r, hg = POINT_HIGHLIGHT.g, hb = POINT_HIGHLIGHT.b;
+                if (!points.contains(j - MAP_WIDTH)) {                                  // :555-557 top edge
+                    MenuPanel.fill(b, a, x, gy + SQUARE, SQUARE, 2f, hr, hg, hb, alpha);
+                }
+                if (!points.contains(j + MAP_WIDTH)) {                                  // :558-560 bottom edge
+                    MenuPanel.fill(b, a, x, gy - 2f, SQUARE, 2f, hr, hg, hb, alpha);
+                }
+                if (j % MAP_WIDTH == 0 || !points.contains(j - 1)) {                    // :561-563 left edge
+                    MenuPanel.fill(b, a, x - 2f, gy, 2f, SQUARE, hr, hg, hb, alpha);
+                }
+                if ((j + 1) % MAP_WIDTH == 0 || !points.contains(j + 1)) {              // :564-566 right edge
+                    MenuPanel.fill(b, a, x + SQUARE, gy, 2f, SQUARE, hr, hg, hb, alpha);
+                }
+            }
+        }
+        Texture overlay = a.graphic("Pictures/Pokedex", "overlay_area");
+        if (overlay != null) {
+            b.setColor(Color.WHITE);
+            b.draw(overlay, 0f, 0f, w, h);
+        }
     }
 
     // ------------------------------------------------------------------

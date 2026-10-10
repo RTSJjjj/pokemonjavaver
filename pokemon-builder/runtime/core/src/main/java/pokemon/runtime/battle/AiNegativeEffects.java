@@ -940,6 +940,19 @@ final class AiNegativeEffects {
                 else substituteCheck(move, atk, def, r);
                 return true;
             }
+            case "05B": {                                                                         // EFFECT_TEAM_EFFECTS: MOVE_TAILWIND - already up on the user's side
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.Tailwind) > 0) r.viability -= 10;
+                return true;
+            }
+            case "0A1": {                                                                         // EFFECT_TEAM_EFFECTS: MOVE_LUCKYCHANT - already up
+                if (atk.pbOwnSide().effects.intVal(PBEffects.Side.LuckyChant) > 0) r.viability -= 10;
+                return true;
+            }
+            case "119": {                                                                         // EFFECT_TEAM_EFFECTS: MOVE_MAGNETRISE - already floating / rooted / under Gravity
+                if (atk.effects.intVal(PBEffects.Battler.MagnetRise) > 0 || atk.effects.truthy(PBEffects.Battler.Ingrain)
+                        || battle.field.effects.intVal(PBEffects.Field.Gravity) > 0) r.viability -= 10;
+                return true;
+            }
             case "152": {                                                                         // MOVE_FAIRYLOCK (:3093)
                 if (battle.field.effects.intVal(PBEffects.Field.FairyLock) > 0) r.viability -= 10;
                 return true;

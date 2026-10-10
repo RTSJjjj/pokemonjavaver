@@ -3068,16 +3068,18 @@ public final class Battler {
         }
         int oldForm = form();                                              // :184
         int oldDmg = maxHp() - hp;                                         // :185
+        Pokemon shownBefore = visiblePokemon() == null ? null : visiblePokemon().copy();   // what the sprite shows until the mosaic plays
         // :186 self.form = newForm（本运行时 form 落在 Pokemon.form 上；Battler 无 setter → 见下）
-        // 登记: Battler_ChangeSelf:186-191 self.form= / pbUpdate(true) / @hp=@totalhp-oldDmg
-        //       / @battle.scene.pbChangePokemonTransform / @battle.scene.pbRefreshOne
-        //       依赖 Pokemon.setForm(PbsData) 与 PokeBattle_Scene（本批未建模）
+        // 登记: Battler_ChangeSelf:186-188 self.form= / pbUpdate(true) 依赖 Pokemon.setForm(PbsData)
         if (pbs != null && pokemon != null) {
             pokemon.setForm(pbs, newForm);
         }
         hp = maxHp() - oldDmg;                                             // :188 @hp = @totalhp-oldDmg
         if (Battle.NEWEST_BATTLE_MECHANICS) {                              // :189
             effects.set(PBEffects.Battler.WeightChange, 0);
+        }
+        if (shownBefore != null) {                                         // :190 @battle.scene.pbChangePokemonTransform + :191 pbRefreshOne
+            battle.roundEvents.add(Battle.RoundEvent.transformSprite(index, shownBefore));
         }
         if (msg != null && !msg.isEmpty()) {                               // :192
             display(msg);
@@ -5070,6 +5072,19 @@ public final class Battler {
     }
 
     /** {@code form=(value)} (PokeBattle_Battler:64-67)。 */
+    /**
+     * {@code battler.form=} (:66) followed by {@code battle.scene.pbChangePokemon(battler, battler.pokemon)}
+     * (HUNGERSWITCH, BattleHandlers_Abilities:2312-2314): the form changes now, the sprite changes - with the mosaic
+     * change of {@code pbChangePokemonTransform} - when its event plays, after the ability splash that came before it.
+     */
+    public void setFormShowing(int value) {
+        Pokemon shownBefore = visiblePokemon() == null ? null : visiblePokemon().copy();
+        setForm(value);
+        if (shownBefore != null) {
+            battle.roundEvents.add(Battle.RoundEvent.transformSprite(index, shownBefore));
+        }
+    }
+
     public void setForm(int value) {
         if (pbs != null && pokemon != null) {
             pokemon.setForm(pbs, value);                                             // :66 @pokemon.form = value

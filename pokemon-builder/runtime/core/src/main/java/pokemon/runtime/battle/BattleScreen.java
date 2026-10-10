@@ -145,6 +145,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private boolean fightMenuRefusal;
     private PartyView partyView;
+    /** {@code pbFadeOutIn}: the black fade around the party screen, the forget screen and the caught Pokemon's Pokedex page. */
+    private final pokemon.runtime.ui.menu.BlackFade blackFade = new pokemon.runtime.ui.menu.BlackFade();
     private BagView bagView;
     private String bagItem;
     private int bagTarget = -1;
@@ -1815,18 +1817,20 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     /** Opens the party screen for the battle's own {@code pbPartyScreen} call. */
     private void openPartyScreen(int idxBattler, boolean checkLaxOnly, boolean canCancel,
             boolean register) {
-        partyCheckLaxOnly = checkLaxOnly;
-        partyCanCancel = canCancel;
-        partyRegister = register;
-        partyScreenBattler = idxBattler;
-        if (partyView == null) {
-            partyView = new PartyView(context);
-        }
-        partyView.battleChoose(true, canCancel);
-        partyView.displayOrder(playerDisplayOrder());              // Battle_Phase_Command:109 pbPlayerDisplayParty
-        page = 3;
-        window = COMMAND_BOX;
-        partyScreenOpen = true;
+        blackFade.start(() -> {                                    // PokeBattle_Scene#pbPartyScreen: pbFadeOutIn { party screen }
+            partyCheckLaxOnly = checkLaxOnly;
+            partyCanCancel = canCancel;
+            partyRegister = register;
+            partyScreenBattler = idxBattler;
+            if (partyView == null) {
+                partyView = new PartyView(context);
+            }
+            partyView.battleChoose(true, canCancel);
+            partyView.displayOrder(playerDisplayOrder());          // Battle_Phase_Command:109 pbPlayerDisplayParty
+            page = 3;
+            window = COMMAND_BOX;
+            partyScreenOpen = true;
+        });
     }
 
     /**
@@ -2244,9 +2248,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         InteractiveBattlePort.CaughtStep step = caughtSteps.get(caughtIndex++);
         if (step.dex != null) {                                    // :51 @scene.pbShowPokedex(species)
             message = null;
-            caughtDex = new pokemon.runtime.ui.menu.DexEntryView(context,
-                    java.util.Collections.singletonList(step.dex), 0);
-            context.audioManager().playCry(step.dex.id);
+            blackFade.start(() -> {                                // PokeBattle_Scene#pbShowPokedex: pbFadeOutIn { dex page }
+                caughtDex = new pokemon.runtime.ui.menu.DexEntryView(context,
+                        java.util.Collections.singletonList(step.dex), 0);
+                context.audioManager().playCry(step.dex.id);
+            });
             return;
         }
         showBattleMessage(step.text, true);                        // pbDisplayPaused
@@ -2255,8 +2261,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void updateCaughtStore() {
         if (caughtDex != null) {
             if (caughtDex.update(context.inputManager())) {
-                caughtDex = null;
-                stepCaughtStore();
+                blackFade.start(() -> {
+                    caughtDex = null;
+                    stepCaughtStore();
+                });
             }
             return;
         }
@@ -3776,9 +3784,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private void updateExpGain(float delta) {
         if (forgetView != null) {                          // the summary screen's forget mode owns the input
             if (forgetView.update(context.inputManager())) {
-                forgetSlot = forgetView.forgetResult();
-                forgetView = null;
-                learnStep = 4;
+                final int slot = forgetView.forgetResult();
+                blackFade.start(() -> {                    // pbFadeOutIn around PokemonSummaryScreen#pbStartForgetScreen
+                    forgetSlot = slot;
+                    forgetView = null;
+                    learnStep = 4;
+                });
             }
             return;
         }
@@ -4018,7 +4029,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                         learnStep = 3;
                         return;
                     case 3:                                       // :332 @scene.pbForgetMove -> pbStartForgetScreen
-                        forgetView = SummaryView.forForget(context, award.pokemon, learnMove);
+                        final Pokemon forgetter = award.pokemon;
+                        final pokemon.runtime.pokemon.PbsData.Move toLearn = learnMove;
+                        blackFade.start(() -> forgetView = SummaryView.forForget(context, forgetter, toLearn));
                         learnStep = -1;
                         return;
                     case 4: {                                     // :333-340
@@ -4298,6 +4311,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     private void update(float delta) {
         logStateIfChanged();
+        if (blackFade.active()) {                                  // pbFadeOutIn: the screen is changing; nothing else moves
+            blackFade.update();
+            return;
+        }
         float safeDelta = Math.max(0f, delta);
         updateBars(safeDelta);
         // One tick per 40fps frame, like PokeBattle_Scene#pbUpdate: every call
@@ -4420,20 +4437,23 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         // ---- the battle party screen is the real PScreen_Party ----
         if (page == 3 && partyView != null) {
             if (partyView.update(input)) {
-                finishPartyScreen(partyView.chosenIndex());
-                if (!partyScreenOpen) {
-                    // The command-menu form of pbPartyScreen returns to the
-                    // command phase unless a switch was registered (which
-                    // finishPartyScreen has already taken over) or the answer went to the engine.
-                    if (partyHandedOver) {
-                        partyHandedOver = false;
-                        return;
+                final int chosenParty = partyView.chosenIndex();
+                blackFade.start(() -> {                                    // the party screen closes behind the black as well
+                    finishPartyScreen(chosenParty);
+                    if (!partyScreenOpen) {
+                        // The command-menu form of pbPartyScreen returns to the
+                        // command phase unless a switch was registered (which
+                        // finishPartyScreen has already taken over) or the answer went to the engine.
+                        if (partyHandedOver) {
+                            partyHandedOver = false;
+                            return;
+                        }
+                        if (switchStep != SwitchStep.NONE) {
+                            return;
+                        }
+                        go(0);
                     }
-                    if (switchStep != SwitchStep.NONE) {
-                        return;
-                    }
-                    go(0);
-                }
+                });
             }
             return;
         }
@@ -4716,6 +4736,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (caughtDex != null) {
             caughtDex.render(batch, assets, font, smallFont);      // PokemonPokedexInfoScreen#pbDexEntry
         }
+        blackFade.render(batch, assets, w, h);
         batch.end();
     }
 

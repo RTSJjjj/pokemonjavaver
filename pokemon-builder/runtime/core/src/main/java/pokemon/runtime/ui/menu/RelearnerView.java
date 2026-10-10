@@ -290,9 +290,7 @@ public final class RelearnerView {
 
     private Texture icon(MenuAssets a) {
         if (pokemon.species == null) return null;
-        String suffix = pokemon.shiny ? "s" : "";
-        Texture icon = a.icon(String.format("icon%03d%s", pokemon.species.id, suffix));
-        if (icon == null) icon = a.icon("icon" + pokemon.species.internalName + suffix);
+        Texture icon = PokemonIcons.of(a, pokemon);
         return icon;
     }
 
