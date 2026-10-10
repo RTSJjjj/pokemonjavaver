@@ -11,7 +11,7 @@ plugins {
 
 allprojects {
     group = 'pokemon.runtime'
-    version = '0.1.0'
+    version = '1.0.0'
 }
 
 // Java modules (core, lwjgl3): Java 17 bytecode so the build runs on any
