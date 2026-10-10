@@ -200,7 +200,7 @@ public final class HallOfFameView {
             }
             return null;
         }
-        return EvolutionView.battler(a, pok.species, pok.gender == PokemonStats.FEMALE, pok.shiny,
+        return EvolutionView.battler(a, pok.species, pok.effectiveGender() == PokemonStats.FEMALE, pok.shiny,
                 pok.superShiny, pok.formIndex());
     }
 

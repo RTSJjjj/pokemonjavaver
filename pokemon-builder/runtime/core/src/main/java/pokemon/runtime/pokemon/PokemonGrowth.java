@@ -105,9 +105,9 @@ public final class PokemonGrowth {
             case "LevelDarkInParty":
                 return pokemon.level >= parameter;
             case "LevelMale":
-                return pokemon.gender == PokemonStats.MALE && pokemon.level >= parameter;
+                return pokemon.effectiveGender() == PokemonStats.MALE && pokemon.level >= parameter;
             case "LevelFemale":
-                return pokemon.gender == PokemonStats.FEMALE && pokemon.level >= parameter;
+                return pokemon.effectiveGender() == PokemonStats.FEMALE && pokemon.level >= parameter;
             case "Happiness":
             case "HappinessDay":
             case "HappinessNight":

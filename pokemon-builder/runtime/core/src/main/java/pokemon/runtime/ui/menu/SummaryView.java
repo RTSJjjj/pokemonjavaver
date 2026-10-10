@@ -552,9 +552,9 @@ public final class SummaryView {
         f.draw(b, String.valueOf(p.level), 410f + 64f + 32f, h - 84f, BASE, SHADOW);
         f.draw(b, "携带道具", 366f + 64f + 32f, h - (325f + 64f), BASE, SHADOW);
         f.draw(b, heldItemName(p), 366f + 64f + 32f, h - (354f + 64f), BASE, SHADOW);
-        if (p.gender == PokemonStats.MALE) {
+        if (p.effectiveGender() == PokemonStats.MALE) {
             f.draw(b, "\u2642", 550f + 96f, h - 46f, MALE, MALE_SHADOW);
-        } else if (p.gender == PokemonStats.FEMALE) {
+        } else if (p.effectiveGender() == PokemonStats.FEMALE) {
             f.draw(b, "\u2640", 550f + 96f, h - 46f, FEMALE, FEMALE_SHADOW);
         }
         drawMarkings(b, a, h, 480 + 64 + 32, 306 + 64, p.markings);

@@ -1950,10 +1950,10 @@ public final class PartyView {
         txt(b, f, String.valueOf(p.level), 262f + offset + 32f, 18f, 3, DARK, DARK_SHADOW);     // :283
         txt(b, f, detailsText, w - 16f, 200f + 32f, 1, LINE, OUTLINE);                          // :284 @text
         if (!p.egg) {                                          // :289-298 gender
-            if (p.gender == PokemonStats.MALE) {               // :291
+            if (p.effectiveGender() == PokemonStats.MALE) {               // :291
                 Texture g = a.graphic("Pictures/Party", "icon_male");
                 if (g != null) img(b, g, 152f, 18f, 0, 0, 20, 20);                              // :292-293
-            } else if (p.gender == PokemonStats.FEMALE) {      // :294
+            } else if (p.effectiveGender() == PokemonStats.FEMALE) {      // :294
                 Texture g = a.graphic("Pictures/Party", "icon_famale");
                 if (g != null) img(b, g, 152f, 18f, 0, 0, 20, 20);                              // :295-296
             }
@@ -2333,7 +2333,7 @@ public final class PartyView {
         if (p.species == null) return null;
         int form = p.form == null ? 0 : p.form.form;
         return BattlerBitmaps.find(p.species, false,
-                p.gender == PokemonStats.FEMALE, p.shiny, p.superShiny, form,
+                p.effectiveGender() == PokemonStats.FEMALE, p.shiny, p.superShiny, form,
                 name -> a.graphic("Battlers", name));
     }
 }

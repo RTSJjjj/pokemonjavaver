@@ -183,8 +183,8 @@ public final class ItemUse {
             boolean matches;
             switch (e.method) {
                 case "Item": matches = true; break;
-                case "ItemMale": matches = p.gender == PokemonStats.MALE; break;
-                case "ItemFemale": matches = p.gender == PokemonStats.FEMALE; break;
+                case "ItemMale": matches = p.effectiveGender() == PokemonStats.MALE; break;
+                case "ItemFemale": matches = p.effectiveGender() == PokemonStats.FEMALE; break;
                 case "ItemDay": matches = day; break;
                 case "ItemNight": matches = !day; break;
                 case "ItemHappiness": matches = p.happiness >= 220; break;

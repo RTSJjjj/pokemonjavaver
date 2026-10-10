@@ -290,8 +290,14 @@ public final class PokedexView {
         b.draw(s, x, h - (y + boxHeight - 16f) - 16f, 40f, 16f, 40, 24, 40, 16, false, false);
     }
 
+    /** 329_PokedexMain_BW_Style drawPkmnIcon:78-82: {@code pbSetParams(species,gender==1,form)} from {@code formlastseen}. */
     private Texture pokemonIcon(MenuAssets a, PbsData.Species species) {
-        Texture icon = a.icon(String.format("icon%03d", species.id));
+        int[] last = trainer.formLastSeen.get(species.internalName);
+        Texture icon = PokemonIcons.of(a, species, last != null && last[0] == 1, false, false, last == null ? 0 : last[1],
+                false, false);
+        if (icon == null) {
+            icon = a.icon(String.format("icon%03d", species.id));
+        }
         if (icon == null) {
             icon = a.icon("icon" + species.internalName);
         }

@@ -50,7 +50,7 @@ public final class PartyModel {
         lines.add(p.name + "  Lv." + p.level + (p.shiny ? " ★" : ""));
         if (page == 0) {
             lines.add("HP " + p.hp + " / " + p.maxHp() + "  " + (p.fainted() ? "濒死" : blank(p.status, "正常")));
-            lines.add("性别：" + (p.gender == PokemonStats.MALE ? "雄性" : p.gender == PokemonStats.FEMALE ? "雌性" : "无性别"));
+            lines.add("性别：" + (p.effectiveGender() == PokemonStats.MALE ? "雄性" : p.effectiveGender() == PokemonStats.FEMALE ? "雌性" : "无性别"));
             lines.add("性格：" + (p.nature == null ? "—" : p.nature.name));
             PbsData.Ability ability = data == null ? null : data.ability(p.ability);
             lines.add("特性：" + (ability == null ? blank(p.ability, "—") : ability.name));

@@ -126,11 +126,11 @@ public final class PBEvolution {
     }
 
     private static boolean male(Pokemon p) {
-        return p.gender == PokemonStats.MALE;
+        return p.effectiveGender() == PokemonStats.MALE;
     }
 
     private static boolean female(Pokemon p) {
-        return p.gender == PokemonStats.FEMALE;
+        return p.effectiveGender() == PokemonStats.FEMALE;
     }
 
     private static boolean isSpecies(Pokemon p, String name) {

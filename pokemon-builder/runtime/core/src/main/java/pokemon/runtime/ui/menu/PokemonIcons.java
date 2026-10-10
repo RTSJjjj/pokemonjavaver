@@ -23,7 +23,7 @@ final class PokemonIcons {
         if (p == null || p.species == null) {
             return null;
         }
-        return of(assets, p.species, p.gender == PokemonStats.FEMALE, p.shiny, p.superShiny, p.formIndex(), false, p.egg);
+        return of(assets, p.species, p.effectiveGender() == PokemonStats.FEMALE, p.shiny, p.superShiny, p.formIndex(), false, p.egg);
     }
 
     static Texture of(MenuAssets assets, PbsData.Species species, boolean female, boolean shiny, boolean superShiny,

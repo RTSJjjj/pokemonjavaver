@@ -122,7 +122,7 @@ public final class FollowerRules {
     public static List<String> spriteCandidates(Pokemon pkmn) {
         List<Object[]> factors = new ArrayList<>();                                 // [kind, value, fallback]
         int form = pkmn.formIndex();
-        boolean female = pkmn.gender == PokemonStats.FEMALE;
+        boolean female = pkmn.effectiveGender() == PokemonStats.FEMALE;
         if (female) factors.add(new Object[] {1});                                  // :199 gender
         if (pkmn.shiny) factors.add(new Object[] {2});                              // :200 shiny
         if (form != 0) factors.add(new Object[] {3});                               // :201 form

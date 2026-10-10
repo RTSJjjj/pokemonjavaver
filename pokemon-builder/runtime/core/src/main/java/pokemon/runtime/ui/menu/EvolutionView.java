@@ -500,7 +500,7 @@ public final class EvolutionView {
         // :507-512 NORMAL + FLYING (type ids 0 and 2) uses the FLYING background
         String bgType = firstId == 0 && secondId == 2 ? String.valueOf(secondId) : String.valueOf(firstId);
         background = a.graphic("Pictures/Evolution Backs", bgType);
-        boolean female = pokemon.gender == PokemonStats.FEMALE;
+        boolean female = pokemon.effectiveGender() == PokemonStats.FEMALE;
         oldTexture = battler(a, pokemon.species, female, pokemon.shiny, pokemon.superShiny, pokemon.formIndex());
         newTexture = battler(a, newSpecies, female, pokemon.shiny, pokemon.superShiny, pokemon.formIndex());
     }

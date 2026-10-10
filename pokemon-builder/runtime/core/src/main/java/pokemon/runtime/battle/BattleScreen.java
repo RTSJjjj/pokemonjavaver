@@ -1286,7 +1286,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         int form = held != null ? held : (pokemon.form == null ? 0 : pokemon.form.form);
         // pbCheckPokemonBitmapFiles: gender / shiny / form are dropped one by one until a file exists
         return BattlerBitmaps.find(pokemon.species, back,
-                pokemon.gender == PokemonStats.FEMALE, pokemon.shiny, pokemon.superShiny, form,
+                pokemon.effectiveGender() == PokemonStats.FEMALE, pokemon.shiny, pokemon.superShiny, form,
                 name -> assets.graphic("Battlers", name));
     }
 
@@ -1411,7 +1411,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
             @Override public String pokemonFile(Pokemon pkmn, int form) {
                 String found = BattlerBitmaps.find(pkmn.species, false,
-                        pkmn.gender == PokemonStats.FEMALE, pkmn.shiny, pkmn.superShiny, form,
+                        pkmn.effectiveGender() == PokemonStats.FEMALE, pkmn.shiny, pkmn.superShiny, form,
                         name -> bitmapSize("Graphics/Battlers/" + name) != null ? name : null);
                 return "Graphics/Battlers/" + (found != null ? found
                         : String.format(java.util.Locale.ROOT, "%03d", pkmn.species.id));
