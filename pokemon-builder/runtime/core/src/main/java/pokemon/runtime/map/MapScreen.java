@@ -4490,6 +4490,25 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     /**
+     * The app went to the background (Android may kill it there): write the autosave slot - only on a quiet map (no event,
+     * message, menu, battle or transfer in progress, so the saved state is a consistent one) and only once the player has saved
+     * by hand, like the step autosave (378_001_MSF_AutoSave, {@code saveAuto}).
+     */
+    public void autosaveOnPause() {
+        int map = gameState.currentMapId();
+        if (map == 1 || map == 119 || map == 426 || interpreter == null || interpreter.running()
+                || battleEntry != null || (pauseMenu != null && pauseMenu.isOpen()) || context.transferPending()
+                || context.messageService().visible() || player == null || player.isMoving()) {
+            return;
+        }
+        try {
+            context.saveManager().saveAuto(context.storage(), gameState);
+        } catch (RuntimeException error) {
+            context.game().log("autosave on pause failed: " + error.getMessage());
+        }
+    }
+
+    /**
      * L6: {@code pbSave} - the project's quiet save writes the quick slot, the
      * same file the F5/F9 shortcuts use (stage 2 has no single-save file).
      */

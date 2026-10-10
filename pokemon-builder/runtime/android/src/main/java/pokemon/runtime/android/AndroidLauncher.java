@@ -30,6 +30,50 @@ import java.io.File;
  */
 public final class AndroidLauncher extends AndroidApplication {
 
+    private File lifecycleLog;
+
+    /** Appends one line to lifecycle.log (user directory): what the system did to the app, for reports of "it closes in the background". */
+    private void lifecycle(String line) {
+        if (lifecycleLog == null) {
+            return;
+        }
+        try (java.io.FileWriter writer = new java.io.FileWriter(lifecycleLog, true)) {
+            writer.write(new java.util.Date() + " " + line + "\n");
+        } catch (java.io.IOException | RuntimeException ignored) {
+            // diagnostics only
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        lifecycle("onPause finishing=" + isFinishing());
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        lifecycle("onStop finishing=" + isFinishing());
+        super.onStop();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        lifecycle("onResume");
+    }
+
+    @Override
+    protected void onDestroy() {
+        lifecycle("onDestroy finishing=" + isFinishing() + " changingConfigurations=" + isChangingConfigurations());
+        super.onDestroy();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        lifecycle("onTrimMemory level=" + level);
+        super.onTrimMemory(level);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -38,6 +82,15 @@ public final class AndroidLauncher extends AndroidApplication {
         // Saves and settings live in the app's files directory too: Android has no usable user.home, and the default
         // location (<user.home>/.pokemon-runtime) is not writable there - a save would silently fail.
         System.setProperty(StoragePort.USER_DIR_PROPERTY, new File(dataRoot, "user").getAbsolutePath());
+        File userDir = new File(dataRoot, "user");
+        userDir.mkdirs();
+        File previous = new File(userDir, "lifecycle.prev.log");
+        lifecycleLog = new File(userDir, "lifecycle.log");
+        if (lifecycleLog.isFile()) {
+            previous.delete();
+            lifecycleLog.renameTo(previous);                 // keep the last run's lines next to this run's
+        }
+        lifecycle("onCreate");
 
         AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
         // The runtime polls the logical actions itself (section 51); the

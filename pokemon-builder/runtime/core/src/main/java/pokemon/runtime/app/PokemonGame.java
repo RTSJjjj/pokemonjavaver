@@ -296,6 +296,14 @@ public final class PokemonGame extends Game {
     }
 
     @Override
+    public void pause() {
+        super.pause();
+        if (getScreen() instanceof MapScreen) {
+            ((MapScreen) getScreen()).autosaveOnPause();     // a backgrounded app may be killed: keep the progress
+        }
+    }
+
+    @Override
     public void dispose() {
         GameDatabase database = context.database();
         if (database != null) {
