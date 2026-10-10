@@ -989,6 +989,7 @@ public final class MapScreen extends ScreenAdapter {
         mapAnimations.update(delta, animationTimingSink);
         updateNotice(delta); // L6c: deferred second half of pbNoticePlayer
         if (eventCharacters != null && routeContext != null) {
+            eventCharacters.setActiveEvent(interpreter != null ? interpreter.currentEventId() : -1);   // Game_Event#start locks it
             eventCharacters.update(delta, routeContext);
         }
         updateFollowers(delta, true);
@@ -1380,7 +1381,9 @@ public final class MapScreen extends ScreenAdapter {
             return;                                                        // the follower / the partner talks first
         }
         facePlayerWhenTalkedTo(x, y);
-        if (startEvent(x, y, EventTriggers.ACTION)) {
+        // 049_Scene_Map:223-224 / 025_Game_Player:410-411: the action button starts triggers [0, 2] of the front tile - an
+        // Event Touch page too (a trainer next to the player but outside its line of sight is talked to this way).
+        if (startEvent(x, y, EventTriggers.ACTION) || startEvent(x, y, EventTriggers.EVENT_TOUCH)) {
             return;
         }
         if (offerSurf(x, y)) {
@@ -1395,7 +1398,9 @@ public final class MapScreen extends ScreenAdapter {
             int farX = Collision.targetX(x, player.direction());
             int farY = Collision.targetY(y, player.direction());
             facePlayerWhenTalkedTo(farX, farY);
-            startEvent(farX, farY, EventTriggers.ACTION);
+            if (!startEvent(farX, farY, EventTriggers.ACTION)) {
+                startEvent(farX, farY, EventTriggers.EVENT_TOUCH);
+            }
         }
     }
 
@@ -1577,12 +1582,14 @@ public final class MapScreen extends ScreenAdapter {
         if (eventCharacters == null) {
             return;
         }
-        MapData.EventPageData page = EventTriggers.pageAt(gameState, mapData, x, y, EventTriggers.ACTION);
+        int trigger = EventTriggers.pageAt(gameState, mapData, x, y, EventTriggers.ACTION) != null
+                ? EventTriggers.ACTION : EventTriggers.EVENT_TOUCH;      // Game_Event#start locks (turns) for trigger < 3
+        MapData.EventPageData page = EventTriggers.pageAt(gameState, mapData, x, y, trigger);
         if (page == null || page.movement.directionFix) {
             return;
         }
         MapCharacter character = eventCharacters.character(
-                EventTriggers.eventIdAt(gameState, mapData, x, y, EventTriggers.ACTION));
+                EventTriggers.eventIdAt(gameState, mapData, x, y, trigger));
         if (character == null || (character.x() == player.x() && character.y() == player.y())) {
             return;
         }

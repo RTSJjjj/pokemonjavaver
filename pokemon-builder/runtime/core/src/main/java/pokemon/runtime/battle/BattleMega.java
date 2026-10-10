@@ -22,9 +22,9 @@ import pokemon.runtime.pokemon.Pokemon;
  * <li>{@code battler.pbUpdate(true)}: stats are read from the Pokemon, so the new form is already in effect.</li>
  * <li>The scene calls ({@code @scene.pbChangePokemon}, {@code pbRefreshOne}, the Mega scene): they
  *     are the round events {@code MEGA_SCENE} / {@code CHANGE_POKEMON} the battle screen plays.</li>
- * <li>AI: {@code pbEnemyShouldMegaEvolve?} (PokeBattle_AI:118-163) needs {@code pbRoughDamage} and
- *     {@code superEffective?} of the trainer AI, which is not transcribed, so the opposing side never
- *     registers a Mega Evolution.</li>
+ * <li>AI: {@code pbEnemyShouldMegaEvolve?} (PokeBattle_AI:108-163) with {@code MEGAEVOMETHOD = 2} answers
+ *     {@code pbCanMegaEvolve?} (the damage / type checks only ever set "should" to true again), so
+ *     {@code Battle.chooseFor} registers it for every AI battler (142_PokeBattle_AI:172).</li>
  * </ul></p>
  */
 public final class BattleMega {

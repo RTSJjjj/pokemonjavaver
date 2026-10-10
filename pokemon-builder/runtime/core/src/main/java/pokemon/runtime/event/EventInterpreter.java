@@ -248,6 +248,11 @@ public final class EventInterpreter {
         interpreterState = InterpreterState.FINISHED;
     }
 
+    /** The event whose page is running ({@code @event_id}); -1 for a common event or none. */
+    public int currentEventId() {
+        return running() ? eventId : -1;
+    }
+
     public boolean running() {
         return interpreterState != InterpreterState.FINISHED;
     }

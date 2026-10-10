@@ -34,6 +34,12 @@ public final class EventCharacters {
      * when {@code lock?}); forced routes keep running (Messages:223-234).
      */
     private boolean locked;
+    /**
+     * The event whose page the interpreter is running: {@code Game_Event#start} does {@code lock if trigger < 3} and
+     * {@code Game_Character#update} skips the autonomous movement of a locked character, so an NPC that is talking to the
+     * player stands still even when its page walks a custom route. -1 when no event page is running.
+     */
+    private int activeEventId = -1;
 
     public EventCharacters(MapData data, TileMap map, GameState state) {
         this.data = data;
@@ -163,6 +169,19 @@ public final class EventCharacters {
         state.touch();
     }
 
+    /** The event the interpreter is running (-1 for none), see {@link #activeEventId}. */
+    public void setActiveEvent(int eventId) {
+        this.activeEventId = eventId;
+    }
+
+    private boolean lockedByInterpreter(int index) {
+        if (activeEventId < 0 || data.events.get(index).id != activeEventId) {
+            return false;
+        }
+        MapData.EventPageData page = activePages[index];
+        return page != null && page.trigger < 3;                    // Game_Event#start: lock if trigger < 3
+    }
+
     /** {@code pbGlobalLock} / {@code pbGlobalUnlock} (Messages:223-234). */
     public void setLocked(boolean value) {
         this.locked = value;
@@ -231,7 +250,7 @@ public final class EventCharacters {
                 if (player.finished()) {
                     players[i] = null;
                 }
-            } else if (!locked) {
+            } else if (!locked && !lockedByInterpreter(i)) {
                 updateAutonomous(i, character, delta, context);
             }
             // RMXP advances every character each frame, so a step an event

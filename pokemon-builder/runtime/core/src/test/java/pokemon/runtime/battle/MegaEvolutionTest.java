@@ -213,6 +213,19 @@ class MegaEvolutionTest {
         assertFalse(hero.isMega(), "reverted when the battle ended");
     }
 
+    @Test
+    @DisplayName("a trainer's Pokemon holding its Mega Stone Mega Evolves (142_PokeBattle_AI:172, MEGAEVOMETHOD = 2)")
+    void trainerAiMegaEvolves(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon hero = new Pokemon(data.species("TANK"), 50, data);
+        Pokemon foe = new Pokemon(data.species("MEGAMON"), 50, data);
+        foe.item = "MEGASTONE";
+        Battle b = battle(data, hero, foe);
+        b.trainerBattle = true;
+        b.run(1);
+        assertTrue(foe.isMega(), "the opposing trainer's Pokemon Mega Evolved in the first round");
+    }
+
     private static void write(Path root, String name, String json) throws Exception {
         Path file = root.resolve("pbs").resolve(name);
         Files.createDirectories(file.getParent());

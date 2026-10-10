@@ -2595,6 +2595,12 @@ public final class Battle {
                 return;
             }
         }
+        // 142_PokeBattle_AI:172 pbDefaultChooseEnemyCommand: @battle.pbRegisterMegaEvolution(idxBattler) if
+        // pbEnemyShouldMegaEvolve?(idxBattler). MEGAEVOMETHOD = 2 (:26) starts "should" at true, and every later check only
+        // sets it true again, so the answer is exactly pbCanMegaEvolve? (:158-161).
+        if (controller == null && user.foe && !user.fainted() && pbCanMegaEvolve(user.index)) {
+            pbRegisterMegaEvolution(user.index);
+        }
         // CFRU ChooseMoveOrAction_Doubles (ai_master.c:525): score against every target, then choose the target
         if (controller == null && user.foe && !singleBattle() && !user.fainted() && user.hasUsableMove()
                 && !BattleAi.handles(this, user)
