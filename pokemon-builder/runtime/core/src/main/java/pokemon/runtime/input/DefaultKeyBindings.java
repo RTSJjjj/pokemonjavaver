@@ -55,6 +55,10 @@ public final class DefaultKeyBindings {
         bind(GameAction.F5, Input.Keys.F, Input.Keys.F5, Input.Keys.TAB);
         // 296_Follower_Config:44 TOGGLEFOLLOWERKEY = :CTRL.
         bind(GameAction.TOGGLE_FOLLOWER, Input.Keys.CONTROL_LEFT, Input.Keys.CONTROL_RIGHT);
+        // 338_004_ESMM_Overwrite:219-228: M (0x4D), =+ (0xBB), -_ (0xBD).
+        bind(GameAction.MAP_KEY, Input.Keys.M);
+        bind(GameAction.ZOOM_IN, Input.Keys.EQUALS, Input.Keys.PLUS);
+        bind(GameAction.ZOOM_OUT, Input.Keys.MINUS);
     }
 
     public void bind(GameAction action, int... keyCodes) {

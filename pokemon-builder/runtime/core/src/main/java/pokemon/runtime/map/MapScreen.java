@@ -943,6 +943,7 @@ public final class MapScreen extends ScreenAdapter {
             }
             context.inputManager().consumePressed();
         }
+        updateMiniMapKeys();                                                      // 338_004_ESMM_Overwrite:230-263 Scene_Map#update
         if (readyMenu != null) {
             updateReadyMenu();                                                    // 221_PScreen_ReadyMenu: the menu owns the player's input
             menuHandled = true;
@@ -1160,6 +1161,7 @@ public final class MapScreen extends ScreenAdapter {
         renderHiddenMove();
         renderSignpost();
         renderKeyItem();
+        renderMiniMap();
         // A script tone (223) tints the map viewport only, never the windows above it (the chapter cards of map 37 write white
         // text on a toned-black screen), so the message window is drawn after the overlay then too.
         ScreenEffects toneEffects = context.screenEffects();
@@ -2495,6 +2497,82 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     private WeatherLayer weatherLayer;
+
+    // ---- 335-338 ESMM: the mini map ----
+
+    private pokemon.runtime.ui.menu.MiniMap miniMap;
+
+    /**
+     * 338_004_ESMM_Overwrite:233-262 {@code Scene_Map#update}: with the Town Map in the bag and no event running, M opens the region
+     * map, Ctrl+M shows / hides the mini map, = / - change its size and Ctrl+= / Ctrl+- its zoom.
+     */
+    private void updateMiniMapKeys() {
+        pokemon.runtime.input.InputManager in = context.inputManager();
+        if ((interpreter != null && interpreter.running()) || context.gameState().inventory().count("TOWNMAP") <= 0) {
+            return;
+        }
+        boolean ctrl = in.isDown(GameAction.TOGGLE_FOLLOWER);
+        pokemon.runtime.ui.menu.GameSettings settings = context.settings();
+        int sizes = pokemon.runtime.ui.menu.MiniMap.SIZES.length;
+        int zooms = pokemon.runtime.ui.menu.MiniMap.ZOOMS.length;
+        if (in.wasPressed(GameAction.MAP_KEY)) {
+            if (!ctrl) {
+                if (pauseMenu != null && !pauseMenu.isOpen() && context.menuService().pending() == null
+                        && !player.isMoving() && readyMenu == null) {
+                    pokemon.runtime.event.MenuService.Request map = new pokemon.runtime.event.MenuService.Request(
+                            pokemon.runtime.event.MenuService.Kind.SHOW_MAP);       // pbShowMap(-1, false)
+                    map.region = -1;
+                    map.wallmap = false;
+                    context.menuService().submit(map);
+                }
+            } else {
+                settings.showMiniMap = 1 - settings.showMiniMap;
+                context.settingsChanged();
+            }
+        } else if (in.wasPressed(GameAction.ZOOM_IN)) {
+            if (!ctrl) settings.miniMapSize = settings.miniMapSize + 1 > sizes - 1 ? 0 : settings.miniMapSize + 1;
+            else settings.miniMapZoom = settings.miniMapZoom + 1 > zooms - 1 ? 0 : settings.miniMapZoom + 1;
+            context.settingsChanged();
+        } else if (in.wasPressed(GameAction.ZOOM_OUT)) {
+            if (!ctrl) settings.miniMapSize = settings.miniMapSize - 1 < 0 ? sizes - 1 : settings.miniMapSize - 1;
+            else settings.miniMapZoom = settings.miniMapZoom - 1 < 0 ? zooms - 1 : settings.miniMapZoom - 1;
+            context.settingsChanged();
+        }
+    }
+
+    private void renderMiniMap() {
+        if (mapData == null || context.pbsData() == null) {
+            return;
+        }
+        if (miniMap == null) {
+            miniMap = new pokemon.runtime.ui.menu.MiniMap(context);
+        }
+        int mapId = mapData.mapId;
+        if (!miniMap.visible(mapId) || (miniMap.atBottom() && context.messageService().visible())) {
+            return;                                                                // 338:15-28 the bottom corners hide while a message shows
+        }
+        pokemon.runtime.ui.menu.MenuAssets menuAssets = context.sharedMenuAssets(locator);
+        pokemon.runtime.ui.menu.MenuFont tiny = context.sharedMenuFont(locator.font(messageFontName), 16);
+        boolean outdoor = DayNightTone.enabled() && DayNightTone.shades(mapData.outdoor);   // ESMM_Config::USE_DAYNIGHT_TONE
+        float savedX = camera.position.x;
+        float savedY = camera.position.y;
+        camera.position.set(camera.viewportWidth / 2f, camera.viewportHeight / 2f, 0f);
+        camera.update();
+        batch.setShader(null);
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        miniMap.render(batch, menuAssets, tiny, mapId, player.x(), player.y(), mapData.name, outdoor, () -> {
+            if (worldTone.isCompiled()) {
+                float[] tone = DayNightTone.now();
+                worldTone.setTone(tone[0], tone[1], tone[2], tone[3]);
+                batch.setShader(worldTone.program());
+            }
+        }, () -> batch.setShader(null));
+        batch.end();
+        batch.setShader(null);
+        camera.position.set(savedX, savedY, 0f);
+        camera.update();
+    }
 
     // ---- 221_PScreen_ReadyMenu: F5 on the map ----
 

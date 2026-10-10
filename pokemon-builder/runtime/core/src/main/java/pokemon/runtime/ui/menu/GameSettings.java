@@ -104,6 +104,14 @@ public final class GameSettings {
     public int font = 0;
     public int screensize = 1;
 
+    /** 336_002_ESMM_Setting:1-22: the mini map's options (0 = shown, 1 = hidden; default hidden). */
+    public int showMiniMap = 1;
+    public int miniMapOpacity = 100;
+    public int miniMapPosition = 0;
+    public int miniMapSize = 1;
+    public int miniMapZoom = 1;
+    public int miniMapBorder = 0;
+
     /** Loads the file, falling back to the defaults when it is missing/broken. */
     public static GameSettings load(StoragePort storage) {
         GameSettings settings = new GameSettings();
@@ -128,6 +136,12 @@ public final class GameSettings {
             settings.frame = root.getInt("frame", 0);
             settings.font = root.getInt("font", 0);
             settings.screensize = root.getInt("screensize", 1);
+            settings.showMiniMap = root.getInt("showMiniMap", 1);
+            settings.miniMapOpacity = Math.max(0, Math.min(100, root.getInt("miniMapOpacity", 100)));
+            settings.miniMapPosition = Math.max(0, Math.min(3, root.getInt("miniMapPosition", 0)));
+            settings.miniMapSize = Math.max(0, Math.min(3, root.getInt("miniMapSize", 1)));
+            settings.miniMapZoom = Math.max(0, Math.min(3, root.getInt("miniMapZoom", 1)));
+            settings.miniMapBorder = Math.max(0, Math.min(5, root.getInt("miniMapBorder", 0)));
         } catch (RuntimeException error) {
             // missing or unreadable: the defaults are a valid state
         }
@@ -154,7 +168,13 @@ public final class GameSettings {
         json.append("  \"textskin\": ").append(textskin).append(",\n");
         json.append("  \"frame\": ").append(frame).append(",\n");
         json.append("  \"font\": ").append(font).append(",\n");
-        json.append("  \"screensize\": ").append(screensize).append("\n");
+        json.append("  \"screensize\": ").append(screensize).append(",\n");
+        json.append("  \"showMiniMap\": ").append(showMiniMap).append(",\n");
+        json.append("  \"miniMapOpacity\": ").append(miniMapOpacity).append(",\n");
+        json.append("  \"miniMapPosition\": ").append(miniMapPosition).append(",\n");
+        json.append("  \"miniMapSize\": ").append(miniMapSize).append(",\n");
+        json.append("  \"miniMapZoom\": ").append(miniMapZoom).append(",\n");
+        json.append("  \"miniMapBorder\": ").append(miniMapBorder).append("\n");
         json.append("}\n");
         try {
             storage.writeUtf8(FILE, json.toString());

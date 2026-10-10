@@ -170,10 +170,11 @@ public final class OptionsView {
                 String valueText = String.valueOf(value);
                 float sliderLength = width - f.width(" " + option.end);
                 b.setColor(text[0]);
-                b.draw(a.pixel(), x, y + 8f, Math.max(0f, sliderLength), 4f);
+                float center = y - f.lineHeight() / 2f;                 // fill_rect(xpos, rect.y-2+rect.height/2, ..., 4) / (rect.y-8+rect.height/2, 8, 16)
+                b.draw(a.pixel(), x, center - 2f, Math.max(0f, sliderLength), 4f);
                 float knob = (sliderLength - 8f) * value / Math.max(1, option.end);
                 b.setColor(SEL_BASE);
-                b.draw(a.pixel(), x + knob, y, 8f, 16f);
+                b.draw(a.pixel(), x + knob, center - 8f, 8f, 16f);
                 b.setColor(Color.WHITE);
                 f.draw(b, valueText, x + width - f.width(valueText), y, SEL_BASE, SEL_SHADOW);
                 break;

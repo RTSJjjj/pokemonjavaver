@@ -28,5 +28,11 @@ public enum GameAction {
      */
     F5,
     /** 296_Follower_Config:44 {@code TOGGLEFOLLOWERKEY = :CTRL}: the following Pokemon on / off. */
-    TOGGLE_FOLLOWER
+    TOGGLE_FOLLOWER,
+    /** 338_004_ESMM_Overwrite:213-217 {@code Input::MAP = 97}: the M key. */
+    MAP_KEY,
+    /** {@code Input::FANGDA = 98}: the = / + key (the mini map's size / zoom up). */
+    ZOOM_IN,
+    /** {@code Input::SUOXIAO = 99}: the - / _ key (the mini map's size / zoom down). */
+    ZOOM_OUT
 }

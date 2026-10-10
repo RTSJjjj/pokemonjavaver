@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -276,7 +276,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1625,6 +1625,47 @@ public final class MenuCapture extends ApplicationAdapter {
                 stepMap(GameAction.CANCEL);
                 advanceMap(1f / 40f, 3);
                 shotMap("ready-4-closed");
+                break;
+            }
+            case "minimap": {
+                context.gameState().inventory().add("TOWNMAP", 1);
+                pokemon.runtime.ui.menu.GameSettings settings = context.settings();
+                settings.showMiniMap = 0;
+                mapScreen = new MapScreen(context, 10, 31, 23, 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                shotMap("minimap-1-default");
+                settings.miniMapPosition = 3;
+                settings.miniMapSize = 3;
+                settings.miniMapZoom = 2;
+                settings.miniMapBorder = 2;
+                settings.miniMapOpacity = 70;
+                advanceMap(1f / 60f, 2);
+                shotMap("minimap-2-big-bottom-right");
+                settings.miniMapPosition = 1;
+                settings.miniMapSize = 0;
+                settings.miniMapZoom = 0;
+                advanceMap(1f / 60f, 2);
+                shotMap("minimap-3-small-top-right");
+                settings.showMiniMap = 1;
+                pokemon.runtime.event.MenuService.Request map = new pokemon.runtime.event.MenuService.Request(
+                        pokemon.runtime.event.MenuService.Kind.SHOW_MAP);
+                map.region = -1;
+                map.wallmap = false;
+                overlay.openRequest(map);
+                idle(8);
+                renderOverlay();
+                shot("minimap-4-region-map");
+                tapAndRender(GameAction.SPECIAL, overlay);
+                idle(2);
+                renderOverlay();
+                shot("minimap-5-options");
+                tapAndRender(GameAction.DOWN, overlay);
+                tapAndRender(GameAction.RIGHT, overlay);
+                tapAndRender(GameAction.RIGHT, overlay);
+                idle(2);
+                renderOverlay();
+                shot("minimap-6-options-slider");
                 break;
             }
             case "quests": {

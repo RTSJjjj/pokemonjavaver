@@ -917,7 +917,7 @@ public final class PauseMenuOverlay implements Disposable {
         if (sub == Sub.MAP) {
             // The region map draws its own opaque background (mapbg / black),
             // like the plugin's pbFadeOutIn + scene; skip the snapshot/MPM.
-            townMapView.render(batch, font);
+            townMapView.render(batch, font, skin, speech);
             return;
         }
         if (snapshot != null) {

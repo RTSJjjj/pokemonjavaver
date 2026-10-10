@@ -106,6 +106,12 @@ public final class TownMapView {
             if (habitat.update(input)) habitat = null;
             return false;
         }
+        if (miniMapOptions != null) {                                     // 338:152-158 MiniMapOption_Scene
+            if (miniMapOptions.update(input, context.audioManager()) == MiniMapOptionsView.Result.BACK) {
+                miniMapOptions = null;
+            }
+            return false;
+        }
         if (offsetX != 0f || offsetY != 0f) {
             // The cursor glides 4 px per 40 fps frame; input waits (283-290).
             float step = SCROLL_SPEED * delta * 40f;
@@ -129,6 +135,10 @@ public final class TownMapView {
                 loadRegionImage();
                 resetCursor();
             }
+            return false;
+        }
+        if (input.wasPressed(GameAction.SPECIAL) && !wallmap && context.gameState().inventory().count("TOWNMAP") > 0) {   // 338:204-211 Input::A
+            miniMapOptions = new MiniMapOptionsView(context);
             return false;
         }
         if (input.wasPressed(GameAction.F5) && context.gameState().trainer().pokedex) {   // 338_ESMM_Overwrite:170-199 / 214:370-399
@@ -160,6 +170,7 @@ public final class TownMapView {
     }
 
     private HabitatDetailView habitat;
+    private MiniMapOptionsView miniMapOptions;
 
     /**
      * F5 on a tile (338_ESMM_Overwrite:170-199): the habitat of the map on that tile of the region map - the overridden one when the
@@ -236,10 +247,19 @@ public final class TownMapView {
     }
 
     public void render(SpriteBatch batch, MenuFont font) {
+        render(batch, font, null, null);
+    }
+
+    /** {@code skin} / {@code speech}: the system and speech frames of the mini map options page. */
+    public void render(SpriteBatch batch, MenuFont font, pokemon.runtime.ui.WindowSkin skin, pokemon.runtime.ui.WindowSkin speech) {
         float width = ScreenMetrics.logicalWidth();
         float height = ScreenMetrics.logicalHeight();
         if (habitat != null) {
             habitat.render(batch, assets, font);
+            return;
+        }
+        if (miniMapOptions != null && skin != null) {
+            miniMapOptions.render(batch, assets, font, skin, speech == null ? skin : speech);
             return;
         }
         // addBackgroundOrColoredPlane (MessageConfig:715-729): mapbg covers the
@@ -316,6 +336,9 @@ public final class TownMapView {
         }
         font.draw(batch, model.location(), 18f, height - BOTTOM_TEXT_Y, main, shadow);
         font.drawRight(batch, model.details(), width - 16f, height - BOTTOM_TEXT_Y, main, shadow);
+        if (!wallmap) {                                                   // 338:92-103 the "esmm" sprite at (0, Graphics.height - 28)
+            font.drawCentered(batch, "[Z]:小地图设置", width / 2f, 28f, main, shadow);
+        }
     }
 
     /** MetadataMapPosition of the map the player stands on (85). */
@@ -334,6 +357,11 @@ public final class TownMapView {
      * The runtime has no outfit, so it always uses 0.
      */
     private Texture loadPlayerHead() {
+        return playerHeadOf(context, assets);
+    }
+
+    /** The head icon of the player on the region map (also the mini map's). */
+    static Texture playerHeadOf(RuntimeContext context, MenuAssets assets) {
         GameState state = context.gameState();
         ProjectInfo project = context.database() == null ? null : context.database().project();
         ProjectInfo.RuntimeProfile profile = project == null ? null : project.runtime;
