@@ -11,7 +11,14 @@ public final class StoragePort {
 
     private static final String UTF8_BOM = "runtime-port";
 
+    /** The system property a platform launcher sets to say where saves and settings go (Android: the app's files directory). */
+    public static final String USER_DIR_PROPERTY = "pokemon.runtime.userdir";
+
     public String userDirectory() {
+        String override = System.getProperty(USER_DIR_PROPERTY);
+        if (override != null && !override.isEmpty()) {
+            return override;                                   // Android has no usable user.home
+        }
         String home = System.getProperty("user.home", ".");
         // TODO(R10/R12): route through the platform StorageService; for now a
         // stable, user-writable location is enough for stage 2 debug builds.

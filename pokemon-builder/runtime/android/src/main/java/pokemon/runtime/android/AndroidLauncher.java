@@ -9,6 +9,7 @@ import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
 
 import pokemon.runtime.app.PokemonGame;
+import pokemon.runtime.app.StoragePort;
 import pokemon.runtime.data.DataPackUnpacker;
 import pokemon.runtime.input.touch.TouchControls;
 
@@ -45,6 +46,9 @@ public final class AndroidLauncher extends AndroidApplication {
         super.onCreate(savedInstanceState);
 
         String dataRoot = dataDirectory();
+        // Saves and settings live in the app's files directory too: Android has no usable user.home, and the default
+        // location (<user.home>/.pokemon-runtime) is not writable there - a save would silently fail.
+        System.setProperty(StoragePort.USER_DIR_PROPERTY, new File(dataRoot, "user").getAbsolutePath());
         unpackDataPack(dataRoot);
 
         AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
