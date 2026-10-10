@@ -33,6 +33,8 @@ public final class TrainerState {
     public final java.util.Map<Integer, Storage> regionalStorage = new java.util.TreeMap<>();
     public final java.util.Set<String> seen = new java.util.TreeSet<>();
     public final java.util.Set<String> owned = new java.util.TreeSet<>();
+    /** {@code $Trainer.formlastseen[species] = [gender, form]} (330_PokedexEntry_BW_Style:242-247): the form the dex shows. */
+    public final java.util.Map<String, int[]> formLastSeen = new java.util.HashMap<>();
     public final java.util.Set<Integer> badges = new java.util.TreeSet<>();
     /**
      * PokeBattle_Trainer:15 / :23: {@code $Trainer.pokedex} (the Pokédex was

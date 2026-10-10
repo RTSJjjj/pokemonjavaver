@@ -118,12 +118,15 @@ public final class InteractiveBattlePort implements BattlePort {
     private String partnerType;
     private String partnerName;
     private Array<Pokemon> partnerParty;
+    /** {@code $PokemonGlobal.partner[3]}: the registered partner's party, kept after the battle that used it (pbAfterBattle:642-649 heals it). */
+    private Array<Pokemon> registeredPartnerParty;
     public void setPartner(String trainerType, String name, Iterable<Pokemon> party) {
-        if (name == null) { partnerParty = null; return; }
+        if (name == null) { partnerParty = null; registeredPartnerParty = null; return; }
         partnerType = trainerType;
         partnerName = name;
         partnerParty = new Array<>();
         for (Pokemon pokemon : party) partnerParty.add(pokemon);
+        registeredPartnerParty = partnerParty;
     }
     private boolean noPartner;
     public void setNoPartner(boolean value) { this.noPartner = value; }
@@ -235,6 +238,17 @@ public final class InteractiveBattlePort implements BattlePort {
         // PField_Battles:619-658 pbAfterBattle runs before Events.onEndBattle
         // (:656), which is where the white-out lives (:701-706).
         BattleAftermath.pbAfterBattle(trainer, data.get(), result, canLose);
+        if (registeredPartnerParty != null) {                 // :642-649 if $PokemonGlobal.partner
+            trainer.healParty();                              // :643 pbHealAll
+            for (Pokemon pkmn : registeredPartnerParty) {     // :644-648
+                if (pkmn == null) continue;
+                pkmn.hp = pkmn.maxHp();                       // pkmn.heal
+                pkmn.status = "";
+                for (Pokemon.MoveSlot slot : pkmn.moves) slot.pp = slot.maxPp;
+                pkmn.makeUnmega(data.get());
+                pkmn.makeUnprimal(data.get());
+            }
+        }
         boolean whiteOut = BattleAftermath.onEndBattle(trainer, data.get(), random, result, canLose);
         if (whiteOut && whiteout != null) whiteout.run();
         canLose = false;
@@ -368,6 +382,11 @@ public final class InteractiveBattlePort implements BattlePort {
             boolean roomForPartner = foeCount > 1;
             if (!roomForPartner && size != null && !isSingleSize(size)) roomForPartner = true;
             boolean withPartner = partnerParty != null && !noPartner && roomForPartner;
+            if (withPartner && ableCount(partnerParty) == 0) {
+                // The plugin heals the partner after every battle (pbAfterBattle:642-649) so this cannot happen there; a
+                // partner with nobody left standing (an old save) would only make pbEnsureParticipants raise.
+                for (Pokemon p : partnerParty) { p.hp = p.maxHp(); p.status = ""; }
+            }
             int levelFollow = gameVariables == null ? 0 : gameVariables.applyAsInt(100);
             if (trainerBattle && withPartner && levelFollow > 0) {                   // PField_Battles:468-480
                 int maxLevel = 0;

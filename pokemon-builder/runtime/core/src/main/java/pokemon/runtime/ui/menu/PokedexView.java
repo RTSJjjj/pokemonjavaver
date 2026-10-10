@@ -91,9 +91,21 @@ public final class PokedexView {
             return true;
         }
         int old = index;
-        if (input.wasPressed(GameAction.UP)) index--;
-        if (input.wasPressed(GameAction.DOWN)) index++;
-        index = Math.max(0, Math.min(index, Math.max(0, list.size() - 1)));
+        // SpriteWindow_Selectable#update (065_SpriteWindow_text:849-905): Input.repeat? - holding a direction scrolls; the wrap
+        // from either end only on a fresh press (Input.trigger?), L / R move one page.
+        int last = Math.max(0, list.size() - 1);
+        if (input.wasRepeated(GameAction.UP)) {
+            if (index >= 1) index--;
+            else if (input.wasPressed(GameAction.UP)) index = last;
+        } else if (input.wasRepeated(GameAction.DOWN)) {
+            if (index < last) index++;
+            else if (input.wasPressed(GameAction.DOWN)) index = 0;
+        } else if (input.wasRepeated(GameAction.SHOULDER_LEFT)) {
+            index = Math.max(index - VISIBLE, 0);
+        } else if (input.wasRepeated(GameAction.SHOULDER_RIGHT)) {
+            index = Math.min(index + VISIBLE, last);
+        }
+        index = Math.max(0, Math.min(index, last));
         if (index != old) {
             keepVisible();
             pokemon.runtime.audio.UiSounds.cursor(context.audioManager());      // Window_Pokedex (Selectable): pbPlayCursorSE

@@ -63,6 +63,26 @@ class StartOverTest {
     }
 
     @Test
+    @DisplayName("the white-out sends the following NPC and the partner away, whatever state they are in")
+    void followersAndPartnerGo() {
+        setUp();
+        List<Boolean> removed = new ArrayList<>();
+        MapPort port = new MapPort() {
+            @Override public void transfer(int mapId, int x, int y, int direction) { }
+            @Override public void removeDependencies(boolean exceptFollower) { removed.add(exceptFollower); }
+        };
+        interpreter = new EventInterpreter(state, messages, input, null, id -> null, port, new PictureService(), w -> { });
+        interpreter.attachPbs(pbs);
+        GameState.Partner partner = new GameState.Partner();
+        partner.name = "Friend";
+        state.partner(partner);
+        interpreter.startOver();
+        run();
+        assertEquals(List.of(true), removed, "the NPC dependents go (the Pokemon follower stays)");
+        assertNull(state.partner(), "the partner leaves with them");
+    }
+
+    @Test
     @DisplayName("with a Pokemon Center the player goes there")
     void center() {
         setUp();

@@ -920,6 +920,7 @@ public final class EventInterpreter {
         if (mapPort != null) {
             mapPort.removeDependencies(true);                                    // pbRemoveDependenciesExceptFollower
         }
+        state.partner(null);                                                     // the partner leaves with the following NPC
         state.fieldGlobals().surfing = false;                                    // pbCancelVehicles
         state.fieldGlobals().bicycle = false;
         state.fieldGlobals().diving = false;
@@ -1759,6 +1760,7 @@ public final class EventInterpreter {
             }
             case "REMOVE_DEPENDENCY":                                      // pbRemoveDependency2(name) (182_PField_DependentEvents:34-36)
                 if (mapPort != null) mapPort.removeDependency(ir.getString("name", ""));
+                if (!"FollowerPkmn".equals(ir.getString("name", ""))) state.partner(null);   // the partner leaves with its NPC
                 break;
             case "UNLOCK_DEX": {                                           // pbUnlockDex(dex=-1) (253_PSystem_Utilities:928-934)
                 java.util.List<Boolean> unlocked = state.fieldGlobals().pokedexUnlocked;
@@ -2550,9 +2552,15 @@ public final class EventInterpreter {
                 }
                 break;
             }
-            case "REMOVE_DEPENDENCIES":
-                if (mapPort != null) mapPort.removeDependencies(ir.getBoolean("exceptFollower", false));
+            case "REMOVE_DEPENDENCIES": {
+                boolean exceptFollower = ir.getBoolean("exceptFollower", false);
+                if (mapPort != null) mapPort.removeDependencies(exceptFollower);
+                // 182_PField_DependentEvents:12-15 pbRemoveDependencies: removeAllEvents, then pbDeregisterPartner. The project's
+                // events only ever write the removal and expect the partner to go with the following NPC, so the
+                // "ExceptFollower" form (297_Follower_Main:87, the white-out's) lets the partner go too.
+                state.partner(null);
                 break;
+            }
             case "ADD_DEPENDENCY": {
                 int target = ir.getInt("event", 0);
                 if (target == 0) target = eventId;                                    // @event_id

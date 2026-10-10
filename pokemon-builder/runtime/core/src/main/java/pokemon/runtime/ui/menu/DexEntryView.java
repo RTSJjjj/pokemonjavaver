@@ -1,5 +1,6 @@
 package pokemon.runtime.ui.menu;
 
+import pokemon.runtime.pokemon.BattlerBitmaps;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -38,7 +39,12 @@ public final class DexEntryView {
     private int index;
     private int page = 1;
     private int form;
+    /** {@code @gender}: 0 male, 1 female (the form page's picture). */
+    private int gender;
     private int showShiny;
+    /** {@code pbChooseForm}'s loop is running (UP/DOWN pick the form, B/C end it). */
+    private boolean choosingForm;
+    private int chooseIndex;
     private int dataShowType;
     private int movePage;
     private float scroll;
@@ -48,12 +54,39 @@ public final class DexEntryView {
         this.context = context;
         this.dexlist = dexlist;
         this.index = Math.max(0, Math.min(index, Math.max(0, dexlist.size() - 1)));
+        loadLastSeen();
+    }
+
+    /** {@code @gender = formlastseen[@species][0] || 0; @form = formlastseen[@species][1] || 0} (:242-243). */
+    private void loadLastSeen() {
+        PbsData.Species s = species();
+        int[] last = s == null ? null : context.gameState().trainer().formLastSeen.get(s.internalName);
+        gender = last == null ? 0 : last[0];
+        form = last == null ? 0 : last[1];
     }
 
     /** @return true when the player closed the entry (B). */
     public boolean update(InputManager input) {
         scroll += 1f;
         pokemon.runtime.audio.AudioManager audio = context.audioManager();
+        if (choosingForm) {                                                   // :950-988 pbChooseForm
+            List<FormEntry> available = availableForms();
+            if (input.wasPressed(GameAction.UP)) {
+                pokemon.runtime.audio.UiSounds.cursor(audio);
+                chooseIndex = (chooseIndex + available.size() - 1) % available.size();
+                applyChoice(available.get(chooseIndex));
+            } else if (input.wasPressed(GameAction.DOWN)) {
+                pokemon.runtime.audio.UiSounds.cursor(audio);
+                chooseIndex = (chooseIndex + 1) % available.size();
+                applyChoice(available.get(chooseIndex));
+            } else if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
+                choosingForm = false;                                         // :978-980 the last previewed form stays
+            } else if (input.wasPressed(GameAction.CONFIRM)) {
+                pokemon.runtime.audio.UiSounds.decision(audio);
+                choosingForm = false;
+            }
+            return false;
+        }
         if (input.wasPressed(GameAction.CANCEL) || input.wasPressed(GameAction.MENU)) {
             MenuSe.close(audio);                                              // 330_PokedexEntry_BW_Style:1016 pbPlayCloseMenuSE
             return true;
@@ -62,6 +95,9 @@ public final class DexEntryView {
             audio.stopSe();
             if (page == 1 && seen()) {
                 playCry(audio);                                               // pbPlayCrySpecies
+            } else if (page == 4 && seen()) {                                 // :1008-1013 the shiny / super shiny picture
+                pokemon.runtime.audio.UiSounds.cursor(audio);
+                showShiny = 1 - showShiny;
             } else if (page == 2 && dataShowType == 2 && seen()) {
                 movePage++;
                 pokemon.runtime.audio.UiSounds.cursor(audio);
@@ -81,18 +117,27 @@ public final class DexEntryView {
         }
         if (input.wasPressed(GameAction.UP) && index > 0) {
             index--;
-            form = 0;
+            loadLastSeen();
             neighbourSound(audio);                                            // :1026-1034
         }
         if (input.wasPressed(GameAction.DOWN) && index < dexlist.size() - 1) {
             index++;
-            form = 0;
+            loadLastSeen();
             neighbourSound(audio);                                            // :1036-1044
         }
         if (input.wasPressed(GameAction.CONFIRM)) {
-            if (page == 4 && availableForms().size() > 1) {
+            if (page == 4 && availableForms().size() > 1 && seen()) {
                 pokemon.runtime.audio.UiSounds.decision(audio);               // :1019-1021
-                form = (form + 1) % availableForms().size();
+                List<FormEntry> available = availableForms();
+                chooseIndex = 0;                                              // :951-957 the current gender / form
+                for (int i = 0; i < available.size(); i++) {
+                    if (available.get(i).gender == gender && available.get(i).index == form) {
+                        chooseIndex = i;
+                        break;
+                    }
+                }
+                choosingForm = true;
+                applyChoice(available.get(chooseIndex));
             } else if (page == 2 && dataShowType == 2) {
                 movePage++;
             }
@@ -184,7 +229,12 @@ public final class DexEntryView {
 
     private void drawSprite(SpriteBatch b, MenuAssets a, PbsData.Species s, float x, float y,
                             float h, boolean back, boolean shiny) {
-        Texture sprite = battler(a, s, back, shiny);
+        drawSprite(b, a, s, x, y, h, back, shiny, false);
+    }
+
+    private void drawSprite(SpriteBatch b, MenuAssets a, PbsData.Species s, float x, float y,
+                            float h, boolean back, boolean shiny, boolean superShiny) {
+        Texture sprite = battler(a, s, back, shiny, superShiny);
         if (sprite == null) {
             return;
         }
@@ -192,13 +242,18 @@ public final class DexEntryView {
         b.draw(sprite, x - size / 2f, h - y - size / 2f, size, size);
     }
 
-    private Texture battler(MenuAssets a, PbsData.Species s, boolean back, boolean shiny) {
-        String id = String.format("%03d", s.id) + (shiny ? "s" : "");
-        Texture t = a.graphic(back ? "BattlersBack" : "Battlers", id);
-        if (t == null) {
-            t = a.graphic(back ? "BattlersBack" : "Battlers", String.format("%03d", s.id));
-        }
-        return t;
+    /** {@code formlastseen[@species] = [gender, form]} for the chosen entry (:961-962). */
+    private void applyChoice(FormEntry entry) {
+        gender = entry.gender;
+        form = entry.index;
+        PbsData.Species s = species();
+        if (s != null) context.gameState().trainer().formLastSeen.put(s.internalName, new int[] {gender, form});
+    }
+
+    /** {@code setSpeciesBitmap(species,female,form,shiny,...)}: pbCheckPokemonBitmapFiles' fallbacks for the page's gender / form. */
+    private Texture battler(MenuAssets a, PbsData.Species s, boolean back, boolean shiny, boolean superShiny) {
+        return BattlerBitmaps.find(s, back, gender == 1, shiny, superShiny, form,
+                name -> a.graphic(back ? "BattlersBack" : "Battlers", name));
     }
 
     // ------------------------------------------------------------------
@@ -399,17 +454,19 @@ public final class DexEntryView {
             f.drawCentered(b, "[C]:切换形态 [Z]:切换" + SWITCH_MSG[showShiny],
                     ScreenMetrics.logicalWidth() / 1.6f, h - 4f, WHITE, HEAD_SHADOW);
         }
-        if (showShiny == 0) {
-            drawSprite(b, a, s, 158f, 240f + 32f, h, false, false);
+        drawSprite(b, a, s, 158f, 240f + 32f, h, false, false);               // "form": the normal picture
+        if (showShiny == 0) {                                                  // "forms": shiny / "formss": super shiny
             drawSprite(b, a, s, 414f + 64f + 32f, 240f + 32f, h, false, true);
         } else {
-            drawSprite(b, a, s, 158f, 240f + 32f, h, false, true);
-            drawSprite(b, a, s, 414f + 64f + 32f, 240f + 32f, h, false, true);
+            drawSprite(b, a, s, 414f + 64f + 32f, 240f + 32f, h, false, true, true);
         }
     }
 
     private String currentFormName(PbsData.Species s) {
         List<FormEntry> forms = availableForms();
+        for (FormEntry e : forms) {
+            if (e.index == form && e.gender == gender) return e.name;
+        }
         for (FormEntry e : forms) {
             if (e.index == form) return e.name;
         }
@@ -418,19 +475,43 @@ public final class DexEntryView {
 
     /** pbGetAvailableForms: form 0 plus any named alternate forms. */
     private List<FormEntry> availableForms() {
+        // 330_PokedexEntry_BW_Style:278-322 pbGetAvailableForms: form 0 and every named form; a species with both genders
+        // lists the unnamed form 0 once per gender.
         List<FormEntry> result = new ArrayList<>();
         PbsData.Species s = species();
         if (s == null) {
             return result;
         }
-        result.add(new FormEntry(0, formName(s)));
-        if (context.pbsData() != null) {
-            for (int i = 1; i < 30; i++) {
-                PbsData.SpeciesForm f = context.pbsData().form(s.internalName, i);
-                if (f == null) continue;
-                String name = f.formName != null && !f.formName.isEmpty() ? f.formName : "形态" + i;
-                result.add(new FormEntry(i, name));
+        String rate = s.genderRate == null ? "" : s.genderRate;
+        boolean fixedGender = "AlwaysMale".equals(rate) || "AlwaysFemale".equals(rate) || "Genderless".equals(rate);
+        int fixed = "AlwaysFemale".equals(rate) ? 1 : 0;
+        List<int[]> possible = new ArrayList<>();      // [form, gender 0/1/2]
+        List<String> possibleNames = new ArrayList<>();
+        boolean multiforms = false;
+        for (int i = 0; i < 30; i++) {
+            PbsData.SpeciesForm f = i == 0 || context.pbsData() == null ? null : context.pbsData().form(s.internalName, i);
+            if (i > 0 && f == null) continue;
+            String formname = i == 0 ? (s.formName == null ? "" : s.formName) : (f.formName == null ? "" : f.formName);
+            if (i != 0 && formname.isEmpty()) continue;                       // :288 i==0 || (formname && formname!="")
+            if (i > 0) multiforms = true;
+            if (fixedGender) {
+                possible.add(new int[] {i, "Genderless".equals(rate) ? 2 : fixed});
+                possibleNames.add(formname);
+            } else {
+                for (int g = 0; g < 2; g++) {
+                    possible.add(new int[] {i, g});
+                    possibleNames.add(formname);
+                    if (!formname.isEmpty()) break;
+                }
             }
+        }
+        for (int i = 0; i < possible.size(); i++) {
+            int[] entry = possible.get(i);
+            String name = possibleNames.get(i);
+            if (name.isEmpty()) {
+                name = entry[1] == 0 ? "雄性" : entry[1] == 1 ? "雌性" : (multiforms ? "默认形态" : "无性别");
+            }
+            result.add(new FormEntry(entry[0], name, entry[1] == 2 ? 0 : entry[1]));
         }
         return result;
     }
@@ -438,10 +519,12 @@ public final class DexEntryView {
     private static final class FormEntry {
         final int index;
         final String name;
+        final int gender;
 
-        FormEntry(int index, String name) {
+        FormEntry(int index, String name, int gender) {
             this.index = index;
             this.name = name;
+            this.gender = gender;
         }
     }
 

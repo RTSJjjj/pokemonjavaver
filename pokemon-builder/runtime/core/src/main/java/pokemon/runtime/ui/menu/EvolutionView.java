@@ -1,5 +1,7 @@
 package pokemon.runtime.ui.menu;
 
+import pokemon.runtime.pokemon.BattlerBitmaps;
+import pokemon.runtime.pokemon.PokemonStats;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -498,8 +500,9 @@ public final class EvolutionView {
         // :507-512 NORMAL + FLYING (type ids 0 and 2) uses the FLYING background
         String bgType = firstId == 0 && secondId == 2 ? String.valueOf(secondId) : String.valueOf(firstId);
         background = a.graphic("Pictures/Evolution Backs", bgType);
-        oldTexture = battler(a, pokemon.species, pokemon.shiny, pokemon.formIndex());
-        newTexture = battler(a, newSpecies, pokemon.shiny, pokemon.formIndex());
+        boolean female = pokemon.gender == PokemonStats.FEMALE;
+        oldTexture = battler(a, pokemon.species, female, pokemon.shiny, pokemon.superShiny, pokemon.formIndex());
+        newTexture = battler(a, newSpecies, female, pokemon.shiny, pokemon.superShiny, pokemon.formIndex());
     }
 
     private static int typeId(PbsData pbs, String type) {
@@ -508,13 +511,14 @@ public final class EvolutionView {
     }
 
     static Texture battler(MenuAssets a, PbsData.Species s, boolean shiny, int form) {
+        return battler(a, s, false, shiny, false, form);
+    }
+
+    /** {@code pbLoadPokemonBitmapSpecies}: pbCheckPokemonBitmapFiles' gender / shiny / form fallbacks. */
+    static Texture battler(MenuAssets a, PbsData.Species s, boolean female, boolean shiny, boolean superShiny, int form) {
         if (s == null) return null;
-        String base = String.format("%03d", s.id) + (shiny ? "s" : "");
-        Texture sprite = form > 0 ? a.graphic("Battlers", base + "_" + form) : null;
-        if (sprite == null) sprite = a.graphic("Battlers", base);
-        if (sprite == null) sprite = a.graphic("Battlers", String.format("%03d", s.id));
-        if (sprite == null) sprite = a.graphic("Battlers", s.internalName);
-        return sprite;
+        return BattlerBitmaps.find(s, false, female, shiny, superShiny, form,
+                name -> a.graphic("Battlers", name));
     }
 
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin) {

@@ -1,5 +1,6 @@
 package pokemon.runtime.ui.menu;
 
+import pokemon.runtime.pokemon.BattlerBitmaps;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.battle.PBNatures;
@@ -2330,12 +2331,9 @@ public final class PartyView {
     /** Pokemon_Sprites PokemonSprite#setPokemonBitmap -> pbLoadPokemonBitmap；登记: 沿用 SummaryView 的取图规则。 */
     private Texture battler(MenuAssets a, Pokemon p) {
         if (p.species == null) return null;
-        String base = String.format("%03d", p.species.id) + (p.shiny ? "s" : "");
         int form = p.form == null ? 0 : p.form.form;
-        Texture sprite = a.graphic("Battlers", form > 0 ? base + "_" + form : base);
-        if (sprite == null) sprite = a.graphic("Battlers", base);
-        if (sprite == null) sprite = a.graphic("Battlers", String.format("%03d", p.species.id));
-        if (sprite == null) sprite = a.graphic("Battlers", p.species.internalName);
-        return sprite;
+        return BattlerBitmaps.find(p.species, false,
+                p.gender == PokemonStats.FEMALE, p.shiny, p.superShiny, form,
+                name -> a.graphic("Battlers", name));
     }
 }

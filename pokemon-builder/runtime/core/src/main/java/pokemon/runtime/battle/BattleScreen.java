@@ -1282,13 +1282,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     private Texture pokemonTexture(Pokemon pokemon, boolean back) {
-        String id = battlerSpriteId(pokemon, back);
-        Texture sprite = assets.graphic("Battlers", id);
-        if (sprite == null) {
-            sprite = assets.graphic("Battlers",
-                    String.format(java.util.Locale.ROOT, "%03d", pokemon.species.id) + (back ? "b" : ""));
-        }
-        return sprite;
+        Integer held = heldForm.get(pokemon);
+        int form = held != null ? held : (pokemon.form == null ? 0 : pokemon.form.form);
+        // pbCheckPokemonBitmapFiles: gender / shiny / form are dropped one by one until a file exists
+        return BattlerBitmaps.find(pokemon.species, back,
+                pokemon.gender == PokemonStats.FEMALE, pokemon.shiny, pokemon.superShiny, form,
+                name -> assets.graphic("Battlers", name));
     }
 
     /** {@code pbApplyBattlerMetricsToSprite} (Pokemon_Sprites:349-365). */
@@ -1411,12 +1410,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
 
             @Override public String pokemonFile(Pokemon pkmn, int form) {
-                String id = battlerSpriteId(pkmn, false, form);
-                String file = "Graphics/Battlers/" + id;
-                if (bitmapSize(file) == null) {
-                    file = "Graphics/Battlers/" + String.format(java.util.Locale.ROOT, "%03d", pkmn.species.id);
-                }
-                return file;
+                String found = BattlerBitmaps.find(pkmn.species, false,
+                        pkmn.gender == PokemonStats.FEMALE, pkmn.shiny, pkmn.superShiny, form,
+                        name -> bitmapSize("Graphics/Battlers/" + name) != null ? name : null);
+                return "Graphics/Battlers/" + (found != null ? found
+                        : String.format(java.util.Locale.ROOT, "%03d", pkmn.species.id));
             }
 
             @Override public void playCry(Pokemon pkmn) {
@@ -2647,7 +2645,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return true;
         }
         fastCatch = new pokemon.runtime.ui.menu.FastCatchView(context, balls, fastCatchIndex,
-                context.gameState().trainer().gender == pokemon.runtime.pokemon.PokemonStats.FEMALE);
+                context.gameState().trainer().gender == PokemonStats.FEMALE);
         return true;
     }
 
@@ -3539,6 +3537,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 return;
             }
             savedShadows = null;
+            // A Pokemon in Fly / Dive / Dig stays out of sight while a common animation (poison, burn, curse ...) plays on
+            // it: the animation's own cel for that sprite must not bring it back onto the field.
+            keepHidden.clear();
+            if (user != null && user.semiInvulnerable()) keepHidden.add(user.index);
+            if (target != null && target != user && target.semiInvulnerable()) keepHidden.add(target.index);
             beginAnimationCore(animation, user, target != null ? target : user, false);   // :537
             return;
         }
@@ -3556,6 +3559,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             beginAnimationCore(animation, user, target, false);                   // :521
         }
     }
+
+    /** Battlers in the semi-invulnerable turn of a two-turn move whose sprite a common animation must leave hidden. */
+    private final java.util.ArrayList<Integer> keepHidden = new java.util.ArrayList<>();
 
     /** {@code pbSaveShadows}' first half (:405-412): remember and hide every shadow. */
     private void saveShadows() {
@@ -3678,7 +3684,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         moveAnim = null;
         moveAnimUserSprite = null;
         moveAnimTargetSprite = null;
-        restoreShadows();                                                         // :523 the pbSaveShadows block ends
+        for (int idx : keepHidden) {
+            BattleSprite hidden = sprites.get("pokemon_" + idx);
+            if (hidden != null) hidden.visible = false;
+        }
+        keepHidden.clear();
+        restoreShadows();                                                        // :523 the pbSaveShadows block ends
         resumeRound();
     }
 
@@ -4506,14 +4517,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 || (context.touchBuild() && input.wasPressed(GameAction.SHOULDER_RIGHT));
         if (infoKey && page == 0 && !session.safari && fastCatch == null) {      // 156_Scene_Commands:60-63 pbBattleInfo(@battle)
             battleInfo = new pokemon.runtime.ui.menu.BattleInfoView(context, session.battle,
-                    context.gameState().trainer().gender == pokemon.runtime.pokemon.PokemonStats.FEMALE);
+                    context.gameState().trainer().gender == PokemonStats.FEMALE);
             return;
         }
         if (infoKey && page == 1 && fastCatch == null) {                         // 156_Scene_Commands:149-151 pbMoveInfo(battler, battler.moves[cw.index])
             BattleMove picked = fighter() == null ? null : fighter().moveSlot(cursor.index());
             if (picked != null) {
                 moveInfo = new pokemon.runtime.ui.menu.MoveInfoView(context, session.battle, fighter(), picked,
-                        context.gameState().trainer().gender == pokemon.runtime.pokemon.PokemonStats.FEMALE);
+                        context.gameState().trainer().gender == PokemonStats.FEMALE);
             }
             return;
         }
