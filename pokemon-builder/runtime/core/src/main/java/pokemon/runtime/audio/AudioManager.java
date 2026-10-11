@@ -263,6 +263,9 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
     /** Advances a cued BGM transition; the game loop calls this once per frame. */
     public void update(float delta) {
         float step = Math.max(0f, delta);
+        if (!retries.isEmpty()) {
+            updateRetries(step);
+        }
         if (incomingBgm != null) {
             cueRemaining -= step;
             if (cueRemaining <= 0f) {
@@ -619,6 +622,7 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
      * every sound effect that is currently playing.
      */
     public void stopSe() {
+        retries.clear();
         for (Sound sound : activeSe) {
             sound.stop();
         }
@@ -709,9 +713,52 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         if (sound == null) {
             return;
         }
-        sound.play(volume(volume) * seFactor, pitch(pitch), 0f);
+        float gain = volume(volume) * seFactor;
+        float rate = pitch(pitch);
+        long id = sound.play(gain, rate, 0f);
+        if (id == -1L && retries.size() < MAX_RETRIES
+                && Gdx.app != null && Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android) {
+            // Android's SoundPool decodes a sample asynchronously: the first play right after Gdx.audio.newSound finds it not
+            // loaded yet and is silent (a one-off jingle was never heard). Try again every frame until it has loaded.
+            retries.add(new RetryPlay(sound, gain, rate, "SE".equals(type)));
+        }
         if ("SE".equals(type)) {
             activeSe.add(sound);
+        }
+    }
+
+    /** A sample that was not loaded yet when it was asked to play (Android SoundPool). */
+    private static final class RetryPlay {
+        final Sound sound;
+        final float volume;
+        final float pitch;
+        final boolean se;
+        float waited;
+
+        RetryPlay(Sound sound, float volume, float pitch, boolean se) {
+            this.sound = sound;
+            this.volume = volume;
+            this.pitch = pitch;
+            this.se = se;
+        }
+    }
+
+    private static final int MAX_RETRIES = 24;
+    /** How long a not-yet-loaded sample is waited for before the play is given up. */
+    private static final float RETRY_SECONDS = 0.8f;
+    private final java.util.ArrayList<RetryPlay> retries = new java.util.ArrayList<>();
+
+    private void updateRetries(float step) {
+        for (int i = retries.size() - 1; i >= 0; i--) {
+            RetryPlay retry = retries.get(i);
+            retry.waited += step;
+            long id = retry.sound.play(retry.volume, retry.pitch, 0f);
+            if (id != -1L || retry.waited >= RETRY_SECONDS) {
+                retries.remove(i);
+                if (id != -1L && retry.se) {
+                    activeSe.add(retry.sound);
+                }
+            }
         }
     }
 
