@@ -446,8 +446,7 @@ final class AbilitiesSwitchIn {
                 } else if (b.statStageAtMin(PBStats.ATTACK)) {               // :2627
                     checkItem = false;
                 }
-                // 登记: :2630 b.pbLowerAttackStatStageIntimidate(battler)
-                //       —— Battler 尚无该方法（Battler_StatStages:309-373）
+                b.pbLowerAttackStatStageIntimidate(battler);                 // :2630
                 if (checkItem) {                                             // :2631
                     b.pbItemOnIntimidatedCheck();
                 }
@@ -839,9 +838,7 @@ final class AbilitiesSwitchIn {
 
         BattleHandlers.AbilityOnSwitchIn.add("SUPREMEOVERLORD", (ability, battler, battle) -> {
             // BattleHandlers_Abilities.rb:3124-3133 大将
-            // 登记: :3126 battler.num_fainted_allies 依赖 Battle#pbFaintedAllyCount
-            //       （PokeBattle_Battle:833-836，Battle 未暴露）→ 无法取数，本 handler 空实现
-            int numFainted = 0;
+            int numFainted = Math.min(5, battler.numFaintedAllies());        // :3126
             if (numFainted <= 0) {                                           // :3127
                 return;
             }
@@ -853,8 +850,7 @@ final class AbilitiesSwitchIn {
 
         BattleHandlers.AbilityOnSwitchIn.add("RIGHTTOFIGHT", (ability, battler, battle) -> {
             // BattleHandlers_Abilities.rb:3162-3172 正义变身
-            // 登记: :3164 battler.num_fainted_allies（同 SUPREMEOVERLORD 的登记）
-            int numFainted = 0;
+            int numFainted = Math.min(5, battler.numFaintedAllies());        // :3164
             if (numFainted <= 0) {                                           // :3165
                 return;
             }
@@ -1200,8 +1196,7 @@ final class AbilitiesSwitchIn {
                 return;
             }
             battle.showAbilitySplash(battler);                               // :3782
-            // 登记: :3783 battler.pbSleepSelf(msg,2) —— Battler 尚无 pbSleepSelf
-            //       （Battler_Statuses:358-360，需要 pbSleepDuration）
+            battler.pbSleepSelf(battler.pbThis() + "陷入了酣睡！", 2);          // :3783
             battle.hideAbilitySplash(battler);                               // :3784
         });
 

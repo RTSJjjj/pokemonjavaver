@@ -1145,6 +1145,26 @@ public final class InteractiveBattlePort implements BattlePort {
             return null;
         }
 
+        /**
+         * The replace step of {@code pbRecallAndReplace} (Battle_Action_Switching:256-262) as the screen plays a voluntary
+         * switch: the leaving Pokemon's {@code pbAbilitiesOnSwitchOut} (:258 - Natural Cure, Regenerator, Zero to Hero ...),
+         * then {@code pbReplace}. The screen used to call {@code replace} alone, so none of those abilities ever ran when
+         * the player switched by hand. The Pokemon is back in its party with the HP it had afterwards.
+         */
+        public void switchOutAndReplace(int idxBattler, int partyIndex) {
+            Battler leaving = battle.battlerAt(idxBattler);
+            int mark = battle.roundEvents.size;
+            if (leaving != null && !leaving.fainted()) {
+                leaving.pbAbilitiesOnSwitchOut();                      // :258
+                // what it played (a form mosaic, an HP flash) belongs to a sprite that is being replaced
+                battle.roundEvents.truncate(mark);
+            }
+            battle.replace(idxBattler, partyIndex);                    // :261 pbReplace
+            if (leaving != null && leaving != battle.battlerAt(idxBattler)) {
+                leaving.restoreAfterSwitchOut();
+            }
+        }
+
         /** {@code pbMessageOnRecall} for the battler that is leaving (:264-281). */
         public String recallMessage(int idxBattler) {
             return recallMessage(battle.battlerAt(idxBattler));
