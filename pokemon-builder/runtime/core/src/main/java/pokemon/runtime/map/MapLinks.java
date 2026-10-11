@@ -146,7 +146,7 @@ public final class MapLinks {
     /** The links touching one map; empty when it has no connections. */
     public List<Link> linksOf(int mapId) {
         List<Link> list = byMap.get(mapId);
-        return list == null ? List.of() : list;
+        return list == null ? java.util.Collections.<Link>emptyList() : list;
     }
 
     public int[] dims(int mapId) {

@@ -165,7 +165,7 @@ public final class MessageText {
             // already turned it into a real newline.
             String[] parts = cleaned.split("\\n", -1);
             for (String part : parts) {
-                parsed.lines.add(part.stripTrailing());
+                parsed.lines.add(stripTrailing(part));
             }
         }
         if (parsed.lines.size == 0) {
@@ -267,14 +267,29 @@ public final class MessageText {
                 || (cp >= 0x20000 && cp <= 0x3FFFD);
     }
 
+    /** {@code String#stripTrailing} (Java 11, missing on older Android): trailing white space off. */
+    private static String stripTrailing(String text) {
+        int end = text.length();
+        while (end > 0 && Character.isWhitespace(text.charAt(end - 1))) {
+            end--;
+        }
+        return text.substring(0, end);
+    }
+
     /** Strips every control code and tag the window cannot draw. */
     public static String clean(String raw, GameState state) {
         return clean(raw, state, playerName(state));
     }
 
     private static String clean(String raw, GameState state, String playerName) {
-        String text = VARIABLE.matcher(raw)
-                .replaceAll(match -> Matcher.quoteReplacement(variableValue(state, match.group(1))));
+        // Matcher#replaceAll(Function) is Java 9: it is missing on Android before 14 (NoSuchMethodError), so the loop is by hand
+        Matcher variables = VARIABLE.matcher(raw);
+        StringBuffer replaced = new StringBuffer();
+        while (variables.find()) {
+            variables.appendReplacement(replaced, Matcher.quoteReplacement(variableValue(state, variables.group(1))));
+        }
+        variables.appendTail(replaced);
+        String text = replaced.toString();
         text = replaceName(text, playerName);
         text = SKIN.matcher(text).replaceAll("");
         text = SPEAKER.matcher(text).replaceAll("");
