@@ -1335,6 +1335,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private final java.util.IdentityHashMap<Pokemon, Integer> heldForm = new java.util.IdentityHashMap<>();
     private MegaEvolutionScene megaScene;
     private int megaSceneBattler = -1;
+    /** The Pokemon that is Mega Evolving in the running scene (the position may hold another one by the time it plays). */
+    private Pokemon megaScenePokemon;
 
     /** A transformed battler's sprite keeps its old picture until the Transform event plays: Battler -> the Pokemon it showed. */
     private final java.util.IdentityHashMap<Battler, Pokemon> heldLook = new java.util.IdentityHashMap<>();
@@ -1390,6 +1392,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         megaSceneBattler = event.idxBattler;
+        megaScenePokemon = event.pokemon != null ? event.pokemon : battler.pokemon;
         megaScene = new MegaEvolutionScene(new MegaEvolutionScene.Host() {
             @Override public BattleSprite addSprite(String id, float x, float y, String file) {
                 BattleSprite sprite = pbAddSprite(id, x, y, file);
@@ -1437,7 +1440,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             @Override public String backdrop() {
                 return backdropName();
             }
-        }, battler.pokemon, event.oldHp, event.megaOldForm(), event.megaNewForm());
+        }, megaScenePokemon, event.oldHp, event.megaOldForm(), event.megaNewForm());
         stage = Stage.MEGA_SCENE;
     }
 
@@ -1450,10 +1453,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         megaScene = null;
         Battler battler = session.battle.battlerAt(megaSceneBattler);
-        if (battler != null) {
+        if (megaScenePokemon != null) {
+            heldForm.remove(megaScenePokemon);
+        }
+        if (battler != null && (megaScenePokemon == null || battler.pokemon == megaScenePokemon)) {
             heldForm.remove(battler.pokemon);
             changePokemon(megaSceneBattler, battler);        // :415-416 @scene.pbChangePokemon + pbRefreshOne
         }
+        megaScenePokemon = null;
         megaSceneBattler = -1;
         resumeRound();
     }
@@ -2142,8 +2149,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     || event.kind == Battle.RoundEvent.Kind.CHANGE_POKEMON) {
                 // The engine already changed the form; the sprite keeps showing the old one until the event plays.
                 Battler changed = session.battle.battlerAt(event.idxBattler);
-                if (changed != null && changed.pokemon != null && !heldForm.containsKey(changed.pokemon)) {
-                    heldForm.put(changed.pokemon, event.kind == Battle.RoundEvent.Kind.MEGA_SCENE
+                Pokemon changedPokemon = event.pokemon != null ? event.pokemon
+                        : (changed == null ? null : changed.pokemon);
+                if (changedPokemon != null && !heldForm.containsKey(changedPokemon)) {
+                    heldForm.put(changedPokemon, event.kind == Battle.RoundEvent.Kind.MEGA_SCENE
                             ? event.megaOldForm() : event.oldHp);
                 }
             }
@@ -3121,9 +3130,12 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case CHANGE_POKEMON: {
                 // @scene.pbChangePokemon(battler,battler.pokemon) + pbRefreshOne (Mega evolution:426-427)
                 Battler changed = session.battle.battlerAt(event.idxBattler);
-                if (changed != null) {
+                if (event.pokemon != null) {
+                    heldForm.remove(event.pokemon);
+                }
+                if (changed != null && (event.pokemon == null || changed.pokemon == event.pokemon)) {
                     heldForm.remove(changed.pokemon);
-                    changePokemon(event.idxBattler, changed);
+                    changePokemon(event.idxBattler, changed);          // another Pokemon stands there by now: nothing to refresh
                 }
                 resumeRound();
                 return;

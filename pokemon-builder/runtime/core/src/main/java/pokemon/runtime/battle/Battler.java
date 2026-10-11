@@ -5127,7 +5127,9 @@ public final class Battler {
         if (Battle.NEWEST_BATTLE_MECHANICS) {                                      // :189
             effects.set(PBEffects.Battler.WeightChange, 0);
         }
-        battle.roundEvents.add(Battle.RoundEvent.changePokemon(index, oldForm));            // :190-191 pbChangePokemonTransform + pbRefreshOne
+        Battle.RoundEvent change = Battle.RoundEvent.changePokemon(index, oldForm);          // :190-191 pbChangePokemonTransform + pbRefreshOne
+        change.pokemon = pokemon;
+        battle.roundEvents.add(change);
         if (msg != null && !msg.isEmpty()) {                                       // :192
             display(msg);
         }

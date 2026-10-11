@@ -558,7 +558,37 @@ public final class MenuCapture extends ApplicationAdapter {
             boolean doubleFaintCapture = args.length > 2 && "double-faint".equals(args[2]);
             // The Safari Zone: a Safari battle played with Bait, Rock and Balls (160_PokeBattle_SafariZone).
             boolean safariCapture = args.length > 2 && args[2].startsWith("safari");
-            if (multiTrainerCapture || faintCapture) {
+            // Two trainers whose sight lines meet (map 41 events 22 / 23): they must make one double battle.
+            boolean sightMergeCapture = args.length > 2 && "sight-merge".equals(args[2]);
+            if (sightMergeCapture) {
+                int startX = args.length > 3 ? Integer.parseInt(args[3]) : 35;
+                int startY = args.length > 4 ? Integer.parseInt(args[4]) : 16;
+                mapScreen = new MapScreen(context, 41, startX, startY, 6);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                advanceMap(1f / 60f, 30);
+                System.out.println("sight-merge: able party = " + context.gameState().trainer().partyCount());
+                InputManager held = context.inputManager();
+                for (int i = 0; i < 24; i++) {                  // hold RIGHT: walk onto the shared line
+                    held.beginFrame();
+                    held.press(GameAction.RIGHT);
+                    renderMap();
+                    held.endFrame();
+                }
+                held.release(GameAction.RIGHT);
+                advanceMap(1f / 60f, 30);
+                for (int i = 0; i < 60 && battleScreen() == null; i++) {
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 60f, 20);
+                }
+                BattleScreen live = battleScreen();
+                System.out.println("sight-merge: battle " + (live == null ? "none" : live.debugBattlers()));
+                if (live != null) {
+                    advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 900);
+                    shotMap("l1-sight-merge");
+                    System.out.println("sight-merge: " + live.debugBattlers());
+                }
+            } else if (multiTrainerCapture || faintCapture) {
                 pokemon.runtime.pokemon.PbsData.TrainerData opponent = null;
                 if (multiTrainerCapture && pbs != null) {
                     for (com.badlogic.gdx.utils.ObjectMap.Entry<String, pokemon.runtime.pokemon.PbsData.TrainerData> entry : pbs.trainers) {

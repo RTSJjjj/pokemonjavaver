@@ -226,6 +226,25 @@ class MegaEvolutionTest {
         assertTrue(foe.isMega(), "the opposing trainer's Pokemon Mega Evolved in the first round");
     }
 
+    @Test
+    @DisplayName("the Mega scene / form-change event carries the Pokemon that evolved (the position may hold another one by the time it plays)")
+    void megaEventCarriesItsPokemon(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        Pokemon hero = new Pokemon(data.species("MEGAMON"), 50, data);
+        hero.item = "MEGASTONE";
+        Pokemon foe = new Pokemon(data.species("WEAK"), 2, data);
+        Battle b = battle(data, hero, foe);
+        b.pbMegaEvolve(0);
+        boolean seen = false;
+        for (Battle.RoundEvent event : b.roundEvents) {
+            if (event.kind == Battle.RoundEvent.Kind.MEGA_SCENE || event.kind == Battle.RoundEvent.Kind.CHANGE_POKEMON) {
+                assertSame(hero, event.pokemon);
+                seen = true;
+            }
+        }
+        assertTrue(seen, "a mega event was queued");
+    }
+
     private static void write(Path root, String name, String json) throws Exception {
         Path file = root.resolve("pbs").resolve(name);
         Files.createDirectories(file.getParent());

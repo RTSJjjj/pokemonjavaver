@@ -1355,6 +1355,12 @@ public final class Battle {
         static RoundEvent changePokemon(int idxBattler, int oldForm) {
             return new RoundEvent(Kind.CHANGE_POKEMON, null, false, null, idxBattler, oldForm, -1, false, false);
         }
+        /**
+         * MEGA_SCENE / CHANGE_POKEMON: the Pokemon whose form changed. The screen plays the events after the whole round
+         * was simulated, so the Pokemon that stands on the position by then may be another one (the Mega Evolved one fainted
+         * and was replaced): the event has to carry its own.
+         */
+        public Pokemon pokemon;
         /** TRANSFORM_SPRITE: the Pokemon the sprite showed before the change. */
         public Pokemon oldLook;
         static RoundEvent transformSprite(int idxBattler, Pokemon oldLook) {

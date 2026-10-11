@@ -543,6 +543,27 @@ public final class RuntimeContext {
                 return screenPort != null && screenPort.addDependency(eventId, name, commonEvent);
             }
 
+            // These three used to fall through to MapPort's no-op defaults, so pbGlobalLock / pbTrainerEnd did nothing and
+            // a second trainer who saw the player at the same moment was never found (no merged double battle).
+            @Override
+            public int[] triggeredTrainerEvents() {
+                return screenPort == null ? new int[0] : screenPort.triggeredTrainerEvents();
+            }
+
+            @Override
+            public void lockEvents(boolean locked) {
+                if (screenPort != null) {
+                    screenPort.lockEvents(locked);
+                }
+            }
+
+            @Override
+            public void eraseRoute(int eventId) {
+                if (screenPort != null) {
+                    screenPort.eraseRoute(eventId);
+                }
+            }
+
             @Override
             public FollowerTalkPlan talkToFollower() {
                 return screenPort == null ? null : screenPort.talkToFollower();
