@@ -19,7 +19,7 @@ android {
         applicationId 'pokemon.runtime.android'
         minSdk 26   // java.time and java.nio.file (the save/data code uses them) exist from API 26 without desugaring
         targetSdk 34
-        versionCode 101
+        versionCode 102
         versionName project.version.toString()
     }
 
