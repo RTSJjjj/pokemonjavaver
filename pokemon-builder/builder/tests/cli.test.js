@@ -373,12 +373,13 @@ test("build-android runs the full pipeline and packages the debug APK with a stu
   assert.match(out, /DATA BUILD SUCCESS/);
   assert.match(out, /ANDROID BUILD SUCCESS/);
   assert.match(out, /TECHNICAL PREVIEW/);
-  assert.ok(existsSync(path.join(root, "dist", "PokemonGame-Android.apk")));
+  assert.ok(existsSync(path.join(root, "dist", "PokemonGame-Android(fullversion).apk")));
+  assert.ok(!existsSync(path.join(root, "dist", "PokemonGame-Android.apk")), "the slim name is not used by a full build");
   const report = JSON.parse(readFileSync(path.join(root, "generated", "build-report.json"), "utf8"));
   assert.equal(report.buildTarget, "android");
   assert.equal(report.technicalPreview, true);
   assert.deepEqual(report.outputArtifact, [
-    path.join(root, "dist", "PokemonGame-Android.apk"),
+    path.join(root, "dist", "PokemonGame-Android(fullversion).apk"),
     path.join(root, "dist", "PokemonGame-Android-data.zip"),
   ]);
 });
@@ -396,6 +397,8 @@ test("build-android --no-data keeps the slim APK (no data pack staged) (L3)", ()
   const { code, out } = capture(() => runCli(root, ["build-android", project, "--no-data"], { gradleRunner }));
   assert.equal(code, EXIT_OK, out);
   assert.ok(!existsSync(path.join(root, "dist", "PokemonGame-Android-data.zip")), out);
+  assert.ok(existsSync(path.join(root, "dist", "PokemonGame-Android.apk")), "the slim APK keeps the plain name");
+  assert.ok(!existsSync(path.join(root, "dist", "PokemonGame-Android(fullversion).apk")), out);
   assert.ok(!existsSync(path.join(root, "runtime", "android", "build", "android-assets")), out);
 });
 

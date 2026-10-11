@@ -814,7 +814,10 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
     console.log("PACKAGE FAILED");
     return EXIT_ERROR;
   }
-  const artifact = path.join(ctx.paths.dist, target.artifact);
+  // A full package (with the data pack) and a slim one (--no-data) are different files: the full one carries
+  // "(fullversion)" in its name so the two exports never overwrite each other.
+  const artifactName = distDataPack ? target.artifact.replace(/\.apk$/, "(fullversion).apk") : target.artifact;
+  const artifact = path.join(ctx.paths.dist, artifactName);
   mkdirSync(ctx.paths.dist, { recursive: true });
   copyFileSync(apk, artifact);
   ctx.logger.step(
