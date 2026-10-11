@@ -368,6 +368,12 @@ $chkSlim.Location = New-Object System.Drawing.Point(18, 110)
 $chkSlim.AutoSize = $true
 $grpExport.Controls.Add($chkSlim)
 
+$chkLegacy = New-Object System.Windows.Forms.CheckBox
+$chkLegacy.Text = '安卓：旧版（老手机，API 21+）'
+$chkLegacy.Location = New-Object System.Drawing.Point(500, 110)
+$chkLegacy.AutoSize = $true
+$grpExport.Controls.Add($chkLegacy)
+
 $chkNoCache = New-Object System.Windows.Forms.CheckBox
 $chkNoCache.Text = '忽略缓存，全部重建'
 $chkNoCache.Location = New-Object System.Drawing.Point(598, 88)
@@ -479,9 +485,14 @@ $btnAndroid.Add_Click({
     $flags = @()
     if (-not $chkEncrypt.Checked) { $flags += '--no-encrypt' }
     if ($chkRelease.Checked) { $flags += '--release' }
-    if ($chkSlim.Checked) { $flags += '--no-data' }
     if ($chkNoCache.Checked) { $flags += '--no-cache' }
-    Start-Build 'build-android' $flags '导出 安卓版' $true
+    if ($chkLegacy.Checked) {
+        # build-android-legacy never stages the data pack, so the slim flag has no meaning there
+        Start-Build 'build-android-legacy' $flags '导出 旧版安卓版' $true
+    } else {
+        if ($chkSlim.Checked) { $flags += '--no-data' }
+        Start-Build 'build-android' $flags '导出 安卓版' $true
+    }
 })
 
 $btnClean.Add_Click({ Start-Build 'clean' @() '清理构建缓存' $false })
