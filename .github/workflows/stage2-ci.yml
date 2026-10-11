@@ -8,9 +8,9 @@
 
 name: stage2-ci
 
+# Switched off: the repository does not carry the game data (PBS, Graphics, generated/) this chain needs, so every push
+# ended red. It still runs by hand from the Actions tab (Run workflow).
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
