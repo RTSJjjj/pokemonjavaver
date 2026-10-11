@@ -4864,12 +4864,12 @@ public final class MapScreen extends ScreenAdapter {
             context.game().log("wild encounter: " + first.species + " L" + first.level
                     + (wild.size() > 1 ? " + " + wild.get(1).species + " L" + wild.get(1).level : ""));
         }
+        applyBattleEnvironment();           // before the battle is created: the port reads these when it builds the session
         if (wild.size() > 1) {
             context.battlePort().doubleWildBattle(first.species, first.level, wild.get(1).species, wild.get(1).level);
         } else {
             context.battlePort().wildBattle(first.species, first.level);
         }
-        applyBattleEnvironment();
         // The step that triggered this is still sliding (the logical tile moved
         // when the step started). Snap it so the battle opens on the destination
         // tile and the player does not finish the step afterwards.
@@ -4884,6 +4884,11 @@ public final class MapScreen extends ScreenAdapter {
      */
     private void applyBattleEnvironment() {
         context.battlePort().setSwitchSource(id -> gameState.switches().get(id));
+        // Battle_ExpAndMoveLearning:167-186: $game_switches[199] (level lock) and [12] (league pass), and
+        // $game_variables[100] (level follow). A battle opened by walking never passed through the interpreter, so the
+        // port kept whatever the last scripted battle had left - false right after a restart, i.e. no level lock.
+        context.battlePort().setLevelLock(gameState.switches().get(199), gameState.switches().get(12));
+        context.battlePort().setVariableSource(id -> gameState.variables().get(id));
         context.battlePort().setObtainMap(mapData.mapId);
         context.battlePort().setFatefulEncounter(gameState.switches().get(32));
         pokemon.runtime.pokemon.PbsData.Metadata metadata =
