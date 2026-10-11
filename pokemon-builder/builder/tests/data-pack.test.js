@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFile
 import os from "node:os";
 import path from "node:path";
 
-import { copyRuntimeAssets, createDataPack } from "../src/data-pack.js";
+import { OPENING_PREFIX, copyOpeningAssets, copyRuntimeAssets, createDataPack, openingAssetsRoot } from "../src/data-pack.js";
 
 function scratch() {
   return mkdtempSync(path.join(os.tmpdir(), "pb-pack-"));
@@ -152,4 +152,36 @@ test("copyRuntimeAssets copies Graphics and Fonts, then skips up-to-date files (
   utimesSync(source, future, future);
   const third = copyRuntimeAssets(project, target, null);
   assert.equal(third.files, 1, "a newer source file is copied again");
+});
+
+test("the builder's opening pack ships as Graphics/Opening in runtime-data and in the data pack", () => {
+  const root = scratch();
+  const builder = path.join(root, "builder");
+  const target = path.join(root, "runtime-data");
+  writeTree(builder, { "assets/opening/opening.json": "{}", "assets/opening/film.png": "film" });
+
+  const copied = copyOpeningAssets(builder, target, null);
+  assert.equal(copied.files, 2);
+  assert.equal(readFileSync(path.join(target, "Graphics/Opening/opening.json"), "utf8"), "{}");
+  assert.equal(copyOpeningAssets(builder, target, null).files, 0, "unchanged files are not copied again");
+
+  const pack = createDataPack([{ root: openingAssetsRoot(builder), prefix: OPENING_PREFIX }],
+    path.join(root, "pack.zip"), { encrypt: false });
+  assert.equal(pack.files, 2);
+  const names = readEntries(path.join(root, "pack.zip")).entries.map((entry) => entry.name);
+  assert.deepEqual(names, ["Graphics/Opening/film.png", "Graphics/Opening/opening.json"]);
+});
+
+test("the opening pack in the repository has the timeline and every file it names", () => {
+  const assets = openingAssetsRoot(path.resolve(import.meta.dirname, "..", ".."));
+  const data = JSON.parse(readFileSync(path.join(assets, "opening.json"), "utf8"));
+  const files = ["film.png", "intro_bg.png", "vignette.png", "memory_a.png", "memory_b.png", "memory_full.jpg", "title.png", "bgm.mp3"];
+  for (const story of data.story) files.push(story.file);
+  for (const shot of data.montage) files.push(shot.file);
+  for (const c of data.characters) {
+    for (const part of ["body", "ghost", "back", "plate", "mark", "shadow", "pixel"]) files.push(part + "_" + c.id + ".png");
+  }
+  for (const file of files) assert.ok(existsSync(path.join(assets, file)), "missing opening asset " + file);
+  assert.equal(data.characters.length, 8);
+  assert.equal(data.montage.length, 43);
 });

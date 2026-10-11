@@ -1,0 +1,575 @@
+{
+ "version": 1,
+ "design": [
+  1280,
+  720
+ ],
+ "fps": 30,
+ "duration": 100.68,
+ "start": 22.766666666666666,
+ "memory": {
+  "start": 32.266666666666666,
+  "end": 34.766666666666666,
+  "aWidth": 0.6201612903225806
+ },
+ "montageStart": 67.36666666666666,
+ "montageEnd": 74.66666666666667,
+ "titleFade": 93.0,
+ "musicFadeStart": 98.68,
+ "ink": [
+  11,
+  9,
+  15
+ ],
+ "characters": [
+  {
+   "id": "nanxiao",
+   "en": "NANXIAO",
+   "start": 22.766666666666666,
+   "end": 26.866666666666667,
+   "close": 24.199999666666667,
+   "card": 24.466666666666665,
+   "side": 1,
+   "face": [
+    0.5,
+    0.17
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    563,
+    156
+   ],
+   "markSize": [
+    185,
+    985
+   ],
+   "shadowSize": [
+    651,
+    1020
+   ]
+  },
+  {
+   "id": "suojia",
+   "en": "SUOJIA",
+   "start": 26.866666666666667,
+   "end": 32.266666666666666,
+   "close": 28.566666666666666,
+   "card": 28.933333666666666,
+   "side": -1,
+   "face": [
+    0.55,
+    0.13
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    439,
+    156
+   ],
+   "markSize": [
+    276,
+    988
+   ],
+   "shadowSize": [
+    646,
+    1020
+   ]
+  },
+  {
+   "id": "yijuan",
+   "en": "YIJUAN",
+   "start": 34.766666666666666,
+   "end": 38.27,
+   "close": 36.09,
+   "card": 36.45,
+   "side": 1,
+   "face": [
+    0.47,
+    0.13
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    452,
+    156
+   ],
+   "markSize": [
+    264,
+    984
+   ],
+   "shadowSize": [
+    780,
+    1020
+   ]
+  },
+  {
+   "id": "zhuyu",
+   "en": "ZHUYU",
+   "start": 38.27,
+   "end": 42.36666666666667,
+   "close": 39.73,
+   "card": 40.1,
+   "side": -1,
+   "face": [
+    0.4,
+    0.11
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    437,
+    156
+   ],
+   "markSize": [
+    226,
+    986
+   ],
+   "shadowSize": [
+    711,
+    1020
+   ]
+  },
+  {
+   "id": "xinyue",
+   "en": "XINYUE",
+   "start": 42.36666666666667,
+   "end": 46.64,
+   "close": 44.09,
+   "card": 44.45,
+   "side": 1,
+   "face": [
+    0.45,
+    0.09
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    478,
+    156
+   ],
+   "markSize": [
+    209,
+    990
+   ],
+   "shadowSize": [
+    699,
+    1020
+   ]
+  },
+  {
+   "id": "qinzou",
+   "en": "QINZOU",
+   "start": 46.64,
+   "end": 50.56666666666666,
+   "close": 47.92,
+   "card": 48.28,
+   "side": -1,
+   "face": [
+    0.45,
+    0.12
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    456,
+    156
+   ],
+   "markSize": [
+    232,
+    989
+   ],
+   "shadowSize": [
+    741,
+    1020
+   ]
+  },
+  {
+   "id": "qingmian",
+   "en": "QINGMIAN",
+   "start": 50.56666666666666,
+   "end": 58.766666666666666,
+   "close": 53.56666666666666,
+   "card": 53.93333366666666,
+   "side": -1,
+   "face": [
+    0.32,
+    0.11
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    595,
+    156
+   ],
+   "markSize": [
+    184,
+    984
+   ],
+   "shadowSize": [
+    835,
+    1020
+   ]
+  },
+  {
+   "id": "songming",
+   "en": "SONGMING",
+   "start": 58.766666666666666,
+   "end": 67.36666666666666,
+   "close": 61.766666666666666,
+   "card": 62.133333666666665,
+   "side": 1,
+   "face": [
+    0.72,
+    0.3
+   ],
+   "panY": 0.3,
+   "plateSize": [
+    604,
+    156
+   ],
+   "markSize": [
+    176,
+    986
+   ],
+   "shadowSize": [
+    767,
+    1020
+   ]
+  }
+ ],
+ "montage": [
+  {
+   "file": "shot_01.png",
+   "start": 2021,
+   "frames": 12
+  },
+  {
+   "file": "shot_02.png",
+   "start": 2033,
+   "frames": 12
+  },
+  {
+   "file": "shot_03.png",
+   "start": 2045,
+   "frames": 11
+  },
+  {
+   "file": "shot_04.png",
+   "start": 2056,
+   "frames": 11
+  },
+  {
+   "file": "shot_05.png",
+   "start": 2067,
+   "frames": 10
+  },
+  {
+   "file": "shot_06.png",
+   "start": 2077,
+   "frames": 10
+  },
+  {
+   "file": "shot_07.png",
+   "start": 2087,
+   "frames": 9
+  },
+  {
+   "file": "shot_08.png",
+   "start": 2096,
+   "frames": 9
+  },
+  {
+   "file": "shot_09.png",
+   "start": 2105,
+   "frames": 8
+  },
+  {
+   "file": "shot_10.png",
+   "start": 2113,
+   "frames": 8
+  },
+  {
+   "file": "shot_11.png",
+   "start": 2121,
+   "frames": 7
+  },
+  {
+   "file": "shot_12.png",
+   "start": 2128,
+   "frames": 7
+  },
+  {
+   "file": "shot_13.png",
+   "start": 2135,
+   "frames": 7
+  },
+  {
+   "file": "shot_14.png",
+   "start": 2142,
+   "frames": 6
+  },
+  {
+   "file": "shot_15.png",
+   "start": 2148,
+   "frames": 6
+  },
+  {
+   "file": "shot_16.png",
+   "start": 2154,
+   "frames": 6
+  },
+  {
+   "file": "shot_17.png",
+   "start": 2160,
+   "frames": 5
+  },
+  {
+   "file": "shot_18.png",
+   "start": 2165,
+   "frames": 5
+  },
+  {
+   "file": "shot_19.png",
+   "start": 2170,
+   "frames": 5
+  },
+  {
+   "file": "shot_20.png",
+   "start": 2175,
+   "frames": 5
+  },
+  {
+   "file": "shot_21.png",
+   "start": 2180,
+   "frames": 4
+  },
+  {
+   "file": "shot_22.png",
+   "start": 2184,
+   "frames": 4
+  },
+  {
+   "file": "shot_23.png",
+   "start": 2188,
+   "frames": 4
+  },
+  {
+   "file": "shot_24.png",
+   "start": 2192,
+   "frames": 4
+  },
+  {
+   "file": "shot_25.png",
+   "start": 2196,
+   "frames": 3
+  },
+  {
+   "file": "shot_26.png",
+   "start": 2199,
+   "frames": 3
+  },
+  {
+   "file": "shot_27.png",
+   "start": 2202,
+   "frames": 3
+  },
+  {
+   "file": "shot_28.png",
+   "start": 2205,
+   "frames": 3
+  },
+  {
+   "file": "shot_29.png",
+   "start": 2208,
+   "frames": 3
+  },
+  {
+   "file": "shot_30.png",
+   "start": 2211,
+   "frames": 3
+  },
+  {
+   "file": "shot_31.png",
+   "start": 2214,
+   "frames": 2
+  },
+  {
+   "file": "shot_32.png",
+   "start": 2216,
+   "frames": 2
+  },
+  {
+   "file": "shot_33.png",
+   "start": 2218,
+   "frames": 2
+  },
+  {
+   "file": "shot_34.png",
+   "start": 2220,
+   "frames": 2
+  },
+  {
+   "file": "shot_35.png",
+   "start": 2222,
+   "frames": 2
+  },
+  {
+   "file": "shot_36.png",
+   "start": 2224,
+   "frames": 2
+  },
+  {
+   "file": "shot_37.png",
+   "start": 2226,
+   "frames": 2
+  },
+  {
+   "file": "shot_38.png",
+   "start": 2228,
+   "frames": 2
+  },
+  {
+   "file": "shot_39.png",
+   "start": 2230,
+   "frames": 2
+  },
+  {
+   "file": "shot_40.png",
+   "start": 2232,
+   "frames": 2
+  },
+  {
+   "file": "shot_41.png",
+   "start": 2234,
+   "frames": 2
+  },
+  {
+   "file": "shot_42.png",
+   "start": 2236,
+   "frames": 2
+  },
+  {
+   "file": "shot_43.png",
+   "start": 2238,
+   "frames": 2
+  }
+ ],
+ "flashes": [
+  {
+   "frame": 2055,
+   "color": [
+    242,
+    9,
+    75
+   ]
+  },
+  {
+   "frame": 2095,
+   "color": [
+    228,
+    242,
+    0
+   ]
+  },
+  {
+   "frame": 2127,
+   "color": [
+    255,
+    255,
+    244
+   ]
+  },
+  {
+   "frame": 2153,
+   "color": [
+    182,
+    34,
+    22
+   ]
+  },
+  {
+   "frame": 2174,
+   "color": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "frame": 2191,
+   "color": [
+    216,
+    229,
+    0
+   ]
+  },
+  {
+   "frame": 2204,
+   "color": [
+    242,
+    9,
+    75
+   ]
+  },
+  {
+   "frame": 2213,
+   "color": [
+    228,
+    242,
+    0
+   ]
+  },
+  {
+   "frame": 2219,
+   "color": [
+    255,
+    255,
+    244
+   ]
+  },
+  {
+   "frame": 2225,
+   "color": [
+    182,
+    34,
+    22
+   ]
+  },
+  {
+   "frame": 2231,
+   "color": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "frame": 2237,
+   "color": [
+    216,
+    229,
+    0
+   ]
+  }
+ ],
+ "story": [
+  {
+   "file": "story1.png",
+   "start": 0,
+   "end": 5.65,
+   "k": 6
+  },
+  {
+   "file": "story2.png",
+   "start": 5.65,
+   "end": 11.3,
+   "k": 6
+  },
+  {
+   "file": "story3.png",
+   "start": 11.3,
+   "end": 16.15,
+   "k": 6
+  },
+  {
+   "file": "story4.png",
+   "start": 16.15,
+   "end": 21.2,
+   "k": 6
+  }
+ ]
+}

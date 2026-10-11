@@ -128,6 +128,29 @@ class AudioManagerTest {
     }
 
     @Test
+    @DisplayName("The opening's own track stops the BGM and opens once, unplayed, at the player's BGM volume")
+    void opensStandaloneMusic() throws Exception {
+        File bgm = new File(dataRoot, "audio/BGM/theme.ogg");
+        bgm.getParentFile().mkdirs();
+        Files.write(bgm.toPath(), "fake".getBytes(StandardCharsets.UTF_8));
+        AudioManifestData.Entry entry = new AudioManifestData.Entry();
+        entry.type = "BGM";
+        entry.file = "audio/BGM/theme.ogg";
+        manager.attach(withEntry("theme", entry), dataRoot);
+        manager.playBgm("theme", 100, 100);
+        manager.setVolumeFactors(0.5f, 1f, 1f);
+        calls.clear();
+
+        Music music = manager.openStandaloneMusic(new File(dataRoot, "Graphics/Opening/bgm.mp3"));
+
+        assertNotNull(music);
+        assertEquals(List.of("music:theme.ogg:stop", "music:bgm.mp3:loop=false", "music:bgm.mp3:volume=0.5"), calls);
+        assertFalse(music.isPlaying(), "the caller decides when the opening starts");
+        assertNull(manager.currentBgmId());
+        assertEquals(0.5f, manager.bgmVolumeFactor());
+    }
+
+    @Test
     @DisplayName("SE plays the manifest file with volume and pitch")
     void playsSe() {
         manager.playSe("Door enter", 80, 100);

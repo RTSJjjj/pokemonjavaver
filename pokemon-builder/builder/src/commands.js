@@ -41,7 +41,7 @@ import {
   runGradleTasks,
 } from "./gradle.js";
 import { runtimeDataSummary, validateRuntimeData } from "./runtime-data.js";
-import { copyRuntimeAssets, createDataPack } from "./data-pack.js";
+import { OPENING_PREFIX, copyOpeningAssets, copyRuntimeAssets, createDataPack, openingAssetsRoot } from "./data-pack.js";
 import { encryptTree } from "./resource-crypto.js";
 import { writeLauncherAssets } from "./launcher-assets.js";
 import { purgeAndroidAssetCaches, removeAndroidBuild } from "./android-cache.js";
@@ -673,6 +673,8 @@ function cmdBuildPc(ctx, parsed) {
     ctx.logger.step(
       "      L4 assets: Graphics/ + Fonts/ -> runtime-data (" + copied.files + " new/changed files)",
     );
+    const opening = copyOpeningAssets(ctx.builderRoot, runtimeDataRoot, ctx.logger);
+    ctx.logger.step("      opening: assets/opening -> runtime-data/" + OPENING_PREFIX + " (" + opening.files + " new/changed files)");
     // P3: nothing readable is left in the package (the runtime also plays plain files: --no-encrypt)
     if (parsed.flags["no-encrypt"] !== true) {
       const started = Date.now();
@@ -765,6 +767,7 @@ function cmdBuildAndroid(ctx, parsed, legacy) {
         { root: path.join(ctx.builderRoot, "generated"), prefix: "generated" },
         { root: path.join(validated.projectPath, "Graphics"), prefix: "Graphics" },
         { root: path.join(validated.projectPath, "Fonts"), prefix: "Fonts" },
+        { root: openingAssetsRoot(ctx.builderRoot), prefix: OPENING_PREFIX }, // the opening movie (OpeningScreen)
       ],
       packZip,
       { encrypt: parsed.flags["no-encrypt"] !== true }, // P3: stored encrypted; the app reads them through ResourceCrypto

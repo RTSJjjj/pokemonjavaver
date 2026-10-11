@@ -120,7 +120,9 @@ public final class PokemonGame extends Game {
                 // P4: the icons and menu pictures are decoded once, behind a loading bar, and kept until the game closes.
                 setScreen(new pokemon.runtime.ui.menu.PreloadScreen(context, () -> {
                     com.badlogic.gdx.Screen resumed = resumeAutosave ? loadAutosave() : null;
-                    return resumed != null ? resumed : new TitleScreen(context);
+                    // the opening movie plays at every start (skippable), then the title screen
+                    return resumed != null ? resumed
+                            : pokemon.runtime.ui.menu.OpeningScreen.orNext(context, () -> new TitleScreen(context));
                 }));
             }
         } else {

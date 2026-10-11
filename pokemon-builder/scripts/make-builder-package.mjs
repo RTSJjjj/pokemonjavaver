@@ -3,7 +3,7 @@
 //
 //   node scripts/make-builder-package.mjs [--no-zip]
 //
-// What goes in: builder/ (CLI), tools/ (compilers + ffmpeg), runtime/ (the game's Gradle project, sources only),
+// What goes in: builder/ (CLI), tools/ (compilers + ffmpeg), assets/ (the opening movie every build ships), runtime/ (the game's Gradle project, sources only),
 // scripts/*.bat, plugin-src/, docs/ (the guides), builder.bat, builder-config.json (project path emptied), package.json,
 // BuilderGUI.ps1 + 启动构建器.bat (the visual generator) and 使用说明.txt.
 // What stays out: generated/, dist/, build/, logs/, Gradle / IDE caches, tests, hs_err logs, release keystores.
@@ -66,6 +66,8 @@ counts.tools = copyTree(path.join(root, "tools"), path.join(outRoot, "tools"), (
   if (isDir) return !/[\\/]ffmpeg[\\/](doc|presets)$/.test(source);
   return /[\\/]ffmpeg[\\/]bin[\\/](ffmpeg|ffprobe)\.exe$/i.test(source) || /[\\/]ffmpeg[\\/](LICENSE|README\.txt)$/i.test(source);
 });
+// assets/opening: the opening movie (Graphics/Opening in every build, see builder/src/data-pack.js)
+counts.assets = copyTree(path.join(root, "assets"), path.join(outRoot, "assets"));
 const runtimeRoot = path.join(root, "runtime");
 counts.runtime = copyTree(runtimeRoot, path.join(outRoot, "runtime"), (source, isDir) => {
   // sources only: inside a module (runtime/core, runtime/lwjgl3 ...) keep src/, gradle/ and keystore/; the screenshot

@@ -199,6 +199,19 @@ export function copyRuntimeAssets(projectPath, runtimeDataRoot, logger) {
   return { files, bytes };
 }
 
+// The opening movie is the builder's own content (pokemon-builder/assets/opening, baked by
+// tools/opening/export_assets.py), not the project's: every build ships it as Graphics/Opening,
+// where OpeningScreen looks for it.
+export const OPENING_PREFIX = "Graphics/Opening";
+
+export function openingAssetsRoot(builderRoot) {
+  return path.join(builderRoot, "assets", "opening");
+}
+
+export function copyOpeningAssets(builderRoot, runtimeDataRoot, logger) {
+  return copyTree(openingAssetsRoot(builderRoot), path.join(runtimeDataRoot, ...OPENING_PREFIX.split("/")), logger);
+}
+
 function copyTree(source, target, logger) {
   let files = 0;
   let bytes = 0;

@@ -428,6 +428,30 @@ public final class AudioManager implements com.badlogic.gdx.utils.Disposable {
         currentBgsPitch = pitch;
     }
 
+    /**
+     * The opening's own track (Graphics/Opening/bgm.mp3, not a manifest BGM): stops the running BGM and returns a
+     * non-looping stream at the player's BGM volume. The caller plays, fades and disposes it; null when it cannot open.
+     */
+    public Music openStandaloneMusic(File file) {
+        stopBgm();
+        try {
+            Music music = backend.newMusic(file);
+            music.setLooping(false);
+            music.setVolume(bgmFactor);
+            return music;
+        } catch (RuntimeException error) {
+            if (Gdx.app != null) {
+                Gdx.app.log("audio", "cannot open " + file + ": " + error.getMessage());
+            }
+            return null;
+        }
+    }
+
+    /** The options-screen BGM factor (0..1), for streams the caller manages itself. */
+    public float bgmVolumeFactor() {
+        return bgmFactor;
+    }
+
     public void stopBgm() {
         cancelTransition();
         if (currentBgm != null) {
