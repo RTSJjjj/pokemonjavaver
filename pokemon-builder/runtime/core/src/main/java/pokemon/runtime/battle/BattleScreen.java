@@ -1693,7 +1693,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             }
             case REPLACE: {
                 // :261 pbReplace -> :313 pbInitialize(party[idxParty],idxParty,batonPass)
-                session.battle.replace(switchIdxBattler, switchIdxParty);
+                session.switchOutAndReplace(switchIdxBattler, switchIdxParty);   // :258 pbAbilitiesOnSwitchOut + :261 pbReplace
                 refreshDataBoxes();
                 switchStep = SwitchStep.SEND;
                 // :318 pbSendOut([[idxBattler,party[idxParty]]]), startBattle=false

@@ -682,7 +682,9 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceUntilBattle(s -> s.debugPage() == 3, 300);
                     shotMap("l1-battle-t2-party");
                     stepMap(GameAction.RIGHT);
-                    stepMap(GameAction.CONFIRM);    // -> pbRecallAndReplace
+                    stepMap(GameAction.CONFIRM);    // the "要对X做什么？" menu (156_Scene_Commands:195-224)
+                    shotMap("l1-battle-t2-party-menu");
+                    stepMap(GameAction.CONFIRM);    // 换上 -> pbRecallAndReplace
                     advanceUntilBattle(BattleScreen::debugSendingOut, 900);
                     shotMap("l1-battle-t2-player-sendout");
                     advanceUntilBattle(s -> !s.debugSendingOut(), 900);
@@ -696,7 +698,8 @@ public final class MenuCapture extends ApplicationAdapter {
                     // out directly (Battle_Action_Switching:205-208).
                     shotMap("l1-battle-t2-party");
                     stepMap(GameAction.RIGHT);
-                    stepMap(GameAction.CONFIRM);
+                    stepMap(GameAction.CONFIRM);    // the command menu
+                    stepMap(GameAction.CONFIRM);    // 换上
                     advanceUntilBattle(BattleScreen::debugSendingOut, 900);
                     shotMap("l1-battle-t2-foe-sendout");
                 }
@@ -780,7 +783,17 @@ public final class MenuCapture extends ApplicationAdapter {
                 advanceMap(1f / 60f, 4);
                 shotMap("l1-battle-switch-party");
                 stepMap(GameAction.DOWN);           // the second party member
-                stepMap(GameAction.CONFIRM);        // pbRecallAndReplace
+                stepMap(GameAction.CONFIRM);        // the "要对X做什么？" menu: 换上 / 概况 / 取消
+                advanceMap(1f / 60f, 4);
+                shotMap("l1-battle-switch-party-menu");
+                stepMap(GameAction.DOWN);           // 概况
+                stepMap(GameAction.CONFIRM);        // the summary
+                advanceMap(1f / 60f, 20);
+                shotMap("l1-battle-switch-summary");
+                stepMap(GameAction.CANCEL);         // back to the party chooser
+                advanceMap(1f / 60f, 20);
+                stepMap(GameAction.CONFIRM);        // the menu again
+                stepMap(GameAction.CONFIRM);        // 换上: pbRecallAndReplace
                 advanceUntilBattle(s -> s.debugMessageComplete() && !s.debugSendingOut(), 400);
                 shotMap("l1-battle-switch-recall");
                 stepMap(GameAction.CONFIRM);        // -> the lineup + the replace line

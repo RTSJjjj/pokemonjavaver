@@ -2576,14 +2576,14 @@ public final class MoveEffects_180_1FF {
         /** {@code pbBaseDamage(baseDmg,user,target)} (:1603-1609). */
         @Override
         public int pbBaseDamage(BattleMove move, int baseDmg, Battler user, Battler target) {
-            // 登记: :1604 user.num_fainted_allies —— Battler 尚无该方法（需 Battle#pbFaintedAllyCount）
-            int numFainted = 0;
+            int numFainted = user.numFaintedAllies();                         // :1604
             if (numFainted <= 0) {                                            // :1605
                 return baseDmg;
             }
             baseDmg += 50 * numFainted;                                       // :1606
-            // 登记: :1607 $game_switches[99] ? 150 : 5050 —— 全局开关子系统（本批未建模）
-            return Math.min(baseDmg, 5050);                                   // :1608
+            boolean capped = user.battle != null && user.battle.gameSwitches != null
+                    && user.battle.gameSwitches.test(99);                     // :1607 $game_switches[99]
+            return Math.min(baseDmg, capped ? 150 : 5050);                    // :1608
         }
     }
 

@@ -2810,6 +2810,19 @@ public final class Battle {
             if (!battler.removedFromParty) battler.syncHp();      // PokeBattle_Battle:576 party[idxParty] = nil: a caught Pokemon is no longer the battler's
         }
         passOnPokerus();                                           // Battle_StartAndEnd:514-527
+        // Battle_StartAndEnd:531-541: the abilities of whoever is still on the field run their switch-out effect (Natural Cure
+        // cures the status), then every party Pokemon goes back to its form (pbOnLeavingBattle with endBattle = true)
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler onField = battlerAt(idx);
+            if (onField != null && onField.pokemon != null && onField.abilityActive()) {
+                BattleHandlers.triggerAbilityOnSwitchOut(onField.ability, onField, true);
+            }
+        }
+        for (Battler battler : playerParty) {
+            if (battler != null && battler.pokemon != null) {
+                FormsOnLeavingBattle.apply(pbs, battler.pokemon, battler.pokemon.hp <= 0, true, true, environment);
+            }
+        }
         BattleMega.pbEndOfBattle(this);                            // ZA模式:207-222
         return new BattleResult(outcome, turns, caughtPokemon.isEmpty() ? null : caughtPokemon.get(0));
     }
@@ -2888,6 +2901,19 @@ public final class Battle {
     // ------------------------------------------------------------------
 
     /** The PBS tables this battle was built with (the {@code private final pbs} field, unchanged). */
+    /** {@code @fainted_count} (130_PokeBattle_Battle:181): the Pokemon each side has lost in this battle. */
+    public final int[] faintedCount = new int[2];
+
+    /** {@code pbAddFaintedAlly(idxBattler)} (130_PokeBattle_Battle:828-831). */
+    public void pbAddFaintedAlly(int idxBattler) {
+        if (faintedCount[idxBattler & 1] < 100) faintedCount[idxBattler & 1]++;
+    }
+
+    /** {@code pbFaintedAllyCount(idxBattler)} (130_PokeBattle_Battle:833-836). */
+    public int pbFaintedAllyCount(int idxBattler) {
+        return faintedCount[idxBattler & 1];
+    }
+
     public PbsData pbs() {
         return pbs;
     }

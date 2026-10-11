@@ -2030,7 +2030,8 @@ public final class Battler {
         if (abilityActive()) {                                           // :42
             BattleHandlers.triggerAbilityOnSwitchOut(ability, this, false); // :43
         }
-        // 登记: Battler_AbilityAndItem:46 @battle.peer.pbOnLeavingBattle(...) 依赖 BattlePeer/存档
+        // Battler_AbilityAndItem:46 @battle.peer.pbOnLeavingBattle(@battle,@pokemon,usedInBattle): Reset form
+        FormsOnLeavingBattle.apply(pbs, pokemon, false, true, false, battle == null ? PBEnvironment.None : battle.environment());
         switchedOutHp = hp;                                              // the plugin's battler object is reused for the next Pokemon; here this one
         switchedOutFainted = faintedFlag;                                // is the old Pokemon's own object, so what it had is put back after the switch
         hp = 0;                                                          // :48
@@ -2351,7 +2352,8 @@ public final class Battler {
             //       依赖亲密度方法表（本运行时 Pokemon.happiness 只是裸字段，无 changeHappiness）
             //       → 本批不写假行为，badLoss 只用于选择 "faintbad"/"faint" 分支名
         }
-        // 登记: Battler_ChangeSelf:87 @battle.peer.pbOnLeavingBattle(...) 依赖 BattlePeer/存档
+        // Battler_ChangeSelf:87 @battle.peer.pbOnLeavingBattle(...): the form it goes back to when it faints
+        FormsOnLeavingBattle.apply(pbs, pokemon, true, true, false, battle == null ? PBEnvironment.None : battle.environment());
         if (isMega()) {                                                   // :88
             pokemon.makeUnmega(pbs);
         }
@@ -2366,7 +2368,15 @@ public final class Battler {
                 battle == null ? 0 : battle.turns());                      // :93
         pbAbilitiesOnFainting();                                          // :95
         battle.pbEndPrimordialWeather();                                  // :97
-        // :98 @battle.pbAddFaintedAlly(self) —— 登记: Battle 未暴露
+        // 111_Battler_ChangeSelf:98 @battle.pbAddFaintedAlly(self), and the Paldea wrapper (:122) adds it once more when the
+        // Pokemon was not fainted before: the plugin counts every loss twice, and the abilities cap it with min(5, ...)
+        battle.pbAddFaintedAlly(index);
+        battle.pbAddFaintedAlly(index);
+    }
+
+    /** {@code num_fainted_allies} (109_PokeBattle_Battler:514-516). */
+    public int numFaintedAllies() {
+        return battle == null ? 0 : battle.pbFaintedAllyCount(index);
     }
 
     /** {@code pbAbilitiesOnFainting} (Battler_AbilityAndItem:54-64)。 */
@@ -3478,6 +3488,64 @@ public final class Battler {
         }
         effects.set(PBEffects.Battler.LashOut, true);                          // :285
         return true;                                                           // :286
+    }
+
+    /**
+     * {@code pbLowerAttackStatStageIntimidate(user)} (Battler_StatStages:309-373): Intimidate's own attack drop, with the
+     * messages that name the ability when something stops it (Substitute, Mist, Inner Focus ..., an ally's ability).
+     * The switch-in handler of Intimidate used to skip this call, so Intimidate never lowered anything.
+     */
+    public boolean pbLowerAttackStatStageIntimidate(Battler user) {
+        if (fainted()) {                                                            // :310
+            return false;
+        }
+        if (!hasActiveAbility("CONTRARY") && effects.intVal(PBEffects.Battler.Substitute) == 0) {   // :311
+            if (itemActive() && Boolean.TRUE.equals(BattleHandlers.triggerStatLossImmunityItem(
+                    item, this, PBStats.ATTACK, battle, true))) {                   // :312-314
+                return false;
+            }
+        }
+        if (effects.intVal(PBEffects.Battler.Substitute) > 0) {                     // :317 Substitute blocks it even with Contrary
+            display(pbThis() + "受到了替身的保护！");                                // :319 (USE_ABILITY_SPLASH)
+            return false;                                                           // :324
+        }
+        if (!hasActiveAbility("CONTRARY")) {                                        // :329
+            if (pbOwnSide().effects.intVal(PBEffects.Side.Mist) > 0) {              // :330
+                display("白雾保护" + pbThis() + "不受" + user.pbThis(true) + "的" + user.abilityName() + "影响！");   // :331
+                return false;
+            }
+            if (abilityActive()) {                                                  // :335
+                if (BattleHandlers.triggerStatLossImmunityAbility(ability, this, PBStats.ATTACK, battle, false)
+                        || BattleHandlers.triggerStatLossImmunityAbilityNonIgnorable(ability, this, PBStats.ATTACK, battle, false)
+                        || hasActiveAbility("INNERFOCUS") || hasActiveAbility("OWNTEMPO") || hasActiveAbility("OBLIVIOUS")
+                        || hasActiveAbility("SCRAPPY") || hasActiveAbility("DEMONKILLER") || hasActiveAbility("FEARLESS")) {   // :336-338
+                    PendingApi.pbShowAbilitySplash(battle, this);                   // :339
+                    display(pbThis() + "的" + abilityName() + "阻止了\n" + user.pbThis(true) + "的" + user.abilityName() + "生效！");   // :340
+                    PendingApi.pbHideAbilitySplash(battle, this);                   // :342
+                    return false;
+                }
+            }
+            for (Battler b : fieldBattlers()) {                                     // :346 eachAlly
+                if (b == this || b.opposes(index)) continue;
+                if (!b.abilityActive()) continue;                                   // :347
+                if (BattleHandlers.triggerStatLossImmunityAllyAbility(b.ability, b, this, PBStats.ATTACK, battle, false)) {   // :348
+                    PendingApi.pbShowAbilitySplash(battle, b);                      // :349
+                    display(b.pbThis(true) + "的" + b.abilityName() + "保护" + pbThis() + "免受" + user.pbThis(true) + "的" + user.abilityName() + "！");   // :350
+                    PendingApi.pbHideAbilitySplash(battle, b);                      // :352
+                    return false;
+                }
+            }
+        }
+        if (!pbCanLowerStatStage(PBStats.ATTACK, user)) {                           // :357
+            return false;
+        }
+        if (pbLowerStatStageByAbility(PBStats.ATTACK, 1, user, false, false)) {     // :359 (USE_ABILITY_SPLASH)
+            if (hasActiveAbility("RATTLED")) {                                      // :360
+                pbRaiseStatStageByAbility(PBStats.SPEED, 1, this, true);
+            }
+            return true;
+        }
+        return false;
     }
 
     /** {@code pbLowerStatStageByAbility} (Battler_StatStages:289-306)。 */

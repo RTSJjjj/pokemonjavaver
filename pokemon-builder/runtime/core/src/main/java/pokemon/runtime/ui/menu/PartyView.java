@@ -219,8 +219,31 @@ public final class PartyView {
             beginChoose(false, -1, 0, this::battleChosen);
             return;
         }
-        chosenIndex = result < 0 ? result : realIndex(result);
-        finished = true;
+        if (result < 0) {
+            chosenIndex = result;
+            finished = true;
+            return;
+        }
+        // 156_Scene_Commands:195-224 pbPartyScreen: a chosen Pokemon opens "要对{1}做什么？" with 换上 (only an able one) /
+        // 概况 / 取消; only 换上 hands the slot back to the battle, 概况 opens the summary and the chooser goes on.
+        final int shown = result;
+        final Pokemon pkmn = party.get(shown);
+        final List<String> commands = new ArrayList<>();
+        final List<Integer> colorKeys = new ArrayList<>();
+        final int cmdSwitch = pkmn != null && !pkmn.egg && !pkmn.fainted() ? add(commands, colorKeys, "换上", 0) : -1;
+        final int cmdSummary = add(commands, colorKeys, "概况", 0);
+        add(commands, colorKeys, "取消", 0);
+        showCommands(intl("要对{1}做什么？", pkmn == null ? "" : pkmn.name), commands, colorKeys, 0, command -> {
+            if (cmdSwitch >= 0 && command == cmdSwitch) {
+                chosenIndex = realIndex(shown);
+                finished = true;
+            } else if (command == cmdSummary) {
+                pbSummary(shown, () -> pbSetHelpText("选择宝可梦或取消。"),
+                        () -> beginChoose(false, -1, 0, this::battleChosen));
+            } else {
+                beginChoose(false, -1, 0, this::battleChosen);       // 取消 / B: back to the chooser
+            }
+        });
     }
 
     // =====================================================================
