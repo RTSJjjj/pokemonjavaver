@@ -1,5 +1,6 @@
 package pokemon.runtime.ui.menu;
 
+import pokemon.runtime.battle.PBNatures;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -631,8 +632,8 @@ public final class SummaryView {
     private void drawPageTwo(SpriteBatch b, MenuFont f, Pokemon p, float h) {
         float line = f.lineHeight();
         float y = 64f;
-        if (p.nature != null && p.nature.name != null) {
-            f.draw(b, p.nature.name + "性格。", 22f, h - y, MEMO_BLUE, MEMO_BLUE_SHADOW);
+        if (p.nature != null && PBNatures.getName(p.nature.id) != null) {
+            f.draw(b, PBNatures.getName(p.nature.id) + "性格。", 22f, h - y, MEMO_BLUE, MEMO_BLUE_SHADOW);
             y += line;
         }
         String mapname = p.obtainText != null && !p.obtainText.isEmpty() ? p.obtainText : "遥远的地方";
@@ -662,15 +663,18 @@ public final class SummaryView {
     private void drawPageThree(SpriteBatch b, MenuAssets a, MenuFont f, Pokemon p, float h) {
         Color[] statShadows = new Color[] {WHITE_SHADOW, WHITE_SHADOW, WHITE_SHADOW,
                 WHITE_SHADOW, WHITE_SHADOW, WHITE_SHADOW};
+        int[] baseOrder = new int[] {0, 1, 2, 4, 5, 3};   // the rows are HP, Atk, Def, SpAtk, SpDef, Speed; the stats are HP, Atk, Def, Speed, SpAtk, SpDef
         if (p.nature != null && !p.nature.neutral()) {
             int up = PokemonStats.statIndexOf(p.nature.statUp);
             int down = PokemonStats.statIndexOf(p.nature.statDown);
             if (up != down) {
-                if (up >= 0 && up < 6) statShadows[up] = NAT_UP;
-                if (down >= 0 && down < 6) statShadows[down] = NAT_DOWN;
+                // 303_BW_PScreen_Summary:825-828: statshadows[natup] / [natdn] are indexed by stat; the rows are not in stat order
+                for (int row = 0; row < 6; row++) {
+                    if (baseOrder[row] == up) statShadows[row] = NAT_UP;
+                    if (baseOrder[row] == down) statShadows[row] = NAT_DOWN;
+                }
             }
         }
-        int[] baseOrder = new int[] {0, 1, 2, 4, 5, 3};
         String[] names = {"HP", "攻击", "防御", "特攻", "特防", "速度"};
         int[] statValue = new int[] {p.hp, p.attack(), p.defense(), p.spAtk(), p.spDef(), p.speed()};
         int[] yRow = {100, 130, 162, 194, 226, 258};

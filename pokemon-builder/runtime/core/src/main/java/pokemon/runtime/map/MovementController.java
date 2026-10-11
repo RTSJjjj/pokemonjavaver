@@ -50,7 +50,9 @@ public final class MovementController {
         } else {
             character.running(input.isDown(GameAction.RUN) && runAllowed);
         }
-        if (vehicleSpeedLevel > 0 && !character.isMoving()) {
+        if (vehicleSpeedLevel > 0) {
+            // running(...) above resets the speed to walking every frame, so the vehicle's speed has to be put back every
+            // frame too - only doing it while standing still left the bicycle at walking speed once it was moving.
             character.moveSpeed(vehicleSpeedLevel);
         }
         // 025_Game_Player:350-375 update_command_new: a direction that was just pressed only turns the player; the step

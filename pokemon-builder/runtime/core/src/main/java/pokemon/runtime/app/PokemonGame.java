@@ -324,6 +324,13 @@ public final class PokemonGame extends Game {
     }
 
     @Override
+    public void resume() {
+        super.resume();
+        // The OpenGL context may have been recreated while the app was away: FreeType font pages must be generated again.
+        pokemon.runtime.ui.FontGuard.invalidate();
+    }
+
+    @Override
     public void pause() {
         super.pause();
         if (getScreen() instanceof MapScreen) {

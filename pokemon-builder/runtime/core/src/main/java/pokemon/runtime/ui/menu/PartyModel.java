@@ -1,5 +1,6 @@
 package pokemon.runtime.ui.menu;
 
+import pokemon.runtime.battle.PBNatures;
 import pokemon.runtime.pokemon.*;
 import pokemon.runtime.state.Inventory;
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ public final class PartyModel {
         if (page == 0) {
             lines.add("HP " + p.hp + " / " + p.maxHp() + "  " + (p.fainted() ? "濒死" : blank(p.status, "正常")));
             lines.add("性别：" + (p.effectiveGender() == PokemonStats.MALE ? "雄性" : p.effectiveGender() == PokemonStats.FEMALE ? "雌性" : "无性别"));
-            lines.add("性格：" + (p.nature == null ? "—" : p.nature.name));
+            lines.add("性格：" + (p.nature == null ? "—" : PBNatures.getName(p.nature.id)));
             PbsData.Ability ability = data == null ? null : data.ability(p.ability);
             lines.add("特性：" + (ability == null ? blank(p.ability, "—") : ability.name));
             lines.add("携带：" + itemName(p.item));

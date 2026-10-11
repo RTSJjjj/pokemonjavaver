@@ -160,6 +160,32 @@ class MovementControllerTest {
     }
 
     @Test
+    @DisplayName("the bicycle keeps its speed while the player is moving (running() resets the speed every frame)")
+    void bicycleSpeedHoldsWhileMoving() {
+        MapData data = mapData(0);
+        TilesetData open = tileset(new int[] { 0, 0, 0, 0, 0, 0, 0, 0 });
+        TileMap map = new TileMap(data, open);
+        MapCharacter character = new MapCharacter(2, 1, 5, 3, "boy_walk");
+        InputManager input = new InputManager();
+        StubKeys keys = new StubKeys();
+        InputSampler sampler = new InputSampler(new DefaultKeyBindings());
+        MovementController controller = new MovementController();
+        controller.vehicleSpeedLevel = 5;                    // 026_Game_Player_Visuals:59-62
+        controller.runAllowed = false;
+
+        keys.down.add(com.badlogic.gdx.Input.Keys.LEFT);
+        for (int frame = 0; frame < 6; frame++) {
+            input.beginFrame();
+            sampler.sample(keys, input);
+            controller.update(input, 0.04f, character, mover(map, data, character));
+            input.endFrame();
+        }
+        assertTrue(character.isMoving() || character.x() != 2 || character.y() != 1, "the player is walking");
+        assertEquals(MapCharacter.SPEEDS[5], character.speed(), 0.001f, "bicycle speed while moving");
+        assertEquals(5, character.moveSpeedLevel);
+    }
+
+    @Test
     @DisplayName("holding a direction moves continuously and release completes the current step")
     void holdingRepeatsAndTurns() {
         MapData data = mapData(0);

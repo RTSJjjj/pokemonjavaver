@@ -91,6 +91,7 @@ public final class MessageWindow implements Disposable {
                 parameter.incremental = true; // CJK glyphs are added on demand
                 parameter.minFilter = Texture.TextureFilter.Nearest;
                 parameter.magFilter = Texture.TextureFilter.Nearest;
+                sharedParameter = parameter;
                 sharedFont = generator.generateFont(parameter);
             } catch (RuntimeException error) {
                 generator.dispose();
@@ -98,10 +99,51 @@ public final class MessageWindow implements Disposable {
             }
             sharedGenerator = generator;
             sharedFontPath = path;
+            sharedGeneration = FontGuard.generation();
             glyphsWarmed = false;
+            if (FontGuard.looksBlank(sharedFont)) {                  // the pages came out empty: generate once more
+                rebuildShared("blank glyph pages right after generation");
+            }
         }
         font = sharedFont;
         ready = true;
+    }
+
+    private static FreeTypeFontParameter sharedParameter;
+    private static int sharedGeneration;
+
+    /**
+     * Android: the OpenGL context was recreated while the app was in the background and the incremental font's page
+     * textures may be white boxes. {@link FontGuard#invalidate()} marks the shared font stale; the first draw afterwards
+     * generates its pages again from the generator (which is still valid) and every window picks the new font up.
+     */
+    private BitmapFont fontNow() {
+        if (sharedFont != null && sharedGeneration != FontGuard.generation()) {
+            rebuildShared("application resumed");
+        }
+        if (font != null && sharedFont != null && font != sharedFont) {
+            font = sharedFont;
+        }
+        return font;
+    }
+
+    private static void rebuildShared(String reason) {
+        if (sharedGenerator == null || sharedParameter == null) {
+            return;
+        }
+        try {
+            BitmapFont old = sharedFont;
+            sharedFont = sharedGenerator.generateFont(sharedParameter);
+            sharedGeneration = FontGuard.generation();
+            glyphsWarmed = false;
+            if (old != null) {
+                old.dispose();
+            }
+            pokemon.runtime.app.CrashLog.note("message font regenerated: " + reason);
+        } catch (RuntimeException error) {
+            sharedGeneration = FontGuard.generation();               // do not retry every frame
+            pokemon.runtime.app.CrashLog.note("message font regeneration failed: " + error);
+        }
     }
 
     public boolean ready() {
@@ -152,12 +194,12 @@ public final class MessageWindow implements Disposable {
         for (int code : codes) {
             all.appendCodePoint(code);
             if (all.length() >= 64) {                       // short layouts keep each glyph-page update small
-                layout.setText(font, all);
+                layout.setText(fontNow(), all);
                 all.setLength(0);
             }
         }
         if (all.length() > 0) {
-            layout.setText(font, all);
+            layout.setText(fontNow(), all);
         }
     }
 
@@ -202,13 +244,13 @@ public final class MessageWindow implements Disposable {
         if (!ready) {
             return;
         }
-        font.setColor(shadow);
-        font.draw(batch, text, x + 2f, y);
-        font.draw(batch, text, x, y - 2f);
-        font.draw(batch, text, x + 2f, y - 2f);
-        font.setColor(main);
-        font.draw(batch, text, x, y);
-        font.setColor(1f, 1f, 1f, 1f);
+        fontNow().setColor(shadow);
+        fontNow().draw(batch, text, x + 2f, y);
+        fontNow().draw(batch, text, x, y - 2f);
+        fontNow().draw(batch, text, x + 2f, y - 2f);
+        fontNow().setColor(main);
+        fontNow().draw(batch, text, x, y);
+        fontNow().setColor(1f, 1f, 1f, 1f);
     }
 
     /** {@code pbDrawTextPositions} with alignment 2 (centred on {@code centerX}) and the one-shadow style 0 of Headtop_Name. */
@@ -217,15 +259,15 @@ public final class MessageWindow implements Disposable {
         if (!ready) {
             return;
         }
-        layout.setText(font, text);
+        layout.setText(fontNow(), text);
         float x = centerX - layout.width / 2f;
-        font.setColor(shadow.r, shadow.g, shadow.b, alpha);
-        font.draw(batch, text, x + 2f, y);
-        font.draw(batch, text, x, y - 2f);
-        font.draw(batch, text, x + 2f, y - 2f);
-        font.setColor(main.r, main.g, main.b, alpha);
-        font.draw(batch, text, x, y);
-        font.setColor(1f, 1f, 1f, 1f);
+        fontNow().setColor(shadow.r, shadow.g, shadow.b, alpha);
+        fontNow().draw(batch, text, x + 2f, y);
+        fontNow().draw(batch, text, x, y - 2f);
+        fontNow().draw(batch, text, x + 2f, y - 2f);
+        fontNow().setColor(main.r, main.g, main.b, alpha);
+        fontNow().draw(batch, text, x, y);
+        fontNow().setColor(1f, 1f, 1f, 1f);
     }
 
     /**
@@ -238,14 +280,14 @@ public final class MessageWindow implements Disposable {
         }
         float left = x;
         if (right) {                                  // only right-aligned text needs its width
-            layout.setText(font, text);
+            layout.setText(fontNow(), text);
             left = x - layout.width;
         }
-        font.setColor(64 / 255f, 64 / 255f, 64 / 255f, 1f);
-        font.draw(batch, text, left + 1f, y - 1f);
-        font.setColor(248 / 255f, 248 / 255f, 248 / 255f, 1f);
-        font.draw(batch, text, left, y);
-        font.setColor(1f, 1f, 1f, 1f);
+        fontNow().setColor(64 / 255f, 64 / 255f, 64 / 255f, 1f);
+        fontNow().draw(batch, text, left + 1f, y - 1f);
+        fontNow().setColor(248 / 255f, 248 / 255f, 248 / 255f, 1f);
+        fontNow().draw(batch, text, left, y);
+        fontNow().setColor(1f, 1f, 1f, 1f);
     }
 
     /**
@@ -436,14 +478,14 @@ public final class MessageWindow implements Disposable {
     }
 
     private void drawRun(SpriteBatch batch, Run run, float x, float y) {
-        font.setColor((run.shadow >>> 16 & 0xff) / 255f, (run.shadow >>> 8 & 0xff) / 255f,
+        fontNow().setColor((run.shadow >>> 16 & 0xff) / 255f, (run.shadow >>> 8 & 0xff) / 255f,
                 (run.shadow & 0xff) / 255f, 1f);
-        font.draw(batch, run.text, x + 2f, y);
-        font.draw(batch, run.text, x, y - 2f);
-        font.draw(batch, run.text, x + 2f, y - 2f);
-        font.setColor((run.base >>> 16 & 0xff) / 255f, (run.base >>> 8 & 0xff) / 255f,
+        fontNow().draw(batch, run.text, x + 2f, y);
+        fontNow().draw(batch, run.text, x, y - 2f);
+        fontNow().draw(batch, run.text, x + 2f, y - 2f);
+        fontNow().setColor((run.base >>> 16 & 0xff) / 255f, (run.base >>> 8 & 0xff) / 255f,
                 (run.base & 0xff) / 255f, 1f);
-        font.draw(batch, run.text, x, y);
+        fontNow().draw(batch, run.text, x, y);
     }
 
     /** One styled piece of a line. */
@@ -487,7 +529,7 @@ public final class MessageWindow implements Disposable {
             Texture icon = iconTexture(run.icon);
             return icon == null ? 0f : icon.getWidth();
         }
-        layout.setText(font, run.text);
+        layout.setText(fontNow(), run.text);
         return layout.width;
     }
 
@@ -610,9 +652,9 @@ public final class MessageWindow implements Disposable {
         }
         String label = "零花钱：";
         String moneyText = "$" + String.format(java.util.Locale.ROOT, "%,d", money.getAsInt());
-        layout.setText(font, label);
+        layout.setText(fontNow(), label);
         float labelWidth = layout.width;
-        layout.setText(font, moneyText);
+        layout.setText(fontNow(), moneyText);
         float width = Math.max(160f, Math.max(labelWidth, layout.width) + skin.geometry.borderX + 4f);
         float height = 2 * LINE_HEIGHT + skin.geometry.borderY;
         float y = messageAtTop ? originY : originY + viewHeight - height;
@@ -620,7 +662,7 @@ public final class MessageWindow implements Disposable {
         MessagePalette palette = new MessagePalette(skin.dark);
         float top = y + height - skin.geometry.trimStartY;
         drawRun(batch, new Run(label, palette.base, palette.shadow), originX + skin.geometry.trimStartX, top);
-        layout.setText(font, moneyText);
+        layout.setText(fontNow(), moneyText);
         drawRun(batch, new Run(moneyText, palette.base, palette.shadow),
                 originX + width - skin.geometry.trimStartX - layout.width, top - LINE_HEIGHT);
     }
@@ -631,7 +673,7 @@ public final class MessageWindow implements Disposable {
         if (skin == null) {
             return;
         }
-        layout.setText(font, speaker);
+        layout.setText(fontNow(), speaker);
         float width = Math.max(180f, layout.width + skin.geometry.borderX + 4f);
         float height = LINE_HEIGHT + skin.geometry.borderY;
         skin.draw(batch, x, messageTop, width, height);
@@ -650,7 +692,7 @@ public final class MessageWindow implements Disposable {
         MessagePalette palette = new MessagePalette(skin.dark);
         float maxText = 0f;
         for (String choice : messages.choices()) {
-            layout.setText(font, choice);
+            layout.setText(fontNow(), choice);
             maxText = Math.max(maxText, layout.width);
         }
         float width = maxText + skin.geometry.borderX + 36f;
@@ -684,7 +726,7 @@ public final class MessageWindow implements Disposable {
             float textX = x + skin.geometry.trimStartX + 16f;
             for (Run run : runs) {
                 drawRun(batch, run, textX, rowTop);
-                layout.setText(font, run.text);
+                layout.setText(fontNow(), run.text);
                 textX += layout.width;
             }
         }
@@ -719,7 +761,7 @@ public final class MessageWindow implements Disposable {
         boolean blinkOn = (System.nanoTime() / 375_000_000L) % 2L == 0L;      // 15 of 30 frames at 40 fps
         for (int i = 0; i < digits; i++) {
             String digit = text.substring(i, i + 1);
-            layout.setText(font, digit);
+            layout.setText(fontNow(), digit);
             float cellX = left + i * 24f + (12f - layout.width / 2f);
             drawRun(batch, new Run(digit, palette.base, palette.shadow), cellX, rowTop);
             if (i == messages.numberIndex() && blinkOn) {

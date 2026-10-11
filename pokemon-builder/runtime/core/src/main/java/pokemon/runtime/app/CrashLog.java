@@ -18,6 +18,7 @@ import java.util.Date;
 public final class CrashLog {
 
     private static boolean installed;
+    private static File logDir;
 
     private CrashLog() { }
 
@@ -28,6 +29,7 @@ public final class CrashLog {
         }
         installed = true;
         final File dir = new File(storage.userDirectory());
+        logDir = dir;
         write(new File(dir, "startup.log"), false, describe());
         final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
@@ -38,6 +40,13 @@ public final class CrashLog {
                 previous.uncaughtException(thread, error);
             }
         });
+    }
+
+    /** One line into startup.log (what the field diagnostics need to see: a font that had to be regenerated ...). */
+    public static void note(String what) {
+        if (logDir != null) {
+            write(new File(logDir, "startup.log"), true, new Date() + " " + what + "\n");
+        }
     }
 
     /** Writes a caught failure the game survives (a save that could not be written, a screen that fell back). */

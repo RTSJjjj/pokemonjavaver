@@ -2299,12 +2299,20 @@ public final class Battle {
         if (pkmn.pokerusStage() >= 1) {                                           // :79 Infected or cured
             for (int i = 0; i < evYield.length; i++) evYield[i] *= 2;
         }
+        int oldMaxHp = receiver.maxHp();
         for (int s = 0; s < 6; s++) {                                             // :83-96
             int evGain = evYield[s];
             if (evTotal + evGain > EV_LIMIT) evGain = EV_LIMIT - evTotal;
             if (pkmn.evs[s] + evGain > EV_STAT_LIMIT) evGain = EV_STAT_LIMIT - pkmn.evs[s];
             pkmn.evs[s] += evGain;
             evTotal += evGain;
+        }
+        // 197_PokeBattle_Pokemon:881-885 calcStats keeps the missing HP (hpDiff = @totalhp-@hp): a larger maximum raises the
+        // current HP by the same amount instead of leaving the Pokemon "99/100" after the HP effort points came in.
+        int newMaxHp = receiver.maxHp();
+        if (newMaxHp > oldMaxHp && receiver.hp > 0) {
+            receiver.hp = Math.min(newMaxHp, receiver.hp + (newMaxHp - oldMaxHp));
+            receiver.syncHp();
         }
     }
 

@@ -26,6 +26,9 @@ public final class MenuFont implements Disposable {
     private final GlyphLayout layout = new GlyphLayout();
     private FreeTypeFontGenerator generator;
     private BitmapFont font;
+    /** What the font was generated with, to generate it again after the OpenGL context was lost. */
+    private FreeTypeFontGenerator.FreeTypeFontParameter parameter;
+    private int builtGeneration;
 
     public MenuFont(File fontFile) {
         this(fontFile, DEFAULT_SIZE);
@@ -38,8 +41,7 @@ public final class MenuFont implements Disposable {
         }
         generator = new FreeTypeFontGenerator(pokemon.runtime.data.ResourceCrypto.handle(fontFile));
         try {
-            FreeTypeFontGenerator.FreeTypeFontParameter parameter =
-                    new FreeTypeFontGenerator.FreeTypeFontParameter();
+            parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
             parameter.size = size;
             parameter.incremental = true; // CJK glyphs are added on demand
             // RGSS draws text anti-aliased and unhinted: a stroke of the 12px-grid
@@ -53,10 +55,39 @@ public final class MenuFont implements Disposable {
             parameter.minFilter = Texture.TextureFilter.Nearest;
             parameter.magFilter = Texture.TextureFilter.Nearest;
             font = generator.generateFont(parameter);
+            builtGeneration = pokemon.runtime.ui.FontGuard.generation();
+            if (pokemon.runtime.ui.FontGuard.looksBlank(font)) {          // the pages came out empty: generate once more
+                regenerate("blank glyph pages right after generation");
+            }
         } catch (RuntimeException error) {
             generator.dispose();
             generator = null;
             throw error;
+        }
+    }
+
+    /**
+     * Android: after the app was in the background the OpenGL context may be new and the incremental font's page textures
+     * white boxes. {@link pokemon.runtime.ui.FontGuard#invalidate()} marks the fonts built before it stale; the next use
+     * generates the pages again from the (still valid) generator.
+     */
+    private void ensureFresh() {
+        if (generator != null && font != null && builtGeneration != pokemon.runtime.ui.FontGuard.generation()) {
+            regenerate("application resumed");
+        }
+    }
+
+    private void regenerate(String reason) {
+        try {
+            BitmapFont old = font;
+            font = generator.generateFont(parameter);
+            builtGeneration = pokemon.runtime.ui.FontGuard.generation();
+            if (old != null) {
+                old.dispose();
+            }
+            pokemon.runtime.app.CrashLog.note("menu font regenerated: " + reason);
+        } catch (RuntimeException error) {
+            pokemon.runtime.app.CrashLog.note("menu font regeneration failed: " + error);
         }
     }
 
@@ -65,6 +96,7 @@ public final class MenuFont implements Disposable {
     }
 
     public BitmapFont font() {
+        ensureFresh();
         return font;
     }
 
@@ -79,6 +111,7 @@ public final class MenuFont implements Disposable {
      * font file lacks, so callers draw a box instead of risking the missing glyph.
      */
     public boolean hasGlyph(int codePoint) {
+        ensureFresh();
         if (font == null || codePoint > 0xFFFF) {
             return false;
         }
@@ -95,6 +128,7 @@ public final class MenuFont implements Disposable {
 
     /** Width of {@code text} in pixels (0 when the font is missing). */
     public float width(String text) {
+        ensureFresh();
         if (font == null || text == null || text.isEmpty()) {
             return 0f;
         }
@@ -109,6 +143,7 @@ public final class MenuFont implements Disposable {
 
     /** Draws text with explicit main / shadow colors (L14 footer & message). */
     public void draw(SpriteBatch batch, String text, float x, float y, Color main, Color shadow) {
+        ensureFresh();
         if (font == null || text == null || text.isEmpty()) {
             return;
         }
@@ -140,6 +175,7 @@ public final class MenuFont implements Disposable {
     }
 
     public void drawCentered(SpriteBatch batch, String text, float centerX, float y, Color main, Color shadow) {
+        ensureFresh();
         if (font == null || text == null || text.isEmpty()) {
             return;
         }
@@ -151,6 +187,7 @@ public final class MenuFont implements Disposable {
      * text horizontally to fit. Draws centred on {@code centerX}, at most {@code maxWidth} wide.
      */
     public void drawCenteredFitted(SpriteBatch batch, String text, float centerX, float y, float maxWidth, Color main, Color shadow) {
+        ensureFresh();
         if (font == null || text == null || text.isEmpty()) {
             return;
         }
@@ -168,6 +205,7 @@ public final class MenuFont implements Disposable {
 
     /** Draws text right-aligned to {@code rightX}. */
     public void drawRight(SpriteBatch batch, String text, float rightX, float y, Color main, Color shadow) {
+        ensureFresh();
         if (font == null || text == null || text.isEmpty()) {
             return;
         }

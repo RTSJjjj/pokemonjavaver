@@ -1,5 +1,6 @@
 package pokemon.runtime.event;
 
+import pokemon.runtime.battle.PBNatures;
 import pokemon.runtime.field.ItemHandlers;
 import pokemon.runtime.pokemon.PBEvolution;
 import pokemon.runtime.pokemon.PbsData;
@@ -293,9 +294,9 @@ final class GoldFinger {
             int up = PokemonStats.statIndexOf(nature.statUp);                            // :171 getStatRaised
             int down = PokemonStats.statIndexOf(nature.statDown);                        // :172 getStatLowered
             if (up != down) {                                                            // :173
-                natureList.add(nature.name + " (+" + statName(up) + ", -" + statName(down) + ")");   // :174-175
+                natureList.add(PBNatures.getName(nature.id) + " (+" + statName(up) + ", -" + statName(down) + ")");   // :174-175
             } else {
-                natureList.add(nature.name + " (---)");                                  // :177
+                natureList.add(PBNatures.getName(nature.id) + " (---)");                 // :177
             }
         }
         int newNature = scene.pbMessage("\\l[1]请选择要修改的性格。", natureList, -1);        // :182
