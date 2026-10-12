@@ -313,6 +313,7 @@ public final class MoveUsage {
         if (target.fainted()) target.damageState.fainted = true;                         // :428
         target.lastHPLost = damage;                                                      // :429 For Focus Punch
         if (damage > 0) target.tookDamage = true;                                        // :430 For Assurance
+        if (damage > 0 && user != target && target.battle != null) target.battle.pbAddRageHit(target, 1);   // Rage Fist's count: only a hit by someone's attack (not confusion); the plugin reads it (1EA) but never tallies
         target.lastAttacker.add(user);                                                   // :431 For Revenge (this runtime keeps the Battler, not its index)
         if (target.opposes(user)) {                                                      // :432
             target.lastHPLostFromFoe = damage;                                           // :433 For Metal Burst

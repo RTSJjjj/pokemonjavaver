@@ -596,7 +596,7 @@ final class AbilitiesSpeedEor {
             if (battler.isSpecies("MORPEKO")) {                              // :2310
                 battle.showAbilitySplash(battler);                           // :2311
                 battler.setFormShowing(battler.form() == 0 ? 1 : 0);          // :2312 + :2314 pbChangePokemon (queued with the splash in order)
-                // 登记: :2313 battler.pbUpdate(true) —— 刷新调用，无对应实现
+                battler.pbUpdate(true);                                      // :2313
                 battle.display(battler.pbThis() + "变身了！");                // :2315
                 battle.hideAbilitySplash(battler);                           // :2316
             }

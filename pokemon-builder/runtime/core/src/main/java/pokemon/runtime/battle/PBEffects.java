@@ -254,6 +254,9 @@ public final class PBEffects {
 
         /** Project addition: 纱幕 (VEIL, function 221) protect effect; no Ruby source (306 is free in the plugin). */
         public static final int VeilGuard = 306;
+
+        /** 捕鼠笼 (function 1F7, Move_Effects_180-1FF:2655/2680/2686/2694): the trap is set. The plugin never declares the constant. */
+        public static final int MouseTrap = 307;
     }
 
     /**

@@ -725,6 +725,17 @@ public final class InteractiveBattlePort implements BattlePort {
                         null, null, false));
             }
 
+            @Override public void pbPartyScreenRevive(int idxBattler, boolean canCancel,
+                    java.util.function.IntFunction<String> block) {
+                if (!onEngine()) {
+                    headless.pbPartyScreen(idxBattler, canCancel, block);
+                    return;
+                }
+                // startBattle carries the revive mode of a PARTY_SCREEN call
+                engine.call(new Battle.SceneCall(Battle.SceneCall.Kind.PARTY_SCREEN, idxBattler, canCancel, block,
+                        null, null, true));
+            }
+
             @Override public boolean pbDisplayConfirmMessage(String msg) {
                 if (!onEngine()) {
                     return headless.pbDisplayConfirmMessage(msg);

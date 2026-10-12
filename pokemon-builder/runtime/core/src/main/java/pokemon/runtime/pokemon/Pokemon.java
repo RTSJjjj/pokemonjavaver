@@ -23,6 +23,13 @@ public final class Pokemon {
     public int[] evs = new int[] {0, 0, 0, 0, 0, 0};
     public PbsData.Nature nature;
     public String ability;
+    /**
+     * {@code @abilityflag} (197_PokeBattle_Pokemon:220): the slot (0/1 natural, 2 hidden) the ability was taken from. The
+     * plugin keeps it across form changes, so a Mega Evolution that ends gives back the slot it came from; here the slot is
+     * remembered together with the ability it produced and is only trusted while {@link #ability} still is that ability.
+     */
+    private int slotMemory = -1;
+    private String slotMemoryAbility;
     public final Array<MoveSlot> moves = new Array<>();
     public int hp;
     public int statusCount;                      // @statusCount (PokeBattle_Pokemon): sleep turns or the toxic counter
@@ -745,6 +752,8 @@ public final class Pokemon {
         c.evs = evs.clone();
         c.nature = nature;
         c.ability = ability;
+        c.slotMemory = slotMemory;
+        c.slotMemoryAbility = slotMemoryAbility;
         c.moves.clear();
         for (MoveSlot slot : moves) {
             MoveSlot m = new MoveSlot(slot.move);
@@ -810,6 +819,7 @@ public final class Pokemon {
         }
         if (slot >= 0) {
             ability = abilityForSlot(slot);
+            rememberSlot(slot);
         }
         level = Math.max(1, PokemonStats.levelForExperience(growthRate(), exp));
         hp = Math.max(0, Math.min(maxHp(), maxHp() - (oldMax - hp)));
@@ -824,12 +834,21 @@ public final class Pokemon {
     /** {@code setAbility(value)} (197:255-257): 0/1 natural, 2 hidden. */
     public void setAbilitySlot(int slot) {
         ability = abilityForSlot(slot);
+        rememberSlot(slot);
+    }
+
+    private void rememberSlot(int slot) {
+        slotMemory = slot;
+        slotMemoryAbility = ability;
     }
 
     /** The ability slot of the current ability: 0/1 natural, 2 hidden, -1 when it is none of the species' own. */
     private int abilitySlot() {
         if (ability == null) {
             return -1;
+        }
+        if (slotMemory >= 0 && ability.equals(slotMemoryAbility)) {
+            return slotMemory;                                              // the flag survives form changes (Mega and back)
         }
         Array<String> natural = form != null && form.abilities != null ? form.abilities : species.abilities;
         String hidden = form != null && form.hiddenAbility != null ? form.hiddenAbility : species.hiddenAbility;
@@ -873,6 +892,7 @@ public final class Pokemon {
         // 198_Pokemon_Forms:17-24 setForm does not touch the ability; it follows the new form's table by slot.
         if (slot >= 0) {
             ability = abilityForSlot(slot);
+            rememberSlot(slot);
         } else if (ability == null && species != null && species.abilities.size > 0) {
             ability = species.abilities.get(0);
         }

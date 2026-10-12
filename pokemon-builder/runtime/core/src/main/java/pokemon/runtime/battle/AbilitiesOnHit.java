@@ -987,8 +987,7 @@ final class AbilitiesOnHit {
                 return;
             }
             battle.showAbilitySplash(target);                                  // :2949
-            // 登记: BattleHandlers_Abilities:2950 battle.pbStartTerrain(target,PBBattleTerrains::Grassy)
-            //   （Battle 没有 pbStartTerrain，§B 已定为登记）
+            battle.pbStartTerrain(target, PBBattleTerrains.Grassy);            // :2950
         });
 
         BattleHandlers.TargetAbilityOnHit.add("THERMALEXCHANGE", (ability, user, target, move, battle) -> {

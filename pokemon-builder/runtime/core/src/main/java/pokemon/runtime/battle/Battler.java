@@ -1988,7 +1988,7 @@ public final class Battler {
             effects.set(PBEffects.Battler.SlowStart, 0);
         }
         pbCheckFormOnWeatherChange();                                    // :144
-        // :146 @battle.pbEndPrimordialWeather —— 登记: Battle 未暴露（本批不许改 Battle.java）
+        if (battle != null) battle.pbEndPrimordialWeather();                 // :146
     }
 
     /** {@code pbAbilityOnTerrainChange} (Battler_AbilityAndItem:75-78)。 */
@@ -2036,7 +2036,7 @@ public final class Battler {
         switchedOutFainted = faintedFlag;                                // is the old Pokemon's own object, so what it had is put back after the switch
         hp = 0;                                                          // :48
         faintedFlag = true;                                              // :49 @fainted = true
-        // :51 @battle.pbEndPrimordialWeather —— 登记: Battle 未暴露
+        if (battle != null) battle.pbEndPrimordialWeather();                 // :51
     }
 
     // =========================================================================
@@ -2257,8 +2257,17 @@ public final class Battler {
         // :106-119 指挥官配对的前置段
         String commanderMsg = null;
         if (effects.truthy(PBEffects.Battler.Commander)) {                // :107
-            // 登记: Battler_ChangeSelf:108-118 依赖 @effects[Commander] 的 Array 形态与
-            //       @battle.battlers[...] / @battle.scene.sprites[...]（本批未建模）
+            Object raw = effects.raw(PBEffects.Battler.Commander);
+            Battler paired = raw instanceof int[] && ((int[]) raw).length > 0 && battle != null
+                    ? battle.battlerAt(((int[]) raw)[0]) : null;           // :108
+            if (paired != null && paired.effects.truthy(PBEffects.Battler.Commander)) {   // :109
+                if (isCommander()) {                                      // :110
+                    commanderMsg = pbThis() + "从" + paired.pbThis(true) + "的嘴里出来了！";   // :111, :116
+                } else {
+                    commanderMsg = paired.pbThis() + "从" + pbThis(true) + "的嘴里出来了！";   // :113, :116
+                    paired.effects.set(PBEffects.Battler.Commander, (Object) null);       // :114
+                }
+            }
         }
         boolean wasFainted = faintedFlag;                                 // :120
         pbFaintCore(showMessage);                                         // :121 paldea_pbFaint(showMessage)
@@ -2372,6 +2381,11 @@ public final class Battler {
         // Pokemon was not fainted before: the plugin counts every loss twice, and the abilities cap it with min(5, ...)
         battle.pbAddFaintedAlly(index);
         battle.pbAddFaintedAlly(index);
+    }
+
+    /** {@code num_times_hit} (109_PokeBattle_Battler:876-878). */
+    public int numTimesHit() {
+        return battle == null ? 0 : battle.pbRageHitCount(this);
     }
 
     /** {@code num_fainted_allies} (109_PokeBattle_Battler:514-516). */
@@ -3071,6 +3085,22 @@ public final class Battler {
         }
     }
 
+    /**
+     * {@code pbUpdate(fullChange)} (Battler_Initialize:362-383) for what a form change moves: the battler keeps its own
+     * {@code @ability} and {@code @type1/@type2}, so Mega Evolution (Mega_evolution:152) and every other form change
+     * re-reads them from the Pokemon. Without it a Mega battler fought on with the ability it came in with.
+     */
+    public void pbUpdate(boolean fullChange) {
+        if (pokemon == null || effects.truthy(PBEffects.Battler.Transform)) {          // :363, :371
+            return;
+        }
+        if (fullChange) {                                                              // :377
+            type1 = null;                                                              // :378-379 the Pokemon's own types again
+            type2 = null;
+            ability = pokemon.ability == null ? "" : pokemon.ability;                  // :380
+        }
+    }
+
     /** {@code pbChangeFormTransform} (Battler_ChangeSelf:182-195)。 */
     public void pbChangeFormTransform(int newForm, String msg) {
         if (fainted() || effects.truthy(PBEffects.Battler.Transform) || form() == newForm) { // :183
@@ -3084,6 +3114,7 @@ public final class Battler {
         if (pbs != null && pokemon != null) {
             pokemon.setForm(pbs, newForm);
         }
+        pbUpdate(true);                                                    // :187
         hp = maxHp() - oldDmg;                                             // :188 @hp = @totalhp-oldDmg
         if (Battle.NEWEST_BATTLE_MECHANICS) {                              // :189
             effects.set(PBEffects.Battler.WeightChange, 0);
@@ -5191,6 +5222,7 @@ public final class Battler {
         if (fainted() || effects.truthy(PBEffects.Battler.Transform)) {            // :183
             return;
         }
+        pbUpdate(true);                                                            // :187
         hp = maxHp() - oldDmg;                                                     // :188 @hp = @totalhp-oldDmg
         if (Battle.NEWEST_BATTLE_MECHANICS) {                                      // :189
             effects.set(PBEffects.Battler.WeightChange, 0);

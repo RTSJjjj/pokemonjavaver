@@ -612,8 +612,8 @@ public final class MoveEffects_180_1FF {
         /** {@code pbFailsAgainstTarget?(user,target)} (:450-457). */
         @Override
         public boolean pbFailsAgainstTarget(BattleMove move, Battler user, Battler target) {
-            // 登记: :451 target.canChangeType? —— Battler 尚无 canChangeType（PokeBattle_Battler:585-589）
-            if (!target.pbHasOtherType("PSYCHIC")) {                         // :452
+            if (!target.canChangeType()                                      // :451
+                    || !target.pbHasOtherType("PSYCHIC")) {                  // :452
                 user.battle.display("但是失败了！");                           // :453
                 return true;                                                 // :454
             }
@@ -624,7 +624,7 @@ public final class MoveEffects_180_1FF {
         @Override
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
             String newType = "PSYCHIC";                                      // :460 getConst(PBTypes,:PSYCHIC)
-            // 登记: :461 target.pbChangeTypes(newType) —— Battler 尚无 pbChangeTypes
+            target.pbChangeTypes(newType);                                   // :461
             String typeName = typeName(user, newType);                        // :462
             user.battle.display(target.pbThis() + "变为了" + typeName + "属性！"); // :463
         }
@@ -1450,8 +1450,7 @@ public final class MoveEffects_180_1FF {
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             user.effects.set(PBEffects.Battler.HyperBeam, 2);                // :878
-            // 登记: :879 user.currentMove = @id —— Battler 尚无 currentMove 字段
-            //       （PokeBattle_Battler:39 attr_accessor :currentMove，属下一批）
+            user.currentMove = move.id();                                    // :879
         }
     }
 
@@ -1488,7 +1487,7 @@ public final class MoveEffects_180_1FF {
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             user.effects.set(PBEffects.Battler.HyperBeam, 2);                // :901
-            // 登记: :902 user.currentMove = @id —— 同 :879
+            user.currentMove = move.id();                                    // :902
         }
     }
 
@@ -2072,9 +2071,7 @@ public final class MoveEffects_180_1FF {
         /** {@code pbBaseDamage(baseDmg,user,target)} (:1261-1264). */
         @Override
         public int pbBaseDamage(BattleMove move, int baseDmg, Battler user, Battler target) {
-            // 登记: :1262 user.num_times_hit —— Battler 尚无 num_times_hit
-            //       （PokeBattle_Battler:876-886 的 @num_times_hit / pbAddRageHit，属下一批）
-            int bonus = 50 * 0;
+            int bonus = 50 * user.numTimesHit();                              // :1262
             return Math.min(baseDmg + bonus, 350);                            // :1263
         }
     }
@@ -2117,9 +2114,7 @@ public final class MoveEffects_180_1FF {
             if (user.fainted() || numFainted == 0) {                         // :1283
                 return;
             }
-            // 登记: :1284 @battle.pbReviveInParty(user.index) —— 该方法定义在
-            //       Move_Effects_180-1FF.rb:1288-1309 的 `class PokeBattle_Battle` 里
-            //       （不是招式钩子），按 Lead 裁决登记给 Battle 侧，本文件不转。
+            user.battle.pbReviveInParty(user.index, false);                  // :1284
         }
     }
 
@@ -2560,9 +2555,8 @@ public final class MoveEffects_180_1FF {
             }
             user.battle.pbRecallAndReplace(user.index, newPkmn);               // :1592
             user.battle.pbClearChoice(user.index);                             // :1593
-            // 登记: :1594 @battle.moldBreaker = false —— Battle 未暴露 moldBreaker 的写入口
-            switchedBattlers.add(user.index);                                  // :1595
-            // 登记: :1596 user.pbEffectsOnSwitchIn(true) —— Battler 尚无 pbEffectsOnSwitchIn
+            switchedBattlers.add(user.index);                                  // :1595 (:1594 moldBreaker = false: this runtime derives it)
+            user.battle.battlerAt(user.index).pbEffectsOnSwitchIn(true);       // :1596 the one that came in
             user.battle.battlerAt(user.index).effects.set(PBEffects.Battler.Substitute, oldSub);   // :1597 (user is the slot's battler: the one that came in)
         }
     }
@@ -3127,7 +3121,7 @@ public final class MoveEffects_180_1FF {
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             user.effects.set(PBEffects.Battler.HyperBeam, 2);                // :1931
-            // 登记: :1932 user.currentMove = @id —— Battler 尚无 currentMove 字段
+            user.currentMove = move.id();                                    // :1932
         }
 
         /** {@code pbModifyDamage(damageMult,user,target)} (:1934-1937). */
@@ -3479,8 +3473,10 @@ public final class MoveEffects_180_1FF {
             if (target.fainted() || target.damageState.substitute) {          // :2200
                 return;
             }
-            // 登记: :2203 target.pbCanFreeze?(user,false,self) 与 :2204 target.pbFreeze
-            //       —— Battler 尚无 pbCanFreeze/pbFreeze（属下一批）→ 无法施加冻伤
+            if (!target.pbCanFreeze(user, false, move)) {                      // :2203
+                return;
+            }
+            target.pbFreeze();                                                 // :2204
             if (!target.effects.truthy(PBEffects.Battler.IceVulnerability)) { // :2206
                 target.effects.set(PBEffects.Battler.IceVulnerability, 2);     // :2207
                 user.battle.display(target.pbThis() + "被海魔之力侵蚀了！");    // :2208
@@ -3612,8 +3608,7 @@ public final class MoveEffects_180_1FF {
             if (target.damageState.substitute) {                             // :2301
                 return;
             }
-            // 登记: :2302 target.pbFlinch(user) —— Battler 尚无 pbFlinch
-            //       （Battler_Statuses:619-622，属下一批）
+            target.pbFlinch(user);                                            // :2302
         }
     }
 
@@ -4052,8 +4047,7 @@ public final class MoveEffects_180_1FF {
         /** {@code pbDisplayChargeMessage(user)} (:2654-2672). */
         @Override
         public void pbDisplayChargeMessage(BattleMove move, Battler user) {
-            // 登记: :2655 user.effects[PBEffects::MouseTrap] = true —— Java 的 PBEffects 里
-            //       **没有 MouseTrap 常量**（插件新增，本批未建模）→ 无法打该标记
+            user.effects.set(PBEffects.Battler.MouseTrap, true);              // :2655
             user.battle.commonAnimation("ShellTrap", user);                   // :2656
             user.battle.display(user.pbThis() + "张开捕鼠笼，等待对手自投罗网！"); // :2657
             boolean showAnim = true;                                          // :2660
@@ -4087,16 +4081,22 @@ public final class MoveEffects_180_1FF {
         /** {@code pbMoveFailed?(user,targets)} (:2679-2690). */
         @Override
         public boolean pbMoveFailed(BattleMove move, Battler user, Array<Battler> targets) {
-            // 登记: :2680 `if !user.effects[PBEffects::MouseTrap]` —— 同 :2655 的常量缺失；
-            //       标记永远读不到 → 按「未布下」处理（与插件在常量不存在时的行为一致）
-            user.battle.display("但是失败了！");                               // :2681
-            return true;                                                      // :2682
+            if (!user.effects.truthy(PBEffects.Battler.MouseTrap)) {          // :2680
+                user.battle.display("但是失败了！");                           // :2681
+                return true;                                                  // :2682
+            }
+            if (user.lastHPLost == 0) {                                       // :2685
+                user.battle.display(user.pbThis() + "的捕鼠笼没有捕获到猎物……");   // :2686
+                user.effects.set(PBEffects.Battler.MouseTrap, false);         // :2687 the flag goes when it fails, too
+                return true;
+            }
+            return false;                                                     // :2689
         }
 
         /** {@code pbEffectAfterAllHits(user,target)} (:2693-2695). */
         @Override
         public void pbEffectAfterAllHits(BattleMove move, Battler user, Battler target) {
-            // 登记: :2694 user.effects[PBEffects::MouseTrap] = false —— 同 :2655 的常量缺失
+            user.effects.set(PBEffects.Battler.MouseTrap, false);             // :2694
         }
     }
 
@@ -4206,6 +4206,8 @@ public final class MoveEffects_180_1FF {
         MoveEffectRegistry.register("1E4", PokeBattle_Move_1E4::new);
         MoveEffectRegistry.register("1FD", PokeBattle_Move_1FD::new);
         MoveEffectRegistry.register("1AF", PokeBattle_Move_1AF::new);
+        MoveEffectRegistry.register("0BP", PokeBattle_Move_0BP::new);   // the plugin defines it; no move of this project uses it
+        MoveEffectRegistry.register("0BQ", PokeBattle_Move_0BQ::new);   // GRANDEUR (至圣斩), a non-hex code the plugin invented
         MoveEffectRegistry.register("1B0", PokeBattle_Move_1B0::new);
         MoveEffectRegistry.register("1BF", PokeBattle_Move_1BF::new);
         MoveEffectRegistry.register("1EB", PokeBattle_Move_1EB::new);

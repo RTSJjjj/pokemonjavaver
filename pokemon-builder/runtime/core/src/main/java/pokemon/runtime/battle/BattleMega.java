@@ -223,6 +223,7 @@ public final class BattleMega {
             // 完整版：使用 megascene (SceneMegaEvolution / ScenePrimalblue / ScenePrimalred)
             int sceneKind = battler.isSpecies("KYOGRE") ? 2 : battler.isSpecies("GROUDON") ? 1 : 0;   // :402-408
             battler.pokemon.makeMega(pbs);                                           // :412
+            battler.pbUpdate(true);                                                  // :152
             Battle.RoundEvent scene = Battle.RoundEvent.megaScene(idxBattler, sceneKind, oldForm, battler.form());   // :410,:415-417
             scene.pokemon = battler.pokemon;
             battle.roundEvents.add(scene);
@@ -231,6 +232,7 @@ public final class BattleMega {
             battle.commonAnimation("MegaEvolution", battler);                        // :420
             // pbWait(30)                                                            // :421
             battler.pokemon.makeMega(pbs);                                           // :423
+            battler.pbUpdate(true);                                                  // :152
             Battle.RoundEvent change = Battle.RoundEvent.changePokemon(idxBattler, oldForm);   // :426-427 pbChangePokemon + pbRefreshOne
             change.pokemon = battler.pokemon;
             battle.roundEvents.add(change);

@@ -2904,6 +2904,66 @@ public final class Battle {
     /** {@code @fainted_count} (130_PokeBattle_Battle:181): the Pokemon each side has lost in this battle. */
     public final int[] faintedCount = new int[2];
 
+    /** {@code @rage_hit_count} (130_PokeBattle_Battle): the times each party member of each side was hit in this battle. */
+    private final int[][] rageHitCount = new int[2][64];
+
+    /** {@code pbAddRageHit(battler,value=1)} (130_PokeBattle_Battle:820-822). */
+    public void pbAddRageHit(Battler battler, int value) {
+        int slot = battler.pokemonIndex;
+        if (slot >= 0 && slot < rageHitCount[0].length) rageHitCount[battler.index & 1][slot] += value;
+    }
+
+    /** {@code pbRageHitCount(battler)} (130_PokeBattle_Battle:824-826). */
+    public int pbRageHitCount(Battler battler) {
+        int slot = battler.pokemonIndex;
+        return slot >= 0 && slot < rageHitCount[0].length ? rageHitCount[battler.index & 1][slot] : 0;
+    }
+
+    /**
+     * {@code pbReviveInParty(idxBattler,canCancel=false)} (Move_Effects_180-1FF:1288-1309): the player picks a fainted party
+     * member, who comes back at half HP and without a status. The plugin leaves the opponent's side out; here the AI
+     * revives its strongest attacker.
+     */
+    public void pbReviveInParty(int idxBattler, boolean canCancel) {
+        Array<Battler> party = partyOf(idxBattler);
+        int[] chosen = {-1};
+        if (!pbOwnedByPlayer(idxBattler)) {
+            // The plugin gives up here (:1297). The AI revives its best attacker: the fainted member with the highest
+            // Attack / Sp. Atk, so the Pokemon that does the damage is the one that comes back.
+            int bestScore = -1;
+            for (int i = 0; i < party.size; i++) {
+                Battler member = party.get(i);
+                if (member == null || member.pokemon == null || member.pokemon.egg || member.hp > 0) continue;
+                int score = Math.max(member.pokemon.attack(), member.pokemon.spAtk());
+                if (score > bestScore) {
+                    bestScore = score;
+                    chosen[0] = i;
+                }
+            }
+        } else {
+            scene.pbPartyScreenRevive(idxBattler, canCancel, idxParty -> {                   // :1291
+                Battler member = idxParty >= 0 && idxParty < party.size ? party.get(idxParty) : null;
+                if (member == null || member.pokemon == null || member.pokemon.egg || member.hp > 0) {
+                    return "这只宝可梦没有倒下，不能复活。";
+                }
+                chosen[0] = idxParty;
+                return null;
+            });
+        }
+        if (chosen[0] < 0) {                                                             // :1305
+            return;
+        }
+        Battler member = party.get(chosen[0]);
+        member.hp = Math.max(1, member.maxHp() / 2);                                     // :1308 [1, totalhp/2].max
+        member.pokemon.hp = member.hp;
+        member.status = "";                                                              // :1309 healStatus
+        member.statusCount = 0;
+        member.pokemon.status = "";
+        member.pokemon.statusCount = 0;
+        member.faintedFlag = false;
+        display((pbOwnedByPlayer(idxBattler) ? "" : "对手的") + member.pokemon.name + "复活了并准备再次战斗！");   // :1310-1311
+    }
+
     /** {@code pbAddFaintedAlly(idxBattler)} (130_PokeBattle_Battle:828-831). */
     public void pbAddFaintedAlly(int idxBattler) {
         if (faintedCount[idxBattler & 1] < 100) faintedCount[idxBattler & 1]++;
@@ -3561,6 +3621,14 @@ public final class Battle {
     public interface Scene {
         /** {@code @scene.pbPartyScreen(idxBattler,canCancel){ |idxParty,partyScene| ... }}: the block returns the refusal line or null. */
         void pbPartyScreen(int idxBattler, boolean canCancel, java.util.function.IntFunction<String> block);
+
+        /**
+         * {@code @scene.pbPartyScreen(idxBattler,canCancel,2)} (Move_Effects_180-1FF:1278): the party screen in its revive
+         * mode - the fainted Pokemon can be chosen, 复活 stands where 换上 would. Defaults to the plain screen.
+         */
+        default void pbPartyScreenRevive(int idxBattler, boolean canCancel, java.util.function.IntFunction<String> block) {
+            pbPartyScreen(idxBattler, canCancel, block);
+        }
 
         /** {@code @scene.pbDisplayConfirmMessage(msg)}. */
         boolean pbDisplayConfirmMessage(String msg);

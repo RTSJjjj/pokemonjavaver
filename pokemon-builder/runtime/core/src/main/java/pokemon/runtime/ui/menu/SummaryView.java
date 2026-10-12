@@ -504,8 +504,9 @@ public final class SummaryView {
         if (sprite == null) {
             return;
         }
-        float size = Math.min(sprite.getWidth(), sprite.getHeight());
-        b.draw(sprite, 524f - size / 2f, h - 240f - size / 2f, size, size);
+        float sw = sprite.getWidth();
+        float sh = sprite.getHeight();
+        b.draw(sprite, 524f - (int) (sw / 2f), h - (240f - (int) (sh / 2f)) - sh, sw, sh);
     }
 
     private void drawPokeIcon(SpriteBatch b, MenuAssets a, Pokemon p, float h) {

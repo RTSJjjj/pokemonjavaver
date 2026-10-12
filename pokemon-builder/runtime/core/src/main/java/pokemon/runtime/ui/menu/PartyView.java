@@ -138,6 +138,8 @@ public final class PartyView {
     // ---- 战斗内换人 (BattleScreen.openPartyScreen 复用；该调用不在 PScreen_Party)
     private boolean battleChoose;
     private boolean battleCanCancel = true;
+    /** The battle's party screen is the revive one: the fainted can be chosen ({@code pbPartyScreen(..., 2)}). */
+    private boolean battleRevive;
     private int chosenIndex = -1;
 
     public PartyView(RuntimeContext context) {
@@ -208,6 +210,11 @@ public final class PartyView {
         }
     }
 
+    /** Revive mode of the battle's party screen (set after {@link #battleChoose}). */
+    public void setBattleRevive(boolean value) {
+        battleRevive = value;
+    }
+
     /** The index chosen in battle mode, or -1 when the player cancelled. */
     public int chosenIndex() {
         return chosenIndex;
@@ -230,7 +237,8 @@ public final class PartyView {
         final Pokemon pkmn = party.get(shown);
         final List<String> commands = new ArrayList<>();
         final List<Integer> colorKeys = new ArrayList<>();
-        final int cmdSwitch = pkmn != null && !pkmn.egg && !pkmn.fainted() ? add(commands, colorKeys, "换上", 0) : -1;
+        final boolean able = pkmn != null && !pkmn.egg && (battleRevive ? pkmn.fainted() : !pkmn.fainted());
+        final int cmdSwitch = able ? add(commands, colorKeys, battleRevive ? "复活" : "换上", 0) : -1;
         final int cmdSummary = add(commands, colorKeys, "概况", 0);
         add(commands, colorKeys, "取消", 0);
         showCommands(intl("要对{1}做什么？", pkmn == null ? "" : pkmn.name), commands, colorKeys, 0, command -> {

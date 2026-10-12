@@ -149,6 +149,8 @@ public final class PbsData {
         /** {@code MegaMessage}: 0 = default message, 1 = the Rayquaza message. */
         public Integer megaMessage;
         public Array<LearnMove> moves;
+        /** The form's own {@code EggMoves}; null = the form lists none and the species' list applies. */
+        public Array<String> eggMoves;
         public Array<Evolution> evolutions;
         public BattlerOffsets battler = new BattlerOffsets();
 
@@ -924,6 +926,9 @@ public final class PbsData {
                     learn.move = move.getString("move", null);
                     form.moves.add(learn);
                 }
+            }
+            if (child(node, "eggMoves") != null) {
+                form.eggMoves = stringArray(child(node, "eggMoves"));
             }
             JsonValue evolutions = child(node, "evolutions");
             if (evolutions != null && evolutions.isArray()) {

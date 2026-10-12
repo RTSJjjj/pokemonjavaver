@@ -205,8 +205,9 @@ public final class PokedexView {
         } else {
             b.setColor(0f, 0f, 0f, 1f);
         }
-        float size = Math.min(sprite.getWidth(), sprite.getHeight());
-        b.draw(sprite, 174f - size / 2f, h - 228f - size / 2f, size, size);
+        float sw = sprite.getWidth();
+        float sh = sprite.getHeight();
+        b.draw(sprite, 174f - (int) (sw / 2f), h - (228f - (int) (sh / 2f)) - sh, sw, sh);
         b.setColor(Color.WHITE);
     }
 

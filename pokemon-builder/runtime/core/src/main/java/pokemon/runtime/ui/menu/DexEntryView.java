@@ -8,6 +8,7 @@ import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
+import pokemon.runtime.pokemon.PBEvolution;
 import pokemon.runtime.pokemon.PbsData;
 
 import java.util.ArrayList;
@@ -238,8 +239,10 @@ public final class DexEntryView {
         if (sprite == null) {
             return;
         }
-        float size = Math.min(sprite.getWidth(), sprite.getHeight());
-        b.draw(sprite, x - size / 2f, h - y - size / 2f, size, size);
+        // PokemonSprite#setOffset(Center): the bitmap at its own size, its middle on (x, y) (203_Pokemon_Sprites:35-43)
+        float sw = sprite.getWidth();
+        float sh = sprite.getHeight();
+        b.draw(sprite, x - (int) (sw / 2f), h - (y - (int) (sh / 2f)) - sh, sw, sh);
     }
 
     /** {@code formlastseen[@species] = [gender, form]} for the chosen entry (:961-962). */
@@ -379,26 +382,36 @@ public final class DexEntryView {
         float[] xs = {24f, 24f + ScreenMetrics.logicalWidth() / 3f, 24f + ScreenMetrics.logicalWidth() / 3f * 2f};
         int[] ys = {144, 166, 188, 210, 232, 254, 276, 298, 320, 340};
         List<String> lines = new ArrayList<>();
+        int pages = 1;
         switch (dataShowType) {
             case 0:
-                for (PbsData.LearnMove m : s.moves) {
+                for (PbsData.LearnMove m : learnset(s)) {
                     if (m.level > 1) continue;
                     lines.add(m.level == 0 ? "进化:" + moveName(m.move) : m.level + "级:" + moveName(m.move));
                 }
                 if (lines.isEmpty()) lines.add("没有先天招式");
                 break;
             case 1:
-                for (PbsData.LearnMove m : s.moves) {
+                for (PbsData.LearnMove m : learnset(s)) {
                     if (m.level <= 1) continue;
                     lines.add(m.level + "级:" + moveName(m.move));
                 }
                 if (lines.isEmpty()) lines.add("没有升级招式");
                 break;
-            case 2:
-                lines.add("没有可学习的学习器招式");
+            case 2: {                                                         // :787-826 machines, 24 to a page
+                List<String> machines = machineLines(s);
+                pages = (machines.size() + MACHINES_PER_PAGE - 1) / MACHINES_PER_PAGE;
+                if (pages == 0) {
+                    lines.add("没有可学习的学习器招式");
+                    break;
+                }
+                if (movePage >= pages) movePage = 0;                          // :807
+                int from = movePage * MACHINES_PER_PAGE;
+                lines.addAll(machines.subList(from, Math.min(machines.size(), from + MACHINES_PER_PAGE)));
                 break;
+            }
             default:
-                for (String m : s.eggMoves) {
+                for (String m : eggMoves(s)) {
                     lines.add(moveName(m));
                 }
                 if (lines.isEmpty()) lines.add("没有蛋招式");
@@ -411,6 +424,84 @@ public final class DexEntryView {
         for (int i = 0; i < lines.size() && i < 30; i++) {
             f.draw(b, lines.get(i), xs[i % 3], h - ys[i / 3], WHITE, GRAY_SHADOW);
         }
+        if (dataShowType == 2 && pages > 1) {                                 // :816-821
+            f.drawCentered(b, (movePage + 1) + "/" + pages + "页 [Z]:显示下一页",
+                    ScreenMetrics.logicalWidth() / 2f, h - ys[8], WHITE, GRAY_SHADOW);
+        }
+    }
+
+    private static final int MACHINES_PER_PAGE = 24;                          // :799 moveList[count/24]
+    /** :791 the item id ranges the plugin walks, in this order (the first group is listed id by id). */
+    private static final int[] MACHINE_FIRST = {383, 384, 385, 386, 387, 388, 801};
+    private static final int[][] MACHINE_RANGES = {{288, 382}, {621, 625}, {692, 791}, {1200, 1299}};
+
+    /** The position of an item id in the plugin's walk over the machine ranges, or -1 when it is in none of them. */
+    private static int machineOrder(int id) {
+        for (int i = 0; i < MACHINE_FIRST.length; i++) {
+            if (MACHINE_FIRST[i] == id) return i;
+        }
+        int base = MACHINE_FIRST.length;
+        for (int[] range : MACHINE_RANGES) {
+            if (id >= range[0] && id <= range[1]) return base + (id - range[0]);
+            base += range[1] - range[0] + 1;
+        }
+        return -1;
+    }
+
+    /** {@code pbGetSpeciesMoveset(@species,@form)}: the form's own list, else the species'. */
+    private Iterable<PbsData.LearnMove> learnset(PbsData.Species s) {
+        PbsData.SpeciesForm f = form > 0 && context.pbsData() != null ? context.pbsData().form(s.internalName, form) : null;
+        return f != null && f.moves != null ? f.moves : s.moves;
+    }
+
+    /** {@code pbGetFSpeciesFromForm(@species,@form)}: the entry the machine list is keyed by (JIGGLYPUFF_1 ...). */
+    private String formKey(PbsData.Species s) {
+        PbsData.SpeciesForm f = form > 0 && context.pbsData() != null ? context.pbsData().form(s.internalName, form) : null;
+        return f != null && f.key != null ? f.key : s.internalName;
+    }
+
+    /** :788-802: "item:move" for every machine of the walk the species is compatible with. */
+    private List<String> machineLines(PbsData.Species s) {
+        PbsData data = context.pbsData();
+        List<String> out = new ArrayList<>();
+        if (data == null) return out;
+        String key = formKey(s);
+        List<PbsData.Item> machines = new ArrayList<>();
+        for (PbsData.Item item : data.items.values()) {
+            if (item == null || machineOrder(item.id) < 0) continue;
+            if (item.fieldUse != 3 && item.fieldUse != 4 && item.fieldUse != 6) continue;   // pbIsMachine?
+            machines.add(item);
+        }
+        machines.sort((x, y) -> Integer.compare(machineOrder(x.id), machineOrder(y.id)));
+        for (PbsData.Item item : machines) {
+            String move = item.machine;
+            if (move == null || move.isEmpty()) {
+                for (String extra : item.extra) {
+                    if (data.move(extra) != null) {
+                        move = extra;
+                        break;
+                    }
+                }
+            }
+            if (move == null || move.isEmpty()) continue;
+            com.badlogic.gdx.utils.Array<String> learners = data.tmCompatibility.get(move);
+            if (learners == null || !learners.contains(key, false)) continue;               // pbSpeciesCompatible?
+            out.add((item.name == null ? item.internalName : item.name) + ":" + moveName(move));
+        }
+        return out;
+    }
+
+    /** :828-831: the egg moves of the family's first species (the form's own list when it has one). */
+    private List<String> eggMoves(PbsData.Species s) {
+        List<String> out = new ArrayList<>();
+        PbsData data = context.pbsData();
+        PbsData.Species baby = data == null ? s : PBEvolution.babySpecies(data, s);
+        PbsData.SpeciesForm f = form > 0 && data != null ? data.form(baby.internalName, form) : null;
+        Iterable<String> moves = f != null && f.eggMoves != null ? f.eggMoves : baby.eggMoves;
+        for (String m : moves) {
+            out.add(m);
+        }
+        return out;
     }
 
     // ------------------------------------------------------------------

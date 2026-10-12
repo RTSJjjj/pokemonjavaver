@@ -449,6 +449,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private boolean partyCheckLaxOnly;
     private boolean partyCanCancel = true;
     private boolean partyRegister;
+    /** The party screen was opened to revive a fainted Pokemon (1DD, {@code pbReviveInParty}). */
+    private boolean partyReviveMode;
 
     public BattleScreen(RuntimeContext context, InteractiveBattlePort port) {
         this.context = context; this.port = port; session = port.session();
@@ -1210,6 +1212,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (pokemon != null) {
             pokemon.battler = battler;                                          // :323 setPokemonBitmap
             pokemon.back = back;
+            // self.bitmap = ... gives the sprite a fresh src_rect (the whole new bitmap): a source rectangle left by an
+            // earlier move animation was sized for the previous Pokemon and would crop / shift a larger one
+            pokemon.srcX = 0;
+            pokemon.srcY = 0;
+            pokemon.srcWidth = -1;
+            pokemon.srcHeight = -1;
+            pokemon.sheetName = null;
+            pokemon.celBattler = null;
             int[] size = pokemonBitmapSize(lookOf(battler), back);
             pokemon.bitmapWidth = size == null ? -1 : size[0];
             pokemon.bitmapHeight = size == null ? -1 : size[1];
@@ -1277,8 +1287,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (texture == null) {
             return null;
         }
-        int size = Math.min(texture.getWidth(), texture.getHeight());
-        return new int[] { size, size };
+        // self.bitmap.width / height: the file's own size (PokemonBattlerSprite:553-554); a 350x260 sprite is not a square
+        return new int[] { texture.getWidth(), texture.getHeight() };
     }
 
     private Texture pokemonTexture(Pokemon pokemon, boolean back) {
@@ -1750,6 +1760,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             case PARTY_SCREEN:
                 // @scene.pbPartyScreen(idxBattler,canCancel){ |idxParty,partyScene| ... } (:138)
                 partyValidator = call.validator;
+                partyReviveMode = call.startBattle;
                 openPartyScreen(call.idxBattler, false, call.canCancel, false);
                 return;
             case CONFIRM:
@@ -1831,6 +1842,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 partyView = new PartyView(context);
             }
             partyView.battleChoose(true, canCancel);
+            partyView.setBattleRevive(partyReviveMode);
+            partyReviveMode = false;
             partyView.displayOrder(playerDisplayOrder());          // Battle_Phase_Command:109 pbPlayerDisplayParty
             page = 3;
             window = COMMAND_BOX;

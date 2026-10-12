@@ -353,6 +353,7 @@ export function parsePokemonForms(text) {
     if (f("megamove")) entry.megaMove = f("megamove");
     if (f("megamessage")) entry.megaMessage = intOrNull(f("megamessage"));   // 0 = default message, 1 = Rayquaza's
     if (f("moves")) entry.moves = parseMoveset(f("moves"));
+    if (f("eggmoves")) entry.eggMoves = list(f("eggmoves"));
     if (f("evolutions")) entry.evolutions = parseEvolutions(f("evolutions"));
     entry.battler = {
       playerY: intOrNull(f("battlerplayery")),
