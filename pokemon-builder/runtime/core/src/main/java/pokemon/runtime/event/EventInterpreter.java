@@ -1913,6 +1913,9 @@ public final class EventInterpreter {
             }
             case "SAFARI_END": {                                           // pbSafariState.pbEnd (:42-49)
                 state.fieldGlobals().safari.end();
+                // :48 $game_map.need_refresh = true: the pages that read s:pbInSafari? (switch 25) must be chosen again. Without
+                // it the reception counter's autorun page stays active after the Zone ends and locks every key.
+                state.touch();
                 break;
             }
             case "PARTY_OT_SHINY": {                                       // map-205: each_index, next if ot != name; otgender; makeShiny; makeSuperShiny

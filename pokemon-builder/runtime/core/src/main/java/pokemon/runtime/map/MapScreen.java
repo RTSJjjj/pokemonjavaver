@@ -2773,7 +2773,11 @@ public final class MapScreen extends ScreenAdapter {
             g.healingSpot = meta.healingSpot.clone();                             // :537
         }
         g.visitedMaps.add(mapId);                                                  // :540
-        if (!g.inSafari(mapId)) g.safari.end();                                    // 242_PBattle_Safari:54-56
+        if (!g.inSafari(mapId)) {                                                  // 242_PBattle_Safari:54-56
+            boolean was = g.safari.inProgress;
+            g.safari.end();
+            if (was) gameState.touch();                                            // :48 need_refresh: pages that read pbInSafari? are chosen again
+        }
     }
 
     // ---- DarknessSprite / Flash (170_PField_Field:566-585, 171_PField_Visuals:364-404, 179:479-495) ----
