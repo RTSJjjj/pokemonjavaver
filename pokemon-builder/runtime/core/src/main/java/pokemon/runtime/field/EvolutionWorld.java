@@ -3,7 +3,6 @@ package pokemon.runtime.field;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.data.GameDatabase;
 import pokemon.runtime.data.MapData;
-import pokemon.runtime.map.DayNightTone;
 import pokemon.runtime.pokemon.PBEvolution;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
@@ -30,23 +29,25 @@ public final class EvolutionWorld implements PBEvolution.Env {
         this(context.gameState(), context.pbsData(), context.database(), null);
     }
 
-    /** {@code clock} null = the real clock through {@link DayNightTone}; {@code database} null = no region data. */
+    /** {@code clock} null = the real clock, read as {@code PBDayNight} does; {@code database} null = no region data. */
     public EvolutionWorld(GameState state, PbsData pbs, GameDatabase database, Supplier<LocalTime> clock) {
         this.state = state;
         this.pbs = pbs;
         this.database = database;
-        this.clock = clock;
+        // PBDayNight.isNight? & co (372_PBDayNight:86-): one real hour is one game day, so "night" is the minute of the hour, not
+        // the wall-clock hour the screen tone follows. Without an injected clock the real time is read the same way.
+        this.clock = clock != null ? clock : LocalTime::now;
     }
 
     private GameState state() {
         return state;
     }
 
-    @Override public boolean isDay() { return clock == null ? DayNightTone.test("isDay?") : PBDayNight.isDay(clock.get()); }
-    @Override public boolean isNight() { return clock == null ? DayNightTone.test("isNight?") : PBDayNight.isNight(clock.get()); }
-    @Override public boolean isMorning() { return clock == null ? DayNightTone.test("isMorning?") : PBDayNight.isMorning(clock.get()); }
-    @Override public boolean isAfternoon() { return clock == null ? DayNightTone.test("isAfternoon?") : PBDayNight.isAfternoon(clock.get()); }
-    @Override public boolean isEvening() { return clock == null ? DayNightTone.test("isEvening?") : PBDayNight.isEvening(clock.get()); }
+    @Override public boolean isDay() { return PBDayNight.isDay(clock.get()); }
+    @Override public boolean isNight() { return PBDayNight.isNight(clock.get()); }
+    @Override public boolean isMorning() { return PBDayNight.isMorning(clock.get()); }
+    @Override public boolean isAfternoon() { return PBDayNight.isAfternoon(clock.get()); }
+    @Override public boolean isEvening() { return PBDayNight.isEvening(clock.get()); }
     @Override public int weatherType() { return state().weather().type(); }
     @Override public boolean bicycle() { return state().fieldGlobals().bicycle; }
     @Override public boolean surfing() { return state().fieldGlobals().surfing; }

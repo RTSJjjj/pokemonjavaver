@@ -69,94 +69,83 @@ module PBDayNight
   end
   
 #============================================================
-#调用以下方法用于判断重写后的早午晚，现实1个小时对应游戏1天
-#0分钟~13分钟：黑夜，对应0~5点
-#    0~ 6：午夜，对应0~2点
-#    7~13：凌晨，对应3~5点
-#14分钟~43分钟：白天，对应6~17点
-#   14~21：早上，对应6~8点
-#   22~26：上午，对应9~10点
-#   27~31：中午，对应11~12点
-#   32~43：下午，对应13~17点
-#44分钟~59分钟：黑夜，对应18~23点
-#   44~46：黄昏，对应18点
-#   47~53：夜晚，对应19~21点
-#   54~59：午夜，对应22~23点
+#调用以下方法用于判断游戏内的早午晚（isDay? / isNight? ...），现在与上面的 isReal* 一致，
+#都按现实时钟的小时判断（6~17点白天，18~23点和0~5点黑夜），进化、遭遇、战斗背景都用这一套
 #============================================================
 # Returns true if it's day.
   def self.isDay?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=6 && hour<18)
   end
 
 # Returns true if it's night.
   def self.isNight?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=18 || hour<6)
   end
 
 # Returns true if it's dawn.
   def self.isDawn?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=3 && hour<6)
   end
   
 # Returns true if it's morning.
   def self.isMorning?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=6 && hour<9)
   end
   
 # Returns true if it's beforeNoon.
   def self.isBeforeNoon?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=9 && hour<11)
   end
 
 # Returns true if it's at noon.
   def self.isAtNoon?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=11 && hour<13)
   end
   
 # Returns true if it's the afternoon.
   def self.isAfternoon?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=13 && hour<18)
   end
   
 # Returns true if it's the dusk.
   def self.isDusk?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return hour==18
   end
 
 # Returns true if it's the evening.
   def self.isEvening?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=19 && hour<22)
   end
 
 # Returns true if it's the midnight.
   def self.isMidnight?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=22 || hour<3)
   end
   
 # Returns true if it's the proper time for Rainbow Alcremie
   def self.isRainbow?(time=nil)
     time = pbGetTimeNow if !time
-    hour = (time.min * 24 / 60.0).round
+    hour = time.hour
     return (hour>=19 && hour<20)
   end
   

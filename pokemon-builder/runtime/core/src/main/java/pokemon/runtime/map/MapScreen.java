@@ -808,7 +808,7 @@ public final class MapScreen extends ScreenAdapter {
         }
         float[] tone = DayNightTone.now();
         appliedTone = tone;
-        context.screenEffects().ambientTint(tone[0], tone[1], tone[2], tone[3], durationFrames);
+        context.screenEffects().setAmbient(tone[0], tone[1], tone[2], tone[3], durationFrames);
     }
 
     /** Re-applies the ambient tone when the wall-clock minute rolls over. */
@@ -831,7 +831,7 @@ public final class MapScreen extends ScreenAdapter {
      * the old "shade everywhere" behaviour for it and mention the rebuild once.
      */
     private boolean dayNightToneApplies() {
-        if (!DayNightTone.enabled() || context.screenEffects().toneFromScript()) {
+        if (!DayNightTone.enabled()) {                                   // a script tone (223) is another layer: it never takes this one away
             return false;
         }
         if (mapData.outdoor == null && !warnedMissingOutdoor) {
@@ -3960,7 +3960,7 @@ public final class MapScreen extends ScreenAdapter {
      */
     private void applyWorldTone() {
         ScreenEffects effects = context.screenEffects();
-        if (effects.toneFromScript() || !dayNightToneApplies()) {
+        if (!dayNightToneApplies()) {
             batch.setShader(null);
             return;
         }
@@ -3972,8 +3972,13 @@ public final class MapScreen extends ScreenAdapter {
             batch.setShader(null);
             return;
         }
-        worldTone.setTone(effects.toneRed(), effects.toneGreen(), effects.toneBlue(),
-                effects.toneGray());
+        // the day/night layer, plus what the runtime's own effects (the cave transition) put in the shared slot; a script
+        // tone (223) is drawn by the overlay instead and never replaces the day/night layer
+        boolean shared = !effects.toneFromScript();
+        worldTone.setTone(effects.ambientRed() + (shared ? effects.toneRed() : 0f),
+                effects.ambientGreen() + (shared ? effects.toneGreen() : 0f),
+                effects.ambientBlue() + (shared ? effects.toneBlue() : 0f),
+                effects.ambientGray() + (shared ? effects.toneGray() : 0f));
         batch.setShader(worldTone.program());
     }
 

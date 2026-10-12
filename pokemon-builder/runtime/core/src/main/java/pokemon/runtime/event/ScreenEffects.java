@@ -102,10 +102,47 @@ public final class ScreenEffects {
         setTone(red, green, blue, gray, durationFrames);
     }
 
-    /** True while a script (223) owns the tone; the ambient effect then yields. */
+    /** True while a script (223) owns the tone (the overlay layer; the day/night tone below is a layer of its own). */
     public boolean toneFromScript() {
         return toneFromScript;
     }
+
+    // The day/night tone is its own layer: pbDayNightTint tints the tilemap and characters while 223 only sets
+    // $game_screen.tone on the viewport, so an event that sets the tone to 0,0,0,0 must not bring the daylight back.
+    private float ambRed, ambGreen, ambBlue, ambGray;
+    private float ambFromRed, ambFromGreen, ambFromBlue, ambFromGray;
+    private float ambToRed, ambToGreen, ambToBlue, ambToGray;
+    private float ambLeft, ambTotal;
+
+    /** The day/night tone of the map, eased over {@code durationFrames}; independent of Change Screen Color Tone. */
+    public void setAmbient(float red, float green, float blue, float gray, int durationFrames) {
+        ambFromRed = ambRed;
+        ambFromGreen = ambGreen;
+        ambFromBlue = ambBlue;
+        ambFromGray = ambGray;
+        ambToRed = red;
+        ambToGreen = green;
+        ambToBlue = blue;
+        ambToGray = gray;
+        ambTotal = Math.max(0f, durationFrames / 20f);
+        ambLeft = ambTotal;
+        if (ambTotal <= 0f) {
+            ambRed = red;
+            ambGreen = green;
+            ambBlue = blue;
+            ambGray = gray;
+        }
+    }
+
+    /** The day/night layer back to nothing (an indoor map). */
+    public void clearAmbient() {
+        setAmbient(0f, 0f, 0f, 0f, 0);
+    }
+
+    public float ambientRed() { return ambRed; }
+    public float ambientGreen() { return ambGreen; }
+    public float ambientBlue() { return ambBlue; }
+    public float ambientGray() { return ambGray; }
 
     private void setTone(float red, float green, float blue, float gray, int durationFrames) {
         toneFromRed = toneRed;
@@ -167,6 +204,21 @@ public final class ScreenEffects {
             if (shakeLeft <= 0f) {
                 shakeX = 0f;
                 shakeY = 0f;
+            }
+        }
+        if (ambLeft > 0f) {
+            ambLeft -= step;
+            float t = ambTotal <= 0f ? 1f : 1f - Math.max(0f, ambLeft) / ambTotal;
+            t = Math.max(0f, Math.min(1f, t));
+            ambRed = ambFromRed + (ambToRed - ambFromRed) * t;
+            ambGreen = ambFromGreen + (ambToGreen - ambFromGreen) * t;
+            ambBlue = ambFromBlue + (ambToBlue - ambFromBlue) * t;
+            ambGray = ambFromGray + (ambToGray - ambFromGray) * t;
+            if (ambLeft <= 0f) {
+                ambRed = ambToRed;
+                ambGreen = ambToGreen;
+                ambBlue = ambToBlue;
+                ambGray = ambToGray;
             }
         }
         if (toneLeft > 0f) {

@@ -40,6 +40,17 @@ class InteractiveBattlePortTest {
         assertTrue(foe.hp < hp); assertEquals(19, trainer.first().moves.first().pp);
         assertTrue(port.pending());
     }
+    @Test void catchingTheSameSpeciesInARowBuildsTheChain() {
+        bag.add("MASTERBALL", 2);
+        port.freeWildBattle(pokemon(10));
+        assertTrue(port.session().item("MASTERBALL", 0));
+        assertEquals(1, trainer.chainCatching.chainTimes);
+        assertEquals("A", trainer.chainCatching.species);
+        port.session().storeCaught(); port.finish();
+        port.freeWildBattle(pokemon(10));
+        assertTrue(port.session().item("MASTERBALL", 0));
+        assertEquals(2, trainer.chainCatching.chainTimes, "the second catch of the same species continues the chain");
+    }
     @Test void captureAddsOwnedAndWaitsForAcknowledgement() {
         trainer.pokedex = true; bag.add("MASTERBALL", 1); Pokemon foe = pokemon(10); port.freeWildBattle(foe);
         assertTrue(port.session().item("MASTERBALL", 0));

@@ -44,7 +44,7 @@ class PokemonEncountersTest {
     private PbsData pbs;
     private GameState state;
     private Script random;
-    private LocalTime now = LocalTime.of(12, 0);          // minute 0: game hour 0 (night)
+    private LocalTime now = LocalTime.of(12, 0);          // noon: day
 
     private static String species(String name, String type) {
         return "\"" + name + "\":{\"id\":1,\"internalName\":\"" + name + "\",\"name\":\"" + name + "\","
@@ -111,14 +111,14 @@ class PokemonEncountersTest {
     }
 
     @Test
-    @DisplayName("pbEncounterType follows the project day/night: one real hour is one game day")
+    @DisplayName("pbEncounterType follows the clock hour: night 18-5, morning 6-8, day otherwise")
     void encounterTypeByTime() {
         PokemonEncounters times = encounters(12);
-        now = LocalTime.of(3, 50);          // minute 50 -> game hour 20: night
+        now = LocalTime.of(22, 50);         // night
         assertEquals("LandNight", times.pbEncounterType());
-        now = LocalTime.of(3, 30);          // minute 30 -> game hour 12: day
+        now = LocalTime.of(14, 30);         // day
         assertEquals("LandDay", times.pbEncounterType());
-        now = LocalTime.of(3, 20);          // minute 20 -> game hour 8: morning (and day): morning wins
+        now = LocalTime.of(7, 20);          // morning (and day): morning wins
         assertEquals("LandMorning", times.pbEncounterType());
         assertEquals("Land", encounters(10).pbEncounterType(), "a map with only Land keeps Land at any hour");
     }

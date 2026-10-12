@@ -9,7 +9,7 @@ export class ConfigError extends Error {}
 
 export const DEFAULT_CONFIG = {
   projectName: "PokemonGame",
-  version: "1.0.1-zeta",
+  version: "1.0.1-eta",
   source: {
     rmxpProject: "",
   },

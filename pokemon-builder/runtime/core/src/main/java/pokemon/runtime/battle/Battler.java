@@ -1496,7 +1496,10 @@ public final class Battler {
         if (fainted() && !ignoreFainted) {                              // :380
             return false;
         }
-        if (fieldTruthy(PBEffects.Field.NeutralizingGas) && !activeAbilityShield()) { // :381-382
+        // 钢铁始皇 sets the same field flag, but its own ability must not be switched off by it: the plugin writes its
+        // stat-loss immunity as "无视 NeutralizingGas" (BattleHandlers_Abilities:3843), which this gate would otherwise make unreachable
+        if (fieldTruthy(PBEffects.Field.NeutralizingGas) && !activeAbilityShield()
+                && !"STEELDYNASTY".equals(ability)) { // :381-382
             return false;
         }
         if (effects.truthy(PBEffects.Battler.GastroAcid)) {             // :383

@@ -3,17 +3,16 @@ package pokemon.runtime.field;
 import java.time.LocalTime;
 
 /**
- * {@code PBDayNight} (372_PBDayNight): the project's own time-of-day rules. The "real" variants
- * (:6-69) use the clock's hour; the ones the game logic uses (:87-157) squeeze a whole game day into
- * one real hour: {@code hour = (time.min * 24 / 60.0).round} (0 .. 24).
+ * {@code PBDayNight} (372_PBDayNight): the project's time-of-day rules. Both the {@code isReal*} variants and the ones
+ * the game logic uses read the clock's own hour: day 6..17, night 18..23 and 0..5 (the screen tone follows the same hour).
  */
 public final class PBDayNight {
     private PBDayNight() {
     }
 
-    /** {@code (time.min * 24 / 60.0).round}, Ruby's round-half-away-from-zero (the value is never negative). */
+    /** {@code time.hour}: the project reads the real clock's hour for every time-of-day test. */
     static int gameHour(LocalTime time) {
-        return (int) Math.round(time.getMinute() * 24 / 60.0);
+        return time.getHour();
     }
 
     /** :87-92 isDay?: hours 6 to 17. */

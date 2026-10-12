@@ -134,7 +134,7 @@ public final class BattleEntryAnimation {
         this.playerName = state.playerName();
         this.foeName = session == null || session.trainerData == null ? "" : session.trainerData.name;
         // PField_Visuals:78-82: a cave / night flashes black, otherwise white.
-        boolean night = pokemon.runtime.map.DayNightTone.test("isNight?");
+        boolean night = pokemon.runtime.field.PBDayNight.isNight(java.time.LocalTime.now());
         this.whiteFlash = !(location == 2 || night);
         if (evil != null) {
             mode = Mode.EVIL_VS;

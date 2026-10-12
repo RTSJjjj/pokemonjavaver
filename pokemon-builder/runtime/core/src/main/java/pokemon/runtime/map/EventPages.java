@@ -167,7 +167,25 @@ public final class EventPages {
      * 13..18, dusk 18, evening 19..22, midnight 22..3, dawn 3..6.
      */
     static boolean dayNight(String test) {
-        return dayNight(test, java.time.LocalTime.now().getHour());
+        // 372_PBDayNight: isRealNight? & co read the wall-clock hour; the plain isNight? & co are the rewritten ones (one real
+        // hour = one game day, the game hour is the minute * 24 / 60), the same clock the evolutions and encounters use.
+        if (test.startsWith("isReal")) {
+            return dayNight("is" + test.substring("isReal".length()), java.time.LocalTime.now().getHour());
+        }
+        java.time.LocalTime now = java.time.LocalTime.now();
+        switch (test) {
+            case "isDay?": return pokemon.runtime.field.PBDayNight.isDay(now);
+            case "isNight?": return pokemon.runtime.field.PBDayNight.isNight(now);
+            case "isDawn?": return pokemon.runtime.field.PBDayNight.isDawn(now);
+            case "isMorning?": return pokemon.runtime.field.PBDayNight.isMorning(now);
+            case "isBeforeNoon?": return pokemon.runtime.field.PBDayNight.isBeforeNoon(now);
+            case "isAtNoon?": return pokemon.runtime.field.PBDayNight.isAtNoon(now);
+            case "isAfternoon?": return pokemon.runtime.field.PBDayNight.isAfternoon(now);
+            case "isDusk?": return pokemon.runtime.field.PBDayNight.isDusk(now);
+            case "isEvening?": return pokemon.runtime.field.PBDayNight.isEvening(now);
+            case "isMidnight?": return pokemon.runtime.field.PBDayNight.isMidnight(now);
+            default: return dayNight(test, now.getHour());
+        }
     }
 
     static boolean dayNight(String test, int hour) {

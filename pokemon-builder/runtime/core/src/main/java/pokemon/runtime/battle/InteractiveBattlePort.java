@@ -200,9 +200,9 @@ public final class InteractiveBattlePort implements BattlePort {
         this.battleEnvironment = environment;
         if (environment == CaptureCalculator.ENVIRONMENT_CAVE) {
             this.battleTime = 2;                            // :181-183
-        } else if (pokemon.runtime.map.DayNightTone.test("isNight?")) {
+        } else if (pokemon.runtime.field.PBDayNight.isNight(java.time.LocalTime.now())) {
             this.battleTime = 2;                            // :185-186
-        } else if (pokemon.runtime.map.DayNightTone.test("isEvening?")) {
+        } else if (pokemon.runtime.field.PBDayNight.isEvening(java.time.LocalTime.now())) {
             this.battleTime = 1;                            // :187
         } else {
             this.battleTime = 0;
@@ -1472,6 +1472,7 @@ public final class InteractiveBattlePort implements BattlePort {
                 target.pokemon.ballused = ballType;
                 target.pokemon.makeUnmega(pbs);
                 target.pokemon.recordFirstMoves();
+                afterCatch(target.pokemon);                                    // 343_ChainCatching:95-103
                 // :130-131 pbDisplayBrief, then @scene.pbThrowSuccess; the ball is
                 // hidden once the Pokemon is stored (:161).
                 ballEvents.add(Battle.RoundEvent.message(
@@ -1615,10 +1616,27 @@ public final class InteractiveBattlePort implements BattlePort {
             target.pokemon.ballused = ballType;                                     // :152
             target.pokemon.makeUnmega(pbs);
             target.pokemon.recordFirstMoves();                                      // :156
+            afterCatch(target.pokemon);                                             // 343_ChainCatching:95-103
             events.add(Battle.RoundEvent.message("太好了！\n捉到了" + target.pokemon.name + "！", true));   // :130
             events.add(Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_SUCCESS, ballType, 4, false, target.index));   // :131
             battle.caughtPokemon.add(target.pokemon);                               // :163
             return target.pokemon;
+        }
+
+        /**
+         * What 343_ChainCatching's pbThrowPokeBall adds after a capture (:95-103): {@code $Trainer.refreshChain(pkmn.species)},
+         * the level cap of 200, switch 35 ("抓到的变为一级") and a caught Boss losing its rank. The chain counts the species, not
+         * the form, as {@code pkmn.species} does.
+         */
+        private void afterCatch(Pokemon pkmn) {
+            if (pkmn.species != null) {
+                trainer.chainCatching.refresh(pkmn.species.internalName);               // :97
+            }
+            int missing = pkmn.maxHp() - pkmn.hp;
+            if (pkmn.level > 200) pkmn.setLevelAndExp(200);                         // :99
+            if (gameSwitches != null && gameSwitches.test(35)) pkmn.setLevelAndExp(1);   // :100
+            if (pkmn.battleRank > 1) pkmn.battleRank = 1;                           // :101
+            pkmn.hp = Math.max(1, pkmn.maxHp() - missing);                          // :102-103 calcStats keeps the missing HP; hp = 1 if hp < 1
         }
 
         /** PokeBattle_BattleCommon:36-39 pbStorePokemon: the party is full and so is the PC. */

@@ -3594,7 +3594,7 @@ public final class Battle {
                 pkmn.makeUnprimal(pbs);                                            // :154
                 pkmn.recordFirstMoves();                                           // :156 pbRecordFirstMoves
                 // 343_ChainCatching:95-103 (its pbThrowPokeBall replaces the plugin's, and drops the switch-60 level line)
-                hooks.refreshChain(pkmn.internalName);                             // $Trainer.refreshChain(pkmn.species)
+                hooks.refreshChain(pkmn.species == null ? pkmn.internalName : pkmn.species.internalName);                             // $Trainer.refreshChain(pkmn.species)
                 int hpDiff = pkmn.maxHp() - pkmn.hp;                               // calcStats keeps the missing HP (:884-888)
                 if (pkmn.level > 200) pkmn.setLevelAndExp(200);                    // :99
                 if (gameSwitches.test(35)) pkmn.setLevelAndExp(1);                 // :100 "抓到的变为一级"
