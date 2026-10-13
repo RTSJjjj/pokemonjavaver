@@ -11,7 +11,7 @@ import java.util.List;
  * {@code PokemonStorage}(:50-252) 有 {@code NUM_STORAGE_BOXES} 个盒子，盒号 -1 代表队伍
  * ({@code self.party = $Trainer.party})。盒子按需创建(原文一开始就建 200 个，
  * 名字「盒子 N」、壁纸 {@code i%42}，懒创建对外不可见)。
- * {@code RegionalStorage}(:259-358) 的按地区取库由 {@link TrainerState#storageForRegion} 承担。</p>
+ * 原游戏不用 {@code RegionalStorage}(:259-358)，所有地区共用 {@link TrainerState#storage} 这一台电脑。</p>
  *
  * <p>登记: {@code pkmn.formTime} 没有建模；{@code pkmn.form = 0 if SHAYMIN} 对应
  * {@code form = null}。{@code pbEachPokemon}(:377-384) 没有 Java 调用方，未转。</p>

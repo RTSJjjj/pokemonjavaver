@@ -125,12 +125,26 @@ class P4MenuTest {
         assertArrayEquals(new int[] {1, 2}, state.variables().ids());
         SaveManager saves = new SaveManager(); saves.attachPbs(data); GameState loaded = new GameState();
         assertTrue(saves.fromJson(saves.toJson(state), loaded));
-        assertEquals(1, loaded.trainer().storageForRegion(4).count()); assertEquals(0, loaded.trainer().storage.count());
+        assertEquals(1, loaded.trainer().storage.count());
         assertEquals(state.trainer().owned, loaded.trainer().owned); assertTrue(loaded.trainer().seen.contains("B"));
         assertEquals(3661, loaded.trainer().playSeconds); assertEquals("名字$\\", loaded.variables().text(2));
         loaded.reset(); assertEquals(0, loaded.trainer().partyCount()); assertTrue(loaded.trainer().owned.isEmpty());
         assertTrue(saves.fromJson("{\"saveVersion\":1,\"map\":{\"id\":1,\"x\":0,\"y\":0}}", loaded));
         assertEquals(0, loaded.trainer().playSeconds);
+    }
+    @Test void legacyRegionalStorageMergesIntoTheSharedPc() {
+        state.trainer().addToParty(pokemon()); state.trainer().storage.store(pokemon());
+        SaveManager saves = new SaveManager(); saves.attachPbs(data);
+        com.badlogic.gdx.utils.JsonValue root = new com.badlogic.gdx.utils.JsonReader().parse(saves.toJson(state));
+        com.badlogic.gdx.utils.JsonValue trainer = root.get("trainer");
+        com.badlogic.gdx.utils.JsonValue regions = new com.badlogic.gdx.utils.JsonValue(com.badlogic.gdx.utils.JsonValue.ValueType.object);
+        regions.addChild("2", new com.badlogic.gdx.utils.JsonReader().parse(trainer.get("storage").toJson(com.badlogic.gdx.utils.JsonWriter.OutputType.json)));
+        trainer.addChild("regionalStorage", regions);
+        GameState loaded = new GameState();
+        assertTrue(saves.fromJson(root.toJson(com.badlogic.gdx.utils.JsonWriter.OutputType.json), loaded));
+        assertEquals(2, loaded.trainer().storage.count()); assertEquals(1, loaded.trainer().partyCount());
+        loaded.trainer().region = 2; assertSame(loaded.trainer().storage, loaded.trainer().currentStorage());
+        assertFalse(saves.toJson(loaded).contains("regionalStorage"));
     }
     @Test void tradePreparesTheIncomingPokemonLikePbStartTrade() {
         state.trainer().party.add(pokemon()); Pokemon offered = pokemon(); offered.shiny = true; offered.ivs[0] = 31;

@@ -350,11 +350,6 @@ public final class SaveManager {
         for (String id : trainer.owned) owned.addChild(new JsonValue(id));
         for (int id : trainer.badges) badges.addChild(new JsonValue(id));
         node.addChild("seen", seen); node.addChild("owned", owned); node.addChild("badges", badges);
-        JsonValue regions = object();
-        for (java.util.Map.Entry<Integer, Storage> region : trainer.regionalStorage.entrySet()) {
-            regions.addChild(String.valueOf(region.getKey()), storageJson(region.getValue()));
-        }
-        node.addChild("regionalStorage", regions);
         if (trainer.hasPokemonCenter()) {
             JsonValue heal = object();
             heal.addChild("map", new JsonValue(trainer.healMapId));
@@ -923,12 +918,19 @@ public final class SaveManager {
             }
         }
         readStorage(node.get("storage"), trainer.storage, trainer);
+        // Older saves kept a separate PC per region; their Pokemon move into the one shared PC.
         JsonValue regions = node.get("regionalStorage");
         if (regions != null && regions.isObject()) for (JsonValue region : regions) {
-            int id;
-            try { id = Integer.parseInt(region.name); } catch (NumberFormatException invalid) { continue; }
-            if (id <= 0) continue;
-            readStorage(region, trainer.storageForRegion(id), trainer);
+            Storage legacy = new Storage(trainer.party);
+            readStorage(region, legacy, trainer);
+            boolean[] wallpapers = legacy.unlockedWallpapers();
+            for (int i = 0; i < wallpapers.length; i++) if (wallpapers[i]) trainer.storage.unlockWallpaper(i);
+            for (int box = 0; box < legacy.maxBoxes(); box++) {
+                for (int slot = 0; slot < legacy.maxPokemon(box); slot++) {
+                    Pokemon pokemon = legacy.get(box, slot);
+                    if (pokemon != null && !trainer.storage.store(pokemon) && !trainer.party.isFull()) trainer.party.add(pokemon);
+                }
+            }
         }
     }
 

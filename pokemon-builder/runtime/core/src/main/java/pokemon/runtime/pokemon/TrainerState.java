@@ -28,9 +28,8 @@ public final class TrainerState {
      */
     public int id;
     public final Party party = new Party();
+    /** {@code $PokemonStorage}: one PC shared by every region (218_PScreen_Load:449 builds a plain PokemonStorage). */
     public final Storage storage = new Storage(party);
-    /** Region zero is the legacy storage; optional fields preserve v1/v2 saves. */
-    public final java.util.Map<Integer, Storage> regionalStorage = new java.util.TreeMap<>();
     public final java.util.Set<String> seen = new java.util.TreeSet<>();
     public final java.util.Set<String> owned = new java.util.TreeSet<>();
     /** {@code $Trainer.formlastseen[species] = [gender, form]} (330_PokedexEntry_BW_Style:242-247): the form the dex shows. */
@@ -64,11 +63,6 @@ public final class TrainerState {
     public long lastSaved;
     public int region;
 
-    public Storage storageForRegion(int value) {
-        if (value <= 0) return storage;
-        return regionalStorage.computeIfAbsent(value, key -> new Storage(party));
-    }
-
     /**
      * {@code PokeBattle_Trainer#publicID} (:35-37): the portion of the id shown
      * on the trainer card.
@@ -88,7 +82,7 @@ public final class TrainerState {
                 | (source.nextInt(256) << 16)
                 | (source.nextInt(256) << 24);
     }
-    public Storage currentStorage() { return storageForRegion(region); }
+    public Storage currentStorage() { return storage; }
     /** {@code $Trainer.habitatData} and the indexes behind it (294_Boonzeet_s_Habitat_List). */
     public final HabitatLog habitats = new HabitatLog(this);
 
@@ -115,7 +109,7 @@ public final class TrainerState {
     public void reset() {
         name = "训练家"; gender = PokemonStats.MALE; money = 0;
         newId(null);                       // a new game rolls a new trainer id
-        party.members().clear(); storage.clear(); regionalStorage.clear();
+        party.members().clear(); storage.clear();
         seen.clear(); owned.clear(); habitats.clear(); badges.clear(); playSeconds = 0; autosaveSteps = 0; saveSlot = null; lastSaved = 0; region = 0;
         pokedex = false; pokepc = false; expPot = 0; chainCatching.reset(); dayCare.reset(); java.util.Arrays.fill(hatcherEggs, null); hallOfFame.clear(); hallOfFameLastNumber = 0; mysteryGiftAccess = false;
         healMapId = -1; healX = 0; healY = 0; healDirection = 0;
