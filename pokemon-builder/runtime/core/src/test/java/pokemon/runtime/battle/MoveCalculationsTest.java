@@ -140,7 +140,7 @@ class MoveCalculationsTest {
     }
 
     @Test
-    @DisplayName("2c2: Fog rounds the accuracy multiplier x3/5 to a whole number (:179-181)")
+    @DisplayName("2c2: Fog lowers the accuracy multiplier to x3/5 (:179-181; the plugin's .round made it x1)")
     void accuracyFog(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battleOf(data, 3);
@@ -148,7 +148,7 @@ class MoveCalculationsTest {
         battle.field.weather = PBWeather.Fog;
         float[] mods = {100, 0, 0, 1f, 1f};
         MoveEffectRegistry.of("000").pbCalcAccuracyModifiers(tackle, battle.player(), battle.foe(), mods);
-        assertEquals(1f, mods[BattleHandlers.ACC_MULT], ":181 (1.0*3/5).round = 1");
+        assertEquals(0.6f, mods[BattleHandlers.ACC_MULT], 0.001f, ":181 the multiplier is kept unrounded");
     }
 
     @Test

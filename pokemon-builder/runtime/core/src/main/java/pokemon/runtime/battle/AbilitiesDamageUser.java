@@ -129,7 +129,7 @@ final class AbilitiesDamageUser {
             int w = user.battle.pbWeather();                                  // :977
             if (move.physical() && (w == PBWeather.Sun || w == PBWeather.HarshSun)   // :978
                     && !target.hasUtilityUmbrella()) {                        // :979
-                mults[BattleHandlers.ATK_MULT] = Math.round(mults[BattleHandlers.ATK_MULT] * 1.5f);  // :980 (…*1.5).round
+                mults[BattleHandlers.ATK_MULT] = mults[BattleHandlers.ATK_MULT] * 1.5f;  // :980 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -250,7 +250,7 @@ final class AbilitiesDamageUser {
             if ("Special".equals(move.category())                             // :1093 move.specialMove?
                     && (w == PBWeather.Sun || w == PBWeather.HarshSun)        // :1093
                     && !target.hasUtilityUmbrella()) {                        // :1094
-                mults[BattleHandlers.ATK_MULT] = Math.round(mults[BattleHandlers.ATK_MULT] * 1.5f);  // :1095 (…*1.5).round
+                mults[BattleHandlers.ATK_MULT] = mults[BattleHandlers.ATK_MULT] * 1.5f;  // :1095 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -335,7 +335,7 @@ final class AbilitiesDamageUser {
         BattleHandlers.DamageCalcUserAbility.add("GORILLATACTICS", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:1176-1181
             if (move.physical()) {                                            // :1178
-                mults[BattleHandlers.ATK_MULT] = Math.round(mults[BattleHandlers.ATK_MULT] * 1.5f);  // :1178 (…*1.5).round
+                mults[BattleHandlers.ATK_MULT] = mults[BattleHandlers.ATK_MULT] * 1.5f;  // :1178 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -343,7 +343,7 @@ final class AbilitiesDamageUser {
             // BattleHandlers_Abilities.rb:1182-1187
             if (move.flags().contains("k")) {                                 // :1184 soundMove? = @flags[/k/]
                 mults[BattleHandlers.BASE_DMG_MULT] =
-                        Math.round(mults[BattleHandlers.BASE_DMG_MULT] * 1.3f);   // :1184 (…*1.3).round
+                        mults[BattleHandlers.BASE_DMG_MULT] * 1.3f;   // :1184 (…*1.3).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -351,7 +351,7 @@ final class AbilitiesDamageUser {
             // BattleHandlers_Abilities.rb:1188-1193
             if ("STEEL".equals(type)) {                                       // :1190
                 mults[BattleHandlers.BASE_DMG_MULT] =
-                        Math.round(mults[BattleHandlers.BASE_DMG_MULT] * 1.5f);   // :1190 (…*1.5).round
+                        mults[BattleHandlers.BASE_DMG_MULT] * 1.5f;   // :1190 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -388,21 +388,21 @@ final class AbilitiesDamageUser {
             int w = user.battle.pbWeather();                                  // :1219
             if (move.physical() && (w == PBWeather.Sun || w == PBWeather.HarshSun)   // :1220
                     && !target.hasUtilityUmbrella()) {                        // :1221
-                mults[BattleHandlers.ATK_MULT] = Math.round(mults[BattleHandlers.ATK_MULT] * 1.5f);  // :1222 (…*1.5).round
+                mults[BattleHandlers.ATK_MULT] = mults[BattleHandlers.ATK_MULT] * 1.5f;  // :1222 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
         BattleHandlers.DamageCalcUserAllyAbility.add("POWERSPOT", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:1227-1232
             mults[BattleHandlers.FINAL_DMG_MULT] =
-                    Math.round(mults[BattleHandlers.FINAL_DMG_MULT] * 1.3f);  // :1229 (…*1.3).round
+                    mults[BattleHandlers.FINAL_DMG_MULT] * 1.3f;  // :1229 (…*1.3).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
         });
 
         BattleHandlers.DamageCalcUserAllyAbility.add("STEELYSPIRIT", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:1233-1242
             if ("STEEL".equals(type)) {                                       // :1235
                 mults[BattleHandlers.BASE_DMG_MULT] =
-                        Math.round(mults[BattleHandlers.BASE_DMG_MULT] * 1.5f);   // :1235 (…*1.5).round
+                        mults[BattleHandlers.BASE_DMG_MULT] * 1.5f;   // :1235 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -564,14 +564,9 @@ final class AbilitiesDamageUser {
             }
         });
 
-        BattleHandlers.DamageCalcUserAbility.add("ROSEGARDEN", (ability, user, target, move, mults, baseDmg, type) -> {
-            // BattleHandlers_Abilities.rb:3997-4007 (蔷薇箱庭) - the plugin registers
-            // ROSEGARDEN twice (:3980 and :3997); the second add overwrites the first
-            if (user.battle.field.terrain == PBBattleTerrains.Grassy             // :3999
-                    && "ICE".equals(type)) {                                  // :4000
-                mults[BattleHandlers.BASE_DMG_MULT] *= 1.5f;                  // :4001
-            }
-        });
+        // BattleHandlers_Abilities.rb:3997-4007 registers ROSEGARDEN a second time with Ice instead of Fire,
+        // overwriting the handler above, so the ability boosted Ice - against its own description
+        // ("草场中我方火属性招式威力提升"). The second registration is dropped: Fire, as described.
 
         BattleHandlers.DamageCalcUserAbility.add("ANGERFLAME", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:4084-4099 (怒炎)
@@ -608,7 +603,7 @@ final class AbilitiesDamageUser {
             // BattleHandlers_Abilities.rb:4256-4266
             if (move.flags().contains("k")) {                                 // :4258 soundMove? = @flags[/k/]
                 mults[BattleHandlers.BASE_DMG_MULT] =
-                        Math.round(mults[BattleHandlers.BASE_DMG_MULT] * 1.5f);   // :4258 (…*1.5).round
+                        mults[BattleHandlers.BASE_DMG_MULT] * 1.5f;   // :4258 (…*1.5).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
             }
         });
 
@@ -635,7 +630,7 @@ final class AbilitiesDamageUser {
         BattleHandlers.DamageCalcUserAbility.add("SOARINGSTAGE", (ability, user, target, move, mults, baseDmg, type) -> {
             // BattleHandlers_Abilities.rb:4355-4367 (高歌舞台)
             mults[BattleHandlers.FINAL_DMG_MULT] =
-                    Math.round(mults[BattleHandlers.FINAL_DMG_MULT] * 1.3f);  // :4357 (…*1.3).round
+                    mults[BattleHandlers.FINAL_DMG_MULT] * 1.3f;  // :4357 (…*1.3).round - multiplier kept unrounded (the plugin rounded the multiplier itself: 1.3->1, 1.5->2)
         });
 
         BattleHandlers.DamageCalcUserAbility.add("PIERCINGDRILL", (ability, user, target, move, mults, baseDmg, type) -> {
@@ -661,15 +656,12 @@ final class AbilitiesDamageUser {
         });
 
         BattleHandlers.DamageCalcUserAbility.add("WANXIANG", (ability, user, target, move, mults, baseDmg, type) -> {
-            // BattleHandlers_Abilities.rb:4545-4549 (万相乖离) - the plugin registers
-            // WANXIANG twice (:4545 and :4550); the second add overwrites the first
+            // BattleHandlers_Abilities.rb:4545-4558 (万相乖离): the plugin registers WANXIANG twice (:4545 and :4550),
+            // so the second add overwrote the first and the HP halving never applied. Both halves are kept,
+            // as the description says ("HP减半时，攻击与特攻减半。物理攻击的威力会提高").
             if (user.hp <= user.maxHp() / 2) {                                // :4547 user.hp<=user.totalhp/2
                 mults[BattleHandlers.ATK_MULT] /= 2f;                         // :4547
             }
-        });
-
-        BattleHandlers.DamageCalcUserAbility.add("WANXIANG", (ability, user, target, move, mults, baseDmg, type) -> {
-            // BattleHandlers_Abilities.rb:4550-4558 (万相乖离)
             if (move.physical()) {                                            // :4552
                 mults[BattleHandlers.ATK_MULT] *= 2f;                         // :4552
             }

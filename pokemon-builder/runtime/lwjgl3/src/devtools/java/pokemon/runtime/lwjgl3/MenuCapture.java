@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -290,7 +290,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -1793,6 +1793,27 @@ public final class MenuCapture extends ApplicationAdapter {
                     shotMap("fastcatch-throw" + i);
                 }
                 break;
+            case "terrain": {                               // the platform glow of each battle terrain (this runtime's own addition)
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().wildBattle("BULBASAUR", 5);
+                renderMap();
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 2400);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 1200);
+                shotMap("terrain-none");
+                pokemon.runtime.battle.Battle battle = ((pokemon.runtime.battle.InteractiveBattlePort) context.battlePort()).session().battle;
+                String[] names = { "electric", "grassy", "misty", "psychic", "buglure", "cold" };
+                for (int t = 1; t <= 6; t++) {
+                    battle.field.terrain = t;
+                    advanceMap(1f / 60f, 90);                 // faded in, particles settled
+                    for (int f = 0; f < 30; f++) {            // 30 frames, 1/10 s apart
+                        shotMap(String.format(java.util.Locale.ROOT, "terrain-%s-%02d", names[t - 1], f));
+                        advanceMap(1f / 60f, 6);
+                    }
+                }
+                break;
+            }
             case "illusion": {                              // Illusion: the lead looks like the last Pokemon of the team until it is hit
                 pokemon.runtime.pokemon.Pokemon lead = context.gameState().trainer().party.get(0);
                 lead.ability = "ILLUSION";

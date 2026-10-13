@@ -92,7 +92,7 @@ final class AbilitiesDamageTarget {
                     && (weather == PBWeather.Sun || weather == PBWeather.HarshSun)
                     && !target.hasUtilityUmbrella()) {                       // :1283
                 mults[BattleHandlers.DEF_MULT] =
-                        Math.round(mults[BattleHandlers.DEF_MULT] * 1.5f);   // :1284
+                        mults[BattleHandlers.DEF_MULT] * 1.5f;   // :1284 - multiplier kept unrounded (the plugin rounded the multiplier itself)
             }
         });
 
@@ -198,7 +198,7 @@ final class AbilitiesDamageTarget {
                     && (weather == PBWeather.Sun || weather == PBWeather.HarshSun)
                     && !target.hasUtilityUmbrella()) {                       // :1389
                 mults[BattleHandlers.DEF_MULT] =
-                        Math.round(mults[BattleHandlers.DEF_MULT] * 1.5f);   // :1390
+                        mults[BattleHandlers.DEF_MULT] * 1.5f;   // :1390 - multiplier kept unrounded (the plugin rounded the multiplier itself)
             }
         });
 
@@ -251,7 +251,7 @@ final class AbilitiesDamageTarget {
             // BattleHandlers_Abilities.rb:3592-3598
             if (specialMove(move)) {                                         // :3594
                 mults[BattleHandlers.DEF_MULT] =
-                        Math.round(mults[BattleHandlers.DEF_MULT] * 0.5f);   // :3595
+                        mults[BattleHandlers.DEF_MULT] * 0.5f;   // :3595 - multiplier kept unrounded (the plugin rounded the multiplier itself)
             }
         });
 
@@ -259,7 +259,7 @@ final class AbilitiesDamageTarget {
             // BattleHandlers_Abilities.rb:3599-3605
             if (specialMove(move)) {                                         // :3601
                 mults[BattleHandlers.DEF_MULT] =
-                        Math.round(mults[BattleHandlers.DEF_MULT] * 0.5f);   // :3602
+                        mults[BattleHandlers.DEF_MULT] * 0.5f;   // :3602 - multiplier kept unrounded (the plugin rounded the multiplier itself)
             }
         });
 
@@ -298,7 +298,7 @@ final class AbilitiesDamageTarget {
                 ret = Math.min(ret, 6);                                      // :4110 [ret,6].min
                 float mult = 1.24f + ret * 0.06f;                            // :4111
                 mults[BattleHandlers.DEF_MULT] =
-                        Math.round(mults[BattleHandlers.DEF_MULT] * mult);   // :4112
+                        mults[BattleHandlers.DEF_MULT] * mult;   // :4112 - multiplier kept unrounded (the plugin rounded the multiplier itself)
             }
         });
 

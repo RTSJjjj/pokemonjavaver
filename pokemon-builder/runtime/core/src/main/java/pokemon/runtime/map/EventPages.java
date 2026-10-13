@@ -120,8 +120,9 @@ public final class EventPages {
             int amount = Integer.parseInt(cooled.group(2));
             if ("Days".equals(cooled.group(1))) {                                // 024_Game_Event:100-107 expiredDays?
                 java.time.LocalDateTime time = java.time.LocalDateTime.now();
-                long elapsed = (now - ontime) / 86400;
-                if ((now - ontime) % 86400 > time.getHour() * 3600L + time.getMinute() * 60L + time.getSecond()) elapsed += 1;
+                // Ruby's Integer / and % floor; a clock set back makes now - ontime negative, where Java's would truncate
+                long elapsed = Math.floorDiv(now - ontime, 86400L);
+                if (Math.floorMod(now - ontime, 86400L) > time.getHour() * 3600L + time.getMinute() * 60L + time.getSecond()) elapsed += 1;
                 return elapsed >= amount;
             }
             return now > ontime + amount;                                        // :94-98 expired?(secs)

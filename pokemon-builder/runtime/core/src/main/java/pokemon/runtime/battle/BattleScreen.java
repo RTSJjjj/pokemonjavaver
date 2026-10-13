@@ -4,6 +4,7 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import pokemon.runtime.app.*;
 import pokemon.runtime.input.*;
@@ -4353,6 +4354,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         }
         float safeDelta = Math.max(0f, delta);
         updateBars(safeDelta);
+        updateTerrainGlow(safeDelta);
         // One tick per 40fps frame, like PokeBattle_Scene#pbUpdate: every call
         // runs pbGraphicsUpdate, which advances @frameCounter and @animations.
         frameAccum += safeDelta;
@@ -4791,9 +4793,19 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         boolean colorSet = false;
         boolean mosaicOn = false;
         int blend = 0;
+        BattleSprite base0 = terrainGlowLevel > 0f ? sprites.get("base_0") : null;
+        BattleSprite base1 = terrainGlowLevel > 0f ? sprites.get("base_1") : null;
+        boolean terrainWashDone = terrainGlowLevel <= 0f;
         for (BattleSprite sprite : sprites.drawOrder()) {
             if (!sprite.visible || sprite.opacity <= 0f || sprite.blinkHidden) {
                 continue;
+            }
+            if (!terrainWashDone && sprite.z > 1) {
+                // the backdrop and the platforms (z 0-1) are down: wash them in the terrain colour
+                if (shaderBound) { batch.setShader(null); shaderBound = false; }
+                if (blend != 0) { applyBlend(0); blend = 0; }
+                drawTerrainWash(w, h);
+                terrainWashDone = true;
             }
             // RGSS blend_type: 0 normal, 1 additive, 2 subtractive.
             int wantedBlend = sprite.kind == BattleSprite.Kind.DATA_BOX || sprite.kind == BattleSprite.Kind.PLANE_COLOR
@@ -4912,6 +4924,36 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             batch.draw(texture, x, y, sprite.ox * sprite.zoomX, drawH - sprite.oy * sprite.zoomY,
                     drawW, drawH, 1f, 1f, -sprite.angle,
                     sprite.srcX, sprite.srcY, srcW, srcH, sprite.mirror, false);
+            if (sprite == base0 || sprite == base1) {
+                // Terrain glow: the platform's silhouette in the terrain colour - blended over it so
+                // the hue reads on any platform colour - plus a slightly larger additive halo.
+                // Without the sprite shader the platform itself is drawn tinted instead.
+                boolean silhouette = spriteShader != null && spriteShader.isCompiled();
+                if (silhouette) {
+                    if (!shaderBound) { batch.setShader(spriteShader.program()); shaderBound = true; }
+                    batch.flush();
+                    spriteShader.setTone(NO_TONE);
+                    spriteShader.setColor(terrainGlowColor);
+                    toneSet = false;
+                    colorSet = false;
+                }
+                float pulse = 0.5f + 0.5f * MathUtils.sin(terrainGlowClock * MathUtils.PI2 / TERRAIN_GLOW_PERIOD);
+                float fade = terrainGlowLevel * sprite.opacity / 255f;
+                float r = silhouette ? 1f : terrainGlowColor[0] / 255f;
+                float g = silhouette ? 1f : terrainGlowColor[1] / 255f;
+                float b = silhouette ? 1f : terrainGlowColor[2] / 255f;
+                if (blend != 0) { applyBlend(0); blend = 0; }
+                batch.setColor(r, g, b, fade * (0.26f + 0.14f * pulse));
+                batch.draw(texture, x, y, sprite.ox * sprite.zoomX, drawH - sprite.oy * sprite.zoomY,
+                        drawW, drawH, 1f, 1f, -sprite.angle,
+                        sprite.srcX, sprite.srcY, srcW, srcH, sprite.mirror, false);
+                applyBlend(1);
+                blend = 1;
+                batch.setColor(r, g, b, fade * (0.08f + 0.08f * pulse));
+                batch.draw(texture, x, y, drawW / 2f, drawH / 2f,
+                        drawW, drawH, TERRAIN_HALO_ZOOM, TERRAIN_HALO_ZOOM, -sprite.angle,
+                        sprite.srcX, sprite.srcY, srcW, srcH, sprite.mirror, false);
+            }
         }
         if (shaderBound) {
             batch.setShader(null);
@@ -5032,6 +5074,71 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     // =====================================================================
     // Data boxes / messages / menus (unchanged rendering)
     // =====================================================================
+
+    // ---------------------------------------------------------------------
+    // Terrain glow (this runtime's own addition, not in the plugin): the
+    // battle terrain has no animation data, so the two platforms glow in the
+    // terrain's colour while it lasts.
+    // ---------------------------------------------------------------------
+
+    private static final float TERRAIN_GLOW_FADE_SECONDS = 0.6f;
+    private static final float TERRAIN_GLOW_PERIOD = 2.4f;
+    private static final float TERRAIN_HALO_ZOOM = 1.08f;
+    private static final float[] NO_TONE = { 0f, 0f, 0f, 0f };
+    /** RGSS colour (0-255, alpha 255 = the solid colour) of the terrain being shown; kept while it fades out. */
+    private final float[] terrainGlowColor = { 0f, 0f, 0f, 255f };
+    private float terrainGlowLevel;
+    private float terrainGlowClock;
+    /** The terrain whose colour and particles are on screen (lags the field's terrain while fading). */
+    private int terrainShown = PBBattleTerrains.None;
+    private final TerrainParticles terrainParticles = new TerrainParticles();
+
+    /** The glow colour of a battle terrain, or null for none. */
+    static float[] terrainGlowRgb(int terrain) {
+        switch (terrain) {
+            case PBBattleTerrains.Electric: return new float[] { 255f, 220f, 60f };
+            case PBBattleTerrains.Grassy:   return new float[] { 90f, 220f, 90f };
+            case PBBattleTerrains.Misty:    return new float[] { 255f, 130f, 200f };
+            case PBBattleTerrains.Psychic:  return new float[] { 180f, 90f, 255f };
+            case PBBattleTerrains.BugLure:  return new float[] { 40f, 210f, 170f };   // 蟲惑场地: teal
+            case PBBattleTerrains.Cold:     return new float[] { 150f, 205f, 255f };  // 冰汽场地: blue-white
+            default: return null;
+        }
+    }
+
+    /** The terrain colour over the whole battle field (above the message bar), under every battler. */
+    private void drawTerrainWash(float w, float h) {
+        float pulse = 0.5f + 0.5f * MathUtils.sin(terrainGlowClock * MathUtils.PI2 / TERRAIN_GLOW_PERIOD);
+        batch.setColor(terrainGlowColor[0] / 255f, terrainGlowColor[1] / 255f, terrainGlowColor[2] / 255f,
+                terrainGlowLevel * (0.12f + 0.06f * pulse));
+        batch.draw(assets.pixel(), 0f, h - BAR_Y, w, BAR_Y);
+        terrainParticles.setField(w, BAR_Y);
+        terrainParticles.render(batch, h, terrainGlowLevel);
+        batch.setColor(Color.WHITE);
+    }
+
+    private void updateTerrainGlow(float delta) {
+        int terrain = session.battle == null ? PBBattleTerrains.None : session.battle.field.terrain;
+        float[] rgb = terrainGlowRgb(terrain);
+        if (rgb != null && terrainGlowLevel <= 0f) {
+            terrainGlowClock = 0f;                                   // a new terrain starts its pulse from the dim end
+        }
+        float target = rgb == null ? 0f : 1f;
+        if (rgb != null && (rgb[0] != terrainGlowColor[0] || rgb[1] != terrainGlowColor[1] || rgb[2] != terrainGlowColor[2])) {
+            if (terrainGlowLevel > 0f) {
+                target = 0f;                                         // one terrain replaced another: fade out, then in
+            } else {
+                System.arraycopy(rgb, 0, terrainGlowColor, 0, 3);
+                terrainShown = terrain;
+            }
+        }
+        float step = delta / TERRAIN_GLOW_FADE_SECONDS;
+        terrainGlowLevel = target > terrainGlowLevel
+                ? Math.min(target, terrainGlowLevel + step) : Math.max(target, terrainGlowLevel - step);
+        if (rgb == null && terrainGlowLevel <= 0f) terrainShown = PBBattleTerrains.None;
+        terrainGlowClock += delta;
+        terrainParticles.update(delta, terrainShown);
+    }
 
     /** PokemonDataBox#animateHP / #animateExp stepping. */
     private void updateBars(float delta) {
@@ -5547,5 +5654,6 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         session.abortEngine();
         batch.dispose();               // assets and fonts are the RuntimeContext's (shared for the run)
         if (spriteShader != null) spriteShader.dispose();
+        terrainParticles.dispose();
     }
 }

@@ -724,9 +724,10 @@ final class AbilitiesSpeedEor {
             battle.hideAbilitySplash(battler);                               // :4304
         });
 
-        // ETERNALSTAR 在插件里被注册两次（:4298 与 :4329，roster §3）：第二次 add 覆盖
-        // 第一次，行为与插件一致，两条都照抄。
-        BattleHandlers.EOREffectAbility.add("ETERNALSTAR", (ability, battler, battle) -> {
+        // :4329 sits under the comment "#清澈之心" but registers ETERNALSTAR again - a copy that kept the old name.
+        // It overwrote 星火长明's message and left 清澈之心 (CLEARHEART, "每回合结束时会治愈自身最大HP的1/8")
+        // without its healing; it is registered under CLEARHEART here.
+        BattleHandlers.EOREffectAbility.add("CLEARHEART", (ability, battler, battle) -> {
             // BattleHandlers_Abilities.rb:4329-4345
             if (!battler.canHeal()) {                                        // :4331
                 return;

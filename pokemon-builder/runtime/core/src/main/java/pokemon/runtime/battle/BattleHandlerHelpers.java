@@ -268,10 +268,10 @@ public final class BattleHandlerHelpers {
         }
         if (target.hasActiveAbility("RIPEN")) {                   // :648
             mults[BattleHandlers.FINAL_DMG_MULT] =
-                    Math.round(mults[BattleHandlers.FINAL_DMG_MULT] / 4f);    // :649
+                    mults[BattleHandlers.FINAL_DMG_MULT] / 4f;    // :649 - multiplier kept unrounded (the plugin rounded the multiplier itself)
         } else {
             mults[BattleHandlers.FINAL_DMG_MULT] =
-                    Math.round(mults[BattleHandlers.FINAL_DMG_MULT] / 2f);    // :651
+                    mults[BattleHandlers.FINAL_DMG_MULT] / 2f;    // :651 - multiplier kept unrounded (the plugin rounded the multiplier itself)
         }
         target.damageState.berryWeakened = true;                 // :653
         PendingApi.pbCommonAnimation(target.battle, "EatBerry", target);   // :654

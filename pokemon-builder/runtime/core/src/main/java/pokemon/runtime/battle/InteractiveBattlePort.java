@@ -425,6 +425,15 @@ public final class InteractiveBattlePort implements BattlePort {
                     }
                 }
             }
+            // Battle_StartAndEnd:162-171 "打完一道馆后自动设置努力值" (used to be missing): with the first badge,
+            // the opponents' Pokemon whose EVs are still a placeholder get EVs and a nature (changeEVandNature).
+            if (trainerBattle && trainer.badges.contains(0)) {
+                for (Array<Pokemon> team : teams) {
+                    for (Pokemon p : team) {
+                        if (ChangeEvAndNature.hasPlaceholderEvs(p)) ChangeEvAndNature.apply(p, data.get(), false);
+                    }
+                }
+            }
             for (int owner = 0; owner < teams.size(); owner++) {
                 for (Pokemon p : teams.get(owner)) {
                     if (owner == 0) battle.addFoe(p);

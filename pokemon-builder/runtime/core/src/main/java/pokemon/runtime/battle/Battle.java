@@ -3033,13 +3033,13 @@ public final class Battle {
      * {@code pbWeather} (PokeBattle_Battle:673-676): the effective weather,
      * which Cloud Nine / Air Lock suppress.
      *
-     * <p>登记: PokeBattle_Battle:674 -
-     * {@code eachBattler { |b| return PBWeather::None if b.hasActiveAbility?([:CLOUDNINE,:AIRLOCK]) }}
-     * needs {@code Battler#hasActiveAbility?}, which task-12 has not landed yet;
-     * only the {@code :675 return @field.weather} line is transcribed.</p>
+     * <p>:674 used to be left out (a pending stub), so Cloud Nine / Air Lock never
+     * suppressed the weather.</p>
      */
     public int pbWeather() {
-        // 登记: PokeBattle_Battle:674 依赖 Battler#hasActiveAbility?（未落地）
+        for (Battler b : eachBattler()) {                          // :674
+            if (b.hasActiveAbility("CLOUDNINE") || b.hasActiveAbility("AIRLOCK")) return PBWeather.None;
+        }
         return field.weather;                                      // :675
     }
 
@@ -3232,11 +3232,8 @@ public final class Battle {
      * {@code pbEndPrimordialWeather} (PokeBattle_Battle:707-733), the method
      * {@link #pbStartWeather(Battler, int, boolean, boolean)} calls at {@code :704}.
      *
-     * <p>登记: PokeBattle_Battle:712/717/722 - the guards are
-     * {@code !pbCheckGlobalAbility(:DESOLATELAND)} etc., and
-     * {@link #pbCheckGlobalAbility(String)} is itself registered (needs
-     * {@code Battler#hasActiveAbility?}), so those branches currently read as
-     * "no holder on the field" and reset the weather. 登记: :729
+     * <p>The guards (:712/:717/:722) end the weather once no battler holds
+     * Desolate Land / Primordial Sea / Delta Stream any more. 登记: :729
      * {@code b.pbCheckFormOnWeatherChange}.</p>
      */
     public void pbEndPrimordialWeather() {
@@ -3419,12 +3416,31 @@ public final class Battle {
         if (battler.hasType("GHOST") && NEWEST_BATTLE_MECHANICS) {   // :9
             return true;
         }
-        // 登记: Battle_Action_Running:10-13 依赖 Battler#abilityActive?/#itemActive?/#ability/#item（未落地）
-        if (field.effects.intVal(PBEffects.Field.FairyLock) > 0) {   // :20 (the available term of :14-20)
+        // :10-26 used to be pending stubs (only Fairy Lock was checked): Run Away / Smoke Ball, the
+        // trapping effects and the trapping abilities / items are all read now.
+        if (battler.abilityActive()
+                && BattleHandlers.triggerRunFromBattleAbility(battler.ability, battler)) {   // :10-11
+            return true;
+        }
+        if (battler.itemActive()
+                && BattleHandlers.triggerRunFromBattleItem(battler.item, battler)) {         // :12-13
+            return true;
+        }
+        if (battler.effects.intVal(PBEffects.Battler.Trapping) > 0                 // :14
+                || battler.effects.intVal(PBEffects.Battler.MeanLook) >= 0         // :15
+                || battler.effects.truthy(PBEffects.Battler.Ingrain)               // :16
+                || battler.effects.truthy(PBEffects.Battler.JawLock)               // :17
+                || battler.effects.intVal(PBEffects.Battler.OctolockUser) >= 0     // :18
+                || battler.effects.truthy(PBEffects.Battler.NoRetreat)             // :19
+                || field.effects.intVal(PBEffects.Field.FairyLock) > 0) {          // :20
             return false;
         }
-        // 登记: Battle_Action_Running:14-19 其余六个 battler.effects[...] 项依赖 Battler#effects（未落地）
-        // 登记: Battle_Action_Running:21-26 对面束缚特性/道具依赖 Battler#abilityActive?/#itemActive?
+        for (Battler b : eachOtherSideBattler(idxBattler)) {                       // :21
+            if (b.abilityActive()
+                    && BattleHandlers.triggerTrappingTargetAbility(b.ability, battler, b, this)) return false;   // :22-23
+            if (b.itemActive()
+                    && BattleHandlers.triggerTrappingTargetItem(b.item, battler, b, this)) return false;         // :24-25
+        }
         return true;                                                // :27
     }
 
@@ -3802,26 +3818,29 @@ public final class Battle {
      * {@code pbCheckGlobalAbility(abil)} (PokeBattle_Battle:478-481):
      * {@code eachBattler { |b| return b if b.hasActiveAbility?(abil) }; return nil}.
      *
-     * <p>登记: PokeBattle_Battle:478-481 - {@code Battler#hasActiveAbility?} is
-     * not landed (task-12), so this returns {@code null} ("no holder"), which is
-     * also Ruby's value when nothing on the field has the ability.</p>
+     * Used to be a stub returning {@code null}, which silently disabled every global
+     * ability check (the Ruin abilities, Dark / Fairy Aura, Damp, Dancer, and the end of
+     * the primal weathers).
      */
     public Battler pbCheckGlobalAbility(String abil) {
-        // 登记: PokeBattle_Battle:478-481 依赖 Battler#hasActiveAbility?（未落地）
-        return null;
+        for (Battler b : eachBattler()) {                          // :479
+            if (b.hasActiveAbility(abil)) return b;
+        }
+        return null;                                               // :480
     }
 
     /**
      * {@code pbCheckOpposingAbility(abil,idxBattler=0,nearOnly=false)}
      * (PokeBattle_Battle:483-489).
      *
-     * <p>登记: PokeBattle_Battle:483-489 - needs {@code Battler#hasActiveAbility?}
-     * and {@code Battler#near?}; returns {@code null} like Ruby when no opposing
-     * battler has the ability.</p>
+     * Used to be a stub returning {@code null} (Unnerve and the like never applied).
      */
     public Battler pbCheckOpposingAbility(String abil, int idxBattler, boolean nearOnly) {
-        // 登记: PokeBattle_Battle:483-489 依赖 Battler#hasActiveAbility? 与 Battler#near?（未落地）
-        return null;
+        for (Battler b : eachOtherSideBattler(idxBattler)) {       // :484
+            if (nearOnly && !b.near(idxBattler)) continue;         // :485
+            if (b.hasActiveAbility(abil)) return b;                // :486
+        }
+        return null;                                               // :488
     }
 
     /**

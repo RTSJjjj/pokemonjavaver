@@ -1177,7 +1177,9 @@ public final class MoveEffects_0B0_0D4 {
                     && !user.hasActiveAbility("SUPERSUN")) {                   // :2180
                 if (!((w == PBWeather.Rain || w == PBWeather.HeavyRain)        // :2182
                         && user.hasUtilityUmbrella())) {
-                    damageMult = Math.round(damageMult / 2.0f);                // :2183 (damageMult/2.0).round
+                    // :2183 (damageMult/2.0).round - the plugin rounded the multiplier itself (0.5 -> 1, so
+                    // the halving never applied); kept unrounded here.
+                    damageMult = damageMult / 2.0f;
                 }
             }
             return damageMult;                                                // :2185

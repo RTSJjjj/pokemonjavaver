@@ -149,21 +149,26 @@ public final class DamageCalc {
         boolean physical = effect.physicalMove(move, null);
         boolean special = effect.specialMove(move, null);
         // :297-307 "of Ruin" abilities (Tablets/Sword/Vessel/Beads/Turbo Blaze/Calamity Aerial)
-        String[] ruin = { "TABLETSOFRUIN", "SWORDOFRUIN", "VESSELOFRUIN", "BEADSOFRUIN",
-                "TURBOBLAZE" };   // CALAMITYAERIAL removed: Delta Stream + Speed drop, not a Ruin ability
+        // The plugin's list puts TURBOBLAZE in the 5th slot, which by the index rule (:300/:302) lowers Sp. Atk,
+        // and leaves TERAVOLT out. Their descriptions and switch-in messages (:3460-3462) say Turboblaze lowers
+        // the others' Sp. Def and Teravolt their Defense, so each ability names its stat here instead.
+        // CALAMITYAERIAL is not a Ruin ability (Delta Stream + Speed drop, see AbilitiesSwitchIn).
+        String[] ruin = { "TABLETSOFRUIN", "SWORDOFRUIN", "VESSELOFRUIN", "BEADSOFRUIN", "TURBOBLAZE", "TERAVOLT" };
+        boolean[] ruinDefense = { false, true, false, true, true, true };        // lowers the target's defense stat
+        boolean[] ruinPhysical = { true, true, false, false, false, true };      // the physical stat (Atk / Def)
         for (int i = 0; i < ruin.length; i++) {                                     // :298
             if (user.battle.pbCheckGlobalAbility(ruin[i]) == null) {                  // :299
                 continue;
             }
-            boolean category = (i < 2) ? physical : special;                        // :300
-            if (i % 2 != 0 && user.battle.field.effects.intVal(PBEffects.Field.WonderRoom) > 0) {
+            boolean category = ruinPhysical[i] ? physical : special;                // :300
+            if (ruinDefense[i] && user.battle.field.effects.intVal(PBEffects.Field.WonderRoom) > 0) {
                 category = !category;                                              // :301
             }
-            if (i % 2 == 0 && !user.hasActiveAbility(ruin[i])) {                    // :302
+            if (!ruinDefense[i] && !user.hasActiveAbility(ruin[i])) {               // :302
                 if (category) {
                     multipliers[ATK_MULT] *= 0.75f;                                // :303
                 }
-            } else if (i % 2 != 0 && !target.hasActiveAbility(ruin[i])) {           // :304
+            } else if (ruinDefense[i] && !target.hasActiveAbility(ruin[i])) {       // :304
                 if (category) {
                     multipliers[DEF_MULT] *= 0.75f;                                // :305
                 }
@@ -259,15 +264,17 @@ public final class DamageCalc {
                 multipliers[BASE_DMG_MULT] /= 3;                                   // :389
             }
         }
-        // :393-408 terrain boosts, rounded because the plugin writes .round (:397/:401/:405)
+        // :393-408 terrain boosts. The plugin writes `(multiplier*1.3).round` (:397/:401/:405), which
+        // rounds the multiplier itself back to 1 - the boost never applied; the same `.round` made the
+        // weather boost below x2 instead of x1.5. Both are kept unrounded here (the damage is rounded later).
         if (user.affectedByTerrain()) {
             int terrain = user.battle.field.terrain;
             if (terrain == PBBattleTerrains.Electric && "ELECTRIC".equals(type)) {   // :395-396
-                multipliers[BASE_DMG_MULT] = Math.round(multipliers[BASE_DMG_MULT] * 1.3f);
+                multipliers[BASE_DMG_MULT] = multipliers[BASE_DMG_MULT] * 1.3f;
             } else if (terrain == PBBattleTerrains.Grassy && "GRASS".equals(type)) { // :399-400
-                multipliers[BASE_DMG_MULT] = Math.round(multipliers[BASE_DMG_MULT] * 1.3f);
+                multipliers[BASE_DMG_MULT] = multipliers[BASE_DMG_MULT] * 1.3f;
             } else if (terrain == PBBattleTerrains.Psychic && "PSYCHIC".equals(type)) {  // :403-404
-                multipliers[BASE_DMG_MULT] = Math.round(multipliers[BASE_DMG_MULT] * 1.3f);
+                multipliers[BASE_DMG_MULT] = multipliers[BASE_DMG_MULT] * 1.3f;
             }
         }
         // :409-412 Misty Terrain halves Dragon damage
@@ -303,7 +310,7 @@ public final class DamageCalc {
             if (weather == PBWeather.Sun || weather == PBWeather.HarshSun) {        // :437
                 if ("FIRE".equals(type)) {
                     multipliers[FINAL_DMG_MULT] =
-                            Math.round(multipliers[FINAL_DMG_MULT] * 1.5f);        // :439
+                            multipliers[FINAL_DMG_MULT] * 1.5f;        // :439
                 } else if ("WATER".equals(type)) {
                     multipliers[FINAL_DMG_MULT] /= 2;                              // :441
                 }
@@ -312,7 +319,7 @@ public final class DamageCalc {
                     multipliers[FINAL_DMG_MULT] /= 2;                              // :445
                 } else if ("WATER".equals(type)) {
                     multipliers[FINAL_DMG_MULT] =
-                            Math.round(multipliers[FINAL_DMG_MULT] * 1.5f);        // :447
+                            multipliers[FINAL_DMG_MULT] * 1.5f;        // :447
                 }
             }
         }

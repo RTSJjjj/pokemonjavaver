@@ -9,6 +9,7 @@ import pokemon.runtime.battle.BattleMove;
 import pokemon.runtime.battle.Battler;
 import pokemon.runtime.battle.MoveUsage;
 import pokemon.runtime.battle.EffectMap;
+import pokemon.runtime.battle.PBBattleTerrains;
 import pokemon.runtime.battle.PBEffects;
 import pokemon.runtime.battle.PBStats;
 import pokemon.runtime.battle.PBTargets;
@@ -492,15 +493,55 @@ public class MoveEffectBase implements MoveEffect {
         return false;                                    // :37
     }
 
-    /** {@code pbNumHits(user,targets)} (Move_Usage.rb:50-58). */
+    /**
+     * {@code pbNumHits(user,targets)} (Move_Usage.rb:50-58), wrapped by the
+     * {@code 场地} section's {@code bug_lure_pbNumHits} alias (场地:72-91).
+     */
     @Override
     public int pbNumHits(BattleMove move, Battler user, Array<Battler> targets) {
+        bugLureDoubleHit = false;                                        // 场地:74
+        int normalHits = 1;                                              // :57
         if (user.hasActiveAbility("PARENTALBOND") && pbDamagingMove(move)
                 && !chargingTurnMove(move) && targets.size == 1) {       // :51-52
             user.effects.set(PBEffects.Battler.ParentalBond, 3);  // :54
-            return 2;                                                     // :55
+            normalHits = 2;                                               // :55
         }
-        return 1;                                                        // :57
+        if (normalHits != 1) return normalHits;                          // 场地:77
+        if (!pbDamagingMove(move)) return normalHits;                    // 场地:78
+        if (targets.size == 0) return normalHits;                        // 场地:79
+        if (!bugLureTerrainActiveFor(user)) return normalHits;           // 场地:80
+        if (bugLureMoveExcluded(move)) return normalHits;                // 场地:81
+        if (!"BUG".equals(terrainMoveType(move, user))) return normalHits;   // 场地:83-85
+        // 场地:87-88 borrows the Parental Bond counter, so the engine makes the second hit 1/4 damage
+        user.effects.set(PBEffects.Battler.ParentalBond, 3);
+        bugLureDoubleHit = true;                                         // 场地:89
+        return 2;                                                        // 场地:90
+    }
+
+    /** {@code @bugLureDoubleHit} (场地:74/:89) - per-use state, like the other effects' per-use fields. */
+    private boolean bugLureDoubleHit;
+
+    /** {@code bugLureTerrainActiveFor?(user)} (场地:54-59). */
+    private static boolean bugLureTerrainActiveFor(Battler user) {
+        if (user == null) return false;                                  // :55
+        if (user.airborne()) return false;                               // :56
+        return user.battle.field.terrain == PBBattleTerrains.BugLure;    // :57-58
+    }
+
+    /** {@code bugLureMoveExcluded?} (场地:61-70) with {@code BugLureTerrainSettings::EXCLUDED_MOVES} (:11-16). */
+    private boolean bugLureMoveExcluded(BattleMove move) {
+        if (chargingTurnMove(move)) return true;                         // :62
+        if (callsAnotherMove(move)) return true;                         // :63
+        switch (move.internalName()) {                                   // :65-68
+            case "STRUGGLE": case "BIDE": case "FUTURESIGHT": case "DOOMDESIRE": return true;
+            default: return false;
+        }
+    }
+
+    /** {@code moveType = @calcType; moveType = pbBaseType(user) if moveType.nil?} (场地:83-84, :111-112, :320-321). */
+    private String terrainMoveType(BattleMove move, Battler user) {
+        String type = move.calcType();
+        return type != null ? type : pbBaseType(move, user);
     }
 
     /** {@code pbOverrideSuccessCheckPerHit(user,target)} (Move_Usage.rb:63). */
@@ -521,10 +562,18 @@ public class MoveEffectBase implements MoveEffect {
         // :65 empty
     }
 
-    /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (Move_Usage.rb:67-74). */
+    /**
+     * {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (Move_Usage.rb:67-74), wrapped by
+     * {@code bug_lure_pbShowAnimation} (场地:94-102): a BugLure second hit replays the move's own animation,
+     * not Parental Bond's.
+     */
     @Override
     public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                 boolean showAnimation) {
+        if (bugLureDoubleHit && user.effects.intVal(PBEffects.Battler.ParentalBond) == 1) {   // 场地:96-97
+            if (showAnimation) user.battle.animation(id, user, targets, hitNum);              // 场地:98
+            return;                                                                            // 场地:99
+        }
         if (!showAnimation) {
             return;                                      // :68 return if !showAnimation
         }
@@ -943,7 +992,9 @@ public class MoveEffectBase implements MoveEffect {
             modifiers[BattleHandlers.EVA_STAGE] = 0;
         }
         if (battle.pbWeather() == PBWeather.Fog) {                                       // :179-180
-            modifiers[BattleHandlers.ACC_MULT] = Math.round(modifiers[BattleHandlers.ACC_MULT] * 3 / 5);   // :181
+            // :181 (modifiers[ACC_MULT]*3/5).round rounds the multiplier itself (0.6 -> 1, so fog never lowered
+            // accuracy); kept unrounded here.
+            modifiers[BattleHandlers.ACC_MULT] = modifiers[BattleHandlers.ACC_MULT] * 3 / 5;
         }
     }
 
@@ -1063,6 +1114,37 @@ public class MoveEffectBase implements MoveEffect {
             critical = pbIsCritical(move, user, target);                         // :263
         }
         DamageCalc.compute(user, target, move, user.battle.pbs(), user.battle.random(), critical, numTargets);
+        // The 场地 section aliases pbCalcDamage twice, BugLure first (场地:105) and Cold over it (场地:313),
+        // so the final damage is: plain -> BugLure x1.3 -> Cold x1.3 (Ice) / x0.5 (Fighting).
+        bugLureCalcDamage(move, user, target);
+        coldTerrainCalcDamage(move, user, target);
+    }
+
+    /** {@code bug_lure_pbCalcDamage}'s own part (场地:104-118): a grounded user's Bug move deals 30% more. */
+    private void bugLureCalcDamage(BattleMove move, Battler user, Battler target) {
+        if (statusMove(move)) return;                                            // :108
+        if (!bugLureTerrainActiveFor(user)) return;                              // :109
+        if (!"BUG".equals(terrainMoveType(move, user))) return;                  // :111-113
+        if (target.damageState.calcDamage <= 0) return;                          // :114
+        target.damageState.calcDamage = (int) Math.round(target.damageState.calcDamage * 1.3);   // :116-117
+    }
+
+    /**
+     * {@code cold_terrain_pbCalcDamage}'s own part (场地:308-336): a grounded user's Ice move deals 30% more;
+     * a Fighting move deals half, airborne user or not (never below 1).
+     */
+    private void coldTerrainCalcDamage(BattleMove move, Battler user, Battler target) {
+        if (statusMove(move)) return;                                            // :316
+        if (user.battle.field.terrain != PBBattleTerrains.Cold) return;          // :317
+        if (target.damageState.calcDamage <= 0) return;                          // :318
+        String type = terrainMoveType(move, user);                               // :320-321
+        if (!user.airborne() && "ICE".equals(type)) {                            // :324
+            target.damageState.calcDamage = (int) Math.round(target.damageState.calcDamage * 1.3);   // :325-326
+        }
+        if ("FIGHTING".equals(type)) {                                           // :330
+            target.damageState.calcDamage = (int) Math.round(target.damageState.calcDamage * 0.5);   // :331-332
+            if (target.damageState.calcDamage < 1) target.damageState.calcDamage = 1;              // :333-334
+        }
     }
 
     /** {@code pbCalcDamageMultipliers(...)} (Move_Usage_Calculations.rb:296-546) - not transcribed (decision 10). */

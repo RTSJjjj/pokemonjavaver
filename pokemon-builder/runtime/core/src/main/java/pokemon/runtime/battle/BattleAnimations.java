@@ -953,7 +953,8 @@ final class BattleAnimations {
             // sideSize shifts are all Integers, PokeBattle_SceneConstants:12-37).
             int cropY = (int) position[1];                                        // :664
             cropY += 8;                                                           // :665
-            // Ruby divides two Integers here, so the result truncates (:666).
+            // Ruby divides two Integers here (:666), which floors (toward -inf). battlerTop is a float, so this is a
+            // float division and Math.floor gives the same result, negative differences included.
             int duration = (int) Math.floor((cropY - battlerTop) / 8);
             if (duration < 10) {
                 duration = 10;   // :667 Min 0.5 seconds
