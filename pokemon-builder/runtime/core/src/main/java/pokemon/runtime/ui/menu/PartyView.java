@@ -1789,7 +1789,7 @@ public final class PartyView {
             return;
         }
         if (summary != null) {
-            summary.render(b, a, f, skin);
+            summary.render(b, a, f, skin, smallFont);
             return;
         }
         if (evolutionView != null && !evolutionView.hostVisible()) {

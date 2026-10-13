@@ -13,6 +13,7 @@ import pokemon.runtime.data.ProjectInfo;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
 import pokemon.runtime.pokemon.PbsData;
+import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.ui.WindowSkin;
 
 /**
@@ -267,20 +268,14 @@ public final class LoadView {
         if (entry == null || entry.species == null || entry.species.isEmpty()) {
             return null;
         }
-        String suffix = (entry.gender == 1 ? "f" : "") + (entry.shiny ? "s" : "");
-        String extra = entry.egg ? "egg" : "";
-        Texture icon = null;
         PbsData data = context.pbsData();
         PbsData.Species species = data == null ? null : data.species(entry.species);
-        if (species != null) {
-            icon = a.icon(String.format("icon%03d%s%s", species.id, suffix, extra));
+        if (species == null) {
+            return entry.egg ? a.icon("iconEgg") : null;
         }
-        if (icon == null) {
-            icon = a.icon("icon" + entry.species + suffix + extra);
-        }
-        if (icon == null && entry.egg) {
-            icon = a.icon("iconEgg");
-        }
-        return icon;
+        // Same candidate order as the party / PC icons, so a missing shiny (or form) icon falls back to the plain one.
+        PbsData.SpeciesForm form = entry.form == null ? null : data.form(entry.form);
+        return PokemonIcons.of(a, species, entry.gender == PokemonStats.FEMALE, entry.shiny, entry.superShiny,
+                form == null ? 0 : form.form, false, entry.egg);
     }
 }

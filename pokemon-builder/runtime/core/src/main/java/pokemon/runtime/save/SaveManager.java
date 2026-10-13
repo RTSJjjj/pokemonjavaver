@@ -503,6 +503,7 @@ public final class SaveManager {
         node.addChild("status", new JsonValue(pokemon.status == null ? "" : pokemon.status));
         node.addChild("gender", new JsonValue(pokemon.gender));
         node.addChild("shiny", new JsonValue(pokemon.shiny));
+        if (pokemon.superShiny) node.addChild("superShiny", new JsonValue(true));
         node.addChild("egg", new JsonValue(pokemon.egg));
         node.addChild("item", new JsonValue(pokemon.item == null ? "" : pokemon.item));
         node.addChild("happiness", new JsonValue(pokemon.happiness));
@@ -1046,6 +1047,7 @@ public final class SaveManager {
         pokemon.status = node.getString("status", "");
         pokemon.gender = node.getInt("gender", pokemon.gender);
         pokemon.shiny = node.getBoolean("shiny", false);
+        pokemon.superShiny = pokemon.shiny && node.getBoolean("superShiny", false);
         pokemon.egg = node.getBoolean("egg", false);
         String item = node.getString("item", null);
         pokemon.item = item == null || item.isEmpty() ? null : item;

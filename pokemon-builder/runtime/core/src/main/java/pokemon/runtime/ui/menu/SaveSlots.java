@@ -47,13 +47,18 @@ public final class SaveSlots {
             public final String species;
             public final int gender;
             public final boolean shiny;
+            public final boolean superShiny;
             public final boolean egg;
+            /** The saved form key ({@code SpeciesForm.key}), or null for the base form. */
+            public final String form;
 
-            PartyEntry(String species, int gender, boolean shiny, boolean egg) {
+            PartyEntry(String species, int gender, boolean shiny, boolean superShiny, boolean egg, String form) {
                 this.species = species;
                 this.gender = gender;
                 this.shiny = shiny;
+                this.superShiny = superShiny;
                 this.egg = egg;
+                this.form = form;
             }
         }
 
@@ -152,7 +157,9 @@ public final class SaveSlots {
                                 member.getString("species", ""),
                                 member.getInt("gender", -1),
                                 member.getBoolean("shiny", false),
-                                member.getBoolean("egg", false)));
+                                member.getBoolean("superShiny", false),
+                                member.getBoolean("egg", false),
+                                member.getString("form", null)));
                     }
                 }
             }

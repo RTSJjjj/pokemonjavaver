@@ -67,6 +67,7 @@ class TrainerSaveTest {
         lead.ability = "CHLOROPHYLL";
         lead.item = "LEFTOVERS";
         lead.shiny = true;
+        lead.superShiny = true;
         lead.originalTrainer = "阿辽";
         lead.battleRank = 7;
         lead.giveRibbon("EFFORT");
@@ -139,6 +140,7 @@ class TrainerSaveTest {
         assertEquals("CHLOROPHYLL", reloaded.ability);
         assertEquals("LEFTOVERS", reloaded.item);
         assertTrue(reloaded.shiny);
+        assertTrue(reloaded.superShiny, "super shiny survives the save");
         assertEquals("阿辽", reloaded.originalTrainer);
         assertEquals(7, reloaded.battleRank);
         assertTrue(reloaded.hasRibbon("EFFORT"), "ribbons survive the save");

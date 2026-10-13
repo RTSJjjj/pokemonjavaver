@@ -2328,7 +2328,7 @@ public final class StorageView {
         screenH = h;
         screenW = w;
         if (mode == Mode.SUMMARY && summary != null) {
-            summary.render(b, a, f, skin);
+            summary.render(b, a, f, skin, smallFont);
             return;
         }
         if (mode == Mode.TEXT && textEntry != null) {

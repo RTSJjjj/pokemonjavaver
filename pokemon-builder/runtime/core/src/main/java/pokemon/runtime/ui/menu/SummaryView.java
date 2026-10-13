@@ -87,6 +87,8 @@ public final class SummaryView {
     private PbsData.Move moveToLearn;
     private boolean forgetDone;
     private int forgetResult = -1;
+    /** pbOptions 查看图鉴: the species' single entry page (pbStartSceneSingle) shown over the summary. */
+    private DexEntryView dexView;
 
     /** {@code pbStartForgetScreen(party, partyindex, moveToLearn)}: choose the move that makes room for {@code moveToLearn}. */
     public static SummaryView forForget(RuntimeContext context, Pokemon pokemon, PbsData.Move moveToLearn) {
@@ -133,6 +135,10 @@ public final class SummaryView {
         Pokemon p = current();
         if (p == null) {
             return true;
+        }
+        if (dexView != null) {
+            if (dexView.update(input)) dexView = null;                          // :1442 dorefresh = true
+            return false;
         }
         switch (mode) {
             case MOVE_DETAIL: return updateMoveDetail(input, p);
@@ -187,7 +193,7 @@ public final class SummaryView {
     }
 
     // ------------------------------------------------------------------
-    // pbOptions (pages 1..3): 携带道具 / 拿回道具 / 标记 / 取消
+    // pbOptions (pages 1..3): 携带道具 / 拿回道具 / 查看图鉴 / 标记 / 取消
     // ------------------------------------------------------------------
     private List<String> optionEntries(Pokemon p) {
         List<String> entries = new ArrayList<>();
@@ -196,8 +202,11 @@ public final class SummaryView {
             if (p.item != null && !p.item.isEmpty()) {
                 entries.add("拿回道具");
             }
-            entries.add("标记");
+            if (context.gameState().trainer().pokedex) {
+                entries.add("查看图鉴");                                       // :1419 if $Trainer.pokedex
+            }
         }
+        entries.add("标记");
         entries.add("取消");
         return entries;
     }
@@ -220,6 +229,12 @@ public final class SummaryView {
             } else if ("拿回道具".equals(choice)) {
                 notice = takeItem(p) ? "已放回背包。" : "没有携带道具。";
                 mode = PAGES;
+            } else if ("查看图鉴".equals(choice)) {
+                mode = PAGES;
+                if (p.species != null) {                                         // :1436-1442 pbStartSceneSingle(species)
+                    dexView = new DexEntryView(context, java.util.Collections.singletonList(p.species), 0);
+                    context.audioManager().playCry(p.species.id);
+                }
             } else if ("标记".equals(choice)) {
                 markingValue = p.markings;
                 markingIndex = 0;
@@ -434,6 +449,14 @@ public final class SummaryView {
     // ==================================================================
 
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin) {
+        render(b, a, f, skin, f);
+    }
+
+    public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, MenuFont smallFont) {
+        if (dexView != null) {
+            dexView.render(b, a, f, smallFont);
+            return;
+        }
         float w = ScreenMetrics.logicalWidth();
         float h = ScreenMetrics.logicalHeight();
         Pokemon p = current();
