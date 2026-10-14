@@ -384,9 +384,7 @@ final class ItemsDamageUser {
             }
             // :781-785 else: if move.specialMove? && !user.battle.rules["souldewclause"]
             //                then mults[ATK_MULT] *= 1.5
-            // 登记: Battle#rules ("souldewclause") is not modelled in this runtime and
-            //       NEWEST_BATTLE_MECHANICS is true (Settings:160), which makes the
-            //       branch unreachable; the Ruby lines are recorded here verbatim:
+            // NEWEST_BATTLE_MECHANICS is true (Settings:160), so this branch is unreachable; the Ruby lines:
             //         :782 if move.specialMove? && !user.battle.rules["souldewclause"]
             //         :783   mults[ATK_MULT] *= 1.5
         });

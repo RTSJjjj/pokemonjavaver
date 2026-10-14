@@ -86,7 +86,7 @@ class ScriptConditionTest {
     @Test
     @DisplayName("an atom the runtime does not know is reported and the condition is false")
     void unknownAtom() {
-        assertFalse(branch("pbMirrorBattle"));
+        assertFalse(branch("pbNotAnApi"));
         assertFalse(warnings.isEmpty());
     }
 

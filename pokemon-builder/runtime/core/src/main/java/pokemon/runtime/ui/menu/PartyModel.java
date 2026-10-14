@@ -28,7 +28,7 @@ public final class PartyModel {
     public boolean takeItem(Inventory inventory) {
         Pokemon p = selected();
         if (p == null || p.item == null || p.item.isEmpty()) return false;
-        inventory.add(p.item, 1); p.item = null; return true;
+        inventory.add(p.item, 1); p.item = null; pokemon.runtime.pokemon.FormHandlers.refresh(p, null); return true;
     }
     public static boolean giveItem(Pokemon p, String id, Inventory inventory, PbsData data) {
         PbsData.Item item = data == null ? null : data.item(id);
@@ -36,6 +36,7 @@ public final class PartyModel {
         inventory.remove(id, 1);
         if (p.item != null && !p.item.isEmpty()) inventory.add(p.item, 1);
         p.item = id;
+        pokemon.runtime.pokemon.FormHandlers.refresh(p, null);           // the held item decides the form (198:5-11)
         return true;
     }
     public List<String> rows() {

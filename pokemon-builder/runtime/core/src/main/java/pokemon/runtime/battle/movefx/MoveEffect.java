@@ -130,6 +130,9 @@ public interface MoveEffect {
     /** {@code damageReducedByBurn?} (PokeBattle_Move.rb:110). */
     boolean damageReducedByBurn(BattleMove move);
 
+    /** {@code damageReducedByFrostbite?} (Arceus:216). */
+    boolean damageReducedByFrostbite(BattleMove move);
+
     /** {@code triggersHyperMode?} (PokeBattle_Move.rb:111). */
     boolean triggersHyperMode(BattleMove move);
 
@@ -355,10 +358,6 @@ public interface MoveEffect {
 
     /** {@code pbCalcDamage(user,target,numTargets=1)} (Move_Usage_Calculations.rb:252-295). */
     void pbCalcDamage(BattleMove move, Battler user, Battler target, int numTargets);
-
-    /** {@code pbCalcDamageMultipliers(user,target,numTargets,type,baseDmg,multipliers)} (Move_Usage_Calculations.rb:296-546). */
-    void pbCalcDamageMultipliers(BattleMove move, Battler user, Battler target, int numTargets, String type,
-                                 int baseDmg, float[] multipliers);
 
     /** {@code pbAdditionalEffectChance(user,target,effectChance=0)} (Move_Usage_Calculations.rb:547-557). */
     int pbAdditionalEffectChance(BattleMove move, Battler user, Battler target, int effectChance);

@@ -18,10 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * M0 接线 B: the {@code Battle} surface appended for the handler and
  * move-effect bodies (stage4-m0b-battler-api-notes.md §B).
  *
- * <p>Each test names the Ruby line it pins. The methods marked 登记 in
- * {@code Battle.java} are asserted for their documented placeholder behaviour
- * (never for plugin behaviour), so that a later wiring pass has a failing test
- * the moment it changes them.</p>
+ * <p>Each test names the Ruby line it pins.</p>
  */
 class BattleApiTest {
 
@@ -83,7 +80,7 @@ class BattleApiTest {
         battle.field.terrain = PBBattleTerrains.Electric;
         assertEquals(PBWeather.Rain, battle.weather());               // :675 @field.weather
         assertEquals(PBBattleTerrains.Electric, battle.terrain());
-        // 登记: :674 needs Battler#hasActiveAbility?, so only :675 is transcribed.
+        // :674 Cloud Nine / Air Lock: nobody here has them
         assertEquals(PBWeather.Rain, battle.pbWeather());
     }
 
@@ -159,7 +156,7 @@ class BattleApiTest {
 
         int messages = battle.roundMessages.size;
         int events = battle.roundEvents.size;
-        battle.pbSetSeen(battle.foe());                               // 登记: :652-656
+        battle.pbSetSeen(battle.foe());                               // :652-656 (the port registers the seen species)
         // The registered call neither prints nor queues anything.
         assertEquals(messages, battle.roundMessages.size);
         assertEquals(events, battle.roundEvents.size);
@@ -225,25 +222,24 @@ class BattleApiTest {
     }
 
     @Test
-    @DisplayName("M0: pbPlayer/pbCheckGlobalAbility/pbCheckOpposingAbility are registered nulls (:226, :478-489)")
-    void registeredLookupsReturnNull(@TempDir Path tempDir) throws Exception {
+    @DisplayName("pbCheckGlobalAbility / pbCheckOpposingAbility find nobody with an ability no battler has (:478-489)")
+    void lookupsWithoutTheAbilityReturnNull(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "FOE");
 
-        assertNull(battle.pbPlayer());                                // 登记: :226
-        assertNull(battle.pbCheckGlobalAbility("CHLOROPHYLL"));       // 登记: :478-481
-        assertNull(battle.pbCheckOpposingAbility("CHLOROPHYLL", 0, false));   // 登记: :483-489
+        assertNull(battle.pbCheckGlobalAbility("CHLOROPHYLL"));       // :478-481
+        assertNull(battle.pbCheckOpposingAbility("CHLOROPHYLL", 0, false));   // :483-489
     }
 
     @Test
-    @DisplayName("M0: pbGetOwnerName returns the player's name; the opposing branch is registered (:266-271)")
+    @DisplayName("pbGetOwnerName: the player's name; no opposing trainer name in a wild battle (:266-271)")
     void ownerName(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));
         Battle battle = battle(data, "HERO", "FOE");
         battle.playerName = "小智";
 
         assertEquals("小智", battle.pbGetOwnerName(0));                // :270
-        assertNull(battle.pbGetOwnerName(1));                          // 登记: :268
+        assertNull(battle.pbGetOwnerName(1));                          // :268 (wild battle)
     }
 
     // ------------------------------------------------------------------

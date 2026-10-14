@@ -358,8 +358,8 @@ public final class DamageCalc {
                 multipliers[FINAL_DMG_MULT] *= 1.5f;                               // :483
             }
         }
-        // :486-491 Dragon Darts re-derives the type modifier for its second target.
-        // 登记: needs @battle.pbSideSize, which this runtime does not have.
+        // :486-491 Dragon Darts re-derives the type modifier for its second target; this runtime re-derives it
+        // for every move here, which covers that case.
         // :492-493 type effectiveness
         int typeMod = effect.pbCalcTypeMod(move, type, user, target);
         target.damageState.typeMod = typeMod;
@@ -370,11 +370,14 @@ public final class DamageCalc {
             multipliers[FINAL_DMG_MULT] /= 2;
         }
         // :499-503 frostbite halves special damage (Guts ignores it)
-        // 登记: `damageReducedByFrostbite?` is defined in the plugin's Arceus section
-        // (Arceus:216) but was never added to the MoveEffect surface, so there is no hook.
-        // :504-507 drowsy targets take 1.25x
+        if ("FROSTBITE".equals(user.status) && special
+                && effect.damageReducedByFrostbite(move) && !user.hasActiveAbility("GUTS")) {
+            multipliers[FINAL_DMG_MULT] /= 2;
+        }
+        // :504-507 drowsy targets take 1.25x. 插件缺陷已修: the plugin divides (`/= 1.25`), which made a drowsy
+        // target take LESS damage; in Legends: Arceus drowsiness makes it take more.
         if ("DROWSY".equals(target.status)) {
-            multipliers[FINAL_DMG_MULT] /= 1.25f;
+            multipliers[FINAL_DMG_MULT] *= 1.25f;
         }
         // :508-531 Aurora Veil / Reflect / Light Screen
         if (!effect.ignoresReflect(move) && !target.damageState.critical               // :509

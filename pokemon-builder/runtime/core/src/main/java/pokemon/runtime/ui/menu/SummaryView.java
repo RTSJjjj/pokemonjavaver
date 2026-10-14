@@ -254,6 +254,7 @@ public final class SummaryView {
         }
         context.gameState().inventory().add(p.item, 1);
         p.item = null;
+        pokemon.runtime.pokemon.FormHandlers.refresh(p, null);                       // the held item decides the form (198:5-11)
         return true;
     }
 

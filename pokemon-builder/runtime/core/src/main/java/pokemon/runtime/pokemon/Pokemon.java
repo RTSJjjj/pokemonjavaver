@@ -42,6 +42,8 @@ public final class Pokemon {
     public String item;
     public int happiness;
     public int stepsToHatch;
+    /** {@code @formTime} (198_Pokemon_Forms:2): when Hoopa's Unbound form was set, epoch seconds; 0 = nil. */
+    public long formTime;
     /** Ribbons awarded by events (P3). */
     public final Array<String> ribbons = new Array<>();
     /** Cumulative experience (P2); level is kept in sync when it grows. */
@@ -773,6 +775,7 @@ public final class Pokemon {
         c.item = item;
         c.happiness = happiness;
         c.stepsToHatch = stepsToHatch;
+        c.formTime = formTime;
         c.ribbons.addAll(ribbons);
         c.firstMoves.addAll(firstMoves);
         c.trMoves.addAll(trMoves);
@@ -830,6 +833,22 @@ public final class Pokemon {
     public int abilityIndex() {
         int slot = abilitySlot();
         return slot >= 0 ? slot : (personalID & 1);
+    }
+
+    /**
+     * A save written while a script's {@code setAbility} read the base species' table could hold a form Pokemon with
+     * an ability outside its form's table (CERULEDGE_1 with the base Ceruledge's ability). The plugin stores only the slot
+     * ({@code @abilityflag}), so such a name is impossible there: the slot it came from is applied to the form's table.
+     */
+    public void repairFormAbility() {
+        if (form == null || species == null || ability == null || abilitySlot() >= 0) {
+            return;
+        }
+        int slot = species.abilities.indexOf(ability, false);
+        if (slot < 0) {
+            slot = ability.equals(species.hiddenAbility) ? 2 : (personalID & 1);
+        }
+        setAbilitySlot(slot);
     }
 
     /** {@code setAbility(value)} (197:255-257): 0/1 natural, 2 hidden. */

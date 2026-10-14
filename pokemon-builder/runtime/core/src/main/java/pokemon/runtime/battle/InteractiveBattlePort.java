@@ -111,6 +111,13 @@ public final class InteractiveBattlePort implements BattlePort {
         }
         start(teams, true, opponents); return null;
     }
+    /** A trainer battle whose party is already built ({@code pbTrainerBattleCore([opponent, party, ..])}, pbMirrorBattle). */
+    @Override
+    public BattleResult trainerBattle(PbsData.TrainerData opponent, Array<Pokemon> party) {
+        if (opponent == null || party == null || party.isEmpty() || data.get() == null) return null;
+        start(java.util.Collections.singletonList(party), true, java.util.Collections.singletonList(opponent));
+        return null;
+    }
     /** {@code setBattleRule("single"/"double"/...)} for the next battle. */
     private String battleSize;
     public void setBattleSize(String size) { this.battleSize = size; }
@@ -175,6 +182,7 @@ public final class InteractiveBattlePort implements BattlePort {
         encounterBattle = false;
         boolean safariBattle = !trainerBattle && encounter && safariSource != null && safariSource.getAsInt() >= 0;
         if (pending() || teams.isEmpty() || teams.get(0).isEmpty() || (trainer.party.firstAble() == null && !safariBattle)) return;
+        pokemon.runtime.pokemon.FormHandlers.refresh(trainer.party.members(), data.get());   // the last getForm read before $game_temp.in_battle
         lastResult = null;
         session = new Session(teams, trainerBattle, opponents, safariBattle);
         battleSize = null;                       // the recorded rules belong to this battle only (PField_Battles:498)
@@ -195,6 +203,9 @@ public final class InteractiveBattlePort implements BattlePort {
     /** {@code setBattleRule("noExp")}: {@code battle.expGain} (PField_Battles:105) of the next battle. */
     public void setExpGain(boolean value) { this.expGain = value; }
     private boolean expGain = true;                 // PokeBattle_Battle:145 @expGain = true
+    /** {@code setBattleRule("noMoney")}: {@code battle.moneyGain} (PField_Battles:107) of the next battle. */
+    @Override public void setMoneyGain(boolean value) { this.moneyGain = value; }
+    private boolean moneyGain = true;               // PokeBattle_Battle:146 @moneyGain = true
     /** {@code setBattleRule("canRun")} / pbWildBattle's {@code canRun}. */
     public void setCanRun(boolean value) { this.canRun = value; }
     /** {@code setBattleRule("disablePokeballs")} applies to the next battle. */
@@ -234,6 +245,7 @@ public final class InteractiveBattlePort implements BattlePort {
         boolean caughtStored = session.caughtStored;       // the screen already ran storeCaught()
         lastSafariBalls = session.safari ? session.ballCount : -1;
         boolean safariBattle = session.safari;
+        session.battle.pbRestoreHeldItems();               // Battle_StartAndEnd:536-540 + 357 (the run / ball endings skip Battle.finish)
         session = null;
         lastResult = result;
         if (safariBattle) {
@@ -241,6 +253,7 @@ public final class InteractiveBattlePort implements BattlePort {
             for (Pokemon p : trainer.party.members()) trainer.registerOwned(p);
             canLose = false;
             expGain = true;
+            moneyGain = true;
             canRun = true;
             switchStyleRule = null;
             battleAnimsRule = null;
@@ -269,6 +282,7 @@ public final class InteractiveBattlePort implements BattlePort {
         if (whiteOut && whiteout != null) whiteout.run();
         canLose = false;
         expGain = true;
+        moneyGain = true;
         canRun = true;
         switchStyleRule = null;
         battleAnimsRule = null;
@@ -281,6 +295,10 @@ public final class InteractiveBattlePort implements BattlePort {
     public static final String MESSAGE_BREAK = "\f";
     /** Settings:28 {@code EXP_POT_MAX}. */
     private static final int EXP_POT_MAX = 99999999;
+    /** 190_PItem_BattleItemEffects:429-446, :491-494: the BattleUseOnPokemon handlers that also call pbCureConfusion. */
+    private static final java.util.Set<String> CURES_CONFUSION = new java.util.HashSet<>(java.util.Arrays.asList(
+            "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
+            "BIGMALASADA", "LUMBERRY", "FULLRESTORE", "HEALPOWDER"));
 
     /** One thing {@code pbRecordAndStoreCaughtPokemon} shows: a line, or the Pokedex entry page of a new species. */
     public static final class CaughtStep {
@@ -330,6 +348,8 @@ public final class InteractiveBattlePort implements BattlePort {
         public String endSpeech;
         /** Battle_StartAndEnd:394-409: the prize money of a won trainer battle. */
         public int prizeMoney;
+        /** Battle_StartAndEnd:411-421: the money scattered by Pay Day the player picked up (0 = none). */
+        public int payDayMoney;
         private int move;
         private int escapes;
         /**
@@ -369,6 +389,7 @@ public final class InteractiveBattlePort implements BattlePort {
             this.trainerData3 = opponents == null || opponents.size() < 3 ? null : opponents.get(2);
             battle = new Battle(data.get(), random, (user, foe, moves) -> move);
             battle.numBadges = trainer.badges.size();                  // @battle.pbPlayer.numbadges
+            battle.currentMapId = formWorld == null ? 0 : formWorld.mapId();   // $game_map.map_id (changeHappiness)
             battle.zaMode = zaMode;
             battle.fullMegaAnimation = megaAnimation == 0;       // Mega evolution:366-369 za_full_mega_animation?
             battle.bagHasItem = id -> inventory != null && inventory.has(id);   // $PokemonBag.pbHasItem?
@@ -384,6 +405,7 @@ public final class InteractiveBattlePort implements BattlePort {
             battle.expAllOn = inventory != null && inventory.has("EXPALL");        // :13
             battle.expCharmOn = inventory != null && inventory.has("EXPCHARM");    // :164
             battle.expGain = expGain;       // PField_Battles:105
+            battle.moneyGain = moneyGain;   // PField_Battles:107
             battle.levelLockOn = levelLockOn;
             battle.leaguePass = leaguePass;
             if (gameSwitches != null) battle.gameSwitches = gameSwitches;   // $game_switches (Battler_UseMove_SuccessChecks:157,165)
@@ -466,6 +488,7 @@ public final class InteractiveBattlePort implements BattlePort {
             if (size != null) battle.setBattleMode(size);                            // :96
             if (!safari || trainer.party.firstAble() != null) battle.pbEnsureParticipants();   // Battle_StartAndEnd:301 (PokeBattle_SafariZone has none)
             battle.pbSetUpIllusions();                                               // Battler_Initialize:214-219 with the parties complete
+            battle.pbOnEnteringBattleAll();                                          // Battle_StartAndEnd:124 / Battle_Action_Switching:325 (the first send-out)
             if (safari) {                                                            // 160_PokeBattle_SafariZone:431-435
                 Pokemon wild = teams.get(0).first();
                 int rareness = wild.species == null ? 0 : wild.species.rareness;
@@ -1092,6 +1115,7 @@ public final class InteractiveBattlePort implements BattlePort {
          * (PokeBattle_Trainer:77-81: the trainer type's baseMoney, 30 unset).
          */
         private void awardPrizeMoney() {
+            if (!battle.internalBattle || !battle.moneyGain) return;           // :395
             PbsData pbs = data.get();
             int total = 0;
             for (int owner = 0; owner < 3; owner++) {                          // :399 @opponent.each_with_index
@@ -1107,8 +1131,21 @@ public final class InteractiveBattlePort implements BattlePort {
                 }
                 total += maxLevel * moneyEarned;
             }
+            if (battle.field.effects.truthy(PBEffects.Field.AmuletCoin)) total *= 2;   // :402
+            if (battle.field.effects.truthy(PBEffects.Field.HappyHour)) total *= 2;    // :403
             prizeMoney = total;
             trainer.money += prizeMoney;
+        }
+
+        /** pbGainMoney's Pay Day part (Battle_StartAndEnd:411-421): "你捡到了${1}！" */
+        private void awardPayDay() {
+            if (!battle.internalBattle || !battle.moneyGain) return;           // :395
+            int payDay = battle.field.effects.intVal(PBEffects.Field.PayDay);  // :412
+            if (payDay <= 0) return;
+            if (battle.field.effects.truthy(PBEffects.Field.AmuletCoin)) payDay *= 2;   // :413
+            if (battle.field.effects.truthy(PBEffects.Field.HappyHour)) payDay *= 2;    // :414
+            payDayMoney = payDay;
+            trainer.money += payDayMoney;                                      // :416
         }
 
         /**
@@ -1425,8 +1462,22 @@ public final class InteractiveBattlePort implements BattlePort {
             } else {
                 // Do not allow field evolution stones or machines during battle.
                 if (item.pocket != 2 && item.pocket != 5) return false;
-                if (ItemUse.use(id, battler.pokemon, trainer, inventory, data.get(), -1, true) != ItemUse.Result.USED) return false;
+                battler.syncHp();                                   // the battler's HP/status is the truth; ItemUse reads the Pokemon
+                boolean curesConfusion = CURES_CONFUSION.contains(id);
+                boolean confused = battler.effects.intVal(PBEffects.Battler.Confusion) > 0;
+                if (ItemUse.use(id, battler.pokemon, trainer, inventory, data.get(), -1, true) != ItemUse.Result.USED) {
+                    // 190_PItem_BattleItemEffects:114-139 CanUseInBattle: confusion alone makes Full Heal / Full Restore usable
+                    if (!curesConfusion || !confused || battler.fainted()) return false;
+                    inventory.remove(id, 1);
+                }
                 battler.hp = battler.pokemon.hp;
+                // 190:379-446 BattleUseOnPokemon: pokemon.healStatus is followed by battler.pbCureStatus(false) - the battler
+                // keeps its own status, and syncHp would otherwise write the old one back onto the Pokemon.
+                String healed = battler.pokemon.status;
+                if ((healed == null || healed.isEmpty()) && battler.status != null && !battler.status.isEmpty()) {
+                    battler.pbCureStatus(false);
+                }
+                if (curesConfusion) battler.pbCureConfusion();      // :432 / :446 / :494 battler.pbCureConfusion
             }
             // Battle_Action_UseItem:77-80 pbUseItemMessage: "{1}使用了{2}。" with
             // the owner's name (the trainer), not the Pokemon's. The rest of the
@@ -1496,6 +1547,7 @@ public final class InteractiveBattlePort implements BattlePort {
                 CaptureCalculator.onCatch(pbs, item.internalName, target.pokemon);
                 target.pokemon.ballused = ballType;
                 target.pokemon.makeUnmega(pbs);
+                target.pokemon.item = target.item == null || target.item.isEmpty() ? null : target.item;   // PokeBattle_Battler#item=
                 target.pokemon.recordFirstMoves();
                 afterCatch(target.pokemon);                                    // 343_ChainCatching:95-103
                 // :130-131 pbDisplayBrief, then @scene.pbThrowSuccess; the ball is
@@ -1641,6 +1693,7 @@ public final class InteractiveBattlePort implements BattlePort {
             target.pokemon.ballused = ballType;                                     // :152
             target.pokemon.makeUnmega(pbs);
             target.pokemon.recordFirstMoves();                                      // :156
+            target.pokemon.item = target.item == null || target.item.isEmpty() ? null : target.item;   // PokeBattle_Battler#item=
             afterCatch(target.pokemon);                                             // 343_ChainCatching:95-103
             events.add(Battle.RoundEvent.message("太好了！\n捉到了" + target.pokemon.name + "！", true));   // :130
             events.add(Battle.RoundEvent.ball(Battle.RoundEvent.Kind.BALL_SUCCESS, ballType, 4, false, target.index));   // :131
@@ -1779,6 +1832,7 @@ public final class InteractiveBattlePort implements BattlePort {
          * at most what the player holds; null when nothing is lost ({@code NO_MONEY_LOSS} = switch 33).
          */
         private String loseMoney() {
+            if (!battle.internalBattle || !battle.moneyGain) return null;      // :425
             if (gameSwitches != null && gameSwitches.test(33)) return null;            // :426
             // The plugin takes pbMaxLevelInTeam(0,0) * [8,16,24,36,48,64,80,100,120][badges] (131_Battle_StartAndEnd:427-431).
             // The project asked for a gentler loss instead: 5 % of the money held (never more than it holds).
@@ -1797,6 +1851,7 @@ public final class InteractiveBattlePort implements BattlePort {
                         // pbMaxLevelInTeam(1,i) * moneyEarned (:394-409). The
                         // victory lines themselves are played by the battle screen.
                         if (trainerBattle) awardPrizeMoney();
+                        awardPayDay();                                             // :411-421 (pbGainMoney runs for every win that is not a capture)
                         break;
                     case LOSS:
                         // Battle_StartAndEnd:479-495: every line is a pbDisplayPaused.

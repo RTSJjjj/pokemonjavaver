@@ -28,8 +28,7 @@ import java.util.function.Supplier;
  * player is done. Texts are the plugin's {@code _INTL} strings.</p>
  *
  * <p>登记: ①Pokemon#ability is stored as the ability's name here, so {@code abilityIndex} is derived from it (a Pokemon
- * whose two normal abilities are the same reads as index 0); ②the form lists ({@code getMoveList} of a form) and
- * {@code MultipleForms onSetForm} are not modelled; ③{@code pbCheckEvolution} / {@code PokemonEvolutionScene} are the
+ * whose two normal abilities are the same reads as index 0); ②{@code MultipleForms onSetForm} runs through {@link pokemon.runtime.pokemon.FormHandlers}; ③{@code pbCheckEvolution} / {@code PokemonEvolutionScene} are the
  * stage 8 evolution rewrite: stones use the checks of {@link ItemUse#evolution}; ④the summary screen's forget mode
  * ({@code pbForgetMove}) is the scene's; ⑤shadow Pokemon and mail are not modelled.</p>
  */
@@ -301,12 +300,14 @@ public final class ItemHandlers {
                 state.inventory().remove(item, 1);                              // :1019
                 state.inventory().add(pkmn.item, 1);                            // :1020 pbStoreItem (the bag has no capacity here)
                 pkmn.item = item;                                               // :1037
+                pokemon.runtime.pokemon.FormHandlers.refresh(pkmn, null);       // the held item decides the form (198:5-11)
                 scene.pbDisplay(fmt("从{2}身上拿回{1}了，\n给予了{3}。", olditemname, pkmn.name, newitemname));   // :1038
                 return true;
             }
         } else {
             state.inventory().remove(item, 1);                                  // :1045
             pkmn.item = item;                                                   // :1046
+            pokemon.runtime.pokemon.FormHandlers.refresh(pkmn, null);       // the held item decides the form (198:5-11)
             scene.pbDisplay(fmt("{1}现在携带着{2}。", pkmn.name, newitemname));       // :1047
             return true;
         }
@@ -1132,14 +1133,33 @@ public final class ItemHandlers {
     // forms and fusion
     // =====================================================================
 
-    /** {@code pkmn.setForm(value) { block }} (198_Pokemon_Forms:17-24): the form is set, the block runs, the stats follow. */
-    private void setForm(Pokemon pkmn, int value, Runnable block) {
+    /**
+     * {@code pkmn.setForm(value) { block }} (198_Pokemon_Forms:17-24): the form is set, the block runs, then
+     * {@code onSetForm} (Rotom's appliance move, Kyurem / Necrozma / Calyrex fusion moves ...) and the stats follow.
+     */
+    private void setForm(Pokemon pkmn, int value, ItemScene scene, Runnable block) {
+        int oldForm = pkmn.formIndex();
         pkmn.recalculatingStats(() -> {
             pkmn.setForm(pbs, value);
             if (block != null) {
                 block.run();
             }
         });
+        pokemon.runtime.pokemon.FormHandlers.onSetForm(pkmn, pbs, value, oldForm, formSink(scene));
+    }
+
+    /** {@code pbMessage} and {@code pbLearnMove(pkmn,move,true)} of an {@code onSetForm} proc, on the item's scene. */
+    pokemon.runtime.pokemon.FormHandlers.Sink formSink(ItemScene scene) {
+        if (scene == null) return null;
+        return new pokemon.runtime.pokemon.FormHandlers.Sink() {
+            @Override public void message(String text) {
+                scene.pbMessage(text);
+            }
+
+            @Override public void learnMove(Pokemon p, PbsData.Move move) {
+                pbLearnMove(p, move, true, false, scene);
+            }
+        };
     }
 
     private boolean formChangeItem(String item, Pokemon pkmn, ItemScene scene) {
@@ -1158,7 +1178,7 @@ public final class ItemHandlers {
                     scene.pbDisplay("不能用在晕倒的宝可梦上。");
                     return false;
                 }
-                setForm(pkmn, 1, changed);
+                setForm(pkmn, 1, scene, changed);
                 return true;
             case "REVEALGLASS":                                                 // :997-1015
                 if (!pkmn.isSpecies("TORNADUS") && !pkmn.isSpecies("THUNDURUS") && !pkmn.isSpecies("LANDORUS")
@@ -1170,7 +1190,7 @@ public final class ItemHandlers {
                     scene.pbDisplay("不能用在晕倒的宝可梦上。");
                     return false;
                 }
-                setForm(pkmn, pkmn.formIndex() == 0 ? 1 : 0, changed);
+                setForm(pkmn, pkmn.formIndex() == 0 ? 1 : 0, scene, changed);
                 return true;
             case "PRISONBOTTLE":                                                // :1017-1031
                 if (!pkmn.isSpecies("HOOPA")) {
@@ -1180,7 +1200,7 @@ public final class ItemHandlers {
                 if (pkmn.hp <= 0) {
                     scene.pbDisplay("不能用在晕倒的宝可梦上。");                    // :1023 (no `next false`: the form still changes)
                 }
-                setForm(pkmn, pkmn.formIndex() == 0 ? 1 : 0, changed);
+                setForm(pkmn, pkmn.formIndex() == 0 ? 1 : 0, scene, changed);
                 return true;
             default:
                 return false;
@@ -1230,7 +1250,7 @@ public final class ItemHandlers {
                 scene.pbDisplay("不能与宝可梦融合。");
                 return false;
             }
-            setForm(pkmn, newForm, () -> {
+            setForm(pkmn, newForm, scene, () -> {
                 pkmn.fused = poke2;
                 state.trainer().party.remove(chosen);                           // pbRemovePokemonAt(chosen)
                 scene.pbHardRefresh();
@@ -1242,7 +1262,7 @@ public final class ItemHandlers {
             scene.pbDisplay("没有空间可供分离。");
             return false;
         }
-        setForm(pkmn, 0, () -> {
+        setForm(pkmn, 0, scene, () -> {
             state.trainer().party.add(pkmn.fused);
             pkmn.fused = null;
             scene.pbHardRefresh();
@@ -1263,7 +1283,7 @@ public final class ItemHandlers {
             if (cmd >= 0 && cmd < 6) {                                          // :1306
                 scene.pbDisplay(fmt("{1}变身了！", pkmn.name));                    // :1307
                 scene.pbRefresh();
-                pkmn.recalculatingStats(() -> pkmn.setForm(pbs, cmd));          // :1309 pkmn.form = cmd
+                setForm(pkmn, cmd, scene, null);                                    // :1309 pkmn.form = cmd
                 scene.pbRefresh();
             } else {
                 scene.pbDisplay("没有订购任何家电");                                // :1312
@@ -1317,7 +1337,7 @@ public final class ItemHandlers {
             if (cmd2 == -1 || cmd2 == 4) {
                 return false;                                                   // :1511
             }
-            setForm(pkmn, cmd2, null);                                          // :1512 pkmn.form = cmd2
+            setForm(pkmn, cmd2, scene, null);                                          // :1512 pkmn.form = cmd2
             if (pkmn.formIndex() != oldForm) {                                  // :1513
                 scene.pbDisplay(fmt("{1}改变了形态！", pkmn.name));
                 return true;
@@ -1334,7 +1354,7 @@ public final class ItemHandlers {
             return false;
         }
         PbsData.Species urshifu = pbs.species("URSHIFU");                       // :1711
-        setForm(pkmn, "SCROLLOFWATERS".equals(item) ? 1 : 0, null);             // :1712, :1731
+        setForm(pkmn, "SCROLLOFWATERS".equals(item) ? 1 : 0, scene, null);             // :1712, :1731
         if (urshifu != null) {
             scene.pbEvolution(pkmn, urshifu, null);                                   // :1713-1721
         }

@@ -20,8 +20,7 @@ import pokemon.runtime.battle.movefx.MoveEffectRegistry;
  * <li>:389-390 type modifier recorded on {@code damageState.typeMod}</li>
  * <li>:392 a charging turn of a two-turn move cannot fail here</li>
  * <li>:394 {@code pbFailsAgainstTarget?} - the move's own failure condition</li>
- * <li>:396-401 Psychic Terrain blocks priority moves <b>(登记: needs the priority slot
- *     {@code @battle.choices[i][4]}, which this runtime does not model yet)</b></li>
+ * <li>:396-401 Psychic Terrain blocks priority moves (the priority saved in {@code @battle.choices[i][4]})</li>
  * <li>:403-421 Crafty Shield / Wide Guard</li>
  * <li>:422-510 the protect family: Quick Guard, Protect, Obstruct, King's Shield,
  *     Spiky Shield, Burning Bulwark, Baneful Bunker, Mat Block</li>
@@ -36,16 +35,6 @@ import pokemon.runtime.battle.movefx.MoveEffectRegistry;
  *
  * <h2>Registered gaps (explicit, not approximated)</h2>
  * <ul>
- * <li><b>{@code @battle.successStates[user.index].protected = true}</b> - this runtime
- *     has no per-battler success-state table (it feeds the AI and scene decisions, not
- *     the damage). Every protect-family branch still sets
- *     {@link DamageState#protectedFlag}, which is what the move flow reads.</li>
- * <li><b>Psychic Terrain priority block (:396-401) and Quick Guard (:424-431)</b> -
- *     both gate on {@code @battle.choices[user.index][4]}, the priority value
- *     {@code pbCalculatePriority} saved. Neither the fifth choice slot nor
- *     {@code pbCalculatePriority} exists in this runtime (docs/stage4-wiring-queue.md
- *     C6), so the two conditions cannot be evaluated. They are written as comments at
- *     their lines.</li>
  * <li><b>{@code :524-526}</b> - the reference dump repeats the Magic Coat/Magic Bounce
  *     block as one run-together line; that is an extraction artefact, not plugin
  *     behaviour, so it is ignored (the block is transcribed once, at :511-526).</li>
@@ -115,7 +104,7 @@ public final class BattleSuccessChecks {
             battle.commonAnimation("CraftyShield", target);                                    // :405
             battle.display("戏法防守保护了" + target.pbThis(true) + "！");                     // :406
             target.damageState.protectedFlag = true;                                           // :407
-            // :408 @battle.successStates[user.index].protected = true - 登记 (see class javadoc)
+            battle.successStates[user.index].protectedFlag = true;                             // :408
             return false;                                                                      // :409
         }
         // :411-421 Wide Guard (move.function 17C is Dragon Darts and is excluded)
@@ -128,6 +117,7 @@ public final class BattleSuccessChecks {
             battle.commonAnimation("WideGuard", target);                                       // :416
             battle.display("广域防守保护了" + target.pbThis(true) + "！");                     // :417
             target.damageState.protectedFlag = true;                                           // :418
+            battle.successStates[user.index].protectedFlag = true;
             return false;                                                                      // :420
         }
         // :422-510 the protect family
@@ -146,6 +136,7 @@ public final class BattleSuccessChecks {
                 battle.commonAnimation("Protect", target);                                      // :434
                 battle.display(target.pbThis() + "保护了自己！");                              // :435
                 target.damageState.protectedFlag = true;                                        // :436
+                battle.successStates[user.index].protectedFlag = true;
                 return false;                                                                    // :438
             }
             // :440-451 Obstruct (lowers the attacker's Defense on contact)
@@ -153,6 +144,7 @@ public final class BattleSuccessChecks {
                 battle.commonAnimation("Obstruct", target);                                     // :442
                 battle.display(target.pbThis() + "保护了自己！");                              // :443
                 target.damageState.protectedFlag = true;                                        // :444
+                battle.successStates[user.index].protectedFlag = true;
                 if (effect.pbContactMove(move, user) && user.affectedByContactEffect(false)) {  // :445
                     if (user.pbCanLowerStatStage(PBStats.DEFENSE)) {                            // :446
                         user.pbLowerStatStage(PBStats.DEFENSE, 2, null);                        // :447
@@ -164,6 +156,7 @@ public final class BattleSuccessChecks {
             if (target.effects.truthy(PBEffects.Battler.VeilGuard) && !unseenfist) {
                 battle.display(target.pbThis() + "保护了自己！");
                 target.damageState.protectedFlag = true;
+                battle.successStates[user.index].protectedFlag = true;
                 if (effect.specialMove(move, null) && user.pbCanLowerStatStage(PBStats.ACCURACY)) {
                     user.pbLowerStatStage(PBStats.ACCURACY, 1, null);
                 }
@@ -175,6 +168,7 @@ public final class BattleSuccessChecks {
                 battle.commonAnimation("KingsShield", target);                                  // :454
                 battle.display(target.pbThis() + "保护了自己！");                              // :455
                 target.damageState.protectedFlag = true;                                        // :456
+                battle.successStates[user.index].protectedFlag = true;
                 if (effect.pbContactMove(move, user) && user.affectedByContactEffect(false)) {  // :458
                     if (user.pbCanLowerStatStage(PBStats.ATTACK)) {                             // :459
                         user.pbLowerStatStage(PBStats.ATTACK, 1, null);                         // :460
@@ -187,6 +181,7 @@ public final class BattleSuccessChecks {
                 battle.commonAnimation("SpikyShield", target);                                  // :467
                 battle.display(target.pbThis() + "保护了自己！");                              // :468
                 target.damageState.protectedFlag = true;                                        // :469
+                battle.successStates[user.index].protectedFlag = true;
                 if (effect.pbContactMove(move, user) && user.affectedByContactEffect(false)) {  // :471
                     // :472 @battle.scene.pbDamageAnimation(user) - 登记: scene not modelled
                     user.pbReduceHP(user.maxHp() / 8, false, true, true);                       // :473
@@ -201,6 +196,7 @@ public final class BattleSuccessChecks {
                 battle.commonAnimation("BurningBulwark", target);                               // :481
                 battle.display(target.pbThis() + "保护了自己！");                              // :482
                 target.damageState.protectedFlag = true;                                        // :483
+                battle.successStates[user.index].protectedFlag = true;
                 if (effect.pbContactMove(move, user) && user.affectedByContactEffect(false)     // :485
                         && user.pbCanBurn(target, false)) {                                     // :486
                     user.pbBurn(target, null);                                                   // :487
@@ -212,6 +208,7 @@ public final class BattleSuccessChecks {
                 battle.commonAnimation("BanefulBunker", target);                                // :493
                 battle.display(target.pbThis() + "保护了自己！");                              // :494
                 target.damageState.protectedFlag = true;                                        // :495
+                battle.successStates[user.index].protectedFlag = true;
                 if (effect.pbContactMove(move, user) && user.affectedByContactEffect(false)     // :497
                         && user.pbCanPoison(target, false)) {                                    // :498
                     user.pbPoison(target, null, false);                                          // :498
@@ -223,6 +220,7 @@ public final class BattleSuccessChecks {
                     && effect.damagingMove(move) && !unseenfist) {
                 battle.display(move.name() + "被掀起的榻榻米挡住了！");                        // :505
                 target.damageState.protectedFlag = true;                                        // :506
+                battle.successStates[user.index].protectedFlag = true;
                 return false;                                                                    // :508
             }
         }

@@ -6,6 +6,7 @@ import pokemon.runtime.battle.PBNatures;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
 import pokemon.runtime.pokemon.BattlerBitmaps;
+import pokemon.runtime.pokemon.FormHandlers;
 import pokemon.runtime.pokemon.Party;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
@@ -41,7 +42,7 @@ import java.util.function.Predicate;
  *
  * <p>登记（整段共通）：淡入淡出(pbFadeInAndShow/pbFadeOutAndHide/pbFadeOutIn)未建模；
  * pbEnterPokemonName / pbEnterBoxName / 搜索的文字输入、pbPokemonDebug、邮件(pkmn.mail 恒 nil)未建模，
- * 对应选项留空；{@code pkmn.formTime}、Graphics.frame_reset 未建模；
+ * 对应选项留空；Graphics.frame_reset 未建模；
  * pbPlayCursorSE/DecisionSE 原文先取 $data_system，这里用 {@link MenuSe}。</p>
  */
 public final class StorageView {
@@ -1797,7 +1798,7 @@ public final class StorageView {
                 }
                 if (heldpoke != null || selected[0] == -1) {     // :1916
                     Pokemon p = heldpoke != null ? heldpoke : storage.get(-1, index);   // :1917
-                    Storage.resetForm(p);                        // :1918-1919 (formTime 未建模)
+                    Storage.resetForm(p);                        // :1918-1919
                     Storage.heal(p);                             // :1920
                 }
                 pbStoreScene(selected, heldpoke != null, destbox, firstfree);   // :1922
@@ -1844,7 +1845,7 @@ public final class StorageView {
             return;
         }
         if (box >= 0) {                                          // :1964
-            Storage.resetForm(heldpkmn);                         // :1965-1966 (formTime 未建模)
+            Storage.resetForm(heldpkmn);                         // :1965-1966
         }
         pbPlaceScene(selected, () -> {                           // :1969
             storage.set(box, index, heldpkmn);                   // :1970 (party.compact! 由 Storage#set 完成)
@@ -1994,6 +1995,7 @@ public final class StorageView {
                 context.gameState().inventory().add(pokemon.item, 1);
                 pbDisplay(intl("取出了{1}.", itemname), () -> {  // :2094
                     pokemon.item = null;                         // :2095
+                    FormHandlers.refresh(pokemon, null);              // the held item decides the form (198:5-11)
                     pbHardRefresh();                             // :2096
                     then.run();
                 });
@@ -2003,6 +2005,7 @@ public final class StorageView {
                 if (item != null) {                              // :2101
                     String itemname = itemName(item);            // :2102
                     pokemon.item = item;                         // :2103
+                    FormHandlers.refresh(pokemon, null);
                     context.gameState().inventory().remove(item, 1);   // :2104
                     pbDisplay(intl("{1}正在被持有。", itemname), () -> {   // :2105
                         pbHardRefresh();                         // :2106

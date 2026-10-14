@@ -1087,6 +1087,7 @@ public final class PartyView {
             } else if (!hasItem(newpkmn)) {                    // :1553
                 newpkmn.item = item;                           // :1554
                 pkmn.item = null;                              // :1555
+                pokemon.runtime.pokemon.FormHandlers.refresh(newpkmn, null); pokemon.runtime.pokemon.FormHandlers.refresh(pkmn, null);   // the held items decide the forms (198:5-11)
                 pbClearSwitching();                            // :1556
                 pbRefresh();                                   // :1557
                 display(intl("{1}已交给{2}携带。", newpkmn.name, itemname), next);   // :1558-1559
@@ -1108,6 +1109,7 @@ public final class PartyView {
                     if (yes) {
                         newpkmn.item = item;                   // :1573
                         pkmn.item = newitem;                   // :1574
+                        pokemon.runtime.pokemon.FormHandlers.refresh(newpkmn, null); pokemon.runtime.pokemon.FormHandlers.refresh(pkmn, null);
                         pbClearSwitching();                    // :1575
                         pbRefresh();                           // :1576
                         display(intl("{1}已交给{2}携带。", newpkmn.name, itemname),               // :1577
@@ -1134,6 +1136,7 @@ public final class PartyView {
             String itemname = itemName(pkmn.item);             // :1079
             context.gameState().inventory().add(pkmn.item, 1); // :1078 pbStoreItem
             pkmn.item = null;                                  // :1081 pkmn.setItem(0)
+            pokemon.runtime.pokemon.FormHandlers.refresh(pkmn, null);                 // the held item decides the form (198:5-11)
             display(intl("从{2}那接收了{1}。", itemname, pkmn.name), then);          // :1080
         }
     }

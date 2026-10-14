@@ -35,9 +35,7 @@ import pokemon.runtime.battle.movefx.MoveEffectRegistry;
  *
  * <h2>Registered gaps (see the {@code // 登记:} notes inline)</h2>
  * <ul>
- * <li>{@code @battle.battleBond} (Greninja's Battle Bond) - the table is not modelled.</li>
  * <li>{@code @battle.pbJudgeCheckpoint} - no judge/checkpoint subsystem.</li>
- * <li>{@code pbEffectsOnSwitchIn} on the battler - not ported onto {@link Battler} yet.</li>
  * </ul>
  */
 public final class BattlerHitEffects {
@@ -198,8 +196,23 @@ public final class BattlerHitEffects {
             BattleHandlers.triggerUserAbilityEndOfMove(user.ability, user, targets, move, battle);   // :104
         }
         // ---------------- base :107-122 Greninja Battle Bond ----------------
-        // 登记: @battle.battleBond (a per-side/per-slot boolean table) is not
-        // modelled, so this whole block is skipped rather than approximated.
+        if (!user.fainted() && !user.effects.truthy(PBEffects.Battler.Transform)
+                && user.isSpecies("GRENINJA") && "BATTLEBOND".equals(user.ability)) {      // :107-109
+            if (!battle.pbAllFainted(user.idxOpposingSide())
+                    && !battle.battleBond(user.index & 1, user.pokemonIndex)) {         // :110-111
+                int numFainted = 0;                                                     // :112
+                for (Battler b : targets) {
+                    if (b.damageState.fainted) numFainted++;                            // :113
+                }
+                if (numFainted > 0 && user.form() == 1) {                               // :114
+                    battle.setBattleBond(user.index & 1, user.pokemonIndex);            // :115
+                    battle.display(user.pbThis() + "与训练家的羁绊使得它充满了力量！");     // :116
+                    battle.showAbilitySplash(user, true);                               // :117
+                    battle.hideAbilitySplash(user);                                     // :118
+                    user.pbChangeFormTransform(2, user.pbThis() + "变成了小智 甲贺忍蛙！");   // :119
+                }
+            }
+        }
         // ---------------- base :124-128 consume the user's Gem ----------------
         if (user.effects.stringVal(PBEffects.Battler.GemConsumed) != null) {                      // :125 GemConsumed>0 (an item name here; 0 = none)
             user.pbConsumeItem();                                                      // :127
@@ -282,7 +295,6 @@ public final class BattlerHitEffects {
         for (Battler b : battle.wiringFieldedBySpeed()) {                               // :178
             if (hasIndex(switchByItem, b.index)) {                                 // :179
                 // :179 b.pbEffectsOnSwitchIn(true)
-                // 登记: Battler#pbEffectsOnSwitchIn is not ported (Battler_AbilityAndItem:5-35).
                 effectsOnSwitchIn(b);
             }
         }
@@ -313,7 +325,7 @@ public final class BattlerHitEffects {
         for (Battler b : battle.wiringFieldedBySpeed()) {                               // :200
             if (b.index == user.index) continue;                                        // :201
             if (hasIndex(switchWimpOut, b.index)) {                                // :202
-                effectsOnSwitchIn(b);                                                   // :202 (see the 登记 above)
+                effectsOnSwitchIn(b);                                                   // :202
             }
         }
         for (int idxB : switchWimpOut) {                                                // :204
@@ -360,14 +372,10 @@ public final class BattlerHitEffects {
     }
 
     /**
-     * {@code Battler#pbEffectsOnSwitchIn(showAnim)} (Battler_AbilityAndItem:5-35).
-     *
-     * <p><b>登记:</b> not ported onto {@link Battler} yet, and the plugin calls it
-     * here only for a battler that just switched in because of an Eject
-     * Button/Red Card/Eject Pack. Skipping it means such a battler does not run
-     * its own switch-in ability that turn; the switch itself still happens.</p>
+     * {@code b.pbEffectsOnSwitchIn(true)} (Battler_AbilityAndItem:5-35) for a battler that just came in because of
+     * an Eject Button / Red Card / Eject Pack / Emergency Exit / Wimp Out: entry hazards and its switch-in ability.
      */
     private static void effectsOnSwitchIn(Battler battler) {
-        // Intentionally empty - see the 登记 note above.
+        battler.pbEffectsOnSwitchIn(true);
     }
 }

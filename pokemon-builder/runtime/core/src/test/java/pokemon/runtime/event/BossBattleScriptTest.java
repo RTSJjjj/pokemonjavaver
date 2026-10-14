@@ -79,8 +79,13 @@ class BossBattleScriptTest {
                 + "{\"id\":2,\"internalName\":\"ADAMANT\",\"name\":\"Adamant\",\"statUp\":\"ATTACK\",\"statDown\":\"SPATK\"}]}");
         write(tempDir, "items.json", "{\"total\":0,\"items\":{}}");
         write(tempDir, "pokemonforms.json", "{\"total\":0,\"forms\":{}}");
-        write(tempDir, "trainertypes.json", "{\"total\":0,\"trainerTypes\":{}}");
-        write(tempDir, "trainers.json", "{\"total\":0,\"order\":[],\"trainers\":{}}");
+        write(tempDir, "trainertypes.json", "{\"total\":1,\"trainerTypes\":{\"POKEMONTRAINER_MIRRORf\":{\"id\":999,"
+                + "\"internalName\":\"POKEMONTRAINER_MIRRORf\",\"name\":\"宝可梦训练家\",\"baseMoney\":60}}}");
+        write(tempDir, "trainers.json", "{\"total\":2,\"order\":[\"LASS,Amy,0\",\"LADY,Bea,2\"],\"trainers\":{"
+                + "\"LASS,Amy,0\":{\"key\":\"LASS,Amy,0\",\"type\":\"LASS\",\"name\":\"Amy\",\"version\":0,"
+                + "\"party\":[{\"species\":\"FOE\",\"level\":12}]},"
+                + "\"LADY,Bea,2\":{\"key\":\"LADY,Bea,2\",\"type\":\"LADY\",\"name\":\"Bea\",\"version\":2,"
+                + "\"party\":[{\"species\":\"FOE\",\"level\":12}]}}}");
         write(tempDir, "encounters.json", "{\"total\":0,\"byMap\":{}}");
         write(tempDir, "tm.json", "{\"total\":0,\"compatibility\":{}}");
         pbs = PbsData.parse(tempDir.toFile());
@@ -110,6 +115,21 @@ class BossBattleScriptTest {
             @Override public BattleResult trainerBattle(PbsData.TrainerData trainer) {
                 throw new AssertionError("not a trainer battle");
             }
+
+            @Override public BattleResult trainerBattle(List<PbsData.TrainerData> trainers) {
+                for (PbsData.TrainerData t : trainers) calls.add("trainer:" + t.type + ":" + t.name + ":" + t.version);
+                finished = new BattleResult(outcome, 1, null);
+                return finished;
+            }
+
+            @Override public BattleResult trainerBattle(PbsData.TrainerData trainer, Array<Pokemon> party) {
+                calls.add("mirror:" + trainer.type + ":" + trainer.name + ":" + party.size + ":" + trainer.items.size);
+                foes.addAll(java.util.Arrays.asList(party.toArray(Pokemon.class)));
+                finished = new BattleResult(outcome, 1, null);
+                return finished;
+            }
+
+            @Override public void setMoneyGain(boolean value) { calls.add("moneyGain:" + value); }
 
             @Override public BattleResult lastResult() { return finished; }
             @Override public void setBattleSize(String size) { calls.add("size:" + size); }
@@ -188,6 +208,69 @@ class BossBattleScriptTest {
         Pokemon boss = foes.get(0);
         assertEquals(55, boss.level);
         assertEquals(2, boss.battleRank);
+        assertTrue(state.switches().get(60));
+    }
+
+    @Test
+    @DisplayName("battleBoss(:SPECIES,level,rank) (319:5-31): rank, pbRandomIV(rank-1), not shiny; only a capture is true")
+    void genericBattleBoss() {
+        ableParty(2);
+        outcome = BattleResult.Outcome.CAUGHT;
+        run("battleBoss(:IRONJUGULIS,100,3)");
+        assertEquals(1, foes.size());
+        Pokemon boss = foes.get(0);
+        assertEquals("IRONJUGULIS", boss.species.internalName);
+        assertEquals(100, boss.level);
+        assertEquals(3, boss.battleRank);
+        int perfect = 0;
+        for (int iv : boss.ivs) if (iv == 31) perfect++;
+        assertTrue(perfect >= 2, java.util.Arrays.toString(boss.ivs));     // pbRandomIV(2): two perfect IVs at least
+        assertFalse(boss.shiny);
+        assertTrue(calls.contains("size:2v1"), calls.toString());
+        assertTrue(state.switches().get(60), "decision==4 is true");
+
+        outcome = BattleResult.Outcome.WIN;
+        foes.clear();
+        state.switches().set(60, false);
+        run("battleBoss(:IRONJUGULIS)");
+        assertEquals(100, foes.get(0).level);                                  // level=100, rank=3 defaults
+        assertEquals(3, foes.get(0).battleRank);
+        assertFalse(state.switches().get(60), "a win is not a capture");
+    }
+
+    @Test
+    @DisplayName("pbDoubleTrainerBattle as a condition (PField_Battles:582-596): both trainers, the double rule, decision==1")
+    void doubleTrainerBattleCondition() {
+        ableParty(2);
+        run("pbDoubleTrainerBattle(:LASS,\"Amy\",0,nil,:LADY,\"Bea\",2,nil,nil)");
+        assertTrue(calls.contains("trainer:LASS:Amy:0"), calls.toString());
+        assertTrue(calls.contains("trainer:LADY:Bea:2"), calls.toString());
+        assertTrue(calls.contains("size:double"), calls.toString());
+        assertTrue(state.switches().get(60), "a win is true");
+
+        outcome = BattleResult.Outcome.LOSS;
+        state.switches().set(60, false);
+        run("pbDoubleTrainerBattle(:LASS,\"Amy\",0,nil,:LADY,\"Bea\",2,nil,nil)");
+        assertFalse(state.switches().get(60));
+        assertTrue(state.switches().get(61));
+    }
+
+    @Test
+    @DisplayName("pbMirrorBattle (349): copies of the player's party, MIRRORf for a female player, 6 Full Restores, noMoney/noExp/canLose")
+    void mirrorBattleCondition() {
+        ableParty(2);
+        state.trainer().addToParty(new Pokemon(pbs.species("FOE"), 1, pbs));
+        state.trainer().party.get(2).egg = true;
+        state.playerId(1);
+        state.trainer().name = "Leaf";
+        run("pbMirrorBattle");
+        assertTrue(calls.contains("mirror:POKEMONTRAINER_MIRRORf:Leaf？:2:6"), calls.toString());
+        assertTrue(calls.contains("expGain:false"), calls.toString());
+        assertTrue(calls.contains("canLose:true"), calls.toString());
+        assertTrue(calls.contains("moneyGain:false"), calls.toString());
+        assertNotSame(state.trainer().party.get(0), foes.get(0), "the mirror fights copies");
+        assertNotSame(state.trainer().party.get(0).moves.get(0), foes.get(0).moves.get(0), "the moves are not shared");
+        assertEquals("Battle 影子", state.nextBattleBGM());
         assertTrue(state.switches().get(60));
     }
 

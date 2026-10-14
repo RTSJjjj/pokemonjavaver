@@ -31,12 +31,8 @@ import java.util.List;
  *     {@link PBStatuses#NONE} (0) is this runtime's encoding of "no status".</li>
  * </ul>
  *
- * <h2>Stubs used</h2>
- * <p>{@code OPPORTUNIST} (:3229/:3236) calls
- * {@code Battler#pbItemOpposingStatGainCheck}, which has not landed on
- * {@code Battler} yet; it goes through the {@code PendingApi} stub of the same
- * name (throws until the wiring step replaces it), keeping the Ruby call shape
- * instead of dropping the call.</p>
+ * <p>{@code OPPORTUNIST} (:3229/:3236) calls {@link Battler#pbItemOpposingStatGainCheck} through
+ * {@code PendingApi.pbItemOpposingStatGainCheck}.</p>
  */
 final class AbilitiesStatus {
 

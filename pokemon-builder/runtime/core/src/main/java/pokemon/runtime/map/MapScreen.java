@@ -862,6 +862,11 @@ public final class MapScreen extends ScreenAdapter {
         // R11: the letterboxed viewport of this frame (the clear above already
         // painted the bars black).
         viewport.apply();
+        if (context.battlePort() == null || !context.battlePort().pending()) {
+            // 198_Pokemon_Forms:5-11: outside battle a Pokemon's form is re-evaluated whenever it is read (held items,
+            // the season, the time of day, the region of the current map).
+            pokemon.runtime.pokemon.FormHandlers.refreshAll(gameState.trainer().party.members(), null);
+        }
         if (context.battlePort() instanceof pokemon.runtime.battle.InteractiveBattlePort
                 && context.battlePort().pending()) {
             pokemon.runtime.battle.InteractiveBattlePort port =
@@ -1537,7 +1542,7 @@ public final class MapScreen extends ScreenAdapter {
         int fx = Collision.targetX(player.x(), player.direction());
         int fy = Collision.targetY(player.y(), player.direction());
         g.facingTerrainTag = tileMap.valid(fx, fy) ? tileMap.terrainTag(fx, fy, false, gameState.bridge()) : 0;
-        int key = g.surfing ? 2 : g.bicycle ? 1 : 0;
+        int key = g.diving ? 3 : g.surfing ? 2 : g.bicycle ? 1 : 0;
         if (key != vehicleKey) {
             int old = vehicleKey;
             vehicleKey = key;
@@ -2603,6 +2608,9 @@ public final class MapScreen extends ScreenAdapter {
         if (!miniMap.visible(mapId) || (miniMap.atBottom() && context.messageService().visible())) {
             return;                                                                // 338:15-28 the bottom corners hide while a message shows
         }
+        if (!miniMap.atBottom() && signpost != null && !signpost.finished()) {
+            return;                                                                // 311:7-10, :246-249 a top corner gives way to the signpost
+        }
         pokemon.runtime.ui.menu.MenuAssets menuAssets = context.sharedMenuAssets(locator);
         pokemon.runtime.ui.menu.MenuFont tiny = context.sharedMenuFont(locator.font(messageFontName), 16);
         boolean outdoor = DayNightTone.enabled() && DayNightTone.shades(mapData.outdoor);   // ESMM_Config::USE_DAYNIGHT_TONE
@@ -2999,11 +3007,11 @@ public final class MapScreen extends ScreenAdapter {
                 running = blankToNull(graphic.runningCharset);
                 // 025_Game_Player:436-446 pbUpdateVehicle: diving 5, surfing 3, bicycle 2, else 1; a blank entry falls back to 1
                 // (:pbGetPlayerCharset 'ret = meta[1] if !ret || ret==""'). 026_Game_Player_Visuals:42 keeps the running graphic
-                // for walking only. 登记: the diving graphic (Dive is not part of the vehicles yet).
+                // for walking only. The diving sheet (meta[5]) is the surf sheet in this project's metadata.
                 pokemon.runtime.state.FieldGlobals vehicle = gameState.fieldGlobals();
-                String vehicleCharset = vehicle.surfing ? blankToNull(graphic.surfCharset)
+                String vehicleCharset = vehicle.surfing || vehicle.diving ? blankToNull(graphic.surfCharset)
                         : vehicle.bicycle ? blankToNull(graphic.bikeCharset) : null;
-                if (vehicle.surfing || vehicle.bicycle) {
+                if (vehicle.surfing || vehicle.diving || vehicle.bicycle) {
                     running = null;
                     if (vehicleCharset != null) {
                         charset = vehicleCharset;
@@ -3383,6 +3391,9 @@ public final class MapScreen extends ScreenAdapter {
             }
             new pokemon.runtime.field.Vehicles(context.pbsData(), gameState).onMapChange(next.mapId);
             noteMapChange(next.mapId);
+            // 029_MapFactory:103/111 setCurrentMap fires onMapChanging/onMapChange too: walking off a snowy route over a
+            // connection clears its weather (and a connected map's own weather can start).
+            applyMapWeather(previousMap, next.mapId);
             refreshDarkness(next.mapId);
             showSignpost(previousMap);
             if (interpreter != null) {

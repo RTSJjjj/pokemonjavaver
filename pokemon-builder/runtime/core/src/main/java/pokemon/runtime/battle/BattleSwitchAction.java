@@ -18,11 +18,11 @@ import java.util.List;
  * <ul>
  * <li>:315-316 {@code partyOrder} swap: this runtime keeps no party order, so {@code pbLastInTeam} is the last
  *     able Pokemon of the party.</li>
- * <li>:325 {@code @peer.pbOnEnteringBattle}, :328 {@code @scene.pbResetMoveIndex}, :330
- *     {@code @usedInBattle}: the peer, the scene's move-cursor memory and the participants list are not modelled.</li>
+ * <li>:325 {@code @peer.pbOnEnteringBattle} is {@link Battle#pbOnEnteringBattle} (run by {@code Battle.replace}); :328
+ *     {@code @scene.pbResetMoveIndex} is the screen's; :330 {@code @usedInBattle} is the participants list.</li>
  * <li>:47-50, :68-73 Battle_Action_Running {@code $DEBUG && Input.press?(Input::CTRL)}: debug-only.</li>
- * <li>Battle_Action_Running:60, :69, :80, :90, :99, :150 {@code pbSEPlay("Battle flee")}: the engine has no
- *     audio; the screen plays the escape sound when the battle ends in an escape.</li>
+ * <li>Battle_Action_Running:60, :69, :80, :90, :99, :150 {@code pbSEPlay("Battle flee")}: the battle port adds
+ *     the escape sound when the run succeeds.</li>
  * </ul></p>
  */
 public final class BattleSwitchAction {

@@ -33,6 +33,29 @@ class InteractiveBattlePortTest {
     private Pokemon pokemon(int level) {
         Pokemon p = new Pokemon(data.species("A"), level, data); p.moves.add(new Pokemon.MoveSlot(data.move("HIT"))); return p;
     }
+    private void medicine(String id) {
+        PbsData.Item item = new PbsData.Item(); item.internalName = id; item.name = id; item.pocket = 2; item.battleUse = 1;
+        data.items.put(id, item); bag.add(id, 1);
+    }
+    @Test void statusMedicineCuresTheBattlerNotOnlyThePokemon() {
+        medicine("ANTIDOTE");
+        port.freeWildBattle(pokemon(20));
+        Battler mine = port.session().battle.player();
+        mine.status = "POISON"; mine.syncHp();
+        assertTrue(port.session().item("ANTIDOTE", 0));
+        assertEquals("", mine.status, "190:391 battler.pbCureStatus(false)");
+        mine.syncHp();
+        assertEquals("", trainer.first().status, "syncHp must not write the old status back");
+    }
+    @Test void fullHealCuresConfusionAlone() {
+        medicine("FULLHEAL");
+        port.freeWildBattle(pokemon(20));
+        Battler mine = port.session().battle.player();
+        mine.effects.set(PBEffects.Battler.Confusion, 3);
+        assertTrue(port.session().item("FULLHEAL", 0), "190:114-121 confusion alone makes it usable");
+        assertEquals(0, mine.effects.intVal(PBEffects.Battler.Confusion));
+        assertFalse(bag.has("FULLHEAL"));
+    }
     @Test void startsPendingWithoutAutoBattlingAndConsumesOneTurnAtATime() {
         Pokemon foe = pokemon(20); int hp = foe.hp; port.freeWildBattle(foe);
         assertTrue(port.pending()); assertEquals(hp, foe.hp); assertTrue(trainer.seen.contains("A"));

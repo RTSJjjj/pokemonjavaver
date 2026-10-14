@@ -13,8 +13,7 @@ import java.util.List;
  * 名字「盒子 N」、壁纸 {@code i%42}，懒创建对外不可见)。
  * 原游戏不用 {@code RegionalStorage}(:259-358)，所有地区共用 {@link TrainerState#storage} 这一台电脑。</p>
  *
- * <p>登记: {@code pkmn.formTime} 没有建模；{@code pkmn.form = 0 if SHAYMIN} 对应
- * {@code form = null}。{@code pbEachPokemon}(:377-384) 没有 Java 调用方，未转。</p>
+ * <p>{@code pbEachPokemon}(:377-384) 没有 Java 调用方，未转。</p>
  */
 public final class Storage {
 
@@ -249,11 +248,21 @@ public final class Storage {
         for (Pokemon.MoveSlot move : p.moves) move.pp = move.maxPp;   // healPP
     }
 
-    /** :182-183 {@code pkmn.form = 0 if pkmn.isSpecies?(:SHAYMIN)} (formTime 未建模) */
+    /**
+     * :182-183 {@code pkmn.formTime = nil; pkmn.form = 0 if pkmn.isSpecies?(:SHAYMIN)}: a boxed Hoopa goes back to its
+     * Confined form on the next read (198:621-626), Shaymin to Land Forme.
+     */
     public static void resetForm(Pokemon p) {
-        if (p != null && p.species != null && "SHAYMIN".equals(p.species.internalName)) {
-            p.form = null;
-            p.internalName = p.species.internalName;
+        if (p == null) return;
+        p.formTime = 0;
+        if (p.species != null && "SHAYMIN".equals(p.species.internalName) && p.formIndex() != 0) {
+            PbsData data = FormHandlers.defaultData();
+            if (data != null) {
+                FormHandlers.setForm(p, data, 0, null);
+            } else {
+                p.form = null;
+                p.internalName = p.species.internalName;
+            }
         }
     }
 

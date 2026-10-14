@@ -16,7 +16,7 @@ import pokemon.runtime.pokemon.Pokemon;
  *
  * <h2>Mapping notes</h2>
  * <ul>
- * <li>{@code PBItems.getName(item)} &rarr; {@code PendingApi.PBItems_getName}
+ * <li>{@code PBItems.getName(item)} &rarr; {@code battle.pbs().item(item).name}
  *     (items are internal-name Strings in this runtime; {@code HandlerHash}'s
  *     documented deviation).</li>
  * <li>{@code battler.totalhp} &rarr; {@link Battler#maxHp()} (the battle-time
@@ -38,14 +38,10 @@ import pokemon.runtime.pokemon.Pokemon;
  * <h2>Registered here but NOT wired</h2>
  * <ul>
  * <li>{@code SITRUSBERRY} :186 - the plugin calls the misspelled
- *     {@code battler.pbRecoverHP?(...)} (roster §4); transcribed as a no-op as
- *     instructed, no method invented.</li>
+ *     {@code battler.pbRecoverHP?(...)} with Ripen; {@code pbRecoverHP} is used (插件缺陷已修).</li>
  * <li>{@code LEPPABERRY} :1395 - {@code battler.moves[choice].pp = ...} has no
  *     target: this runtime keeps no separate battle-time PP mirror (see the
  *     comment there).</li>
- * <li>{@code EJECTPACK} - roster §7 classifies it 登记 (the switching
- *     subsystem); the body is transcribed against the Battle methods task-13
- *     landed and carries a {@code 登记} note.</li>
  * </ul>
  */
 final class ItemsHealStatus {
@@ -638,11 +634,6 @@ final class ItemsHealStatus {
 
         // :1702-1718 EJECTPACK
         BattleHandlers.ItemOnStatLoss.add("EJECTPACK", (item, battler, user, move, switched, battle) -> {
-            // 登记: roster §7 classifies this entry as 登记 (the switching subsystem).
-            //       The body is transcribed against the Battle methods task-13 landed
-            //       (pbCanChooseNonActive/pbGetReplacementPokemonIndex/pbRecallAndReplace/
-            //       pbClearChoice); the switch itself therefore only runs once the
-            //       wiring step accepts handler-driven switching.
             if (battle.pbAllFainted(battler.idxOpposingSide())) {              // :1704
                 return;
             }

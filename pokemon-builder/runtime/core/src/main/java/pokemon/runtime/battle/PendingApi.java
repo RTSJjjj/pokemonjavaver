@@ -1,17 +1,9 @@
 package pokemon.runtime.battle;
 
 /**
- * Stage 4 / M0: the temporary stub layer for every {@code Battler} / {@code
- * Battle} method that {@link BattleHandlers} and {@link BattleHandlerHelpers}
- * call but that this runtime has not landed yet.
- *
- * <h2>Temporary by design</h2>
- * The two target files ({@code Battler.java}, {@code Battle.java}) are being
- * edited by another agent during M0, so their missing methods cannot be added
- * here. Every method below is a <b>throwing stub</b> - deliberately not a
- * default value, because returning one would silently invent plugin behaviour.
- * When the real methods land, each call site becomes a direct call and this
- * class is deleted.
+ * Stage 4 / M0: the Ruby-named entry points the handler bodies ({@link BattleHandlers}, {@link BattleHandlerHelpers})
+ * call. Every one now delegates to the real {@code Battler} / {@code Battle} method; the call sites keep the Ruby
+ * spelling.
  *
  * <h2>Naming</h2>
  * Method names follow Ruby. A plugin <i>method</i> keeps its name
@@ -101,11 +93,6 @@ public final class PendingApi {
         // Wiring: BattleMove.isPledgeMove() == "106"/"107"/"108".equals(function()).
         String f = move.function();                                    // PokeBattle_PledgeMove = function 106/107/108
         return "106".equals(f) || "107".equals(f) || "108".equals(f);
-    }
-
-    /** {@code PBItems.getName(item)} (Compiler_PBS:446 generates {@code def self.getName(id)}). */
-    public static String PBItems_getName(String item) {
-        throw new UnsupportedOperationException("M0 待接线: PBItems.getName (Compiler_PBS:446)");
     }
 
     /** {@code Battle#pbCommonAnimation(name,user)} (PokeBattle_Battle:797). */
@@ -301,15 +288,5 @@ public final class PendingApi {
      */
     public static boolean isCommander(Battler battler) {
         return battler.isCommander();
-    }
-
-    /**
-     * {@code PokeBattle_Move#pp} (PokeBattle_Move.rb:11 {@code attr_accessor :pp},
-     * set from {@code move.pp} at :38): the move's CURRENT PP. This runtime keeps
-     * the current PP on the owner's {@code Pokemon.MoveSlot.pp}, not on
-     * {@link BattleMove}. Needed by CURSEDBODY (BattleHandlers_Abilities:1491).
-     */
-    public static int movePp(BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Move.rb:11/#pp (PP 存于 Pokemon.MoveSlot.pp)");
     }
 }

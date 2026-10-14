@@ -77,12 +77,8 @@ import pokemon.runtime.pokemon.Pokemon;
  *     are unconditional in this project ({@code Battle.NEWEST_BATTLE_MECHANICS}
  *     is true), so the appended codes are part of the one array, with the
  *     {@code :行号} of both halves.</li>
- * <li><b>Local stubs (this file's rule):</b> a method with no runtime counterpart
- *     becomes a {@code private static} helper that throws
- *     {@code UnsupportedOperationException("M0 待接线: <段:行号>")} - never a
- *     default value. {@code MoveFxPendingApi} is not touched. The only existing
- *     stub reused is {@code PendingApi.setForm} (0CB's {@code user.form=}),
- *     which already has the exact shape.</li>
+ * <li><b>Local helpers:</b> Ruby-named private helpers delegating to the runtime methods; 0CB's
+ *     {@code user.form=} is {@code PendingApi.setForm}.</li>
  * </ul>
  */
 public final class MoveEffects_0B0_0D4 {

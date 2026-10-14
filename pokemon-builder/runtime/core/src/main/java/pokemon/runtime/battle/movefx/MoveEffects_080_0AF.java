@@ -272,7 +272,7 @@ public final class MoveEffects_080_0AF {
             if ("ICE".equals(t)) {                                           // :155
                 hitNum = 4;
             }
-            // :156 super —— 动画播放器未建模，走基类（MoveEffectBase）已转译的播放分支
+            // :156 super（MoveEffectBase 的播放分支）
             super.pbShowAnimation(move, id, user, targets, hitNum, showAnimation);
         }
     }
@@ -1766,6 +1766,11 @@ public final class MoveEffects_080_0AF {
      * same id order. {@code pkmn.iv} is {@code pkmn.pokemon.ivs} (PBS stat
      * order).</p>
      */
+    /** {@code pbHiddenPower(pkmn)[0]}: the type, for Anticipation (BattleHandlers_Abilities:2430). */
+    public static String hiddenPowerType(Battler pkmn) {
+        return pbHiddenPower(pkmn).type;
+    }
+
     private static HiddenPower pbHiddenPower(Battler pkmn) {
         int[] iv = pkmn.pokemon.ivs;                                         // :283
         int idxType = 0;                                                     // :284
@@ -1827,13 +1832,6 @@ public final class MoveEffects_080_0AF {
      * {@code @battle.switching} (set {@code true}/{@code false} around the attack
      * phase's switching pass, Battle_Phase_Attack:25/47; read by Pursuit,
      * Move_Effects_080-0FF:168/173).
-     *
-     * <p><b>待接线 local stub.</b> This runtime has no {@code Battle.switching}
-     * yet. This package keeps its stubs in {@code MoveFxPendingApi}, which is
-     * another agent's file during this batch, so the stub is declared here; it
-     * should move there (or become a real {@code Battle} field) when the wiring
-     * lands. It throws rather than returning a default, like every other stub in
-     * this layer.</p>
      */
     private static boolean switching(Battle battle) {
         return battle.switching;                                // Battle_Phase_Attack:25 @switching
@@ -1842,34 +1840,14 @@ public final class MoveEffects_080_0AF {
     /**
      * {@code Battler#pbWeight} (PokeBattle_Battler:700-706; read by Grass Knot
      * Move_Effects_080-0FF:616 and Heat Crash :641).
-     *
-     * <p><b>待接线 local stub</b> - no runtime counterpart yet (the weight
-     * helpers in {@code Move_Usage_Calculations} are not modelled either). Should
-     * move to {@code MoveFxPendingApi} or land on {@code Battler}.</p>
      */
     private static int pbWeight(Battler battler) {
         return battler.pbWeight();                             // PokeBattle_Battler:281-292
     }
 
     /**
-     * {@code @pp} (PokeBattle_Move.rb:12/38, read by Trump Card
-     * Move_Effects_080-0FF:566).
-     *
-     * <p><b>待接线 local stub</b> - {@code BattleMove} exposes {@code totalpp()}
-     * but not the current PP of the move being used.</p>
-     */
-    private static int movePp(BattleMove move) {
-        throw new UnsupportedOperationException("M0 待接线: PokeBattle_Move.rb:38 @pp");   // unused: Trump Card reads the user's slot PP directly
-    }
-
-    /**
      * {@code Battler#inTwoTurnAttack?(*functionCodes)} (PokeBattle_Battler:718-723,
      * read by Magnitude Move_Effects_080-0FF:445).
-     *
-     * <p><b>待接线 local stub</b> - the runtime's {@code Battler.semiInvulnerable}
-     * carries the same 登记 note (it needs {@code pbGetMoveData} to map
-     * {@code @effects[TwoTurnAttack]} to a function code), so the parameterized
-     * form cannot be answered either.</p>
      */
     private static boolean inTwoTurnAttack(Battler battler, String... functionCodes) {
         return battler.inTwoTurnAttack(functionCodes);         // PokeBattle_Battler:718-723
@@ -2036,8 +2014,6 @@ public final class MoveEffects_080_0AF {
     /**
      * {@code Battler#isCommander?} (PokeBattle_Battler, read by
      * Move_Effects_080-0FF:804 {@code b.isCommander?}).
-     *
-     * <p><b>待接线 local stub</b> - the runtime has no commander state.</p>
      */
     private static boolean isCommander(Battler battler) {
         return battler.isCommander();
@@ -2046,10 +2022,6 @@ public final class MoveEffects_080_0AF {
     /**
      * {@code @battle.lastMoveUsed} (PokeBattle_Battle, read by Copycat
      * Move_Effects_080-0FF:1308/1309).
-     *
-     * <p><b>待接线 local stub</b> - the runtime tracks {@code lastMoveUsed} per
-     * Battler ({@code Battler.lastMoveUsed}, PokeBattle_Battler:31), not on the
-     * battle.</p>
      */
     private static String lastMoveUsed(Battle battle) {
         PbsData.Move m = battle.lastMoveUsed > 0 ? battle.pbs().moveById(battle.lastMoveUsed) : null;   // PokeBattle_Battle @lastMoveUsed (id; -1 = none)
@@ -2059,10 +2031,6 @@ public final class MoveEffects_080_0AF {
     /**
      * {@code Battler#pbUseMoveSimple(id,target=nil)} (read by Mirror Move
      * Move_Effects_080-0FF:1224 and Copycat :1317).
-     *
-     * <p><b>待接线 local stub</b> - the nested-move entry point of the battle flow
-     * is not modelled yet; the move is its internal name here ({@code null} for the
-     * Ruby {@code target=nil}).</p>
      */
     private static void pbUseMoveSimple(Battler user, String moveInternalName, Integer targetIndex) {
         user.pbUseMoveSimple(moveInternalName, targetIndex == null ? -1 : targetIndex);   // Battler_UseMove:152 (target=nil -> -1)

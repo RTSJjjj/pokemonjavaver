@@ -491,6 +491,17 @@ public final class Battle {
         if (partyIndex >= 0 && partyIndex < belchTable[side].length) belchTable[side][partyIndex] = true;
     }
 
+    /** {@code @battleBond} (PokeBattle_Battle:162): per side, per party index, whether Battle Bond has triggered. */
+    private final boolean[][] battleBondTable = new boolean[2][16];
+
+    public boolean battleBond(int side, int partyIndex) {
+        return partyIndex >= 0 && partyIndex < battleBondTable[side].length && battleBondTable[side][partyIndex];
+    }
+
+    public void setBattleBond(int side, int partyIndex) {
+        if (partyIndex >= 0 && partyIndex < battleBondTable[side].length) battleBondTable[side][partyIndex] = true;
+    }
+
     /** {@code gNewBS->ai.didTypeAbsorbSwitchToMonBefore[side]}: party-index bitmask per side (AiSwitching). */
     /** {@code gNewBS->ai.sideSwitchedThisRound}: bit per side, valid for the turn in {@link #aiSideSwitchedTurn}. */
     /** {@code gNewBS->ai.pivotTo[battler]} (-1 = PARTY_SIZE) and {@code goodToPivot} (bit per battler): the willPivot hand-off. */
@@ -627,6 +638,28 @@ public final class Battle {
         return replace(idxBattler, idxParty, false);
     }
 
+    /**
+     * {@code @peer.pbOnEnteringBattle(self,pkmn,wild)} (198_Pokemon_Forms:57-60): the form a Pokemon takes when it is
+     * sent out (Kyurem's glow, Xerneas' Active Mode, a wild Minior's Meteor form, Ogerpon's Terastal forms). The
+     * battler keeps the damage it had, like {@code pbChangeFormTransform}.
+     */
+    public void pbOnEnteringBattle(Battler battler, boolean wild) {
+        if (battler == null || battler.pokemon == null) return;
+        int oldDmg = battler.maxHp() - battler.hp;
+        if (pokemon.runtime.pokemon.FormHandlers.onEnteringBattle(battler.pokemon, pbs, wild)) {
+            battler.pbUpdate(true);
+            battler.hp = Math.max(0, battler.maxHp() - oldDmg);
+        }
+    }
+
+    /** {@link #pbOnEnteringBattle} for every battler on the field when the battle starts (Battle_StartAndEnd:124, :325). */
+    public void pbOnEnteringBattleAll() {
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler b = battlerAt(idx);
+            if (b != null) pbOnEnteringBattle(b, b.foe && wildBattle());
+        }
+    }
+
     /** {@code pbReplace(idxBattler,idxParty,batonPass)}'s {@code pbInitialize} (Battle_Action_Switching:313). */
     public boolean replace(int idxBattler, int idxParty, boolean batonPass) {
         Array<Battler> party = partyOf(idxBattler);
@@ -640,6 +673,7 @@ public final class Battle {
         Battler outgoing = battlerAt(idxBattler);
         if (outgoing != null) outgoing.restoreMimickedMoves();     // Mimic ends when the Pokemon leaves
         incoming.resetForSwitchIn();                               // :313 pbInitialize
+        pbOnEnteringBattle(incoming, false);                       // :325 sendOuts.each { @peer.pbOnEnteringBattle }
         if (batonPass && outgoing != null && outgoing != incoming) {
             incoming.pbInheritBatonPass(outgoing);                 // Battler_Initialize:68 pbInitEffects(true) keeps the passed effects
         }
@@ -1914,6 +1948,16 @@ public final class Battle {
     /** {@code @internalBattle} (PokeBattle_Battle:61, initialised true at :138). */
     public boolean internalBattle = true;
 
+    /** {@code $game_map.map_id} while the battle runs: {@code changeHappiness}'s "met here" bonus. */
+    public int currentMapId;
+
+    /** {@code pkmn.changeHappiness(method)} (197_PokeBattle_Pokemon:777-833) from inside a battle. */
+    public void changeHappiness(Pokemon pkmn, String method) {
+        if (pkmn == null) return;
+        int luxury = pbs == null ? -1 : pokemon.runtime.pokemon.BallTypes.ballType(pbs, "LUXURYBALL");
+        pkmn.changeHappiness(method, currentMapId, luxury);
+    }
+
     private boolean illusionsSet;
 
     /** True once the parties are complete and the battlers' Illusions have been decided ({@link #pbSetUpIllusions()}). */
@@ -1944,6 +1988,8 @@ public final class Battle {
 
     /** {@code @expGain} (PokeBattle_Battle:68/145): whether Pokemon can gain Exp/EVs; {@code setBattleRule("noExp")} turns it off. */
     public boolean expGain = true;
+    /** {@code @moneyGain} (PokeBattle_Battle:69/:146): whether the player wins / loses money ("noMoney" rule). */
+    public boolean moneyGain = true;
 
     /** {@code $game_switches[id]}: bound by the port (see {@code setSwitchSource}); all off when unbound. */
     public java.util.function.IntPredicate gameSwitches = id -> false;
@@ -2289,11 +2335,6 @@ public final class Battle {
     }
 
     /**
-     * Battle_ExpAndMoveLearning:17-65 for one defeated battler: every able participant of the player's own team
-     * gains Exp ({@code SPLIT_EXP_BETWEEN_GAINERS} is false, so none is split), then the participants are cleared.
-     * 登记: :11/:23-32/:45-56 Exp All and Exp Share are not modelled.
-     */
-    /**
      * {@code pbGainEVsOne(idxParty, defeatedBattler)} (Battle_ExpAndMoveLearning:68-96): the defeated species' effort points,
      * changed by the held item (or the item it started with), doubled by Pokerus, capped at 510 in all and 252 per stat.
      */
@@ -2333,6 +2374,11 @@ public final class Battle {
     private static final int EV_LIMIT = 510;
     private static final int EV_STAT_LIMIT = 252;
 
+    /**
+     * Battle_ExpAndMoveLearning:8-65 for one defeated battler: every able participant of the player's own team, the
+     * Exp Share holders (:23-32) and, with the Exp All, everyone else (:45-56) gain EVs and Exp
+     * ({@code SPLIT_EXP_BETWEEN_GAINERS} is false, so none is split), then the participants are cleared.
+     */
     private void awardParticipants(Battler b) {
         if (!internalBattle || !expGain) return;                                     // Battle_ExpAndMoveLearning:8
         Array<Battler> p1 = partyOf(0);
@@ -2490,6 +2536,14 @@ public final class Battle {
         // Apply it (the plugin sets pkmn.exp per segment while animating).
         pkmn.hp = receiver.hp;
         if (expGained > 0 && pkmn.gainExperience(expGained)) {
+            // :274-277 each level gained by a Pokemon on the field: changeHappiness("levelup")
+            boolean onField = false;
+            for (Battler b : eachBattler()) {
+                if (b == receiver) onField = true;
+            }
+            if (onField) {
+                for (int lv = award.oldLevel; lv < pkmn.level; lv++) changeHappiness(pkmn, "levelup");
+            }
             // The level's moves are learned in the settlement (pbLearnMove). A level-up never evolves in battle: the
             // plugin's onEndBattle evolution check is commented out (174_PField_Battles:687-694) and the evolution
             // is the party menu's 进化 command (210_PScreen_Party:1335).
@@ -2509,13 +2563,13 @@ public final class Battle {
 
     /**
      * {@code pbOnActiveOne(battler)} (Battle_Action_Switching:386-): entry
-     * effects and entry hazards. 待接线: belongs to the switching batch.
+     * effects and entry hazards.
      */
     public boolean pbOnActiveOne(Battler battler) {
         return BattleSwitching.pbOnActiveOne(this, battler);
     }
 
-    /** {@code pbPrimalReversion(idxBattler)} (Battle_Action_Other:175). 待接线: Mega/Primal batch. */
+    /** {@code pbPrimalReversion(idxBattler)} (Battle_Action_Other:175). */
     public void pbPrimalReversion(int idxBattler) {
         BattleSwitching.pbPrimalReversion(this, idxBattler);
     }
@@ -2807,7 +2861,39 @@ public final class Battle {
         }
     }
 
+    /** {@code @consumedHeldItems} (357_战斗归还消耗携带道具:8-12): the first held item each of the player's Pokemon used up. */
+    private final java.util.Map<Pokemon, String> consumedHeldItems = new java.util.IdentityHashMap<>();
+    private boolean heldItemsRestored;
+
+    /** {@code pbRecordConsumedHeldItem(pokemon,item)} (357:8-12): {@code @consumedHeldItems[pokemon] ||= item}. */
+    public void pbRecordConsumedHeldItem(Pokemon pkmn, String item) {
+        if (pkmn == null || item == null || item.isEmpty()) return;
+        consumedHeldItems.putIfAbsent(pkmn, item);
+    }
+
+    /**
+     * Battle_StartAndEnd:536-540 {@code pkmn.setItem(@initialItems[0][i] || 0)} for the player's party, then the
+     * {@code pbEndOfBattle} wrapper of 357 (:17-31): a Pokemon left without an item gets back the one it used up.
+     * In this runtime the battle never writes the party's {@code item} while it runs, so this is where the items
+     * that were won (Pickup, Thief / Covet, Magician / Pickpocket) or lost reach the party. Runs once per battle.
+     */
+    public void pbRestoreHeldItems() {
+        if (heldItemsRestored) return;
+        heldItemsRestored = true;
+        for (Battler battler : playerParty) {
+            if (battler == null || battler.pokemon == null) continue;         // :536 pbParty(0).each_with_index
+            String held = battler.initialItem();
+            battler.pokemon.item = held.isEmpty() ? null : held;
+        }
+        for (java.util.Map.Entry<Pokemon, String> e : consumedHeldItems.entrySet()) {
+            Pokemon pkmn = e.getKey();
+            if (pkmn.item == null || pkmn.item.isEmpty()) pkmn.item = e.getValue();   // 357:23-25 never over another item
+        }
+        consumedHeldItems.clear();
+    }
+
     private BattleResult finish(BattleResult.Outcome outcome) {
+        pbRestoreHeldItems();
         for (Battler battler : playerParty) battler.restoreMimickedMoves();
         for (Battler battler : foeParty) battler.restoreMimickedMoves();
         for (Battler battler : playerParty) {
@@ -2845,12 +2931,8 @@ public final class Battle {
     // methods below are new public names that mirror those two private
     // bodies instead of widening their visibility.
     //
-    // Branches that depend on a subsystem this runtime does not model yet
-    // (the battle scene / PokeBattle_AnimationPlayer, the Pokedex, the
-    // trainer object) or on a Battler method that task-12 has not landed yet
-    // are left as a documented `// 登记:` (empty / skipped) rather than a
-    // substitute implementation, and carry their Ruby line number. Nothing
-    // here throws on a normal path.
+    // Every method carries its Ruby line number. Nothing here throws on a
+    // normal path.
     // ==================================================================
 
     // ------------------------------------------------------------------
@@ -3087,17 +3169,7 @@ public final class Battle {
         roundEvents.add(RoundEvent.message(msg, false).asPaused());
     }
 
-    /**
-     * {@code pbShowAbilitySplash(battler,delay=false,logTrigger=true,ability=nil)}
-     * (PokeBattle_Battle:801-808) - 登记: PokeBattle_Battle:801-808.
-     *
-     * <p>The body needs {@code @scene.pbShowAbilitySplash}
-     * ({@code Scene_Animations:171}) and therefore {@code PokeBattle_AnimationPlayer}
-     * + {@code Graphics/Animations/*}; {@code :802 PBDebug.log} is a debug log
-     * with no runtime counterpart. Note {@code :803
-     * return if !PokeBattle_SceneConstants::USE_ABILITY_SPLASH} - the constant is
-     * true in this project, so the plugin always takes the scene branch.</p>
-     */
+    /** {@code pbShowAbilitySplash(battler)} (PokeBattle_Battle:801-808) with {@code delay=false}. */
     public void showAbilitySplash(Battler battler) {
         showAbilitySplash(battler, false);
     }
@@ -3194,23 +3266,16 @@ public final class Battle {
         pbStartWeather(user, newWeather, fixedDuration, true);      // :679 showAnim=true
     }
 
-    /**
-     * {@code pbStartWeather} (PokeBattle_Battle:679-705), transcribed line by
-     * line except the branches marked 登记.
-     *
-     * <p>登记: PokeBattle_Battle:683-686 - the Weather Extender branch needs
-     * {@code user.itemActive?} (not landed); :688/:689 go through
-     * {@link #commonAnimation(String, Battler)} / {@link #hideAbilitySplash(Battler)}
-     * (scene, registered); :703 {@code b.pbCheckFormOnWeatherChange} needs a
-     * Battler method that is not landed.</p>
-     */
+    /** {@code pbStartWeather} (PokeBattle_Battle:679-705). */
     public void pbStartWeather(Battler user, int newWeather, boolean fixedDuration, boolean showAnim) {
         if (field.weather == newWeather) {                          // :680
             return;
         }
         field.weather = newWeather;                                 // :681
         int duration = fixedDuration ? 5 : -1;                      // :682
-        // 登记: PokeBattle_Battle:683-686 Weather Extender 分支依赖 Battler#itemActive?
+        if (duration > 0 && user != null && user.itemActive()) {    // :683 Heat Rock / Damp Rock / Smooth Rock / Icy Rock
+            duration = BattleHandlers.triggerWeatherExtenderItem(user.item, field.weather, duration, user, this);   // :684-685
+        }
         field.weatherDuration = duration;                           // :687
         if (showAnim) {                                             // :688
             commonAnimation(PBWeather.animationName(field.weather), null);
@@ -3231,7 +3296,7 @@ public final class Battle {
             case PBWeather.Fog:         display("场上云雾缭绕..."); break;                   // :700
             default: break;
         }
-        // 登记: PokeBattle_Battle:703 eachBattler { b.pbCheckFormOnWeatherChange }
+        for (Battler b : eachBattler()) b.pbCheckFormOnWeatherChange();   // :703 Castform / Cherrim
         pbEndPrimordialWeather();                                   // :704
     }
 
@@ -3240,8 +3305,8 @@ public final class Battle {
      * {@link #pbStartWeather(Battler, int, boolean, boolean)} calls at {@code :704}.
      *
      * <p>The guards (:712/:717/:722) end the weather once no battler holds
-     * Desolate Land / Primordial Sea / Delta Stream any more. 登记: :729
-     * {@code b.pbCheckFormOnWeatherChange}.</p>
+     * Desolate Land / Primordial Sea / Delta Stream any more. :729 re-checks the
+     * weather forms ({@code b.pbCheckFormOnWeatherChange}).</p>
      */
     public void pbEndPrimordialWeather() {
         int oldWeather = field.weather;                             // :708
@@ -3267,7 +3332,7 @@ public final class Battle {
             default: break;
         }
         if (field.weather != oldWeather) {                          // :727
-            // 登记: PokeBattle_Battle:729 eachBattler { b.pbCheckFormOnWeatherChange }
+            for (Battler b : eachBattler()) b.pbCheckFormOnWeatherChange();   // :729
             if (field.defaultWeather != PBWeather.None) {           // :731
                 pbStartWeather(null, field.defaultWeather);
             }
@@ -3398,17 +3463,7 @@ public final class Battle {
         return canChooseNonActive(idxBattler);                      // :116-118
     }
 
-    /**
-     * {@code pbCanRun?(idxBattler)} (Battle_Action_Running:5-28), transcribed
-     * except the branches marked 登记.
-     *
-     * <p>登记: Battle_Action_Running:10-13 (Run Away / Smoke Ball through
-     * {@code battler.abilityActive?}/{@code itemActive?} +
-     * {@code BattleHandlers.triggerRunFromBattle*}), :14-19 (the six
-     * {@code battler.effects[...]} trapping terms - {@code Battler#effects} is
-     * not landed; the available {@code @field.effects[FairyLock]} term of :20 is
-     * transcribed) and :21-26 (the opposing side's trapping abilities/items).</p>
-     */
+    /** {@code pbCanRun?(idxBattler)} (Battle_Action_Running:5-28). */
     public boolean pbCanRun(int idxBattler) {
         if (trainerBattle) {                                        // :6 trainerBattle?
             return false;
@@ -3616,6 +3671,7 @@ public final class Battle {
                 pkmn.makeUnmega(pbs);                                              // :153
                 pkmn.makeUnprimal(pbs);                                            // :154
                 pkmn.recordFirstMoves();                                           // :156 pbRecordFirstMoves
+                pkmn.item = battler.item == null || battler.item.isEmpty() ? null : battler.item;   // PokeBattle_Battler#item= kept the Pokemon in step
                 // 343_ChainCatching:95-103 (its pbThrowPokeBall replaces the plugin's, and drops the switch-60 level line)
                 hooks.refreshChain(pkmn.species == null ? pkmn.internalName : pkmn.species.internalName);                             // $Trainer.refreshChain(pkmn.species)
                 int hpDiff = pkmn.maxHp() - pkmn.hp;                               // calcStats keeps the missing HP (:884-888)
@@ -3793,13 +3849,8 @@ public final class Battle {
     }
 
     /**
-     * {@code pbGetOwnerName(idxBattler)} (PokeBattle_Battle:266-271).
-     *
-     * <p>登记: PokeBattle_Battle:266-271 - the opposing branch ({@code :268})
-     * and the ally-trainer branch ({@code :269}) need
-     * {@code PokeBattle_Trainer.fullname}, which the trainer/save subsystem has
-     * not landed. The player branch ({@code :270 @player[idxTrainer].name}) is
-     * this runtime's existing {@code playerName}.</p>
+     * {@code pbGetOwnerName(idxBattler)} (PokeBattle_Battle:266-271): the opponents' full names come from the battle
+     * port ({@code opponentName*}, null in a wild battle), the ally's from the registered partner.
      */
     public String pbGetOwnerName(int idxBattler) {
         int idxTrainer = pbGetOwnerIndexFromBattlerIndex(idxBattler);   // :267
@@ -3851,30 +3902,11 @@ public final class Battle {
     }
 
     /**
-     * {@code pbSetSeen(battler)} (PokeBattle_Battle:652-656) - 登记:
-     * PokeBattle_Battle:652-656.
-     *
-     * <p>The body registers the species in the Pokedex
-     * ({@code pbPlayer.seen[battler.displaySpecies] = true} and
-     * {@code pbSeenForm}, PSystem_PokemonUtilities:203); the Pokedex/save
-     * subsystem is not modelled.</p>
+     * {@code pbSetSeen(battler)} (PokeBattle_Battle:652-656). Empty here: the battle port registers every opposing
+     * Pokemon as seen when the battle starts ({@code InteractiveBattlePort}, {@code TrainerState#registerSeen}), which
+     * covers every Pokemon this call would register.
      */
     public void pbSetSeen(Battler battler) {
-        // 登记: PokeBattle_Battle:652-656 依赖图鉴（pbPlayer.seen / pbSeenForm）（未建模）
-    }
-
-    /**
-     * {@code pbPlayer} (PokeBattle_Battle:226): {@code return @player[0];}, the
-     * player's {@code PokeBattle_Trainer}.
-     *
-     * <p>登记: PokeBattle_Battle:226 - the trainer object is not modelled, so
-     * this returns {@code null}. Note this runtime's {@link #player()} is the
-     * fielded BATTLER, a different thing (as stage4-m0b-battler-api-notes.md §B
-     * points out).</p>
-     */
-    public Object pbPlayer() {
-        // 登记: PokeBattle_Battle:226 @player[0] 依赖 PokeBattle_Trainer（未建模）
-        return null;
     }
 
     // ==================================================================

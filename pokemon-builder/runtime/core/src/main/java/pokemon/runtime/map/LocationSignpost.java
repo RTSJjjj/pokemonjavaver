@@ -7,7 +7,7 @@ package pokemon.runtime.map;
  * map's name; a route's number is drawn with {@code Location/icon_numbers}; {@code SHOW_SEASONS} adds the season strip
  * that rises from the bottom.
  *
- * <p>登记: the mini map ({@code $miniMap}, 311:2-5 and :234-236) is not part of the game yet.</p>
+ * <p>While the board shows, a mini map in a top corner is hidden (311:7-10, :246-249; {@code MapScreen.renderMiniMap}).</p>
  */
 public final class LocationSignpost {
     /** 312_BW_SignPosts_Config:9-31. */

@@ -190,6 +190,10 @@ public final class RuntimeContext {
                 return new pokemon.runtime.field.EvolutionWorld(RuntimeContext.this).mapRegion();
             }
 
+            @Override public int mapId() {
+                return gameState.currentMapId();
+            }
+
             @Override public boolean evening() {
                 return pokemon.runtime.field.PBDayNight.isEvening(java.time.LocalTime.now());
             }
@@ -759,6 +763,7 @@ public final class RuntimeContext {
         if (database != null) {
             // P0c: the Pokemon construction IR commands need the PBS data.
             eventInterpreter.attachPbs(database.pbs());
+            pokemon.runtime.pokemon.FormHandlers.setDefaultData(database.pbs());   // the getForm / onSetForm hooks
             eventInterpreter.attachQuests(database.quests(), database::mapName);
         }
         battlePort = new pokemon.runtime.battle.InteractiveBattlePort(gameState.trainer(), gameState.inventory(),

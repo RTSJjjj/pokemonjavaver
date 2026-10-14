@@ -210,6 +210,7 @@ final class ConditionEnv implements ScriptCondition.Env {
             case "publicID": return state.trainer().publicID();
             case "money": return state.trainer().money;
             case "name": return state.trainer().name;
+            case "mysterygiftaccess": return state.trainer().mysteryGiftAccess;   // PokeBattle_Trainer attr_accessor (the Mystery Gift menu entry)
             default:
                 throw new ScriptCondition.Unsupported("$Trainer." + method);
         }
@@ -333,6 +334,10 @@ final class ConditionEnv implements ScriptCondition.Env {
                 // The reception counter's autorun (map 28) branches on pbSafariState.decision; unsupported, both
                 // branches were false, the page ended without pbEnd and restarted: the player walked down forever.
                 return "$safari";
+            case "pbNextMysteryGiftID":                                         // 231_PScreen_MysteryGift:361
+                // $Trainer.mysterygift (downloaded gifts) is not modelled - nothing is ever downloaded - so no gift
+                // is waiting: 0, as the MYSTERY_GIFT command also answers.
+                return 0;
             case "pbBoxesFull?":                                                // :4-6
                 return state.trainer().party.size() == 6 && state.trainer().currentStorage().full();
             case "pbGetSelfSwitch": {                                           // 071_Messages:341-344

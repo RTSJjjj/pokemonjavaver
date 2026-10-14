@@ -46,19 +46,9 @@ final class AbilitiesSwitchIn {
     private AbilitiesSwitchIn() {
     }
 
-    /**
-     * {@code battler.inTwoTurnAttack?(fn)} (PokeBattle_Battler:718-723).
-     *
-     * <p>登记: the real body needs
-     * {@code pbGetMoveData(@effects[TwoTurnAttack],MOVE_FUNCTION_CODE)}
-     * ({@code PBMove:32}), which has no Java port yet. Nothing in this runtime
-     * ever writes {@code @effects[TwoTurnAttack]} — {@code initEffects} sets it to
-     * {@code 0} ({@code Battler_Initialize:309}) — so the answer is provably
-     * {@code false} here, matching the plugin when no two-turn move is charging.
-     * Not an invented value.</p>
-     */
+    /** {@code battler.inTwoTurnAttack?(fn)} (PokeBattle_Battler:718-723). */
     private static boolean inTwoTurnAttack(Battler battler, String function) {
-        return false;
+        return battler.inTwoTurnAttack(function);
     }
 
 
@@ -81,16 +71,10 @@ final class AbilitiesSwitchIn {
         return data == null || data.name == null ? internalName : data.name;
     }
 
-    /** {@code PBDebug.log} — 登记: PBDebug is not modelled; no-op keeps the call site visible. */
+    /** {@code PBDebug.log}: the debug log, off in a released game; the call sites are kept. */
     private static void pbDebugLog(String message) {
-        // 登记: PBDebug.log（PBDebug.rb:1-41，本批未建模）→ 空实现
     }
 
-    /** {@code PBAbilities.getName(id)} — 登记: no ability-name table is reachable here yet. */
-    private static String abilityDisplayName(String internalName) {
-        // 登记: PBAbilities.getName / getID(PBAbilities,...)（Compiler_PBS:446 生成）本批未建模
-        return internalName;
-    }
 
     /** {@code BattleHandlers_Abilities.rb}: 91 entries (roster §1.2, §2 main table). */
     static void register() {
@@ -113,7 +97,7 @@ final class AbilitiesSwitchIn {
                 }
                 battle.showAbilitySplash(battler, true);                           // :90 (delay=true，见类 javadoc)
                 battle.hideAbilitySplash(battler);                           // :91
-                // 登记: BattleHandlers_Abilities.rb:92 pbSEPlay("Battle flee") 依赖音频子系统
+                battle.roundEvents.add(Battle.RoundEvent.se("Battle flee"));     // :92
                 battle.display(battler.pbThis() + "逃离战斗了！");            // :93
                 battle.decision = 3;                                        // :94 Escaped
                 return true;                                                 // :95
@@ -215,8 +199,7 @@ final class AbilitiesSwitchIn {
                     if (type1 != null) {                                     // :2427
                         String moveType = moveData.type;                     // :2428
                         if (Battle.NEWEST_BATTLE_MECHANICS && "HIDDENPOWER".equals(m.internalName())) { // :2429
-                            // 登记: BattleHandlers_Abilities.rb:2430 pbHiddenPower(b.pokemon)[0]
-                            //       依赖觉醒力量的个体值类型表（本批未建模）→ 保留 moveData.type
+                            moveType = pokemon.runtime.battle.movefx.MoveEffects_080_0AF.hiddenPowerType(b);   // :2430 pbHiddenPower(b.pokemon)[0]
                         }
                         int eff = PBTypes.getCombinedEffectiveness(battle.pbs(), moveType,
                                 type1, type2, type3);                        // :2432
@@ -539,10 +522,7 @@ final class AbilitiesSwitchIn {
             // BattleHandlers_Abilities.rb:2731-2738
             battle.showAbilitySplash(battler);                               // :2733
             battle.display(battler.pbThis() + "拥有两种特性！");              // :2734
-            // :2735 pbShowAbilitySplash(battler,false,true,PBAbilities.getName(getID(PBAbilities,:UNNERVE)))
-            // 登记: 该 4 参重载（logTrigger/ability 参数）不存在；能力显示名表也未建模
-            //       （abilityDisplayName 为登记用的占位），故这里只保留调用形状
-            abilityDisplayName("UNNERVE");
+            battle.showAbilitySplash(battler);                               // :2735 (the bar never reads the ability argument)
             battle.display(battler.pbThis() + "正在施加紧张感！");            // :2736
             battle.hideAbilitySplash(battler);                               // :2737
         });

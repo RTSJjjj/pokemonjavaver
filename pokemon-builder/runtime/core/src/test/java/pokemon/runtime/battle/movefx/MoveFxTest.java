@@ -155,13 +155,6 @@ class MoveFxTest {
     // 3) The honest-stub contract
     // ==================================================================
 
-    private static void assertPending(String what, Runnable call) {
-        UnsupportedOperationException error =
-                assertThrows(UnsupportedOperationException.class, call::run, what);
-        assertTrue(error.getMessage() != null && error.getMessage().contains("M0 待接线"),
-                what + " must be an honest M0 stub, was: " + error.getMessage());
-    }
-
     @Test
     @DisplayName("L2: the hooks with no base body throw '插件无默认实现' (task-11 decision 8)")
     void hooksWithoutABaseBodyThrow() {
@@ -183,22 +176,6 @@ class MoveFxTest {
                             && error.getMessage().contains("插件无默认实现"),
                     "message must name the plugin's missing default, was: " + error.getMessage());
         }
-    }
-
-    @Test
-    @DisplayName("L2: the heavy default bodies throw 'M0 待接线' with their Ruby line range (decision 10)")
-    void heavyDefaultBodiesAreHonestStubs() {
-        MoveEffectBase effect = new MoveEffectBase();
-
-        // §4 wiring: the three type-calculation bodies are transcribed now
-        // (Move_Usage_Calculations.rb:14-29 / 34-71 / 73-103) - see
-        // typeBodiesAreTranscribed below - so they are no longer in this list.
-        // Stage 5 / 2c2: pbAccuracyCheck (:112-143), pbCalcAccuracyModifiers
-        // (:145-183) and pbIsCritical? (:196-229) are transcribed now - see
-        // MoveCalculationsTest - so they are no longer in this list.
-        // Stage 5 / 2d: pbCalcDamage (:252-295) is transcribed now - see BattlerUseMoveTest.
-        assertPending("pbCalcDamageMultipliers (:296-546)",
-                () -> effect.pbCalcDamageMultipliers(null, null, null, 1, null, 0, null));
     }
 
     @Test

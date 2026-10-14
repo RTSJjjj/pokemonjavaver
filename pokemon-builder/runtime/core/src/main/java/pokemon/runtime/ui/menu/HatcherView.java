@@ -146,7 +146,7 @@ public final class HatcherView {
 
     private Texture icon(MenuAssets a, Pokemon p) {
         if (p.species == null) return a.icon("iconEgg");
-        Texture icon = PokemonIcons.of(a, p.species, p.gender == pokemon.runtime.pokemon.PokemonStats.FEMALE, p.shiny, p.superShiny, p.formIndex(), false, true);
+        Texture icon = PokemonIcons.of(a, p.species, p.effectiveGender() == pokemon.runtime.pokemon.PokemonStats.FEMALE, p.shiny, p.superShiny, p.formIndex(), false, true);
         if (icon == null) icon = a.icon("iconEgg");
         return icon;
     }

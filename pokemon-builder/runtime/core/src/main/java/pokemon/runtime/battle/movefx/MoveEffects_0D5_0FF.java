@@ -1849,15 +1849,13 @@ public final class MoveEffects_0D5_0FF {
     }
 
     // ==================================================================
-    // File-local M0 helpers (Lead ruling: no shared-file edits, one file per L2
-    // author). Every THROWING helper below stands for a plugin method this
-    // runtime has not landed - never a made-up value. They are collected here so
-    // the retire pass has one place to look per file.
+    // File-local helpers: the Ruby-named calls of this file, each delegating to the
+    // runtime method.
     // ==================================================================
 
     /**
      * {@code Battler#pbRecoverHPFromDrain(amt,target,msg=nil)}
-     * (Battler_ChangeSelf:33-39, used by 0DD :2800 and 0DE :2824). 本运行时缺此方法。
+     * (Battler_ChangeSelf:33-39, used by 0DD :2800 and 0DE :2824).
      */
     private static void pbRecoverHPFromDrain(Battler battler, int amount, Battler target) {
         battler.pbRecoverHPFromDrain(amount, target);
@@ -1865,7 +1863,7 @@ public final class MoveEffects_0D5_0FF {
 
     /**
      * {@code Battler#pbSleepSelf(msg,duration)} (used by Rest, 0D9 :2712).
-     * 本运行时缺此方法。
+     *
      */
     private static void pbSleepSelf(Battler battler, String msg, int duration) {
         battler.pbSleepSelf(msg, duration);
@@ -1882,7 +1880,7 @@ public final class MoveEffects_0D5_0FF {
 
     /**
      * {@code battle.rules["perishsongclause"]} (PokeBattle_Battle:71/:148, read by
-     * 0E5 :3011 and 0E7 :3063). 本运行时缺此方法。
+     * 0E5 :3011 and 0E7 :3063).
      */
     private static boolean battleRules(Battle battle, String rule) {
         return battle.rules.get(rule) != null && !Boolean.FALSE.equals(battle.rules.get(rule));   // Ruby truthiness of @rules[rule]
@@ -1890,7 +1888,7 @@ public final class MoveEffects_0D5_0FF {
 
     /**
      * {@code Battler#pbFlinch(_user=nil)} (Battler_Statuses:619, used by Fling
-     * 0F7 :3782). 本运行时缺此方法。
+     * 0F7 :3782).
      */
     private static void pbFlinch(Battler battler, Battler user) {
         battler.pbFlinch(user);
@@ -1918,7 +1916,7 @@ public final class MoveEffects_0D5_0FF {
 
     /**
      * {@code Battle#pbPursuit(idxSwitcher)} (Battle_Phase_Attack:24, used by
-     * 0ED :3266 and 0EE :3300). 本运行时缺此方法。
+     * 0ED :3266 and 0EE :3300).
      */
     private static void pbPursuit(Battle battle, int idxSwitcher) {
         battle.pbPursuit(idxSwitcher);

@@ -376,6 +376,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private boolean endAppearStarted;
     /** {@code @opponent.each_with_index}'s i (Battle_StartAndEnd:464-468). */
     private int endOpponent;
+    /** The Pay Day line (Battle_StartAndEnd:418-420) has been shown. */
+    private boolean payDayShown;
     private final boolean trainerBattle;
     private final int foeBallType;
     private final int playerBallType;
@@ -1728,9 +1730,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     lastMove[switchIdxBattler] = 0;                   // :328 @scene.pbResetMoveIndex(b[0])
                 }
                 message = null;
-                // :325-331 @peer.pbOnEnteringBattle / pbResetMoveIndex / pbSetSeen /
-                // @usedInBattle have no counterpart here; the send-out sequence
-                // itself called pbChangePokemon + pbRefresh (:104-105).
+                // :325-331 @peer.pbOnEnteringBattle, pbSetSeen and @usedInBattle ran in the engine (Battle.replace, BattleSwitchAction.pbSendOut);
+                // the send-out sequence itself called pbChangePokemon + pbRefresh (:104-105).
                 if (requestKind != null) {                        // @scene.pbSendOutBattlers alone (:326)
                     finishRequestStep(null);
                     return true;
@@ -2226,6 +2227,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private void beginEndBattle() {
         if (stage == Stage.END_BATTLE) {
+            return;
+        }
+        if (session.payDayMoney > 0 && !payDayShown) {            // Battle_StartAndEnd:418-420, after the prize line
+            payDayShown = true;
+            showBattleMessage("你捡到了$" + String.format(java.util.Locale.ROOT, "%,d", session.payDayMoney) + "！", true);
             return;
         }
         if (beginCaughtStore()) {                                  // Battle_StartAndEnd:510 pbRecordAndStoreCaughtPokemon

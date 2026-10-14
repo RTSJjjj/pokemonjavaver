@@ -398,7 +398,7 @@ public final class MoveEffects_180_1FF {
             if ("PSYCHIC".equals(t)) {                                       // :248
                 hitNum = 4;
             }
-            // :249 super - 登记: Move_Usage.rb:67-74 pbShowAnimation 依赖动画播放器（本批未建模）
+            // :249 super
         }
     }
 
@@ -1654,7 +1654,7 @@ public final class MoveEffects_180_1FF {
             // :1001 hitNum = (user.shiny?) ? 1 : 0 —— Battler 没有 shiny?，
             //       以 Pokemon.shiny 公开字段为准
             int n = user.pokemon != null && user.pokemon.shiny ? 1 : 0;
-            // :1002 super —— 登记: Move_Usage.rb:67-74 pbShowAnimation 依赖动画播放器（本批未建模）
+            // :1002 super
         }
     }
 
@@ -1733,7 +1733,7 @@ public final class MoveEffects_180_1FF {
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets,
                                     int hitNum, boolean showAnimation) {
             int n = allOutAttack ? 1 : hitNum;                                // :1053
-            // :1054 super —— 登记: Move_Usage.rb:67-74 pbShowAnimation 依赖动画播放器（本批未建模）
+            // :1054 super
         }
     }
 
@@ -1962,9 +1962,7 @@ public final class MoveEffects_180_1FF {
                     target.pbPoison(user, null, false);                      // :1201
                     break;
                 case 1:
-                    // :1203 @battle.pbStartWeather(user,Rain,true,false) —— Battle 只有
-                    //       2 参档 (Battler,int)；fixedDuration=true / showAnim=false 无对应档
-                    user.battle.pbStartWeather(user, PBWeather.Rain);         // :1203
+                    user.battle.pbStartWeather(user, PBWeather.Rain, true, false);   // :1203
                     break;
                 default:
                     break;
@@ -2708,7 +2706,7 @@ public final class MoveEffects_180_1FF {
             if (raw instanceof int[] && ((int[]) raw).length > 1) {           // :1691 isCommanderHost?
                 hitNum = ((int[]) raw)[1] + 1;
             }
-            // :1692 super —— 登记: Move_Usage.rb:67-74 pbShowAnimation 依赖动画播放器（本批未建模）
+            // :1692 super
         }
     }
 
@@ -3055,7 +3053,7 @@ public final class MoveEffects_180_1FF {
                 case "WATER":    hitNum = 3; break;
                 default:         hitNum = 0; break;
             }
-            // :1901 super —— 登记: Move_Usage.rb:67-74 pbShowAnimation 依赖动画播放器（本批未建模）
+            // :1901 super
         }
     }
 
@@ -3839,8 +3837,7 @@ public final class MoveEffects_180_1FF {
                 case PBWeather.StrongWinds:
                     break;                                                   // :2471-2474
                 default:
-                    // :2476 @battle.pbStartWeather(user,Rain,true,false) —— Battle 只有 2 参档
-                    user.battle.pbStartWeather(user, PBWeather.Rain);         // :2476
+                    user.battle.pbStartWeather(user, PBWeather.Rain, true, false);   // :2476
                     break;
             }
             if (user.pbOwnSide().effects.intVal(PBEffects.Side.Tailwind) < 1) { // :2478
@@ -3877,8 +3874,7 @@ public final class MoveEffects_180_1FF {
                 case PBBattleTerrains.Cold:     user.battle.display("冰霜从场上消失了！"); break; // :2515
                 default: break;
             }
-            // :2517 @battle.pbStartTerrain(user,None,true) —— Battle 未暴露 pbStartTerrain
-            PendingApi.pbStartTerrain(user.battle, user, PBBattleTerrains.None); // :2517
+            user.battle.pbStartTerrain(user, PBBattleTerrains.None, true);   // :2517
         }
 
         /** {@code pbEffectAfterAllHits(user,target)} (:2521-2542) —— 五种墙/守护，**没有 Tailwind**。 */

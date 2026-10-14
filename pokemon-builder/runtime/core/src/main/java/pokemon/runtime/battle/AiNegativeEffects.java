@@ -195,9 +195,9 @@ final class AiNegativeEffects {
         } else if (in(move, SPEED_DOWN)) {                                                        // EFFECT_SPEED_DOWN(_2) (:1284)
             if (!AiCalc.statCanBeLowered(def, atk, PBStats.SPEED)) r.viability -= 10; else substituteCheck(move, atk, def, r);
         } else if (in(move, SPATK_DOWN)) {                                                        // EFFECT_SPECIAL_ATTACK_DOWN(_2) (:1291)
-            if (f.equals("04E") /* Captivate */ && (atk.pokemon.gender == pokemon.runtime.pokemon.PokemonStats.GENDERLESS
-                    || def.pokemon.gender == pokemon.runtime.pokemon.PokemonStats.GENDERLESS
-                    || atk.pokemon.gender == def.pokemon.gender)) r.viability -= 10;
+            if (f.equals("04E") /* Captivate */ && (atk.gender() == pokemon.runtime.pokemon.PokemonStats.GENDERLESS
+                    || def.gender() == pokemon.runtime.pokemon.PokemonStats.GENDERLESS
+                    || atk.gender() == def.gender())) r.viability -= 10;
             else if (!AiCalc.statCanBeLowered(def, atk, PBStats.SPATK) || !AiCalc.specialMoveInMoveset(ctx, def)) r.viability -= 10;
             else substituteCheck(move, atk, def, r);
         } else if (in(move, SPDEF_DOWN)) {                                                        // EFFECT_SPECIAL_DEFENSE_DOWN(_2) (:1304)
@@ -976,8 +976,8 @@ final class AiNegativeEffects {
     }
 
     private static boolean oppositeGenders(Battler a, Battler b) {
-        int ga = a.pokemon.gender;
-        int gb = b.pokemon.gender;
+        int ga = a.gender();
+        int gb = b.gender();
         return ga != pokemon.runtime.pokemon.PokemonStats.GENDERLESS && gb != pokemon.runtime.pokemon.PokemonStats.GENDERLESS && ga != gb;
     }
 

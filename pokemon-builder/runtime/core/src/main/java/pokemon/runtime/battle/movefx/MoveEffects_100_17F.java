@@ -41,23 +41,17 @@ import pokemon.runtime.pokemon.Pokemon;
  * <ul>
  * <li>{@code @battle.pbDisplay(msg)} = {@code user.battle.display(msg)};
  *     {@code user.effects[...]} = {@code user.effects}.</li>
- * <li>Everything that needs a {@code Battler}/{@code Battle} method this runtime
- *     has not landed goes through {@link MoveFxPendingApi} (throwing M0 stubs),
- *     never a made-up value.</li>
  * <li>{@code _INTL} strings are concatenated at the call site with the plugin's
  *     wording copied verbatim.</li>
  * <li>{@code pbShowAnimation} overrides only adjust {@code hitNum} and then call
- *     {@code super}: the animation player is not modelled, so the override is
- *     copied in shape and registered at its line.</li>
+ *     {@code super}, which plays the animation.</li>
  * </ul>
  *
  * <h2>登记 (registered, not translated)</h2>
  * <ul>
  * <li>{@code battle.scene.pbDamageAnimation(user)} (10B:212, 14A:1600 area, ...):
  *     no engine-side counterpart, registered as a comment.</li>
- * <li>{@code @battle.pbStartTerrain} (PokeBattle_Battle:741-769, roster §B
- *     "登记"): the animation and the terrain subsystem are not modelled; the
- *     call is kept at its line.</li>
+ * <li>{@code @battle.pbStartTerrain} (PokeBattle_Battle:741-769) is {@link Battle#pbStartTerrain}.</li>
  * <li>Cross-file parents: {@code PokeBattle_Move_136 < PokeBattle_Move_02F},
  *     {@code 14D < PokeBattle_Move_0CD} and {@code 17C < PokeBattle_Move_0BD}
  *     extend classes that live in {@code MoveEffects_000_07F.java} /
@@ -266,7 +260,7 @@ public final class MoveEffects_100_17F {
             }
         }
 
-        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:189-196) - 登记: 动画播放器未建模. */
+        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:189-196) */
         @Override
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
@@ -431,7 +425,7 @@ public final class MoveEffects_100_17F {
             user.pbItemHPHealCheck(0, false);                        // :310
         }
 
-        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:313-316) - 登记: 动画播放器未建模. */
+        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:313-316) */
         @Override
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
@@ -583,14 +577,25 @@ public final class MoveEffects_100_17F {
             return true;                                                     // :420
         }
 
+        /**
+         * The battle of the current use: {@code pbDamagingMove?} has no user argument and this runtime's
+         * {@code BattleMove} has no battle back-reference, so pbUseMove's {@code pbIsChargingTurn?} call (:238),
+         * which runs for every use including the end-of-round hit, remembers it.
+         */
+        private Battle battle;
+
+        @Override
+        public boolean pbIsChargingTurn(BattleMove move, Battler user) {
+            battle = user.battle;
+            return super.pbIsChargingTurn(move, user);
+        }
+
         /** {@code pbDamagingMove?} (:422-425) - "Stops damage being dealt in the setting-up turn". */
         @Override
         public boolean pbDamagingMove(BattleMove move) {
-            // :423 return false if !@battle.futureSight
-            //      本 hook 无 user 参数，而本运行时 BattleMove 没有 battle 反向引用；
-            //      `Battle.futureSight` 全工程只有读取处（AbilitiesOnHit:1247）、**无任何写入处**，
-            //      故 `!@battle.futureSight` 可证为 true —— 与 Lead 对 inTwoTurnAttack? 的裁决同源，
-            //      此处内联（不抛异常、不造替代）。
+            if (battle == null || !battle.futureSight) {                     // :423 return false if !@battle.futureSight
+                return false;
+            }
             return super.pbDamagingMove(move);                               // :424 return super
         }
 
@@ -643,7 +648,7 @@ public final class MoveEffects_100_17F {
             }
         }
 
-        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:459-462) - 登记: 动画播放器未建模. */
+        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:459-462) */
         @Override
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
@@ -900,9 +905,7 @@ public final class MoveEffects_100_17F {
             battle.display("重力变强了！");                         // :674
             for (Battler b : battle.eachBattler()) {              // :675 @battle.eachBattler
                 boolean showMessage = false;                                 // :676
-                // :677 b.inTwoTurnAttack?("0C9","0CC","0CE") —— 本运行时 @effects[TwoTurnAttack]
-                //      无人写入（battlerapi 中间档未落该效果），可证为 false；按 Lead 裁决内联 false。
-                if (false) {
+                if (b.inTwoTurnAttack("0C9", "0CC", "0CE")) {                // :677 Fly / Bounce / Sky Drop
                     b.effects.set(PBEffects.Battler.TwoTurnAttack, 0);    // :678
                     if (!b.movedThisRound()) {               // :679
                         battle.pbClearChoice(b.index);
@@ -1030,21 +1033,21 @@ public final class MoveEffects_100_17F {
                     || target.damageState.substitute) {    // :778
                 return;
             }
-            // :779 target.inTwoTurnAttack?("0CE") || target.effects[PBEffects::SkyDrop]>=0
-            //      —— inTwoTurnAttack? 按 Lead 裁决内联 false（本运行时无人写 TwoTurnAttack）；
-            //      保留 SkyDrop 那一支。
-            if (target.effects.intVal(PBEffects.Battler.SkyDrop) >= 0) {   // :779 Sky Drop
+            if (target.inTwoTurnAttack("0CE")
+                    || target.effects.intVal(PBEffects.Battler.SkyDrop) >= 0) {   // :779 Sky Drop
                 return;
             }
-            // :780 return if !target.airborne? && !target.inTwoTurnAttack?("0C9","0CC")
-            //      —— 第二项内联 false，故等价于「不浮空即返回」。
-            if (!target.airborne()) {                                        // :780
+            if (!target.airborne() && !target.inTwoTurnAttack("0C9", "0CC")) {   // :780 Fly/Bounce
                 return;
             }
             Battle battle = user.battle;
             target.effects.set(PBEffects.Battler.SmackDown, true);     // :781
-            // :782-785 target.inTwoTurnAttack?("0C9","0CC")（Fly/Bounce，注意不含 Sky Drop）
-            //      —— 按 Lead 裁决内联 false，该块整体不执行。
+            if (target.inTwoTurnAttack("0C9", "0CC")) {                     // :782 Fly/Bounce. NOTE: Not Sky Drop.
+                target.effects.set(PBEffects.Battler.TwoTurnAttack, 0);     // :783
+                if (!target.movedThisRound()) {                              // :784
+                    battle.pbClearChoice(target.index);
+                }
+            }
             target.effects.set(PBEffects.Battler.MagnetRise, 0);       // :786
             target.effects.set(PBEffects.Battler.Telekinesis, 0);      // :787
             battle.display(target.pbThis() + "被击落了！"); // :788
@@ -1167,7 +1170,7 @@ public final class MoveEffects_100_17F {
             }
         }
 
-        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:889-892) - 登记: 动画播放器未建模. */
+        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:889-892) */
         @Override
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
@@ -1300,7 +1303,7 @@ public final class MoveEffects_100_17F {
             }
         }
 
-        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:1000-1003) - 登记: 动画播放器未建模. */
+        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:1000-1003) */
         @Override
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
@@ -2338,7 +2341,7 @@ public final class MoveEffects_100_17F {
             return false;                                                         // :1805
         }
 
-        /** {@code pbEffectGeneral(user)} (:1808-1810) - 登记: pbStartTerrain（演出+场地子系统未建模）. */
+        /** {@code pbEffectGeneral(user)} (:1808-1810) */
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             pbStartTerrain(user.battle, user, PBBattleTerrains.Electric, true);   // :1809
@@ -2358,7 +2361,7 @@ public final class MoveEffects_100_17F {
             return false;                                                         // :1826
         }
 
-        /** {@code pbEffectGeneral(user)} (:1829-1831) - 登记: pbStartTerrain. */
+        /** {@code pbEffectGeneral(user)} (:1829-1831) */
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             pbStartTerrain(user.battle, user, PBBattleTerrains.Grassy, true);   // :1830
@@ -2378,7 +2381,7 @@ public final class MoveEffects_100_17F {
             return false;                                                         // :1847
         }
 
-        /** {@code pbEffectGeneral(user)} (:1850-1852) - 登记: pbStartTerrain. */
+        /** {@code pbEffectGeneral(user)} (:1850-1852) */
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             pbStartTerrain(user.battle, user, PBBattleTerrains.Misty, true);   // :1851
@@ -2578,7 +2581,7 @@ public final class MoveEffects_100_17F {
             if (hasRaisedStatStages(target)) {                               // :2021
                 // :2022 pbShowAnimation(@id,user,target,1) —— 原文把单个 Battler 当作 targets 传入
                 //      （Move_Usage.rb:67-74 的 targets 允许非数组）；本运行时该形参是 Array<Battler>，
-                //      故包一层。登记: 动画播放器未建模。
+                //      故包一层。
                 Array<Battler> animTargets = new Array<>();
                 animTargets.add(target);
                 pbShowAnimation(move, move.id(), user, animTargets, 1, true);
@@ -3114,7 +3117,7 @@ public final class MoveEffects_100_17F {
             user.battle.display(target.pbThis() + "的HP回复了。");                // :2487
         }
 
-        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:2490-2493) - 登记: 动画播放器未建模. */
+        /** {@code pbShowAnimation(id,user,targets,hitNum=0,showAnimation=true)} (:2490-2493) */
         @Override
         public void pbShowAnimation(BattleMove move, int id, Battler user, Array<Battler> targets, int hitNum,
                                     boolean showAnimation) {
@@ -3241,7 +3244,7 @@ public final class MoveEffects_100_17F {
             return false;                                                        // :2594
         }
 
-        /** {@code pbEffectGeneral(user)} (:2597-2599) - 登记: pbStartTerrain（演出+场地子系统未建模）. */
+        /** {@code pbEffectGeneral(user)} (:2597-2599) */
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
             pbStartTerrain(user.battle, user, PBBattleTerrains.Psychic, true);   // :2598
@@ -3599,15 +3602,13 @@ public final class MoveEffects_100_17F {
     }
 
     // ==================================================================
-    // File-local M0 helpers (Lead ruling: no shared-file edits, one file per
-    // L2 author). Every helper below is a THROWING stub for a plugin method
-    // this runtime has not landed - never a made-up value. They are collected
-    // here so the retire pass has one place to look per file.
+    // File-local helpers: the Ruby-named calls of this file, each delegating to the
+    // runtime method.
     // ==================================================================
 
     /**
      * {@code Battler#eachMove} (PokeBattle_Battler:543-545) - walks the
-     * non-empty move slots in slot order. 本运行时缺此方法。
+     * non-empty move slots in slot order.
      */
     private static Array<BattleMove> eachMove(Battler battler) {
         Array<BattleMove> out = new Array<>();
@@ -3617,41 +3618,41 @@ public final class MoveEffects_100_17F {
 
     /**
      * {@code Battler#eachMoveWithIndex} (PokeBattle_Battler:547-549).
-     * 本运行时缺此方法。
+     *
      */
     private static Array<BattleMove> eachMoveWithIndex(Battler battler) {
         return battler.moveSlots();                                                        // slot order; an empty slot stays null so the index is the slot
     }
 
-    /** {@code PokeBattle_Move#pp} (PokeBattle_Move.rb:12/66-70 的 {@code @pp}). 本运行时缺此方法。 */
+    /** {@code PokeBattle_Move#pp} (PokeBattle_Move.rb:12/66-70 的 {@code @pp}). */
     private static int pp(Battler owner, BattleMove move) {
         int slot = owner.moveSlotIndex(move);                                              // PP lives on the slot (Pokemon.MoveSlot.pp)
         return slot < 0 ? 0 : owner.moveSlotPp(slot);
     }
 
-    /** {@code Battler#pbSetPP(move,pp)} (Battler_ChangeSelf:132-135). 本运行时缺此方法。 */
+    /** {@code Battler#pbSetPP(move,pp)} (Battler_ChangeSelf:132-135). */
     private static void pbSetPP(Battler battler, BattleMove move, int newPp) {
         battler.pbSetPP(move.internalName(), newPp);
     }
 
-    /** {@code Battler#mega?} (PokeBattle_Battler:148). 本运行时缺此方法。 */
+    /** {@code Battler#mega?} (PokeBattle_Battler:148). */
     private static boolean mega(Battler battler) {
         return battler.isMega();
     }
 
-    /** {@code Battler#canChangeType?} (PokeBattle_Battler:585-589). 本运行时缺此方法。 */
+    /** {@code Battler#canChangeType?} (PokeBattle_Battler:585-589). */
     private static boolean canChangeType(Battler battler) {
         return battler.canChangeType();
     }
 
-    /** {@code Battler#hasRaisedStatStages?} (Battler_StatStages:383-386). 本运行时缺此方法。 */
+    /** {@code Battler#hasRaisedStatStages?} (Battler_StatStages:383-386). */
     private static boolean hasRaisedStatStages(Battler battler) {
         return battler.hasRaisedStatStages();
     }
 
     /**
      * {@code Battler#pbHasMove?(move_id)} (PokeBattle_Battler:551-553)：是否知道某招式。
-     * 参数按本运行时的招式身份（内部名）取，{@code null} 即 Ruby 的 -1。本运行时缺此方法。
+     * 参数按本运行时的招式身份（内部名）取，{@code null} 即 Ruby 的 -1。
      */
     private static boolean pbHasMove(Battler battler, String moveInternalName) {
         return battler.pbHasMove(battler.moveIdOf(moveInternalName));
@@ -3659,29 +3660,29 @@ public final class MoveEffects_100_17F {
 
     /**
      * {@code pbGetMoveData(move, MOVE_FUNCTION_CODE)} (PBMove:32 的顶层函数)：
-     * 按招式身份取 function code。本运行时缺此方法。
+     * 按招式身份取 function code。
      */
     private static String moveFunctionCode(Battle battle, String moveInternalName) {
         PbsData.Move data = moveInternalName == null ? null : battle.pbs().move(moveInternalName);
         return data == null ? null : data.function;
     }
 
-    /** {@code Battler#usingMultiTurnAttack?} (PokeBattle_Battler:708-711). 本运行时缺此方法。 */
+    /** {@code Battler#usingMultiTurnAttack?} (PokeBattle_Battler:708-711). */
     private static boolean usingMultiTurnAttack(Battler battler) {
         return battler.usingMultiTurnAttack();
     }
 
-    /** {@code Battler#belched?} (PokeBattle_Battler:756-758). 本运行时缺此方法。 */
+    /** {@code Battler#belched?} (PokeBattle_Battler:756-758). */
     private static boolean belched(Battler battler) {
         return battler.belched();
     }
 
-    /** {@code Battler#pbRecoverHPFromDrain(amt,target,msg=nil)} (Battler_ChangeSelf:33-39). 本运行时缺此方法。 */
+    /** {@code Battler#pbRecoverHPFromDrain(amt,target,msg=nil)} (Battler_ChangeSelf:33-39). */
     private static void pbRecoverHPFromDrain(Battler battler, int amount, Battler target) {
         battler.pbRecoverHPFromDrain(amount, target);
     }
 
-    /** {@code Battler#species} (PokeBattle_Battler，返回种族内部名). 本运行时缺此方法。 */
+    /** {@code Battler#species} (PokeBattle_Battler，返回种族内部名). */
     private static String species(Battler battler) {
         return battler.pokemon.species == null ? null : battler.pokemon.species.internalName;
     }
@@ -3690,13 +3691,13 @@ public final class MoveEffects_100_17F {
      * {@code Battler#pbReduceHP(amt,anim,registerDamage,anyAnim)} 的 4 实参形态
      * (Battler_ChangeSelf:5-17)。{@code battler.pbReduceHP(amount, anim, true, true)}
      * 只有 3 参，表达不了 {@code registerDamage=false}，故在本文件内另立。
-     * 本运行时缺此方法。
+     *
      */
     private static int pbReduceHP(Battler battler, int amount, boolean anim, boolean registerDamage) {
         return battler.pbReduceHP(amount, anim, registerDamage, true);
     }
 
-    /** {@code PBMoves.getName(id)} (Compiler_PBS:446 生成的名称表). 本运行时缺此方法。 */
+    /** {@code PBMoves.getName(id)} (Compiler_PBS:446 生成的名称表). */
     private static String PBMoves_getName(Battle battle, int id) {
         for (PbsData.Move m : battle.pbs().moves.values()) if (m.id == id) return m.name;
         return "";
@@ -3706,7 +3707,7 @@ public final class MoveEffects_100_17F {
      * {@code user.speed, target.speed = target.speed, user.speed}
      * (Move_Effects_100-17F.rb:2126)：交换双方「当前速度值」（不是等级）。
      * 本运行时 {@code Battler.speed()} 是计算属性、无 setter，故在本文件内另立。
-     * 本运行时缺此方法。
+     *
      */
     private static void swapSpeed(Battler user, Battler target) {
         int userSpeed = user.baseSpeed();
@@ -3714,7 +3715,7 @@ public final class MoveEffects_100_17F {
         target.setBaseSpeed(userSpeed);
     }
 
-    /** {@code Battler#pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-39). 本运行时缺此方法。 */
+    /** {@code Battler#pbEffectsOnSwitchIn(switchIn=false)} (Battler_AbilityAndItem:5-39). */
     private static void pbEffectsOnSwitchIn(Battler battler, boolean switchIn) {
         battler.pbEffectsOnSwitchIn(switchIn);
     }
@@ -3750,7 +3751,7 @@ public final class MoveEffects_100_17F {
         b.set(idx, tmp);
     }
 
-    /** {@code Battle#pbPriority} (PokeBattle_Battle，按速度排序的场上 battler 数组). 本运行时缺此方法。 */
+    /** {@code Battle#pbPriority} (PokeBattle_Battle，按速度排序的场上 battler 数组). */
     private static Array<Battler> pbPriority(Battle battle) {
         return battle.pbPriority(false);
     }
@@ -3758,7 +3759,7 @@ public final class MoveEffects_100_17F {
     /**
      * {@code @battle.battlers} (PokeBattle_Battle:46) 的原始 6 槽（含空槽与已倒下者）。
      * {@code Battle.allBattlers()} 是「未倒下」语义，替不了 {@code battlers.each} 的扫描。
-     * 本运行时缺此方法。
+     *
      */
     private static Array<Battler> battlers(Battle battle) {
         Array<Battler> out = new Array<>();
@@ -3766,22 +3767,22 @@ public final class MoveEffects_100_17F {
         return out;
     }
 
-    /** {@code Battle#pbActivateHealingWish(battler)} (Battle_Action_Switching:363). 本运行时缺此方法。 */
+    /** {@code Battle#pbActivateHealingWish(battler)} (Battle_Action_Switching:363). */
     private static void pbActivateHealingWish(Battle battle, Battler battler) {
         battle.pbActivateHealingWish(battler);
     }
 
-    /** {@code Battle#pbGetOwnerIndexFromBattlerIndex(idxBattler)} (PokeBattle_Battle:232). 本运行时缺此方法。 */
+    /** {@code Battle#pbGetOwnerIndexFromBattlerIndex(idxBattler)} (PokeBattle_Battle:232). */
     private static int pbGetOwnerIndexFromBattlerIndex(Battle battle, int idxBattler) {
         return battle.pbGetOwnerIndexFromBattlerIndex(idxBattler);
     }
 
-    /** {@code Battle#pbSwapBattlers(idxA,idxB)} (PokeBattle_Battle:593). 本运行时缺此方法。 */
+    /** {@code Battle#pbSwapBattlers(idxA,idxB)} (PokeBattle_Battle:593). */
     private static boolean pbSwapBattlers(Battle battle, int idxA, int idxB) {
         return battle.pbSwapBattlers(idxA, idxB);
     }
 
-    /** {@code Battle#pbPursuit(idxSwitcher)} (Battle_Phase_Attack:24). 本运行时缺此方法。 */
+    /** {@code Battle#pbPursuit(idxSwitcher)} (Battle_Phase_Attack:24). */
     private static void pbPursuit(Battle battle, int idxSwitcher) {
         battle.pbPursuit(idxSwitcher);
     }
@@ -3789,10 +3790,6 @@ public final class MoveEffects_100_17F {
     /**
      * {@code Battle#pbStartTerrain(user,newTerrain,fixedDuration=true)}
      * (PokeBattle_Battle:741-769).
-     *
-     * <p>登记: roster §B 已把 {@code pbStartTerrain} 列为「登记」——它要
-     * {@code PBBattleTerrains.animationName} 的演出与 {@code pbCalculatePriority}
-     * 的 AI 子系统，本批都未建模。照抄调用形状，不造替代实现。</p>
      */
     private static void pbStartTerrain(Battle battle, Battler user, int newTerrain, boolean fixedDuration) {
         battle.pbStartTerrain(user, newTerrain, fixedDuration);

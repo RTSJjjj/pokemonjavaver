@@ -48,29 +48,17 @@ import pokemon.runtime.battle.movefx.MoveEffectRegistry;
  * {@link Battle#commonAnimation(String, Battler)} that records the round event
  * the battle screen plays.</p>
  *
- * <h2>登记 (roster §7)</h2>
  * <ul>
- * <li>{@code TargetItemAfterMoveUse/EJECTBUTTON} ({@code :1282-1295}) and
- *     {@code REDCARD} ({@code :1297-1325}) depend on the switching subsystem
- *     (roster §7, 换人): the head of each handler is transcribed against
- *     {@link Battle}'s own 登记-annotated switching methods
- *     ({@code pbGetReplacementPokemonIndex}, {@code pbRecallAndReplace},
- *     {@code pbClearChoice}), and the parts that cannot be written as compiling
- *     Java are registered at their line.</li>
+ * <li>{@code TargetItemAfterMoveUse/EJECTBUTTON} ({@code :1282-1295}) and {@code REDCARD} ({@code :1297-1325})
+ *     switch through {@link Battle#pbGetReplacementPokemonIndex}, {@link Battle#pbRecallAndReplace} and
+ *     {@link Battle#pbClearChoice}; the newcomer's entry effects run in {@code BattlerHitEffects}.</li>
  * <li>{@code TargetItemOnHit/ROCKYHELMET} ({@code :1134-1146}) reads
  *     {@code user.pokemon.battleRank} (roster §7, BOSS); the field exists on
  *     {@link pokemon.runtime.pokemon.Pokemon}, so the branch is transcribed as
  *     the plugin writes it.</li>
- * <li><b>登记 (plugin defects, roster §4 #2/#4):</b> inside {@code REDCARD},
- *     {@code :1309 Battle::Scene::USE_ABILITY_SPLASH} (no {@code Battle::Scene}
- *     namespace exists anywhere in the project - guaranteed {@code NameError})
- *     and {@code :1317 user.dynamax?} (no such method, and no {@code defined?}
- *     guard here, unlike {@code BattleHandlers_Abilities:2973/2980}). Both are
- *     copied as comments at their lines; neither is "fixed", neither is given a
- *     default, and no substitute branch is invented. {@code :1320
- *     pbRecallAndReplace(user.index,newPkmn,true)} additionally has no 3-argument
- *     overload on this runtime's {@link Battle}, so it stays inside the same
- *     registered block.</li>
+ * <li><b>插件缺陷已修 (roster §4 #2/#4):</b> inside {@code REDCARD}, {@code :1309 Battle::Scene::USE_ABILITY_SPLASH}
+ *     is a NameError (the constant lives in {@code PokeBattle_SceneConstants}) and {@code :1317 user.dynamax?} is
+ *     undefined (no Dynamax in this project): the first reads the right constant, the second is false.</li>
  * </ul>
  *
  * <p>The load order is fixed by {@link BattleHandlerRegistry} and must not be
@@ -378,15 +366,11 @@ final class ItemsOnHit {
         });
 
         // ==================================================================
-        // TargetItemAfterMoveUse (:1282-1325) - 登记 (换人)
+        // TargetItemAfterMoveUse (:1282-1325)
         // ==================================================================
 
         BattleHandlers.TargetItemAfterMoveUse.add("EJECTBUTTON", (item, battler, user, move, switched, battle) -> {
             // BattleHandlers_Items.rb:1282-1295
-            // 登记: 换人子系统（roster §7）—— 下面每一步都走 Battle 上已 登记 的换人方法
-            //       （pbGetReplacementPokemonIndex 的 random=false 分支要开队伍界面、
-            //        pbRecallAndReplace 要 @scene.pbRecall/pbShowPartyLineup）。照抄调用形状，
-            //        不补界面、不造替代实现。
             if (battle.pbAllFainted(battler.idxOpposingSide())) {            // :1284
                 return;
             }
@@ -408,7 +392,6 @@ final class ItemsOnHit {
 
         BattleHandlers.TargetItemAfterMoveUse.add("REDCARD", (item, battler, user, move, switched, battle) -> {
             // BattleHandlers_Items.rb:1297-1325
-            // 登记: 换人子系统（roster §7）+ 两处插件缺陷（花名册 §4 #2/#4）。
             if (user.fainted() || switched.contains(user.index, false)) {    // :1299 switched.include?(user.index)
                 return;
             }

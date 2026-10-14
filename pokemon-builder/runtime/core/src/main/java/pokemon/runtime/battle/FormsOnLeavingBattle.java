@@ -64,7 +64,7 @@ final class FormsOnLeavingBattle {
     static void apply(PbsData pbs, Pokemon pkmn, boolean fainted, boolean usedInBattle, boolean endBattle, int environment) {
         int f = formOnLeaving(pkmn, fainted, usedInBattle, endBattle, environment);
         if (f >= 0 && pkmn.formIndex() != f && pbs != null) {
-            pkmn.setForm(pbs, f);                                           // :66 pkmn.form = f if f && pkmn.form!=f
+            pokemon.runtime.pokemon.FormHandlers.setForm(pkmn, pbs, f, null);   // :66 pkmn.form = f if f && pkmn.form!=f (form= runs onSetForm)
         }
         if (pkmn.hp > pkmn.maxHp()) {
             pkmn.hp = pkmn.maxHp();                                         // :67

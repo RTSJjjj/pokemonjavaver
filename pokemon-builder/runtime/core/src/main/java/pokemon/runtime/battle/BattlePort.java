@@ -34,6 +34,11 @@ public interface BattlePort {
         return foes.isEmpty() ? null : freeWildBattle(foes.get(0));
     }
 
+    /** A trainer whose party is already built (pbTrainerBattleCore with {@code [trainer, party, ..]}, pbMirrorBattle). */
+    default BattleResult trainerBattle(PbsData.TrainerData trainer, com.badlogic.gdx.utils.Array<Pokemon> party) {
+        return null;
+    }
+
     /** Several opposing trainers (pbTrainerBattleCore with 2 arguments, PField_Battles:399-518). */
     default BattleResult trainerBattle(java.util.List<PbsData.TrainerData> trainers) {
         return trainers.isEmpty() ? null : trainerBattle(trainers.get(0));
@@ -87,6 +92,10 @@ public interface BattlePort {
      * {@code battle.expGain = battleRules["expGain"]}): whether the next battle gives Exp.
      */
     default void setExpGain(boolean value) {
+    }
+
+    /** {@code battle.moneyGain = battleRules["moneyGain"]} (PField_Battles:107, the "noMoney" rule). */
+    default void setMoneyGain(boolean value) {
     }
 
     /**

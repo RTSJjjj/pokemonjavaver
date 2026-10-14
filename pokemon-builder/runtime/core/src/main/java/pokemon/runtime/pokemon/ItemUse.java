@@ -78,6 +78,9 @@ public final class ItemUse {
             case "ICEHEAL": case "ASPEARBERRY": return "FROZEN";
             case "FULLHEAL": case "XIANGSHAWLPILL": case "HEALPOWDER":
             case "FULLRESTORE": case "LUMBERRY": return "*";
+            // 190_PItem_BattleItemEffects:438-441 BattleUseOnPokemon.copy(:FULLHEAL, ...)
+            case "LAVACOOKIE": case "OLDGATEAU": case "CASTELIACONE": case "LUMIOSEGALETTE": case "SHALOURSABLE":
+            case "BIGMALASADA": return "*";
             default: return null;
         }
     }

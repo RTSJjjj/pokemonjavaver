@@ -49,10 +49,8 @@ import pokemon.runtime.battle.PendingApi;
  * </ul>
  * <p>No superclass mismatch ({@code TypeError}) exists among the 15.</p>
  *
- * <h2>Private helpers instead of {@code MoveFxPendingApi}</h2>
- * <p>This batch adds no stub to {@code MoveFxPendingApi}: every plugin method that
- * has no real counterpart is a private throwing helper at the bottom of this
- * file, so the missing surface is local and greppable.</p>
+ * <h2>Private helpers</h2>
+ * <p>Ruby-named private helpers at the bottom of this file, each delegating to the runtime method.</p>
  *
  * <h2>Plugin quirks reproduced verbatim</h2>
  * <ul>
@@ -802,9 +800,7 @@ public final class MoveEffects_Extra {
 
     /**
      * {@code user.attack,user.defense = user.defense,user.attack} (Arceus:456).
-     * This runtime's {@code Battler.attack()}/{@code defense()} are the
-     * stage-scaled readers, so a swap has no target; see the same note on
-     * {@code MoveFxPendingApi.attack}.
+     * Swaps the battler's stat values ({@code Battler.baseAttack}/{@code setBaseAttack}), not the stage-scaled readers.
      */
     private static void swapOffensiveDefensiveStats(Battler user) {
         int atk = user.baseAttack();                                      // :456 user.attack,user.defense = user.defense,user.attack

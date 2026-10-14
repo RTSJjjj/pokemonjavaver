@@ -964,8 +964,7 @@ public final class EventInterpreter {
      * where the player is going, and send the player to the last Pokemon Center - or home when there is none - with the
      * "starting over" switch on, so the map's recovery event runs. The lines and the transfer run as a small event
      * program: pushed on top of the running one (the battle's event goes on after it) or started when nothing runs.
-     * 登记: pbRemoveDependenciesExceptFollower (no followers / dependent events yet) and pbEraseEscapePoint
-     * (no escape rope data yet); the bug-contest branch (not part of the game).
+     * The bug-contest branch (:816-817) is not part of the game.
      */
     public void startOver() {
         state.trainer().healParty();                                              // pbHealAll
@@ -3847,6 +3846,16 @@ public final class EventInterpreter {
                         + "(?:,\\s*nil\\s*,\\s*nil\\s*,\\s*(\\d+))?\\s*\\)");
 
     /**
+     * PField_Battles:582-596 {@code pbDoubleTrainerBattle(trainerID1,trainerName1,trainerPartyID1,endSpeech1,
+     * trainerID2,trainerName2,trainerPartyID2=0,endSpeech2=nil,canLose=false,outcomeVar=1)} as a script condition.
+     */
+    private static final java.util.regex.Pattern DOUBLE_TRAINER_BATTLE_CONDITION =
+            java.util.regex.Pattern.compile(
+                "pbDoubleTrainerBattle\\(\\s*:([A-Za-z_][A-Za-z0-9_]*)\\s*,\\s*\"([^\"]*)\"\\s*,\\s*(\\d+)\\s*,\\s*(?:nil|\"[^\"]*\")\\s*"
+                        + ",\\s*:([A-Za-z_][A-Za-z0-9_]*)\\s*,\\s*\"([^\"]*)\"\\s*(?:,\\s*(\\d+)\\s*)?"
+                        + "(?:,\\s*(?:nil|\"[^\"]*\")\\s*)?(?:,\\s*(true|false|nil)\\s*)?(?:,\\s*(\\d+)\\s*)?\\)");
+
+    /**
      * PField_Battles:351-368 / FreeWildBattle:2-8: a wild battle used as a
      * script condition branches on {@code decision!=2 && decision!=5}.
      */
@@ -4206,6 +4215,16 @@ public final class EventInterpreter {
                 startTrainerBattleCondition(program, command, trainer);
                 return;
             }
+            java.util.regex.Matcher mirror = MIRROR_BATTLE_CONDITION.matcher(script);
+            if (mirror.matches()) {
+                startMirrorBattleCondition(program, command, mirror.group(1) == null ? 1 : Integer.parseInt(mirror.group(1)));
+                return;
+            }
+            java.util.regex.Matcher doubleTrainer = DOUBLE_TRAINER_BATTLE_CONDITION.matcher(script);
+            if (doubleTrainer.matches()) {
+                startDoubleTrainerBattleCondition(program, command, doubleTrainer);
+                return;
+            }
             java.util.regex.Matcher wild = WILD_BATTLE_CONDITION.matcher(script);
             if (wild.matches()) {
                 startWildBattleCondition(program, command, wild);
@@ -4256,8 +4275,8 @@ public final class EventInterpreter {
 
     /**
      * One {@code def battleXxx} of Boss_Battles (319, transcribed in {@link BossBattleData}) used as a script condition.
-     * The def runs, then {@code return decision==N} is the branch. 登记: {@code battleBoss(species,level,rank)}
-     * (319:5-31) is not transcribed (see {@link BossBattleData}).
+     * The def runs, then {@code return decision==N} is the branch (also the generic
+     * {@code battleBoss(species,level,rank)}, 319:5-31).
      */
     private void startBossBattleCondition(EventProgram program, EventCommand command, BossBattleData.Entry boss) {
         if (battlePort == null || pbs == null) {
@@ -4330,6 +4349,12 @@ public final class EventInterpreter {
             case "calcStats": pkmn.totalHpFactor = 1; pkmn.hp = pkmn.maxHp(); break;   // :868-891 (a fresh Pokemon: no HP lost)
             case "totalhpTimes": pkmn.totalHpFactor *= ((Number) op.arg).intValue(); break;   // pkmn.totalhp = pkmn.totalhp * N
             case "hpToTotal": pkmn.hp = pkmn.maxHp(); break;                      // pkmn.hp = pkmn.totalhp
+            case "randomIV":                                                      // pkmn.iv = pbRandomIV(N) (343_ChainCatching:105-117)
+                pkmn.ivs = pokemon.runtime.pokemon.ChainCatching.randomIvs(((Number) op.arg).intValue(), encounterRandom);
+                break;
+            case "changeEVandNature":                                             // changeEVandNature(pkmn) (367:1-68)
+                pokemon.runtime.battle.ChangeEvAndNature.apply(pkmn, pbs, false);
+                break;
             default: log.warn("Boss_Battles op " + op.name + " is not implemented; skipped"); break;
         }
     }
@@ -4372,6 +4397,86 @@ public final class EventInterpreter {
         applyBattleSwitches();
         battlePort.trainerBattle(opponents);
         pendingBattleCondition = new BattleCondition(program, command, outcomeVar);
+    }
+
+    private static final java.util.regex.Pattern MIRROR_BATTLE_CONDITION =
+            java.util.regex.Pattern.compile("pbMirrorBattle(?:\\(\\s*(?:(\\d+)\\s*)?\\))?");
+
+    /**
+     * {@code pbMirrorBattle(outcomeVar=1)} (349_pbMirrorBattle:1-28) used as a script condition: a trainer battle
+     * against copies of the player's own party, trainer type {@code $Trainer.trainertype+998}
+     * (POKEMONTRAINER_MIRRORm / _MIRRORf), six Full Restores, noMoney / noExp / canLose, and
+     * {@code return decision==1}. 插件缺陷已修: the plugin copies with {@code pkmn.clone}, a shallow copy that shares
+     * the move list (the mirror's PP use drained the player's own moves), and copies eggs into the opposing party;
+     * here every non-egg Pokemon is copied in full.
+     */
+    private void startMirrorBattleCondition(EventProgram program, EventCommand command, int outcomeVar) {
+        if (battlePort == null || pbs == null) {
+            unsupported(command, "pbMirrorBattle without a battle runtime");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        if (doubleRefusalFirst()) return;
+        PbsData.TrainerData opponent = new PbsData.TrainerData();
+        String type = "POKEMONTRAINER_MIRRORm";                                                    // :4 fallback
+        for (PbsData.TrainerType t : pbs.trainerTypes.values()) {
+            if (t.id == state.playerId() + 998) type = t.internalName;                              // :2-3 pbGetTrainerTypeData(id)
+        }
+        opponent.type = type;
+        opponent.name = state.trainer().name + "？";                                                // :6
+        opponent.loseText = opponent.name + "：对战结束。本次模拟对战结果为：“失败”。";                     // :7
+        for (int i = 0; i < 6; i++) opponent.items.add("FULLRESTORE");                             // :8-11
+        com.badlogic.gdx.utils.Array<Pokemon> party = new com.badlogic.gdx.utils.Array<>();
+        for (Pokemon pkmn : state.trainer().party.members()) {                                      // :12-13
+            if (pkmn != null && !pkmn.egg) party.add(pkmn.copy());
+        }
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        rules.record("noMoney", null);                                                              // :17
+        rules.record("noExp", null);                                                                // :18
+        rules.record("canLose", null);                                                              // :19
+        if (outcomeVar != 1) rules.record("outcomeVar", outcomeVar);                                // :20
+        state.nextBattleBGM("Battle 影子");                                                          // :21
+        state.nextBattleME("Battle victory Boss Pokemon");                                          // :22
+        int var = prepareTrainerBattle();
+        applyBattleSwitches();
+        battlePort.trainerBattle(opponent, party);                                                  // :23 pbTrainerBattleCore(trainer)
+        pendingBattleCondition = new BattleCondition(program, command, var);                       // :24 decision==1
+    }
+
+    /**
+     * PField_Battles:582-596 {@code pbDoubleTrainerBattle} used as a script condition: the double rule, the two
+     * opposing trainers, and the branch is {@code decision==1} when the interpreter resumes.
+     */
+    private void startDoubleTrainerBattleCondition(EventProgram program, EventCommand command,
+                                                   java.util.regex.Matcher trainer) {
+        if (battlePort == null || pbs == null) {
+            unsupported(command, "pbDoubleTrainerBattle condition without a battle runtime");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        PbsData.TrainerData first = pbs.trainer(trainer.group(1), trainer.group(2), Integer.parseInt(trainer.group(3)));
+        PbsData.TrainerData second = pbs.trainer(trainer.group(4), trainer.group(5),
+                trainer.group(6) == null ? 0 : Integer.parseInt(trainer.group(6)));
+        if (first == null || second == null) {
+            log.warn("pbDoubleTrainerBattle condition: a trainer is not in trainers.json (" + trainer.group() + ")");
+            program.branchResult(program.indent(), false);
+            program.skipBlock();
+            return;
+        }
+        if (doubleRefusalFirst()) return;
+        pokemon.runtime.state.BattleRules rules = state.battleRules();
+        if (trainer.group(8) != null) rules.record("outcomeVar", Integer.parseInt(trainer.group(8)));   // :586 if outcomeVar!=1
+        if ("true".equals(trainer.group(7))) rules.record("canLose", null);                        // :587
+        rules.record("double", null);                                                               // :588
+        java.util.List<PbsData.TrainerData> opponents = new java.util.ArrayList<>();
+        opponents.add(first);
+        opponents.add(second);
+        int outcomeVar = prepareTrainerBattle();
+        applyBattleSwitches();
+        battlePort.trainerBattle(opponents);                                                        // :590-593 pbTrainerBattleCore
+        pendingBattleCondition = new BattleCondition(program, command, outcomeVar);                 // :595 decision==1
     }
 
     /** The refusal of {@code pbPrepareBattle} (PField_Battles:92) was shown for the command that is about to retry. */
@@ -4484,6 +4589,9 @@ public final class EventInterpreter {
         if (rules.expGain != null) {
             battlePort.setExpGain(rules.expGain);
         }
+        if (rules.moneyGain != null) {                                     // PField_Battles:107
+            battlePort.setMoneyGain(rules.moneyGain);
+        }
         // PField_Battles:112 setBattleRule("switchstyle"/"setstyle").
         if (rules.switchStyle != null) {
             battlePort.setSwitchStyle(rules.switchStyle);
@@ -4516,6 +4624,9 @@ public final class EventInterpreter {
         // PField_Battles:105 battle.expGain = battleRules["expGain"] if !battleRules["expGain"].nil?
         if (rules.expGain != null) {
             battlePort.setExpGain(rules.expGain);
+        }
+        if (rules.moneyGain != null) {                                     // PField_Battles:107
+            battlePort.setMoneyGain(rules.moneyGain);
         }
         if (rules.disablePokeBalls != null) {
             battlePort.setDisablePokeBalls(rules.disablePokeBalls);
@@ -5080,14 +5191,16 @@ public final class EventInterpreter {
         }
     }
 
-    /** {@code p.setAbility(n)}: 0/1 from the species list, 2 the hidden one. */
+    /**
+     * {@code p.setAbility(n)} (197_PokeBattle_Pokemon:255-257 + the {@code ability} lookup of :224-245): 0/1 natural, 2 hidden,
+     * read from the current form's table (an original form such as CERULEDGE_1 has only one natural ability, so slot 1
+     * falls back to slot 0).
+     */
     private void applyAbility(Pokemon pokemon, Object value) {
         if (value instanceof Number) {
             int index = ((Number) value).intValue();
-            if (pokemon.species != null && index >= 0 && index < pokemon.species.abilities.size) {
-                pokemon.ability = pokemon.species.abilities.get(index);
-            } else if (index == 2 && pokemon.species != null) {
-                pokemon.ability = pokemon.species.hiddenAbility;
+            if (pokemon.species != null && index >= 0) {
+                pokemon.setAbilitySlot(index);
             } else {
                 log.warn("setAbility(" + index + ") has no such ability; skipped");
             }

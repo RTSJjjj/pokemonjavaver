@@ -32,6 +32,11 @@ public final class FormsOnCreation {
         default int playerId() {
             return 0;
         }
+
+        /** {@code $game_map.map_id}: changeHappiness's "met here" bonus (197_PokeBattle_Pokemon:826). */
+        default int mapId() {
+            return 0;
+        }
     }
 
     /** The game's world, for {@link WildGenerator#pbNewPkmn} (every {@code PokeBattle_Pokemon.new}); null in tests. */

@@ -65,18 +65,9 @@ import pokemon.runtime.pokemon.Pokemon;
  *     {@code totalhp} &rarr; {@code maxHp()}.</li>
  * <li>{@code eachMoveWithIndex} &rarr; {@code moveSlots()} with the
  *     {@code id()==0} slots skipped (PokeBattle_Battler:543-549).</li>
- * <li>The methods this runtime has not landed are private helpers at the top of
- *     this file (Lead decision: no new stubs in {@code MoveFxPendingApi}, which
- *     four L2 authors would otherwise contend for). Each helper's javadoc cites
- *     its Ruby {@code 段:行号}; the throwing ones carry the project's
- *     {@code M0 待接线} message. {@code inTwoTurnAttack?} is provably
- *     {@code false} here (nothing in this runtime ever writes
- *     {@code PBEffects::TwoTurnAttack}), so it returns {@code false} with a
- *     comment instead of throwing.</li>
+ * <li>Ruby-named helpers sit at the top of this file, each citing its Ruby {@code 段:行号}.</li>
  * <li>{@code pbShowAnimation} overrides are transcribed as-is (they call
- *     {@code super.pbShowAnimation}, which is the animation player's entry
- *     point) and marked {@code // 登记:} where the body needs the animation
- *     player; {@code pbCalcAccuracyMultipliers} overrides keep the plugin's
+ *     {@code super.pbShowAnimation}, which plays the animation); {@code pbCalcAccuracyMultipliers} overrides keep the plugin's
  *     undefined variable name verbatim ({@code // 登记:} - the plugin's own
  *     defect, not corrected).</li>
  * </ul>
@@ -99,9 +90,7 @@ public final class MoveEffects_000_07F {
     }
 
     // ==================================================================
-    // Private helpers for methods this runtime has not landed yet.
-    // Lead decision 2026-10-07: no new stubs in MoveFxPendingApi (movebase is
-    // editing it for the retire pass and four L2 authors would contend for it).
+    // Private helpers: the Ruby-named calls of this file, each delegating to the runtime method.
     // ==================================================================
 
     /** {@code Battler#canChangeType?} (PokeBattle_Battler:585-589). */
@@ -279,20 +268,9 @@ public final class MoveEffects_000_07F {
         pkmn.statusCount = value;
     }
 
-    /**
-     * {@code Battler#inTwoTurnAttack?(*fn)} (PokeBattle_Battler:718-723).
-     *
-     * <p>Provably {@code false} in this runtime: the Ruby returns
-     * {@code false} when {@code @effects[PBEffects::TwoTurnAttack]==0}, and
-     * <b>no code in this runtime ever writes {@code PBEffects::TwoTurnAttack}</b>
-     * (same reasoning as the approved {@code moldBreaker} and
-     * {@code AbilitiesSwitchIn.inTwoTurnAttack} precedents), so the effect reads
-     * back as the unset value and the predicate cannot be true. Returns
-     * {@code false} rather than throwing, so the damage-calc hooks keep working.</p>
-     */
+    /** {@code Battler#inTwoTurnAttack?(*fn)} (PokeBattle_Battler:718-723). */
     private static boolean inTwoTurnAttack(Battler battler, String... functions) {
-        // PokeBattle_Battler:718-723; @effects[TwoTurnAttack] is never written in this runtime.
-        return false;
+        return battler.inTwoTurnAttack(functions);
     }
 
     /**
@@ -2144,17 +2122,14 @@ public final class MoveEffects_000_07F {
         public void pbEffectAgainstTarget(BattleMove move, Battler user, Battler target) {
             int newHP = (user.hp + target.hp) / 2;                            // :1715
             if (user.hp > newHP) {                                            // :1716
-                // :1716 user.pbReduceHP(user.hp-newHP,false,false) - the
-                //       MoveFxPendingApi stub carries no registerDamage parameter.
-                user.pbReduceHP(user.hp - newHP, false, true, true);
+                user.pbReduceHP(user.hp - newHP, false, false, true);            // :1716 pbReduceHP(user.hp-newHP,false,false)
             } else if (user.hp < newHP) {                                     // :1717
-                // :1717 user.pbRecoverHP(newHP-user.hp,false) - the stub carries no anim parameter.
-                user.pbRecoverHP(newHP - user.hp);
+                user.pbRecoverHP(newHP - user.hp, false, true);                  // :1717 pbRecoverHP(newHP-user.hp,false)
             }
             if (target.hp > newHP) {                                          // :1719
-                target.pbReduceHP(target.hp - newHP, false, true, true);
+                target.pbReduceHP(target.hp - newHP, false, false, true);        // :1719
             } else if (target.hp < newHP) {                                   // :1720
-                target.pbRecoverHP(newHP - target.hp);
+                target.pbRecoverHP(newHP - target.hp, false, true);              // :1720
             }
             user.battle.display("双方分担了痛楚！");                              // :1722
             user.pbItemHPHealCheck(0, false);                         // :1723

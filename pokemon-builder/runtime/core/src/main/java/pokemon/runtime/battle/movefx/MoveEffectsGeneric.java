@@ -1183,10 +1183,7 @@ public final class MoveEffectsGeneric {
         /** {@code pbEffectGeneral(user)} (:698-700). */
         @Override
         public void pbEffectGeneral(BattleMove move, Battler user) {
-            // :699 @battle.pbStartWeather(user,@weatherType,true,false)
-            // Ruby's 4th parameter is noAnimation=false; Battle#pbStartWeather's 4th is
-            // showAnim (Battle.java), so it is !noAnimation = true.
-            user.battle.pbStartWeather(user, weatherType, true, true);
+            user.battle.pbStartWeather(user, weatherType, true, false);   // :699 (user,@weatherType,true,false): showAnim=false
         }
     }
 

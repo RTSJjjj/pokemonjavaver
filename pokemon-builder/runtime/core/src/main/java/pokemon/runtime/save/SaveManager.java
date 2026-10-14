@@ -503,6 +503,7 @@ public final class SaveManager {
         node.addChild("item", new JsonValue(pokemon.item == null ? "" : pokemon.item));
         node.addChild("happiness", new JsonValue(pokemon.happiness));
         node.addChild("stepsToHatch", new JsonValue(pokemon.stepsToHatch));
+        if (pokemon.formTime != 0) node.addChild("formTime", new JsonValue(pokemon.formTime));
         node.addChild("hatchedMap", new JsonValue(pokemon.hatchedMap));
         node.addChild("timeEggHatched", new JsonValue(pokemon.timeEggHatched));
         if (pokemon.ribbons.size > 0) {
@@ -1058,6 +1059,7 @@ public final class SaveManager {
         pokemon.item = item == null || item.isEmpty() ? null : item;
         pokemon.happiness = node.getInt("happiness", pokemon.happiness);
         pokemon.stepsToHatch = node.getInt("stepsToHatch", pokemon.stepsToHatch);
+        pokemon.formTime = node.getLong("formTime", 0L);
         pokemon.hatchedMap = node.getInt("hatchedMap", 0);
         pokemon.timeEggHatched = node.getLong("timeEggHatched", 0L);
         JsonValue ribbons = node.get("ribbons");
@@ -1079,6 +1081,7 @@ public final class SaveManager {
                 ? null : originalTrainer;
         pokemon.battleRank = node.getInt("battleRank", 0);
         pokemon.personalID = node.getInt("personalID", 0);
+        pokemon.repairFormAbility();                                // a form Pokemon saved with its base species' ability
         // A v1..v4 save has no full id: the visible half is what it stored.
         pokemon.trainerID = node.getInt("trainerID", node.getInt("publicID", 0));
         pokemon.publicID = node.getInt("publicID", pokemon.trainerID & 0xFFFF);

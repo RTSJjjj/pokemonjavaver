@@ -70,6 +70,7 @@ public final class Battler {
         this.ability = pokemon.ability == null ? "" : pokemon.ability;
         this.item = pokemon.item == null ? "" : pokemon.item;
         // ↑↑↑ end of inserted wiring
+        this.initialItem = this.item;                            // PokeBattle_Battle:156-159 @initialItems = the parties' items
         this.hp = Math.max(0, pokemon.hp * bossHpRank(pokemon));   // Battler_Initialize:79 @hp = pkmn.hp * rank
         this.status = pokemon.status == null ? "" : pokemon.status;
         if ("SLEEP".equals(status)) {
@@ -279,8 +280,8 @@ public final class Battler {
 
     /**
      * {@code pbSpeed} (109_PokeBattle_Battler:250-279) in full: the stage, the ability and item speed handlers, Tailwind, Swamp,
-     * paralysis (not with Quick Feet) and the badge boost. 登记: the turn order still uses {@link #speed()} (stage and paralysis
-     * only); this one is what the battle info screen shows ({@code pbRoughStat}). Swamp is not modelled.
+     * paralysis (not with Quick Feet) and the badge boost. The turn order (Battle_Action_AttacksPriority:151)
+     * and the battle info screen use it. Swamp is not modelled.
      *
      * @param numBadges {@code @battle.pbPlayer.numbadges}, for the boost of the player's Pokemon in an internal battle
      */
@@ -641,14 +642,10 @@ public final class Battler {
     // 本运行时缺口与处置（详见各处 javadoc）：
     //  * `@battle.<method>` 缺失 → 走 PendingApi 桩（M0 既定约定，抛错不写假值）；
     //  * `@battle.scene.*` → 空实现 + `// 登记: <段:行号>`；
-    //  * `@battle.field` / `@battle.sides` → 见 {@link #field}；
-    //    **接线状态：已完成** —— Lead 在 `Battle.refreshFieldIndices()` 的两个循环里各加了
-    //    `battler.battle = this; battler.field = field; battler.pbs = pbs;`（纯追加）。
-    //    下面 {@link #field} / {@link #pbs} 的 javadoc 仍写着「必须接线」，是落地当时的措辞，
-    //    保留以记录原因（本区不回头改，避免破坏「相对 prewire 快照 0 删除」的自查）。
+    //  * `@battle.field` / `@battle.sides` → 见 {@link #field}（Battle.refreshFieldIndices 赋值）；
     //  * `@battle.eachBattler` / `allBattlers` / `battlers` → 见 {@link #fieldBattlers()}；
-    //  * `@battle.moldBreaker` → 见 {@link #moldBreaker()}（当前可证为 false）；
-    //  * `@battle.sideStatUps` → 登记空实现（只影响 Opportunist / 模仿香草）。
+    //  * `@battle.moldBreaker` → 见 {@link #moldBreaker()}（直读 Battle.moldBreaker）；
+    //  * `@battle.sideStatUps` → 见 {@link #addSideStatUps(int, int)}；
     //
     // 插件缺陷已修：`pbWeather`（Battler 上调用 → battle.pbWeather()）、`pbRecoverHP?`（→ pbRecoverHP）；
     // `dynamax?` 本工程没有 Dynamax，恒为 false，不新增方法。
@@ -668,8 +665,8 @@ public final class Battler {
     public DamageState damageState = new DamageState();
 
     /**
-     * {@code @battle} (PokeBattle_Battler:3)，72 次。由 {@code Battle.addPlayer/addFoe} 赋值
-     * （infra2 接线；本批不许改 Battle.java，所以这里只留字段）。
+     * {@code @battle} (PokeBattle_Battler:3)，72 次。由 {@code Battle.addPlayer/addFoe} 与
+     * {@code Battle.refreshFieldIndices} 赋值。
      */
     public Battle battle;
 
@@ -691,13 +688,9 @@ public final class Battler {
     public int statusCount;
 
     /**
-     * {@code initialItem} (PokeBattle_Battler:740-742)。
-     *
-     * <p>⚠️ <b>已登记的行为偏差</b>：插件读的是
-     * {@code @battle.initialItems[@index&1][@pokemonIndex]}（按 <b>阵营+队伍槽位</b>存储，
-     * 换人后仍保留）；本运行时 {@code Battle} 未暴露 {@code initialItems} 且本批不许改
-     * Battle.java，所以暂存为 battler 字段（按<b>场上槽位</b>）。{@code Battle.initialItems}
-     * 落地后必须改成查表，否则换人后数据会丢。</p>
+     * {@code initialItem} (PokeBattle_Battler:740-742): {@code @battle.initialItems[@index&1][@pokemonIndex]}. This
+     * runtime keeps one Battler per party Pokemon for the whole battle, so the per-party-slot table is this field.
+     * Starts as the held item; written back to the party at the end (Battle_StartAndEnd:539).
      */
     public String initialItem = "";
 
@@ -779,27 +772,10 @@ public final class Battler {
     /** {@code @movesUsed} (PokeBattle_Battler:38)。内部名列表。 */
     public Array<String> movesUsed = new Array<>();
 
-    /**
-     * {@code @battle.field} (PokeBattle_ActiveField) 的桥接引用。
-     *
-     * <p>⚠️ <b>必须接线</b>：本运行时 {@code Battle} 还没有 {@code field} 字段
-     * （{@code BattleField} 已由 infra3 建好但 Battle 未持有），而本批不许改 Battle.java。
-     * 这里给一个独立实例，其初值与 {@code PokeBattle_ActiveField#initialize} 的默认值一致
-     * （weather/terrain = None、所有 effects 未写 = nil/false/0），所以**在 Battle 接线之前**
-     * 读到的是「刚开局、没人写过任何 field 键」的状态，与插件一致，不是自造值。</p>
-     *
-     * <p>Battle 接线后应改成 {@code battler.field = battle.field}；否则
-     * NeutralizingGas / MagicRoom / Gravity / terrain 会静默停在初值。</p>
-     */
+    /** {@code @battle.field} (PokeBattle_ActiveField)：{@code Battle.refreshFieldIndices} 赋值为 {@code battle.field}。 */
     public BattleField field = new BattleField();
 
-    /**
-     * {@code PBAbilities.getName(@ability)} / {@code PBItems.getName(@item)} 需要的显示名表。
-     *
-     * <p>⚠️ <b>必须接线</b>：{@code Battle.pbs} 是 private 且无访问器，本批不许改 Battle.java，
-     * 所以 {@link #abilityName()} / {@link #itemName()} 暂用一个可选引用；为 {@code null}
-     * 时退化为内部名（已登记，见两个方法的 javadoc）。</p>
-     */
+    /** {@code PBAbilities.getName} / {@code PBItems.getName} 的数据表：{@code Battle.refreshFieldIndices} 赋值为 {@code battle.pbs()}。 */
     public pokemon.runtime.pokemon.PbsData pbs;
 
     // ---------------------------------------------------------------------
@@ -1136,8 +1112,13 @@ public final class Battler {
         mirrorHerbUsed = false;                                        // :356
         // ---- Arceus:38-53 (__pla__pbInitEffects) ----
         if (batonPass) {                                               // Arceus:40
-            // 登记: Arceus:41-44 swaps @attack/@defense and @spatk/@spdef when PowerShift is passed;
-            //   this runtime has no stat write accessors on Battler (see MoveEffects_000_07F setAttack stubs).
+            if (effects.truthy(PBEffects.Battler.PowerShift)) {        // Arceus:41-44 a passed Power Shift swaps the stats
+                int atk = baseAttack(), def = baseDefense(), spa = baseSpAtk(), spd = baseSpDef();
+                setBaseAttack(def);
+                setBaseDefense(atk);
+                setBaseSpAtk(spd);
+                setBaseSpDef(spa);
+            }
         } else {
             effects.set(PBEffects.Battler.VictoryDance, false);        // Arceus:46
             effects.set(PBEffects.Battler.PowerShift, false);          // Arceus:47
@@ -1173,16 +1154,11 @@ public final class Battler {
     }
 
     /**
-     * {@code @battle.moldBreaker} (PokeBattle_Battle:85)。
-     *
-     * <p>{@code Battle} 未暴露该字段且本批不许改 Battle.java。返回 {@code false} 是
-     * <b>本运行时当前的真实值</b>：{@code @moldBreaker} 只在破格类特性（Mold Breaker /
-     * 涡轮火焰 / 垓级电压 …，见 {@code PokeBattle_Battler:573-575 hasMoldBreaker?}）行动时被置
-     * true，而本运行时尚未建模任何特性触发 → 当前恒为 false。{@code Battle.moldBreaker}
-     * 落地后本方法改为直读。</p>
+     * {@code @battle.moldBreaker} (PokeBattle_Battle:85): set by BattlerTargeting while a Mold Breaker /
+     * Teravolt / Turboblaze user acts ({@code PokeBattle_Battler:573-575 hasMoldBreaker?}).
      */
     private boolean moldBreaker() {
-        return false;
+        return battle != null && battle.moldBreaker;
     }
 
     /** {@code @effects[idx]} 的 field 组读法（Ruby truthy）。{@link #field} 见字段 javadoc。 */
@@ -1195,7 +1171,7 @@ public final class Battler {
         return field == null ? 0 : field.effects.intVal(idx);
     }
 
-    /** {@code @battle.pbDisplay(msg)} (PokeBattle_Battle:773-775)。Battle 未暴露 → 走桩。 */
+    /** {@code @battle.pbDisplay(msg)} (PokeBattle_Battle:773-775)。 */
     private void display(String message) {
         PendingApi.pbDisplay(battle, message);
     }
@@ -1208,13 +1184,13 @@ public final class Battler {
      * {@code pokemon == null}（假人）按无性别 2 处理。</p>
      */
     public int gender() {
-        return pokemon == null ? 2 : pokemon.gender;
+        return pokemon == null ? 2 : pokemon.effectiveGender();         // Pokemon.gender 只是 @genderflag，真性别由 personalID 推出
     }
 
     /**
      * {@code move.ignoresSubstitute?(user)} (PokeBattle_Move:135-142)。
      *
-     * <p>{@code BattleMove} 目前没有这个方法（Lead 的文件，本批不许改），所以按 Ruby 定义内联：
+     * <p>按 Ruby 定义：
      * {@code NEWEST_BATTLE_MECHANICS} 下声音招式（标志 {@code k}，见 PokeBattle_Move:123
      * {@code soundMove?}）或使用者有 INFILTRATOR / TRANSLUCENTGHOST 时无视替身。</p>
      */
@@ -1292,10 +1268,7 @@ public final class Battler {
 
     /**
      * {@code abilityName} (PokeBattle_Battler:211) = {@code PBAbilities.getName(@ability)}，86 次。
-     *
-     * <p>⚠️ <b>已登记的退化</b>：显示名在 {@code PbsData.abilities} 里，而 {@code Battle.pbs}
-     * 是 private 且无访问器（本批不许改 Battle.java）→ 走 {@link #pbs} 这个可选引用；
-     * 为 {@code null} 时返回内部名（插件不会这么做，接线后消失）。</p>
+     * {@link #pbs} 为 {@code null}（没有数据表的测试战斗）时返回内部名。
      */
     public String abilityName() {
         if (pbs != null && ability != null && !ability.isEmpty()) {
@@ -1707,7 +1680,6 @@ public final class Battler {
     /**
      * {@code Battle#pbCheckOpposingAbility} (PokeBattle_Battle:483-489) 的内联版：
      * 遍历对面未倒下的 battler 找该特性（{@code nearOnly=false}）。
-     * {@code Battle} 尚未暴露此方法（interface-freeze §4 归 infra2），接线后改为直调。
      */
     private boolean checkOpposingAbility(String abil) {
         for (Battler b : fieldBattlers()) {                             // :484 eachOtherSideBattler
@@ -1773,6 +1745,9 @@ public final class Battler {
 
     /** {@code pbConsumeItem(recoverable,symbiosis,belch)} (Battler_AbilityAndItem:170-180)。 */
     public void pbConsumeItem(boolean recoverable, boolean symbiosis, boolean belch) {
+        if (item != null && !item.isEmpty() && battle != null && pbOwnedByPlayer()) {   // 357:36-45 only the player's Pokemon
+            battle.pbRecordConsumedHeldItem(pokemon, item);
+        }
         boolean customSeed = "BUGLURESEED".equals(item) || "COLDSEED".equals(item);   // 场地:683-686
         if (customSeed && symbiosis && battle.customTerrainSeedBatch) {              // 场地:688-689
             battle.pbQueueCustomTerrainSeedSymbiosis(this);                          // 场地:690
@@ -1802,10 +1777,11 @@ public final class Battler {
         battle.setBelch(index & 1, battle.partyOf(index).indexOf(this, true));
     }
 
-    /** {@code pbIsBerry?} 的最小等价：按内部名以 BERRY 结尾判定（PItem_Items:99 是道具表查询）。 */
-    private static boolean isBerry(String itm) {
-        // 登记: PItem_Items:99 pbIsBerry?(item) 依赖道具表的 isBerry 标记（本批未建模）
-        return itm != null && itm.endsWith("BERRY");
+    /** {@code pbIsBerry?(item)} (PItem_Items:99): the item table's berry flag; the name suffix without a table. */
+    private boolean isBerry(String itm) {
+        if (itm == null || itm.isEmpty()) return false;
+        pokemon.runtime.pokemon.PbsData.Item entry = pbs == null ? null : pbs.item(itm);
+        return entry != null ? entry.isBerry() : itm.endsWith("BERRY");
     }
 
     /** {@code pbSymbiosis} (Battler_AbilityAndItem:182-205)。 */
@@ -2107,7 +2083,7 @@ public final class Battler {
     }
 
     /**
-     * {@code pbWeight} (PokeBattle_Battler:281-292)。登记: {@code @pokemon.weight} 取
+     * {@code pbWeight} (PokeBattle_Battler:281-292)。{@code @pokemon.weight} 取
      * {@code species.weight} 的整数部分，与 CaptureCalculator(重球 :182-199)读同一份数据。
      */
     public int pbWeight() {
@@ -2274,8 +2250,7 @@ public final class Battler {
         }
         boolean wasFainted = faintedFlag;                                 // :120
         pbFaintCore(showMessage);                                         // :121 paldea_pbFaint(showMessage)
-        // :122 @battle.pbAddFaintedAlly(self) if !isFainted && @fainted
-        //   登记: Battle 未暴露 pbAddFaintedAlly（本批不许改 Battle.java）
+        // :122 @battle.pbAddFaintedAlly(self): counted in pbFaintCore together with :98
         if (commanderMsg != null) {                                       // :123-126
             display(commanderMsg);
             // 登记: Battler_ChangeSelf:125 batSprite.visible = true（依赖 PokeBattle_Scene）
@@ -2286,12 +2261,12 @@ public final class Battler {
      * {@code pbCatchBossPokemon(target)} (PokeBattle_BOSS:157-187): a Boss that has run out of HP is not
      * defeated - the player may throw a Poke Ball at it, otherwise it runs away. {@code ball>0} (:170) is the
      * chosen ball's internal name being non-null.
-     * 登记: {@code pbSEPlay("Battle flee")} (:160/:178/:183) - the engine has no SE channel (see BattleSwitchAction's
-     * header); {@code resetWindowSize if defined?(PCV)} (:167) - PCV is not defined in this project.
+     * {@code resetWindowSize if defined?(PCV)} (:167): PCV is not defined in this project.
      */
     public void pbCatchBossPokemon(Battler target) {
         if (battle.gameSwitches.test(196)) {                              // :158
             battle.displayPaused(target.pbThis() + "逃走了...");            // :159
+            battle.roundEvents.add(Battle.RoundEvent.se("Battle flee"));  // :160
             battle.decision = 1;                                          // :161
             return;                                                       // :162
         }
@@ -2304,10 +2279,12 @@ public final class Battler {
                 battle.pbThrowPokeBall(target.index, ball, 255, false);   // :176
             } else {                                                      // :177 Choose not to capture
                 battle.displayPaused(target.pbThis() + "逃走了...");        // :178
+                battle.roundEvents.add(Battle.RoundEvent.se("Battle flee"));   // :179
                 battle.decision = 1;                                      // :180
             }
         } else {
             battle.displayPaused(target.pbThis() + "逃走了...");            // :183
+            battle.roundEvents.add(Battle.RoundEvent.se("Battle flee"));  // :184
             battle.decision = 1;                                          // :185
         }
     }
@@ -2353,16 +2330,14 @@ public final class Battler {
         status = "";                                                      // :76 self.status = PBStatuses::NONE
         if (pokemon != null) pokemon.status = "";                         // :104
         setStatusCount(0);                                                // :77
-        if (pokemon != null && battle != null) {                          // :79 @battle.internalBattle
+        if (pokemon != null && battle != null && battle.internalBattle) { // :79 @battle.internalBattle
             boolean badLoss = false;                                      // :80
             for (Battler b : fieldBattlers()) {                           // :81 @battle.eachOtherSideBattler
                 if (b.opposes(index) && b.level() >= level() + 30) {      // :82
                     badLoss = true;
                 }
             }
-            // 登记: Battler_ChangeSelf:84 @pokemon.changeHappiness(...)（PokeBattle_Pokemon:777-838）
-            //       依赖亲密度方法表（本运行时 Pokemon.happiness 只是裸字段，无 changeHappiness）
-            //       → 本批不写假行为，badLoss 只用于选择 "faintbad"/"faint" 分支名
+            battle.changeHappiness(pokemon, badLoss ? "faintbad" : "faint");   // :84
         }
         // Battler_ChangeSelf:87 @battle.peer.pbOnLeavingBattle(...): the form it goes back to when it faints
         FormsOnLeavingBattle.apply(pbs, pokemon, true, true, false, battle == null ? PBEnvironment.None : battle.environment());
@@ -3112,8 +3087,7 @@ public final class Battler {
         int oldForm = form();                                              // :184
         int oldDmg = maxHp() - hp;                                         // :185
         Pokemon shownBefore = visiblePokemon() == null ? null : visiblePokemon().copy();   // what the sprite shows until the mosaic plays
-        // :186 self.form = newForm（本运行时 form 落在 Pokemon.form 上；Battler 无 setter → 见下）
-        // 登记: Battler_ChangeSelf:186-188 self.form= / pbUpdate(true) 依赖 Pokemon.setForm(PbsData)
+        // :186 self.form = newForm（本运行时 form 落在 Pokemon.form 上）
         if (pbs != null && pokemon != null) {
             pokemon.setForm(pbs, newForm);
         }
@@ -3128,7 +3102,7 @@ public final class Battler {
         if (msg != null && !msg.isEmpty()) {                               // :192
             display(msg);
         }
-        // 登记: Battler_ChangeSelf:194 @battle.pbSetSeen(self) 依赖图鉴/存档
+        battle.pbSetSeen(this);                                            // :194
     }
 
     // =========================================================================
@@ -3643,11 +3617,7 @@ public final class Battler {
     }
 
     /**
-     * {@code addSideStatUps} (PokeBattle_Battler:892-896)。
-     *
-     * <p>登记: {@code @battle.sideStatUps[self.idxOwnSide]} 未建模（{@code Battle} 未暴露
-     * {@code sideStatUps}，interface-freeze §4 归 infra2）→ 空实现。它只喂
-     * Opportunist（跟风）与模仿香草，不影响能力等级本身。</p>
+     * {@code addSideStatUps} (PokeBattle_Battler:892-896): feeds Opportunist and Mirror Herb.
      */
     public void addSideStatUps(int stat, int increment) {
         java.util.List<int[]> statUps = battle.sideStatUps[idxOwnSide()];          // :893
@@ -4206,7 +4176,7 @@ public final class Battler {
      * {@code @type1} / {@code @type2} when a move or ability changed them
      * (Battler_ChangeSelf:285-314 {@code pbChangeTypes}); {@code null} = "the
      * Pokemon's own types" (Battler_Initialize:47-48/81-82). Cleared on switch-in.
-     * 登记: {@code pbUpdate}'s type reset (Battler_Initialize:378-379) is not modelled.
+     * {@code pbUpdate(true)} (Battler_Initialize:378-379) resets them.
      */
     public String type1, type2;
 
@@ -4880,7 +4850,7 @@ public final class Battler {
      *
      * <p>原文形参名带下划线前缀 {@code _user}（Ruby 的「声明但不用」约定），方法体里确实
      * 没用它 —— 本档保留形参只为 arity 对齐。{@code :620} 的 {@code @battle.moldBreaker}
-     * 走本类已有的私有访问器 {@link #moldBreaker()}（其 javadoc 说明当前可证为 false）。</p>
+     * 走本类已有的私有访问器 {@link #moldBreaker()}。</p>
      */
     public void pbFlinch(Battler user) {
         if (hasActiveAbility("INNERFOCUS") && !moldBreaker()) {          // :620
@@ -5011,7 +4981,7 @@ public final class Battler {
         if (fainted() || effects.truthy(PBEffects.Battler.Transform)) return;            // :351
         // Form changes upon entering battle and when the weather changes
         if (!endOfRound) pbCheckFormOnWeatherChange();                                   // :353
-        // 登记: :354 pbCheckFormOnTerrainChange is not transcribed in this runtime.
+        if (!endOfRound) pbCheckFormOnTerrainChange();                                   // :354 Mimicry on entering
         // Darmanitan - Zen Mode
         if (isSpecies("DARMANITAN") && "ZENMODE".equals(ability)) {                      // :356
             if (hp <= maxHp() / 2) {                                                     // :357

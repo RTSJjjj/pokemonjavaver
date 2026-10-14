@@ -31,17 +31,8 @@ import pokemon.runtime.pokemon.PbsData;
  * {@link MoveEffectsGeneric} and, in the next batch, the 496 function-code
  * classes) overrides only the hooks the plugin's class overrides.</p>
  *
- * <h2>Methods this batch does NOT transcribe</h2>
- * <p>Task-11 decision 10: the default bodies whose dependency chain needs
- * {@code Battler}/{@code Battle}/{@code PBTypes} methods that do not exist yet
- * throw {@code UnsupportedOperationException("M0 待接线: <Ruby line range>")} -
- * an honest stub, never a made-up value. They are:
- * {@code pbCalcType} (:14-29), {@code pbCalcTypeModSingle} (:34-71),
- * {@code pbCalcTypeMod} (:73-103), {@code pbAccuracyCheck} (:112-143),
- * {@code pbCalcAccuracyModifiers} (:145-183), {@code pbIsCritical?} (:196-229),
- * {@code pbCalcDamage} (:252-295) and {@code pbCalcDamageMultipliers}
- * (:296-546). The required {@code PendingApi} additions are listed in the
- * task-11 report.</p>
+ * <p>The damage calculation ({@code pbCalcDamage} / {@code pbCalcDamageMultipliers},
+ * Move_Usage_Calculations.rb:252-546) is {@code battle.DamageCalc}.</p>
  *
  * <p>Task-11 decision 8: {@code pbFixedDamage}, {@code pbHealAmount} and
  * {@code pbRecoilDamage} have <b>no</b> default in the plugin's base class - the
@@ -102,7 +93,7 @@ public class MoveEffectBase implements MoveEffect {
      * before reaching it; the type table lookup needs a PbsData the move does not carry.
      */
     private static boolean isSpecialTypeByType(String type) {
-        throw new UnsupportedOperationException("M0 待接线: PBTypes_Extra.rb:38 isSpecialType? (unreachable while MOVE_CATEGORY_PER_MOVE)");
+        throw new UnsupportedOperationException("PBTypes_Extra.rb:38 isSpecialType? is unreachable while MOVE_CATEGORY_PER_MOVE is true");
     }
 
     /** {@code specialMove?(thisType=nil)} (PokeBattle_Move.rb:83-88). */
@@ -227,6 +218,12 @@ public class MoveEffectBase implements MoveEffect {
     @Override
     public boolean damageReducedByBurn(BattleMove move) {
         return true;                                     // :110
+    }
+
+    /** {@code damageReducedByFrostbite?} (Arceus:216). */
+    @Override
+    public boolean damageReducedByFrostbite(BattleMove move) {
+        return true;                                     // Arceus:216
     }
 
     /** {@code triggersHyperMode?} (PokeBattle_Move.rb:111). */
@@ -1147,13 +1144,6 @@ public class MoveEffectBase implements MoveEffect {
         }
     }
 
-    /** {@code pbCalcDamageMultipliers(...)} (Move_Usage_Calculations.rb:296-546) - not transcribed (decision 10). */
-    @Override
-    public void pbCalcDamageMultipliers(BattleMove move, Battler user, Battler target, int numTargets, String type,
-                                        int baseDmg, float[] multipliers) {
-        throw new UnsupportedOperationException(
-                "M0 待接线: Move_Usage_Calculations.rb:296-546 pbCalcDamageMultipliers");
-    }
 
     /** {@code pbAdditionalEffectChance(user,target,effectChance=0)} (Move_Usage_Calculations.rb:547-557). */
     @Override
@@ -1276,23 +1266,23 @@ public class MoveEffectBase implements MoveEffect {
         return move.additionalChance();                  // :39 @addlEffect = moveData[MOVE_EFFECT_CHANCE]
     }
 
-    /** {@code pbNaturalGiftBaseDamage(heldItem)} (Move_Effects_080-0FF:529) - body not transcribed (class 096). */
+    /** {@code pbNaturalGiftBaseDamage(heldItem)} (Move_Effects_080-0FF:529): only class 096 defines it. */
     @Override
     public int pbNaturalGiftBaseDamage(BattleMove move, String heldItem) {
         throw new UnsupportedOperationException(
-                "M0 待接线: Move_Effects_080-0FF:529 pbNaturalGiftBaseDamage");
+                "pbNaturalGiftBaseDamage is defined only on class 096 (Move_Effects_080-0FF:529)");
     }
 
-    /** {@code pbCheckFlingSuccess(user)} (Move_Effects_080-0FF:3715) - body not transcribed (class 0F7). */
+    /** {@code pbCheckFlingSuccess(user)} (Move_Effects_080-0FF:3715): only class 0F7 defines it. */
     @Override
     public void pbCheckFlingSuccess(BattleMove move, Battler user) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_080-0FF:3715 pbCheckFlingSuccess");
+        throw new UnsupportedOperationException("pbCheckFlingSuccess is defined only on class 0F7 (Move_Effects_080-0FF:3715)");
     }
 
-    /** {@code pbAromatherapyHeal(pkmn,battler=nil)} (Move_Effects_000-07F:449) - body not transcribed (class 019). */
+    /** {@code pbAromatherapyHeal(pkmn,battler=nil)} (Move_Effects_000-07F:449): only class 019 defines it. */
     @Override
     public void pbAromatherapyHeal(BattleMove move, Pokemon pkmn, Battler battler) {
-        throw new UnsupportedOperationException("M0 待接线: Move_Effects_000-07F:449 pbAromatherapyHeal");
+        throw new UnsupportedOperationException("pbAromatherapyHeal is defined only on class 019 (Move_Effects_000-07F:449)");
     }
 
     /** The {@code battler=nil} form of {@code pbAromatherapyHeal} (Move_Effects_000-07F:449). */
