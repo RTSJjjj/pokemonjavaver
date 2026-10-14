@@ -1250,6 +1250,8 @@ public final class Battle {
         public final Kind kind;
         /** The statuses of battlers 0-5 when this event was created ({@link Battle#statusSnapshot()}). */
         public String[] statuses;
+        /** The field's terrain when this event was created: the screen's terrain glow follows playback, not the engine. */
+        public int terrain = -1;
         /** MESSAGE text, or the BGM name. */
         public final String text;
         public final boolean brief;
@@ -1431,6 +1433,7 @@ public final class Battle {
         @Override
         public void add(RoundEvent value) {
             value.statuses = statusSnapshot();
+            value.terrain = field.terrain;
             super.add(value);
         }
 
@@ -1438,8 +1441,12 @@ public final class Battle {
         public void clear() {
             super.clear();
             roundBaseStatuses = statusSnapshot();
+            roundBaseTerrain = field.terrain;
         }
     };
+
+    /** The terrain at the moment {@link #roundEvents} was last cleared: what the screen shows before the first event. */
+    public int roundBaseTerrain = PBBattleTerrains.None;
 
     /** The statuses at the moment {@link #roundEvents} was last cleared: what the data boxes show before the first event. */
     public String[] roundBaseStatuses = new String[0];

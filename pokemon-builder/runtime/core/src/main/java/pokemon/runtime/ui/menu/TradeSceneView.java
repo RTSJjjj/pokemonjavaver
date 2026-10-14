@@ -245,8 +245,10 @@ public final class TradeSceneView {
         }
         assetsLoaded = true;
         background = a.graphic("Pictures", "tradebg");                       // :36 addBackgroundOrColoredPlane "tradebg"
-        texture1 = EvolutionView.battler(a, mine.species, mine.shiny, mine.formIndex());
-        texture2 = EvolutionView.battler(a, yours.species, yours.shiny, yours.formIndex());
+        texture1 = EvolutionView.battler(a, mine.species, mine.effectiveGender() == pokemon.runtime.pokemon.PokemonStats.FEMALE,
+                mine.shiny, mine.superShiny, mine.formIndex());                // super shiny / female pictures included
+        texture2 = EvolutionView.battler(a, yours.species, yours.effectiveGender() == pokemon.runtime.pokemon.PokemonStats.FEMALE,
+                yours.shiny, yours.superShiny, yours.formIndex());
     }
 
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin) {

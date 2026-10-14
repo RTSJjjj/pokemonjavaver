@@ -14,8 +14,8 @@ import java.util.function.Supplier;
 /**
  * The atoms the project's script conditions read ({@link ScriptCondition.Env}): game switches / variables / self
  * switches, the trainer (badges, party), the bag, {@code $PokemonGlobal}, the day / night, and the helper functions of
- * 170_PField_Field / 252_PSystem_PokemonUtilities that return a truth value. Atoms that need the Day Care, the Safari
- * Zone or a screen throw {@link ScriptCondition.Unsupported}.
+ * 170_PField_Field / 252_PSystem_PokemonUtilities that return a truth value, and {@code pbSafariState}. Atoms that
+ * need a screen it does not have throw {@link ScriptCondition.Unsupported}.
  */
 final class ConditionEnv implements ScriptCondition.Env {
     /** 000_Settings:97. */
@@ -174,6 +174,18 @@ final class ConditionEnv implements ScriptCondition.Env {
                 break;
             case "PBDayNight":
                 return dayNight(method);
+            case "$safari": {                                                   // pbSafariState (242_PBattle_Safari:1-52)
+                pokemon.runtime.state.SafariState safari = state.fieldGlobals().safari;
+                switch (method) {
+                    case "decision": return safari.decision;
+                    case "ballcount": return safari.ballcount;
+                    case "steps": return safari.steps;
+                    case "inProgress?": return safari.inProgress;
+                    case "pbReceptionMap": return safari.receptionMap();
+                    default: break;
+                }
+                break;
+            }
             default:
                 break;
         }
@@ -317,6 +329,10 @@ final class ConditionEnv implements ScriptCondition.Env {
                 }
                 return false;
             }
+            case "pbSafariState":                                               // 242_PBattle_Safari:68-71
+                // The reception counter's autorun (map 28) branches on pbSafariState.decision; unsupported, both
+                // branches were false, the page ended without pbEnd and restarted: the player walked down forever.
+                return "$safari";
             case "pbBoxesFull?":                                                // :4-6
                 return state.trainer().party.size() == 6 && state.trainer().currentStorage().full();
             case "pbGetSelfSwitch": {                                           // 071_Messages:341-344

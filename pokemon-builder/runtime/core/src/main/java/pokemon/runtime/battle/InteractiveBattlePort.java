@@ -137,6 +137,7 @@ public final class InteractiveBattlePort implements BattlePort {
         factory.setBag(inventory);
         factory.setObtainMap(obtainMap);
         factory.setFatefulEncounter(fatefulEncounter);
+        factory.setElite(safariSource == null || safariSource.getAsInt() < 0);   // the elite roll only outside the Safari Zone
         return factory;
     }
 
@@ -160,10 +161,14 @@ public final class InteractiveBattlePort implements BattlePort {
     private void start(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents) {
         // 174_PField_Battles:351-357: Events.onWildBattleOverride runs before pbWildBattleCore's ablePokemonCount check,
         // so a Safari battle needs no able Pokemon.
-        boolean safariBattle = !trainerBattle && safariSource != null && safariSource.getAsInt() >= 0;
+        // Only an encounter of the map's table is a Safari battle: an event's battle inside the Zone (a scripted wild
+        // Pokemon, a Boss) keeps the normal rules.
+        boolean encounter = encounterBattle;
+        encounterBattle = false;
+        boolean safariBattle = !trainerBattle && encounter && safariSource != null && safariSource.getAsInt() >= 0;
         if (pending() || teams.isEmpty() || teams.get(0).isEmpty() || (trainer.party.firstAble() == null && !safariBattle)) return;
         lastResult = null;
-        session = new Session(teams, trainerBattle, opponents);
+        session = new Session(teams, trainerBattle, opponents, safariBattle);
         battleSize = null;                       // the recorded rules belong to this battle only (PField_Battles:498)
         partnerParty = null;
         noPartner = false;
@@ -175,6 +180,9 @@ public final class InteractiveBattlePort implements BattlePort {
     /** The Safari Balls left when the last battle ended, or -1 when it was not a Safari battle. */
     public int lastSafariBalls() { return lastSafariBalls; }
     public void setSafariSource(java.util.function.IntSupplier source) { this.safariSource = source; }
+    /** {@link #markEncounterBattle()}: consumed by the next {@link #start}. */
+    private boolean encounterBattle;
+    @Override public void markEncounterBattle() { this.encounterBattle = true; }
     public void setCanLose(boolean value) { this.canLose = value; }
     /** {@code setBattleRule("noExp")}: {@code battle.expGain} (PField_Battles:105) of the next battle. */
     public void setExpGain(boolean value) { this.expGain = value; }
@@ -343,11 +351,11 @@ public final class InteractiveBattlePort implements BattlePort {
          * {@code endMessage}; {@link #takeEvents()} hands it to the screen once.
          */
         private final Array<Battle.RoundEvent> events = new Array<>();
-        Session(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents) {
+        Session(java.util.List<Array<Pokemon>> teams, boolean trainerBattle, java.util.List<PbsData.TrainerData> opponents,
+                boolean safari) {
             this.trainerBattle = trainerBattle;
-            int safariBalls = !trainerBattle && safariSource != null ? safariSource.getAsInt() : -1;
-            this.safari = safariBalls >= 0;                              // Events.onWildBattleOverride (242_PBattle_Safari:98-107)
-            this.ballCount = Math.max(0, safariBalls);
+            this.safari = safari;                                        // Events.onWildBattleOverride (242_PBattle_Safari:98-107)
+            this.ballCount = safari ? Math.max(0, safariSource.getAsInt()) : 0;
             this.trainerData = opponents == null || opponents.isEmpty() ? null : opponents.get(0);
             this.trainerData2 = opponents == null || opponents.size() < 2 ? null : opponents.get(1);
             this.trainerData3 = opponents == null || opponents.size() < 3 ? null : opponents.get(2);

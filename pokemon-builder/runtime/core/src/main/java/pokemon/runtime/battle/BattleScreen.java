@@ -223,6 +223,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         final Battle.RoundEvent event;
         /** The statuses to show once this message / event starts (null = leave them). */
         String[] statuses;
+        /** The terrain to show once this message / event starts (-1 = leave it). */
+        int terrain = -1;
         Message(String text, boolean paused) { this(text, paused, false, null); }
         Message(String text, boolean paused, boolean brief, Battle.RoundEvent event) {
             this.text = text; this.paused = paused; this.brief = brief; this.event = event;
@@ -2145,8 +2147,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         BattleEventLog.round(session.battle, events);
         holdPlayerExp();
         // The status icons keep what the boxes showed before the round (the engine already applied them all) until the
-        // events that set them play.
+        // events that set them play. The terrain glow does the same (the engine may already have ended the terrain).
         statusHeld = true;
+        playbackTerrain = session.battle.roundBaseTerrain;
         // The data boxes start from the HP each battler had before its first
         // HP change of the round (the engine already applied them all).
         for (Battle.RoundEvent event : events) {
@@ -2180,6 +2183,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 entry = new Message("", false, false, event);
             }
             entry.statuses = event.statuses;
+            entry.terrain = event.terrain;
             queue.add(entry);
         }
     }
@@ -2909,6 +2913,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         Message next = queue.peek();
         if (next != null && next.statuses != null && statusHeld) {
             System.arraycopy(next.statuses, 0, shownStatus, 0, Math.min(shownStatus.length, next.statuses.length));
+        }
+        if (next != null && next.terrain >= 0 && statusHeld) {
+            playbackTerrain = next.terrain;
         }
         if (next != null && next.event != null) {
             queue.poll();
@@ -5091,6 +5098,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private float terrainGlowClock;
     /** The terrain whose colour and particles are on screen (lags the field's terrain while fading). */
     private int terrainShown = PBBattleTerrains.None;
+    /** The terrain the round being played back has reached (see {@link #statusHeld}). */
+    private int playbackTerrain = PBBattleTerrains.None;
     private final TerrainParticles terrainParticles = new TerrainParticles();
 
     /** The glow colour of a battle terrain, or null for none. */
@@ -5118,7 +5127,10 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     }
 
     private void updateTerrainGlow(float delta) {
-        int terrain = session.battle == null ? PBBattleTerrains.None : session.battle.field.terrain;
+        // During a round's playback the glow follows the events, not the engine, which already ran the whole round
+        // (otherwise a terrain ending this round would vanish as the round starts).
+        int terrain = session.battle == null ? PBBattleTerrains.None
+                : statusHeld ? playbackTerrain : session.battle.field.terrain;
         float[] rgb = terrainGlowRgb(terrain);
         if (rgb != null && terrainGlowLevel <= 0f) {
             terrainGlowClock = 0f;                                   // a new terrain starts its pulse from the dim end

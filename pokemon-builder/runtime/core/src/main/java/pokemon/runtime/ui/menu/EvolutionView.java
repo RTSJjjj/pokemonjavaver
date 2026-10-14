@@ -510,10 +510,6 @@ public final class EvolutionView {
         return info == null ? 0 : info.id;
     }
 
-    static Texture battler(MenuAssets a, PbsData.Species s, boolean shiny, int form) {
-        return battler(a, s, false, shiny, false, form);
-    }
-
     /** {@code pbLoadPokemonBitmapSpecies}: pbCheckPokemonBitmapFiles' gender / shiny / form fallbacks. */
     static Texture battler(MenuAssets a, PbsData.Species s, boolean female, boolean shiny, boolean superShiny, int form) {
         if (s == null) return null;

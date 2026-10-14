@@ -874,6 +874,66 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 60f, 30);
                     shotMap("l1-battle-trainer-end" + i);
                 }
+            } else if (args.length > 2 && "boss-event".equals(args[2])) {
+                // map 132 EV010: "要和音箱蟀侠对战吗？" -> 是 -> battleMelodicricket, driven by CONFIRM like a player.
+                mapScreen = new MapScreen(context, 132, 36, 12, 8);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                int shots = 0;
+                String last = "";
+                for (int i = 0; i < 400; i++) {
+                    advanceMap(1f / 60f, 6);
+                    BattleScreen live = battleScreen();
+                    String key = live == null ? "map/" + context.messageService().visible()
+                            : live.debugStage() + "/" + live.debugMessage();
+                    if (!key.equals(last) && shots < 60) {
+                        last = key;
+                        System.out.println("bossev " + i + " " + key);
+                        shotMap(String.format(java.util.Locale.ROOT, "boss-event-%02d", shots++));
+                    }
+                    if (live != null && "BATTLE".equals(live.debugStage()) && live.debugWindow() == 2) break;
+                    if (i % 5 == 4) stepMap(GameAction.CONFIRM);
+                }
+            } else if (args.length > 2 && args[2].startsWith("boss-intro")) {
+                // battleMelodicricket (319_Boss_Battles:2732-2754): switch 196 on, a rank 4 MELODICRICKET -
+                // the opening line "哦！强大的音箱蟀侠出现了！ / 无论如何都是无法捕捉的！".
+                context.gameState().switches().set(196, true);
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                pokemon.runtime.pokemon.Pokemon boss = new pokemon.runtime.pokemon.Pokemon(pbs.species("MELODICRICKET"), 70, pbs);
+                boss.battleRank = 4;
+                System.out.println("boss party=" + context.gameState().trainer().party.size());
+                context.battlePort().setBattleSize(args[2].endsWith("-single") ? "1v1" : "3v1");   // the event: size from ablePokemonCount
+                context.battlePort().setCanLose(true);
+                context.battlePort().setExpGain(false);
+                context.battlePort().freeWildBattle(boss);
+                renderMap();
+                for (int i = 0; i < 40; i++) {
+                    advanceMap(1f / 60f, 15);
+                    BattleScreen live = battleScreen();
+                    if (live != null) System.out.println("boss " + i + " " + live.debugStage() + " msg=" + live.debugMessage());
+                    shotMap(String.format(java.util.Locale.ROOT, "%s-%02d", args[2], i));
+                    if (i % 4 == 3) stepMap(GameAction.CONFIRM);
+                }
+            } else if (safariCapture && args[2].startsWith("safari-reception")) {
+                // A save made at the reception during a visit (or the way back from the Zone): the counter's autorun
+                // (map 28 EV2 page 2) must ask once / end the visit, not walk the player down forever.
+                pokemon.runtime.state.SafariState safari = context.gameState().fieldGlobals().safari;
+                safari.begin(28, 11, 5, 8, 30);
+                if ("safari-reception-end".equals(args[2])) safari.decision = 1;   // the balls or the steps ran out
+                mapScreen = new MapScreen(context, 28, 11, 5, 2);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                for (int i = 0; i < 60; i++) {
+                    advanceMap(1f / 60f, 10);
+                    System.out.println("reception " + i + " player=" + context.gameState().playerX() + "," + context.gameState().playerY()
+                            + " inProgress=" + safari.inProgress + " message=" + context.messageService().visible());
+                    if (i % 6 == 0) shotMap(String.format(java.util.Locale.ROOT, "%s-%02d", args[2], i));
+                    if (i % 3 == 2) stepMap(GameAction.CONFIRM);              // the lines, then "是的" (the first choice)
+                }
+                shotMap(args[2] + "-end");
+                System.out.println("reception capture: inProgress=" + safari.inProgress + " player="
+                        + context.gameState().playerX() + "," + context.gameState().playerY());
             } else if (safariCapture) {
                 context.gameState().fieldGlobals().safari.begin(2, 1, 1, 2, 30);
                 if ("safari-faint".equals(args[2])) {                 // no able Pokemon: 174_PField_Battles:351-357 runs the override first
@@ -881,6 +941,7 @@ public final class MenuCapture extends ApplicationAdapter {
                 }
                 mapScreen = new MapScreen(context, 2);
                 context.game().setScreen(mapScreen);
+                context.battlePort().markEncounterBattle();           // a Safari battle comes from the encounter table only
                 context.battlePort().freeWildBattle(new pokemon.runtime.pokemon.Pokemon(pbs.species("PIDGEY"), 10, pbs));
                 renderMap();
                 advanceMap(1f / 60f, 106);
@@ -1811,6 +1872,18 @@ public final class MenuCapture extends ApplicationAdapter {
                         shotMap(String.format(java.util.Locale.ROOT, "terrain-%s-%02d", names[t - 1], f));
                         advanceMap(1f / 60f, 6);
                     }
+                }
+                // A terrain that ends this round: the glow must stay through the round's playback until its message.
+                battle.field.terrain = pokemon.runtime.battle.PBBattleTerrains.BugLure;
+                battle.field.terrainDuration = 1;
+                advanceMap(1f / 60f, 60);
+                stepMap(GameAction.CONFIRM);                  // 战斗
+                advanceMap(1f / 60f, 20);
+                stepMap(GameAction.CONFIRM);                  // the first move
+                for (int f = 0; f < 60; f++) {
+                    advanceMap(1f / 60f, 10);
+                    shotMap(String.format(java.util.Locale.ROOT, "terrain-end-%02d", f));
+                    if (f % 4 == 3) stepMap(GameAction.CONFIRM);   // page through the messages
                 }
                 break;
             }

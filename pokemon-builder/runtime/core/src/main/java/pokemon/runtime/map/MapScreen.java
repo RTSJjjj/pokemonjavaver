@@ -4874,6 +4874,7 @@ public final class MapScreen extends ScreenAdapter {
                     + (wild.size() > 1 ? " + " + wild.get(1).species + " L" + wild.get(1).level : ""));
         }
         applyBattleEnvironment();           // before the battle is created: the port reads these when it builds the session
+        context.battlePort().markEncounterBattle();                         // a Safari battle inside the Zone (an event's is not)
         if (wild.size() > 1) {
             context.battlePort().doubleWildBattle(first.species, first.level, wild.get(1).species, wild.get(1).level);
         } else {

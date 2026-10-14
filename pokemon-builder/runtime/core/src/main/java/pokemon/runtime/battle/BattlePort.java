@@ -54,6 +54,13 @@ public interface BattlePort {
     default void setPartner(String trainerType, String name, Iterable<Pokemon> party) {
     }
 
+    /**
+     * The next wild battle comes from the map's encounter table (walking, Rock Smash, Sweet Scent...), not from an
+     * event's script: only such a battle follows the Safari Zone rules while a visit runs.
+     */
+    default void markEncounterBattle() {
+    }
+
     /** {@code setBattleRule("noPartner")} (PField_Battles:51). */
     default void setNoPartner(boolean value) {
     }

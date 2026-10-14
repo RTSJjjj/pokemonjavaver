@@ -5,9 +5,11 @@ import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.battle.PBNatures;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
+import pokemon.runtime.pokemon.BattlerBitmaps;
 import pokemon.runtime.pokemon.Party;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
+import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.pokemon.Storage;
 import pokemon.runtime.pokemon.TrainerState;
 import pokemon.runtime.ui.WindowSkin;
@@ -2702,13 +2704,12 @@ public final class StorageView {
     /** PokemonSprite#setPokemonBitmap -> pbLoadPokemonBitmap；登记: 沿用 SummaryView 的取图规则。 */
     private Texture battler(MenuAssets a, Pokemon p) {
         if (p.species == null) return null;
-        String base = String.format("%03d", p.species.id) + (p.shiny ? "s" : "");
+        // pbLoadPokemonBitmap's full file order (super shiny, shiny, female, form), as the party screen and battle use;
+        // the old shiny-only lookup showed a super shiny Pokemon with its plain shiny picture.
         int form = p.form == null ? 0 : p.form.form;
-        Texture sprite = a.graphic("Battlers", form > 0 ? base + "_" + form : base);
-        if (sprite == null) sprite = a.graphic("Battlers", base);
-        if (sprite == null) sprite = a.graphic("Battlers", String.format("%03d", p.species.id));
-        if (sprite == null) sprite = a.graphic("Battlers", p.species.internalName);
-        return sprite;
+        return BattlerBitmaps.find(p.species, false,
+                p.effectiveGender() == PokemonStats.FEMALE, p.shiny, p.superShiny, form,
+                name -> a.graphic("Battlers", name));
     }
 
     private static String intl(String template, Object... args) {

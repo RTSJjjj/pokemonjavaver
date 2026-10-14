@@ -11,6 +11,7 @@ import pokemon.runtime.battle.BattleSpriteShader;
 import pokemon.runtime.input.GameAction;
 import pokemon.runtime.input.InputManager;
 import pokemon.runtime.pokemon.Pokemon;
+import pokemon.runtime.pokemon.PokemonStats;
 import pokemon.runtime.ui.WindowSkin;
 
 import java.util.ArrayDeque;
@@ -335,7 +336,8 @@ public final class HatchSceneView {
         eggTexture = firstOf(a, name + "egg_" + form, String.format("%03degg_%d", id, form), name + "egg",   // 251:49-57
                 String.format("%03degg", id), "egg");
         crackTexture = firstOf(a, name + "eggCracks", String.format("%03deggCracks", id), "eggCracks");   // :27-33
-        pokemonTexture = EvolutionView.battler(a, pokemon.species, pokemon.shiny, form);
+        pokemonTexture = EvolutionView.battler(a, pokemon.species,               // super shiny / female pictures included
+                pokemon.effectiveGender() == PokemonStats.FEMALE, pokemon.shiny, pokemon.superShiny, form);
     }
 
     private WindowSkin speechFrame(MenuAssets a, WindowSkin fallback) {

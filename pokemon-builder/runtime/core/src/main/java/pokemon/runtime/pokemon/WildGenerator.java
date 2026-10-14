@@ -52,6 +52,16 @@ public final class WildGenerator {
     public static Pokemon generate(PbsData data, PbsData.Species species, int level,
                                    TrainerState trainer, Inventory bag, int mapId,
                                    boolean fatefulEncounter, Random random) {
+        return generate(data, species, level, trainer, bag, mapId, fatefulEncounter, true, random);
+    }
+
+    /**
+     * @param elite false while a Safari Zone visit runs: the "elite" roll of 343_ChainCatching:222-227 (hidden ability,
+     *              Boss rank 2, better IVs) is skipped there
+     */
+    public static Pokemon generate(PbsData data, PbsData.Species species, int level,
+                                   TrainerState trainer, Inventory bag, int mapId,
+                                   boolean fatefulEncounter, boolean elite, Random random) {
         if (data == null || species == null) {
             return null;
         }
@@ -85,7 +95,8 @@ public final class WildGenerator {
 
         // --- pbGenerateWildPokemon (417-463) ---
         // 343_ChainCatching:221-298 replaces the rest of pbGenerateWildPokemon (the Safari Zone is not part of the game).
-        boolean hiddenAbility = source.nextInt(HIDDEN_ABILITY_ROLL) < HIDDEN_ABILITY_CHANCE;   // :222 ($DEBUG is off)
+        boolean hiddenAbility = source.nextInt(HIDDEN_ABILITY_ROLL) < HIDDEN_ABILITY_CHANCE   // :222 ($DEBUG is off)
+                && elite;                                                // not in the Safari Zone (the roll is still drawn)
         if (hiddenAbility) {
             pokemon.battleRank = 2;                                      // :226 a special ("elite") Pokemon
             pokemon.ivs = ChainCatching.randomIvs(1, source);            // :227

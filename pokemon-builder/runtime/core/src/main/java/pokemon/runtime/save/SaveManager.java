@@ -754,6 +754,9 @@ public final class SaveManager {
             state.fieldGlobals().creditsPlayed = globals.getBoolean("creditsPlayed", false);
             state.fieldGlobals().startTime = globals.getLong("startTime", 0L);
             JsonValue safariNode = globals.get("safari");
+            // A save made outside a visit has no node: the visit of the game being played before the load must not carry
+            // over (loading the entrance's save from inside the Zone left pbInSafari? on, and no elite Pokemon after).
+            state.fieldGlobals().safari.end();
             if (safariNode != null && safariNode.get("start") != null && safariNode.get("start").size == 4) {
                 JsonValue s = safariNode.get("start");
                 state.fieldGlobals().safari.begin(s.getInt(0), s.getInt(1), s.getInt(2), s.getInt(3), safariNode.getInt("ballcount", 0));

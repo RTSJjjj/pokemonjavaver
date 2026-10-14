@@ -164,6 +164,19 @@ class TrainerSaveTest {
         assertFalse(state.trainer().hasPokemonCenter());
     }
 
+    @Test
+    @DisplayName("loading a save made outside the Safari Zone ends the visit being played")
+    void loadOutsideTheZoneEndsTheVisit() {
+        SaveManager saves = new SaveManager();
+        GameState saved = new GameState();
+        saved.enterMap(28, 4, 5);                                    // the reception, before the visit
+        String entrance = saves.toJson(saved);
+        GameState playing = new GameState();
+        playing.fieldGlobals().safari.begin(28, 4, 5, 8, 30);
+        assertTrue(saves.fromJson(entrance, playing));
+        assertFalse(playing.fieldGlobals().safari.inProgress);
+    }
+
     private static void write(Path root, String name, String json) throws Exception {
         Path file = root.resolve("pbs").resolve(name);
         Files.createDirectories(file.getParent());

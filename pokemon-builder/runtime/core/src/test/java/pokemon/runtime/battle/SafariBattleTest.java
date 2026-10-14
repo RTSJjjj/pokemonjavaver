@@ -43,6 +43,12 @@ class SafariBattleTest {
         return p;
     }
 
+    /** A wild Pokemon of the map's encounter table (walking, Rock Smash...). */
+    private void encounter(Pokemon foe) {
+        port.markEncounterBattle();
+        port.freeWildBattle(foe);
+    }
+
     private boolean has(com.badlogic.gdx.utils.Array<Battle.RoundEvent> events, Battle.RoundEvent.Kind kind) {
         for (Battle.RoundEvent event : events) if (event.kind == kind) return true;
         return false;
@@ -50,7 +56,7 @@ class SafariBattleTest {
 
     @Test @DisplayName("a wild battle inside the Zone is a Safari battle with the player's balls")
     void safariSessionCarriesTheBalls() {
-        port.freeWildBattle(pokemon("A", 10));
+        encounter(pokemon("A", 10));
         assertTrue(port.session().safari);
         assertEquals(30, port.session().ballCount);
         assertEquals("野生的好抓出现了！", port.session().safariAppearMessage());
@@ -59,7 +65,7 @@ class SafariBattleTest {
     @Test @DisplayName("a Safari battle starts without any able Pokemon (the override runs first)")
     void needsNoAblePokemon() {
         trainer.party.first().hp = 0;
-        port.freeWildBattle(pokemon("A", 10));
+        encounter(pokemon("A", 10));
         assertTrue(port.pending());
         port.session().safariCommand(0);
         assertNotNull(port.session().result);
@@ -68,13 +74,67 @@ class SafariBattleTest {
     @Test @DisplayName("without the Zone the battle is an ordinary one")
     void ordinaryBattleOutsideTheZone() {
         port.setSafariSource(() -> -1);
+        encounter(pokemon("A", 10));
+        assertFalse(port.session().safari);
+    }
+
+    @Test @DisplayName("an event's wild battle inside the Zone keeps the normal rules")
+    void eventBattleInsideTheZone() {
         port.freeWildBattle(pokemon("A", 10));
         assertFalse(port.session().safari);
     }
 
+    @Test @DisplayName("no elite wild Pokemon while the Safari Zone is open")
+    void noEliteInTheZone() {
+        int elites = 0;
+        for (int seed = 0; seed < 400; seed++) {
+            Pokemon open = WildGenerator.generate(data, data.species("A"), 10, trainer, null, 27, false, false, new Random(seed));
+            assertEquals(0, open.battleRank);
+            Pokemon closed = WildGenerator.generate(data, data.species("A"), 10, trainer, null, 27, false, true, new Random(seed));
+            if (closed.battleRank == 2) elites++;
+        }
+        assertTrue(elites > 0, "outside the Zone the 1/16 elite roll still happens");
+    }
+
+    @Test @DisplayName("the port turns the elite roll off while the Safari Zone is open")
+    void portSkipsEliteInTheZone() {
+        for (int i = 0; i < 100; i++) {
+            port.markEncounterBattle();
+            port.wildBattle("A", 10);
+            assertEquals(0, port.session().battle.foe().pokemon.battleRank);
+            port.session().safariCommand(3);
+            port.session().storeCaught();
+            port.finish();
+        }
+    }
+
+    @Test @DisplayName("once the visit ends, elite wild Pokemon come back")
+    void eliteBackAfterTheVisit() {
+        FieldGlobals globals = new FieldGlobals();
+        globals.safariMapOf = id -> id == 27;
+        port.setSafariSource(() -> globals.inSafari(27) ? globals.safari.ballcount : -1);   // MapScreen's binding
+        globals.safari.begin(28, 14, 6, 8, 30);
+        assertEquals(0, elites(200), "inside the Zone");
+        globals.safari.end();                                       // pbSafariState.pbEnd / leaving the Zone's maps
+        assertTrue(elites(400) > 0, "after the visit");
+    }
+
+    private int elites(int battles) {
+        int count = 0;
+        for (int i = 0; i < battles; i++) {
+            port.markEncounterBattle();
+            port.wildBattle("A", 10);
+            if (port.session().battle.foe().pokemon.battleRank == 2) count++;
+            port.session().result = new BattleResult(BattleResult.Outcome.ESCAPE, 0, null);
+            port.session().storeCaught();
+            port.finish();
+        }
+        return count;
+    }
+
     @Test @DisplayName("Run ends the battle with decision 3 and plays the flee sound")
     void run() {
-        port.freeWildBattle(pokemon("A", 10));
+        encounter(pokemon("A", 10));
         port.session().safariCommand(3);
         assertEquals(BattleResult.Outcome.ESCAPE, port.session().result.outcome);
         com.badlogic.gdx.utils.Array<Battle.RoundEvent> events = port.session().takeEvents();
@@ -87,7 +147,7 @@ class SafariBattleTest {
 
     @Test @DisplayName("Bait and Rock play their animations and the round goes on")
     void baitAndRock() {
-        port.freeWildBattle(pokemon("A", 10));
+        encounter(pokemon("A", 10));
         port.session().safariCommand(1);
         com.badlogic.gdx.utils.Array<Battle.RoundEvent> bait = port.session().takeEvents();
         assertEquals("小测向好抓丢了一些诱饵！", bait.first().text);
@@ -101,7 +161,7 @@ class SafariBattleTest {
     @Test @DisplayName("a Ball spends one, and a sure catch ends the battle with the Pokemon")
     void ballCatchesAnEasyPokemon() {
         Pokemon wild = pokemon("A", 10);
-        port.freeWildBattle(wild);
+        encounter(wild);
         port.session().safariCommand(0);
         assertEquals(29, port.session().ballCount);
         assertEquals(BattleResult.Outcome.CAUGHT, port.session().result.outcome);
@@ -121,7 +181,7 @@ class SafariBattleTest {
     @Test @DisplayName("the last ball missing ends the visit with decision 2")
     void lastBallMissed() {
         balls = 1;
-        port.freeWildBattle(pokemon("B", 10));
+        encounter(pokemon("B", 10));
         port.session().safariCommand(0);
         assertEquals(0, port.session().ballCount);
         BattleResult result = port.session().result;

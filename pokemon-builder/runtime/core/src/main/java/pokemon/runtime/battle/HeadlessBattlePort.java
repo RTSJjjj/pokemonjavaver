@@ -137,7 +137,14 @@ public final class HeadlessBattlePort implements BattlePort {
      */
     public Pokemon wildPokemon(PbsData.Species species, int level, PbsData data) {
         return pokemon.runtime.pokemon.WildGenerator.generate(data, species, level, trainer,
-                bag, obtainMap, fatefulEncounter, random);
+                bag, obtainMap, fatefulEncounter, elite, random);
+    }
+
+    /** False while the Safari Zone is open: no "elite" wild Pokemon (343_ChainCatching:222-227). */
+    private boolean elite = true;
+
+    public void setElite(boolean value) {
+        this.elite = value;
     }
 
     /** The bag, for the Shiny Charm's extra shiny rolls (":436-442"); may be null. */

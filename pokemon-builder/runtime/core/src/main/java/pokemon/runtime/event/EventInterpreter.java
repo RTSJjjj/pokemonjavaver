@@ -3149,8 +3149,10 @@ public final class EventInterpreter {
             if (second == null) {
                 return false;                                                   // :494
             }
+            battlePort.markEncounterBattle();
             result = battlePort.doubleWildBattle(encounter.species, encounter.level, second.species, second.level);
         } else {
+            battlePort.markEncounterBattle();
             result = battlePort.wildBattle(encounter.species, encounter.level);
         }
         log.warn("encounter " + method + " -> " + (result == null ? "not started" : result.outcome));

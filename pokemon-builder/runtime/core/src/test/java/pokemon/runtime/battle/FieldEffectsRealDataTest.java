@@ -451,6 +451,71 @@ class FieldEffectsRealDataTest {
         assertTrue(ChangeEvAndNature.hasPlaceholderEvs(lev));
     }
 
+    // ------------------------------------------------------------------ whole move use (pbUseMove)
+
+    /** The user knows only {@code moveId}; uses it once against the foe and returns the hits the log reports. */
+    private static int hitsWhenUsing(String userAbility, int terrain, String moveId) {
+        PbsData d = data();
+        Pokemon mine = new Pokemon(d.species("SNORLAX"), 100, d);
+        mine.moves.clear();
+        mine.moves.add(new Pokemon.MoveSlot(d.moves.get(moveId)));
+        Battle b = new Battle(d, new Random(3), (u, t, moves) -> 0)
+                .addPlayer(mine).addFoe(new Pokemon(d.species("SNORLAX"), 100, d));
+        b.badges = new java.util.HashSet<>();
+        b.player().initEffects(false);
+        b.foe().initEffects(false);
+        b.player().ability = userAbility;
+        b.foe().ability = "";
+        b.player().item = "";
+        b.foe().item = "";
+        terrain(b, terrain);
+        int hpBefore = b.foe().hp;
+        b.player().pbUseMove(new Object[] {":UseMove", 0, b.player().moveSlot(0), -1}, false);
+        assertTrue(b.foe().hp < hpBefore, moveId + " did damage");
+        for (String m : b.roundMessages) {
+            java.util.regex.Matcher x = java.util.regex.Pattern.compile("击中了(\\d+)次").matcher(m);
+            if (x.find()) return Integer.parseInt(x.group(1));
+        }
+        return 1;                                                       // a single hit prints no count
+    }
+
+    @Test
+    @DisplayName("using a move for real: Parental Bond hits twice; a Bug move hits twice on Bug Lure Terrain")
+    void doubleHitsEndToEnd() {
+        assertEquals(1, hitsWhenUsing("", PBBattleTerrains.None, "TACKLE"), "plain Tackle");
+        assertEquals(2, hitsWhenUsing("PARENTALBOND", PBBattleTerrains.None, "TACKLE"), "Parental Bond");
+        assertEquals(1, hitsWhenUsing("", PBBattleTerrains.None, "XSCISSOR"), "X-Scissor without terrain");
+        assertEquals(2, hitsWhenUsing("", PBBattleTerrains.BugLure, "XSCISSOR"), "X-Scissor on Bug Lure Terrain");
+        assertEquals(1, hitsWhenUsing("", PBBattleTerrains.BugLure, "TACKLE"), "a non-Bug move on Bug Lure Terrain");
+        assertEquals(2, hitsWhenUsing("PARENTALBOND", PBBattleTerrains.BugLure, "XSCISSOR"),
+                "Parental Bond on Bug Lure Terrain stays at two hits (the terrain only adds to single-hit moves)");
+    }
+
+    @Test
+    @DisplayName("round events remember the terrain, so the screen keeps a terrain that ends this round until its message")
+    void terrainSnapshotInRoundEvents() {
+        Battle b = battle("SNORLAX", "SNORLAX");
+        b.field.terrain = PBBattleTerrains.BugLure;
+        b.field.terrainDuration = 1;                                      // ends at this end of round
+        b.pbCalculatePriority(true, null);
+        b.roundEvents.clear();
+        b.pbEndOfRoundPhase();
+        assertEquals(PBBattleTerrains.None, b.field.terrain, "the engine already ended it");
+        assertEquals(PBBattleTerrains.BugLure, b.roundBaseTerrain, "the round started with it");
+        int ending = -1;
+        for (int i = 0; i < b.roundEvents.size; i++) {
+            Battle.RoundEvent e = b.roundEvents.get(i);
+            if (e.text != null && e.text.contains("笼罩场地的虫群消散了")) { ending = i; break; }
+        }
+        assertTrue(ending >= 0, "the ending message is in the round");
+        for (int i = 0; i <= ending; i++) {
+            assertEquals(PBBattleTerrains.BugLure, b.roundEvents.get(i).terrain, "event " + i + " still has the terrain");
+        }
+        for (int i = ending + 1; i < b.roundEvents.size; i++) {
+            assertEquals(PBBattleTerrains.None, b.roundEvents.get(i).terrain, "event " + i + " after the message");
+        }
+    }
+
     @Test
     @DisplayName("Solar Power raises Sp. Atk 1.5x in sun (not 2x)")
     void solarPower() {
