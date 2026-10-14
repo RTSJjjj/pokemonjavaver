@@ -75,6 +75,25 @@ class DayCareTest {
     }
 
     @Test
+    void anEggGetsItsFormOnCreation() throws Exception {
+        // 198_Pokemon_Forms getFormOnCreation inside pbNewPkmn (181:228): Oricorio's style is rolled, not inherited
+        PbsData data = data();
+        if (data == null || data.species("ORICORIO") == null) return;
+        java.util.Set<Integer> forms = new java.util.HashSet<>();
+        Random random = new Random(11);
+        for (int i = 0; i < 40; i++) {
+            TrainerState trainer = new TrainerState();
+            trainer.party.add(parent(data, "ORICORIO", PokemonStats.MALE, 30));
+            trainer.party.add(parent(data, "ORICORIO", PokemonStats.FEMALE, 30));
+            trainer.dayCare.deposit(trainer, 0);
+            trainer.dayCare.deposit(trainer, 0);
+            Pokemon egg = trainer.dayCare.generateEgg(trainer, data, random, WORLD);
+            forms.add(egg.formIndex());
+        }
+        assertTrue(forms.size() > 1, "egg forms: " + forms);
+    }
+
+    @Test
     void anEggAppearsAfter256Steps() throws Exception {
         PbsData data = data();
         if (data == null) return;

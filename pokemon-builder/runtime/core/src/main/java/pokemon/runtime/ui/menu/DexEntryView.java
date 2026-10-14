@@ -4,6 +4,7 @@ import pokemon.runtime.pokemon.BattlerBitmaps;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.utils.Array;
 import pokemon.runtime.app.RuntimeContext;
 import pokemon.runtime.app.ScreenMetrics;
 import pokemon.runtime.input.GameAction;
@@ -283,10 +284,14 @@ public final class DexEntryView {
         }
         String kind = s.kind == null || s.kind.isEmpty() ? "" : s.kind;
         f.drawCentered(b, kind + "宝可梦", 420f + 64f, h - 58f, NAME, GRAY_SHADOW);
-        f.drawRight(b, String.format("%.1f m", s.height), 510f + 64f, h - 138f, NAME, GRAY_SHADOW);
-        f.drawRight(b, String.format("%.1f kg", s.weight), 510f + 64f, h - 168f, NAME, GRAY_SHADOW);
-        // Entry text at (39, 216+64) width 672-80, 4 lines.
-        drawWrapped(b, f, s.pokedex, 39f, 216f + 64f, 672f - 80f, 4, h, WHITE, GRAY_SHADOW);
+        PbsData.SpeciesForm sf = speciesForm(s);                          // :410 pbGetSpeciesData(@species,@form)
+        float height = sf != null && sf.height != null ? sf.height : s.height;
+        float weight = sf != null && sf.weight != null ? sf.weight : s.weight;
+        f.drawRight(b, String.format("%.1f m", height), 510f + 64f, h - 138f, NAME, GRAY_SHADOW);
+        f.drawRight(b, String.format("%.1f kg", weight), 510f + 64f, h - 168f, NAME, GRAY_SHADOW);
+        // Entry text at (39, 216+64) width 672-80, 4 lines: the form's entry, else the species' (:433-434).
+        String entry = sf != null && sf.pokedex != null && !sf.pokedex.isEmpty() ? sf.pokedex : s.pokedex;
+        drawWrapped(b, f, entry, 39f, 216f + 64f, 672f - 80f, 4, h, WHITE, GRAY_SHADOW);
         // Shape icon (60x60) at (260+64, 100).
         Texture shapes = a.graphic("Pictures/Pokedex", "icon_shapes");
         if (shapes != null && s.shape > 0) {
@@ -299,13 +304,14 @@ public final class DexEntryView {
         }
         // Type icons (72x32) at (330+64,97) and (397+64,97).
         Texture types = a.graphic("Pictures/Pokedex", "icon_types");
-        if (types != null && s.types.size > 0) {
-            PbsData.TypeInfo t1 = typeInfo(s.types.get(0));
+        Array<String> speciesTypes = types(s);
+        if (types != null && speciesTypes.size > 0) {
+            PbsData.TypeInfo t1 = typeInfo(speciesTypes.get(0));
             if (t1 != null) {
                 drawImg(b, types, h, 330f + 64f, 97f, 72, 32, 0, t1.id * 32);
             }
-            if (s.types.size > 1 && !s.types.get(0).equals(s.types.get(1))) {
-                PbsData.TypeInfo t2 = typeInfo(s.types.get(1));
+            if (speciesTypes.size > 1 && !speciesTypes.get(0).equals(speciesTypes.get(1))) {
+                PbsData.TypeInfo t2 = typeInfo(speciesTypes.get(1));
                 if (t2 != null) {
                     drawImg(b, types, h, 397f + 64f, 97f, 72, 32, 0, t2.id * 32);
                 }
@@ -326,9 +332,13 @@ public final class DexEntryView {
         int y0 = 60;
         int y1 = 80;
         int y2 = 100;
+        // :654-682 pbGetSpeciesData(@species,@form,...): the shown form's abilities and base stats
+        PbsData.SpeciesForm sf = speciesForm(s);
+        Array<String> formAbilities = sf != null && sf.abilities != null ? sf.abilities : s.abilities;
+        String hiddenAbility = sf != null && sf.hiddenAbility != null ? sf.hiddenAbility : s.hiddenAbility;
         List<String> abilities = new ArrayList<>();
-        if (s.abilities != null) {
-            for (String ability : s.abilities) {
+        if (formAbilities != null) {
+            for (String ability : formAbilities) {
                 if (ability != null && !ability.isEmpty()) abilities.add(ability);
             }
         }
@@ -336,20 +346,20 @@ public final class DexEntryView {
             String abilityName = abilityName(abilities.get(i));
             f.draw(b, "特性" + (i + 1) + ":" + abilityName, 24f, h - (i == 0 ? y0 : i == 1 ? y1 : y2), WHITE, GRAY_SHADOW);
         }
-        if (s.hiddenAbility != null && !s.hiddenAbility.isEmpty()) {
-            f.draw(b, "隐藏特性:" + abilityName(s.hiddenAbility), 24f, h - y2, WHITE, GRAY_SHADOW);
+        if (hiddenAbility != null && !hiddenAbility.isEmpty()) {
+            f.draw(b, "隐藏特性:" + abilityName(hiddenAbility), 24f, h - y2, WHITE, GRAY_SHADOW);
         }
         int total = 0;
         for (int i = 0; i < 6; i++) {
-            total += s.baseStat(i);
+            total += baseStat(s, sf, i);
         }
         f.drawCentered(b, "种族值总和:" + total, 266f + 32f + 64f, h - 40f, HIGH, HIGH_SHADOW);
-        f.draw(b, "HP:  " + s.baseStat(0), 184f + 32f + 64f, h - y0, WHITE, GRAY_SHADOW);
-        f.draw(b, "攻击:" + s.baseStat(1), 184f + 32f + 64f, h - y1, WHITE, GRAY_SHADOW);
-        f.draw(b, "防御:" + s.baseStat(2), 184f + 32f + 64f, h - y2, WHITE, GRAY_SHADOW);
-        f.draw(b, "速度:" + s.baseStat(3), 266f + 32f + 64f, h - y0, WHITE, GRAY_SHADOW);
-        f.draw(b, "特攻:" + s.baseStat(4), 266f + 32f + 64f, h - y1, WHITE, GRAY_SHADOW);
-        f.draw(b, "特防:" + s.baseStat(5), 266f + 32f + 64f, h - y2, WHITE, GRAY_SHADOW);
+        f.draw(b, "HP:  " + baseStat(s, sf, 0), 184f + 32f + 64f, h - y0, WHITE, GRAY_SHADOW);
+        f.draw(b, "攻击:" + baseStat(s, sf, 1), 184f + 32f + 64f, h - y1, WHITE, GRAY_SHADOW);
+        f.draw(b, "防御:" + baseStat(s, sf, 2), 184f + 32f + 64f, h - y2, WHITE, GRAY_SHADOW);
+        f.draw(b, "速度:" + baseStat(s, sf, 3), 266f + 32f + 64f, h - y0, WHITE, GRAY_SHADOW);
+        f.draw(b, "特攻:" + baseStat(s, sf, 4), 266f + 32f + 64f, h - y1, WHITE, GRAY_SHADOW);
+        f.draw(b, "特防:" + baseStat(s, sf, 5), 266f + 32f + 64f, h - y2, WHITE, GRAY_SHADOW);
         // Wild items.
         f.drawCentered(b, "野生持有物", 450f + 32f + 64f, h - 40f, HIGH, HIGH_SHADOW);
         String common = itemName(s.wildItems == null ? null : s.wildItems.common);
@@ -770,6 +780,22 @@ public final class DexEntryView {
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
+
+    /** The shown form's pokemonforms entry, or null for form 0 / a form without one ({@code pbGetSpeciesData(@species,@form)}). */
+    private PbsData.SpeciesForm speciesForm(PbsData.Species s) {
+        return form > 0 && context.pbsData() != null ? context.pbsData().form(s.internalName, form) : null;
+    }
+
+    /** The form's base stat, else the species' (a form that lists no BaseStats keeps the species'). */
+    private static int baseStat(PbsData.Species s, PbsData.SpeciesForm sf, int index) {
+        return sf != null && sf.baseStats != null ? sf.baseStat(index) : s.baseStat(index);
+    }
+
+    /** The form's types, else the species'. */
+    private Array<String> types(PbsData.Species s) {
+        PbsData.SpeciesForm sf = speciesForm(s);
+        return sf != null && sf.types != null && sf.types.size > 0 ? sf.types : s.types;
+    }
 
     private String formName(PbsData.Species s) {
         PbsData.SpeciesForm f = context.pbsData() == null ? null : context.pbsData().form(s.internalName, form);

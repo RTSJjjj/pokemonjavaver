@@ -2363,6 +2363,7 @@ public final class PartyView {
     private Texture battler(MenuAssets a, Pokemon p) {
         if (p.species == null) return null;
         int form = p.form == null ? 0 : p.form.form;
+        if (p.egg) return BattlerBitmaps.findEgg(p.species, form, name -> a.graphic("Battlers", name));   // 251:11-21
         return BattlerBitmaps.find(p.species, false,
                 p.effectiveGender() == PokemonStats.FEMALE, p.shiny, p.superShiny, form,
                 name -> a.graphic("Battlers", name));

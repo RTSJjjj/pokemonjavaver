@@ -137,7 +137,14 @@ public final class HeadlessBattlePort implements BattlePort {
      */
     public Pokemon wildPokemon(PbsData.Species species, int level, PbsData data) {
         return pokemon.runtime.pokemon.WildGenerator.generate(data, species, level, trainer,
-                bag, obtainMap, fatefulEncounter, elite, random);
+                bag, obtainMap, fatefulEncounter, elite, formWorld, random);
+    }
+
+    /** The environment / region / time / switches the wild Pokemon's form procs read (198_Pokemon_Forms); may be null. */
+    private pokemon.runtime.pokemon.FormsOnCreation.World formWorld;
+
+    public void setFormWorld(pokemon.runtime.pokemon.FormsOnCreation.World value) {
+        this.formWorld = value;
     }
 
     /** False while the Safari Zone is open: no "elite" wild Pokemon (343_ChainCatching:222-227). */

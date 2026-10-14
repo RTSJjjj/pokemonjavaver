@@ -2076,6 +2076,7 @@ public final class EventInterpreter {
                     public int region() { return regionSupplier.getAsInt(); }
                     public boolean hasItem(String item) { return state.inventory().has(item); }
                     public int mapId() { return mapId; }
+                    public pokemon.runtime.pokemon.FormsOnCreation.World formWorld() { return formWorld; }
                 });
                 break;
             }
@@ -3343,6 +3344,13 @@ public final class EventInterpreter {
 
     private java.util.function.IntSupplier regionSupplier = () -> -1;
 
+    /** What {@code getFormOnCreation} (198_Pokemon_Forms) reads when an egg is made; null = no environment, daytime. */
+    private pokemon.runtime.pokemon.FormsOnCreation.World formWorld;
+
+    public void attachFormWorld(pokemon.runtime.pokemon.FormsOnCreation.World world) {
+        this.formWorld = world;
+    }
+
     /** {@code pbGetCurrentRegion} (253_PSystem_Utilities:840-843) for the Day Care's regional forms. */
     public void attachRegion(java.util.function.IntSupplier supplier) {
         regionSupplier = supplier;
@@ -3475,8 +3483,11 @@ public final class EventInterpreter {
     private void pbGenerateEgg(String speciesName, String text) {
         PbsData.Species species = pbs == null ? null : pbs.species(speciesName);
         if (species == null || state.trainer() == null) return;
+        java.util.Random eggRandom = new java.util.Random();
         Pokemon egg = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, pokemon.runtime.pokemon.DayCare.EGG_LEVEL,
-                state.trainer(), mapId, new java.util.Random());                                      // :284 pbNewPkmn(species, EGG_LEVEL)
+                state.trainer(), mapId, eggRandom);                                                   // :284 pbNewPkmn(species, EGG_LEVEL)
+        // PokeBattle_Pokemon.new's getFormOnCreation (198_Pokemon_Forms:43-47): an Unown / Flabebe / ... egg is not always form 0
+        pokemon.runtime.pokemon.FormsOnCreation.apply(egg, pbs, state.trainer(), formWorld, eggRandom);
         egg.egg = true;
         egg.name = "Egg";                                                                              // :288
         egg.stepsToHatch = species.stepsToHatch;                                                       // :289-290

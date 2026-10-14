@@ -874,6 +874,176 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 60f, 30);
                     shotMap("l1-battle-trainer-end" + i);
                 }
+            } else if (args.length > 2 && args[2].startsWith("boss-check")) {
+                // A Boss_Battles event on its map, played with CAPTURE_SAVE's party: boss-check-chikorita (map 508 EV2,
+                // battleChikoritaForest: form 2, super shiny) or boss-check-genesect (map 464 EV2 page 2, battleGENESECT,
+                // then the gift Genesect with TECHNOSWORD). The Boss is left at 1 HP so the party wins.
+                String savePath = System.getenv("CAPTURE_SAVE");
+                if (savePath != null && !context.saveManager().load(new File(savePath), context.gameState())) {
+                    throw new IllegalStateException("cannot load " + savePath);
+                }
+                boolean genesect = args[2].endsWith("genesect");
+                int bossMap = genesect ? 464 : 508, bx = genesect ? 12 : 36, by = genesect ? 10 : 16;
+                if (genesect) context.gameState().selfSwitches().set(464, 2, "A", true);
+                for (pokemon.runtime.pokemon.Pokemon m : context.gameState().trainer().party.members()) m.hp = m.maxHp();
+                mapScreen = new MapScreen(context, bossMap, bx, by + 1, 8);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                boolean reported = false;
+                int shots = 0;
+                String last = "";
+                for (int i = 0; i < 2500; i++) {
+                    advanceMap(1f / 60f, 2);
+                    BattleScreen live = battleScreen();
+                    String key = live == null ? "map/" + context.messageService().visible() : live.debugStage() + "/" + live.debugMessage();
+                    if (!key.equals(last)) {
+                        last = key;
+                        if (shots < 50) shotMap(String.format(java.util.Locale.ROOT, "%s-%02d", args[2], shots++));
+                    }
+                    if (live != null && !reported && "BATTLE".equals(live.debugStage())) {
+                        pokemon.runtime.battle.InteractiveBattlePort port = (pokemon.runtime.battle.InteractiveBattlePort) context.battlePort();
+                        pokemon.runtime.battle.Battler foe = port.session().battle.foe();
+                        pokemon.runtime.pokemon.Pokemon fp = foe.pokemon;
+                        StringBuilder mv = new StringBuilder();
+                        for (pokemon.runtime.pokemon.Pokemon.MoveSlot slot : fp.moves) mv.append(slot.move.internalName).append('(').append(slot.move.name).append(") ");
+                        System.out.println("BOSS " + fp.species.internalName + " L" + fp.level + " form=" + fp.formIndex()
+                                + (fp.form != null ? "(" + fp.form.formName + ")" : "") + " shiny=" + fp.shiny + " super=" + fp.superShiny
+                                + " rank=" + fp.battleRank + " item=" + fp.item + " ability=" + fp.ability + " nature="
+                                + (fp.nature == null ? null : fp.nature.internalName) + " stats=" + fp.maxHp() + " moves=" + mv);
+                        shotMap(args[2] + "-boss");
+                        foe.hp = 1;
+                        reported = true;
+                    }
+                    if (i % 6 == 3) stepMap(GameAction.CONFIRM);
+                    if (reported && live == null && !context.messageService().visible() && i > 0 && i % 50 == 0
+                            && !(mapScreen != null && context.game().getScreen() != mapScreen)) {
+                        // after the battle: look for the gift
+                    }
+                }
+                for (pokemon.runtime.pokemon.Pokemon m : context.gameState().trainer().party.members()) dumpGift("party", m);
+                pokemon.runtime.pokemon.Storage st = context.gameState().trainer().storage;
+                for (int b = 0; b < st.maxBoxes(); b++) for (int sl = 0; sl < pokemon.runtime.pokemon.Storage.SLOTS; sl++) {
+                    pokemon.runtime.pokemon.Pokemon m = st.get(b, sl);
+                    if (m != null && m.species != null && "GENESECT".equals(m.species.internalName)) dumpGift("box" + b, m);
+                }
+                System.out.println("boss-check end selfB=" + context.gameState().selfSwitches().get(464, 2, "B")
+                        + " selfA508=" + context.gameState().selfSwitches().get(508, 2, "A"));
+            } else if (args.length > 2 && "wild-forms".equals(args[2])) {
+                // getFormOnCreation on the real PBS: the forms 40 wild Pokemon of each species come out in
+                pokemon.runtime.pokemon.FormsOnCreation.World grass = new pokemon.runtime.pokemon.FormsOnCreation.World() {
+                    @Override public int environment() { return 1; }
+                    @Override public int region() { return 0; }
+                    @Override public boolean evening() { return false; }
+                    @Override public boolean night() { return false; }
+                    @Override public boolean switchOn(int id) { return false; }
+                };
+                java.util.Random r = new java.util.Random(3);
+                for (String name : new String[] {"UNOWN", "BURMY", "BASCULIN", "FLABEBE", "ORICORIO", "MINIOR", "TAUROS",
+                        "WOOPER", "SQUAWKABILLY", "TATSUGIRI", "PUMPKABOO", "MEOWSTIC", "LYCANROC", "PIDGEY"}) {
+                    pokemon.runtime.pokemon.PbsData.Species sp = pbs.species(name);
+                    if (sp == null) { System.out.println("wild form " + name + " missing"); continue; }
+                    java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+                    for (int i = 0; i < 40; i++) {
+                        pokemon.runtime.pokemon.Pokemon p = pokemon.runtime.pokemon.WildGenerator.generate(pbs, sp, 20,
+                                context.gameState().trainer(), null, 1, false, false, grass, r);
+                        String key = p.formIndex() + (p.form != null && p.form.formName != null ? ":" + p.form.formName : "") + "/" + p.ability;
+                        counts.merge(key, 1, Integer::sum);
+                    }
+                    System.out.println("wild form " + sp.name + " " + counts);
+                }
+            } else if (args.length > 2 && "egg-sprite".equals(args[2])) {
+                // pbLoadPokemonBitmap for an egg (251:11-21): which Battlers file each egg resolves to
+                pokemon.runtime.ui.menu.MenuAssets eggAssets = new pokemon.runtime.ui.menu.MenuAssets(new GraphicsLocator(context.database()));
+                for (String name : new String[] {"LITTEN", "BULBASAUR", "PIKACHU", "HATTERENE"}) {
+                    pokemon.runtime.pokemon.PbsData.Species sp = pbs.species(name);
+                    String[] hit = {null};
+                    pokemon.runtime.pokemon.BattlerBitmaps.findEgg(sp, 0, n -> {
+                        com.badlogic.gdx.graphics.Texture t = eggAssets.graphic("Battlers", n);
+                        if (t != null && hit[0] == null) hit[0] = n;
+                        return t;
+                    });
+                    System.out.println("egg sprite " + name + " -> " + hit[0]);
+                }
+            } else if (args.length > 2 && "dex-form".equals(args[2])) {
+                // The Pokedex entry of a form (330_PokedexEntry_BW_Style:410/654-682 pbGetSpeciesData(@species,@form)):
+                // HATTERENE form 1 "命运之轮的样子", info page then data page.
+                pokemon.runtime.pokemon.PbsData.Species hatterene = pbs.species("HATTERENE");
+                context.gameState().trainer().seen.add(hatterene.internalName);
+                context.gameState().trainer().registerOwned(new pokemon.runtime.pokemon.Pokemon(hatterene, 50, pbs));
+                context.gameState().trainer().formLastSeen.put(hatterene.internalName, new int[] {0, 1});
+                GraphicsLocator dexLocator = new GraphicsLocator(context.database());
+                pokemon.runtime.ui.menu.MenuAssets dexAssets = new pokemon.runtime.ui.menu.MenuAssets(dexLocator);
+                File fontFile = dexLocator.font(context.database().project().runtime.messageFont);
+                pokemon.runtime.ui.menu.MenuFont dexFont = new pokemon.runtime.ui.menu.MenuFont(fontFile);
+                pokemon.runtime.ui.menu.MenuFont dexSmall = new pokemon.runtime.ui.menu.MenuFont(fontFile, 18);
+                pokemon.runtime.ui.menu.DexEntryView dex = new pokemon.runtime.ui.menu.DexEntryView(context,
+                        java.util.Collections.singletonList(hatterene), 0);
+                for (int page = 0; page < 2; page++) {
+                    if (page > 0) {
+                        InputManager input = context.inputManager();
+                        input.beginFrame(); input.press(GameAction.RIGHT); dex.update(input); input.endFrame(); input.release(GameAction.RIGHT);
+                    }
+                    for (int f = 0; f < 3; f++) { InputManager input = context.inputManager(); input.beginFrame(); dex.update(input); input.endFrame(); }
+                    buffer.begin();
+                    Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
+                    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+                    projection.update();
+                    batch.setProjectionMatrix(projection.combined);
+                    batch.begin();
+                    dex.render(batch, dexAssets, dexFont, dexSmall);
+                    batch.end();
+                    writeShot(page == 0 ? "dex-form-info" : "dex-form-data");
+                }
+            } else if (args.length > 2 && args[2].startsWith("safari-flow")) {
+                // A real save (CAPTURE_SAVE), a visit started at the counter (pbStart at the reception), the player in the
+                // Zone's first map: walk onto the exit (map 27 EV1/EV2 -> map 28 (11,3)), then the counter's autorun.
+                // "safari-flow-no" answers "不，没有" (back into the Zone) instead of "是的".
+                String savePath = System.getenv("CAPTURE_SAVE");
+                if (savePath != null && !context.saveManager().load(new File(savePath), context.gameState())) {
+                    throw new IllegalStateException("cannot load " + savePath);
+                }
+                pokemon.runtime.state.SafariState safari = context.gameState().fieldGlobals().safari;
+                safari.begin(28, 11, 5, 8, 30);
+                mapScreen = new MapScreen(context, 27, 18, 32, 2);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                boolean no = "safari-flow-no".equals(args[2]);
+                String last = "";
+                int shots = 0;
+                for (int i = 0; i < 1500; i++) {
+                    if (i == 30) {                                       // step down onto the exit
+                        InputManager input = context.inputManager();
+                        input.beginFrame(); input.press(GameAction.DOWN); renderMap(); input.endFrame();
+                        for (int f = 0; f < 12; f++) advanceMap(1f / 60f, 1);
+                        input.release(GameAction.DOWN);
+                    }
+                    advanceMap(1f / 60f, 1);
+                    Screen cur = context.game().getScreen();
+                    String key = context.gameState().currentMapId() + "@" + context.gameState().playerX() + "," + context.gameState().playerY()
+                            + " safari=" + safari.inProgress + " msg=" + context.messageService().visible();
+                    if (!key.equals(last)) {
+                        last = key;
+                        System.out.println("flow " + i + " " + key);
+                        if (shots < 40) shotMap(String.format(java.util.Locale.ROOT, "%s-%02d", args[2], shots++));
+                    }
+                    if (i > 60 && i % 20 == 10 && context.messageService().visible()) {
+                        if (no && i % 40 == 10) stepMap(GameAction.DOWN);   // move the choice cursor to the second answer
+                        stepMap(GameAction.CONFIRM);
+                    }
+                }
+                // control check: try to walk left twice and right twice
+                int bx = context.gameState().playerX(), by = context.gameState().playerY();
+                for (GameAction a : new GameAction[] {GameAction.LEFT, GameAction.LEFT, GameAction.RIGHT, GameAction.UP}) {
+                    InputManager input = context.inputManager();
+                    input.beginFrame(); input.press(a); renderMap(); input.endFrame();
+                    for (int f = 0; f < 20; f++) advanceMap(1f / 60f, 1);
+                    input.release(a);
+                    for (int f = 0; f < 10; f++) advanceMap(1f / 60f, 1);
+                    System.out.println("flow control " + a + " -> " + context.gameState().currentMapId() + "@"
+                            + context.gameState().playerX() + "," + context.gameState().playerY());
+                }
+                shotMap(args[2] + "-end");
+                System.out.println("flow end: safari=" + safari.inProgress + " from " + bx + "," + by);
             } else if (args.length > 2 && "boss-event".equals(args[2])) {
                 // map 132 EV010: "要和音箱蟀侠对战吗？" -> 是 -> battleMelodicricket, driven by CONFIRM like a player.
                 mapScreen = new MapScreen(context, 132, 36, 12, 8);
@@ -2500,6 +2670,14 @@ public final class MenuCapture extends ApplicationAdapter {
             System.out.println(((MapScreen) current).activeBattleScreen().debugSprites());
         }
         writeShot(name);
+    }
+
+    private static void dumpGift(String where, pokemon.runtime.pokemon.Pokemon m) {
+        if (m == null || m.species == null || !"GENESECT".equals(m.species.internalName)) return;
+        StringBuilder mv = new StringBuilder();
+        for (pokemon.runtime.pokemon.Pokemon.MoveSlot slot : m.moves) mv.append(slot.move.internalName).append('(').append(slot.move.name).append(") ");
+        System.out.println("GIFT " + where + " " + m.species.internalName + " L" + m.level + " shiny=" + m.shiny + " ability=" + m.ability
+                + " nature=" + (m.nature == null ? null : m.nature.internalName) + " ivs=" + java.util.Arrays.toString(m.ivs) + " moves=" + mv);
     }
 
     private void writeShot(String name) {
