@@ -200,6 +200,39 @@ class EventInterpreterTest {
     }
 
     @Test
+    @DisplayName("\\ch[var,cancel,...] asks after the text and writes the answer to the variable (map 326 prize vendors)")
+    void inlineChoices() {
+        interpreter.start(program(
+                cmd(0, 101, 0, array("你想要哪个奖品？\\ch[1,4,")),
+                cmd(1, 401, 0, array("TM岩石爆击 - 4000代币,TM急速折返 - 3500代币,")),
+                cmd(2, 401, 0, array("TM电网 - 4000代币,不用了]")),
+                cmd(3, 121, 0, array(5, 5, 0))), 1, 5);
+        interpreter.update(0f);
+        for (int i = 0; i < 5 && !messages.choiceMode(); i++) interpreter.update(0f);
+        assertTrue(messages.choiceMode(), "the commands open after the text");
+        assertEquals(4, messages.choices().size);
+        assertEquals("TM急速折返 - 3500代币", messages.choices().get(1));
+        assertFalse(String.join("", messages.lines()).contains("ch["), "the control is not shown");
+        assertFalse(state.switches().get(5), "the event waits for the answer");
+        press(GameAction.DOWN);
+        press(GameAction.CONFIRM);
+        assertEquals(1, state.variables().get(1));
+        assertTrue(state.switches().get(5));
+    }
+
+    @Test
+    @DisplayName("\\ch cancel: cmdIfCancel > 0 answers cmdIfCancel-1")
+    void inlineChoicesCancel() {
+        state.variables().set(1, 9);
+        interpreter.start(program(
+                cmd(0, 101, 0, array("要哪个？\\ch[1,3,甲,乙,不用了]"))), 1, 5);
+        for (int i = 0; i < 6 && !messages.choiceMode(); i++) interpreter.update(0f);
+        assertTrue(messages.choiceMode());
+        press(GameAction.CANCEL);
+        assertEquals(2, state.variables().get(1));
+    }
+
+    @Test
     @DisplayName("choices run only the block of the selected option")
     void choicesRunSelectedBlock() {
         interpreter.start(program(

@@ -155,6 +155,59 @@ public final class RuntimeContext {
      * ({@code Battler_UseMove_SuccessChecks:318-319}, a rank&gt;2 Boss shrugging off
      * a flinch): the battle engine has no audio, so the port is handed this hook.
      */
+    /**
+     * The world {@code getFormOnCreation} (198_Pokemon_Forms) and {@code Events.onWildPokemonCreate} (176) read when a wild
+     * Pokemon is made: {@code pbGetEnvironment} (174_PField_Battles:194-217: the map's Environment, then the tile the
+     * player stands on), {@code pbGetCurrentRegion}, the time of day and the game switches.
+     */
+    private pokemon.runtime.pokemon.FormsOnCreation.World formWorld() {
+        return new pokemon.runtime.pokemon.FormsOnCreation.World() {
+            @Override public int environment() {
+                pokemon.runtime.pokemon.PbsData pbs = pbsData();
+                pokemon.runtime.pokemon.PbsData.Metadata meta = pbs == null ? null : pbs.mapMetadata(gameState.currentMapId());
+                int ret = pokemon.runtime.battle.CaptureCalculator.environmentId(meta == null ? null : meta.environment);
+                if (ret < 0) ret = pokemon.runtime.battle.PBEnvironment.None;                    // :196
+                switch (gameState.fieldGlobals().playerTerrainTag) {                              // :204-215
+                    case pokemon.runtime.field.PBTerrain.GRASS:
+                    case pokemon.runtime.field.PBTerrain.SOOT_GRASS:
+                        return ret == pokemon.runtime.battle.PBEnvironment.Forest
+                                ? pokemon.runtime.battle.PBEnvironment.ForestGrass : pokemon.runtime.battle.PBEnvironment.Grass;
+                    case pokemon.runtime.field.PBTerrain.TALL_GRASS:
+                        return ret == pokemon.runtime.battle.PBEnvironment.Forest
+                                ? pokemon.runtime.battle.PBEnvironment.ForestGrass : pokemon.runtime.battle.PBEnvironment.TallGrass;
+                    case pokemon.runtime.field.PBTerrain.ROCK: return pokemon.runtime.battle.PBEnvironment.Rock;
+                    case pokemon.runtime.field.PBTerrain.SAND: return pokemon.runtime.battle.PBEnvironment.Sand;
+                    case pokemon.runtime.field.PBTerrain.DEEP_WATER:
+                    case pokemon.runtime.field.PBTerrain.WATER: return pokemon.runtime.battle.PBEnvironment.MovingWater;
+                    case pokemon.runtime.field.PBTerrain.STILL_WATER: return pokemon.runtime.battle.PBEnvironment.StillWater;
+                    case pokemon.runtime.field.PBTerrain.PUDDLE: return pokemon.runtime.battle.PBEnvironment.Puddle;
+                    case pokemon.runtime.field.PBTerrain.ICE: return pokemon.runtime.battle.PBEnvironment.Ice;
+                    default: return ret;
+                }
+            }
+
+            @Override public int region() {
+                return new pokemon.runtime.field.EvolutionWorld(RuntimeContext.this).mapRegion();
+            }
+
+            @Override public boolean evening() {
+                return pokemon.runtime.field.PBDayNight.isEvening(java.time.LocalTime.now());
+            }
+
+            @Override public boolean night() {
+                return pokemon.runtime.field.PBDayNight.isNight(java.time.LocalTime.now());
+            }
+
+            @Override public boolean switchOn(int id) {
+                return gameState.switches().get(id);
+            }
+
+            @Override public int playerId() {
+                return gameState.trainer().id;
+            }
+        };
+    }
+
     private void attachBattleAudio(pokemon.runtime.battle.BattlePort port) {
         if (!(port instanceof pokemon.runtime.battle.InteractiveBattlePort)) {
             return;
@@ -701,6 +754,8 @@ public final class RuntimeContext {
         eventInterpreter.attachScreenEffects(screenEffects);
         eventInterpreter.attachInventory(gameState.inventory());
         eventInterpreter.attachRegion(() -> new pokemon.runtime.field.EvolutionWorld(this).mapRegion());
+        eventInterpreter.attachFormWorld(formWorld());
+        pokemon.runtime.pokemon.FormsOnCreation.setDefaultWorld(formWorld());   // every pbNewPkmn (gifts, starters, ...)
         if (database != null) {
             // P0c: the Pokemon construction IR commands need the PBS data.
             eventInterpreter.attachPbs(database.pbs());
@@ -710,6 +765,7 @@ public final class RuntimeContext {
                 () -> database == null ? null : database.pbs(),
                 this::whiteOut, new java.util.Random());
         attachBattleAudio(battlePort);
+        ((pokemon.runtime.battle.InteractiveBattlePort) battlePort).setFormWorld(formWorld());
         eventInterpreter.attachBattlePort(battlePort);
         applyBattleRule();
         eventInterpreter.attachMenuService(menuService);
@@ -777,6 +833,7 @@ public final class RuntimeContext {
         interpreter.attachScreenEffects(screenEffects);
         interpreter.attachInventory(gameState.inventory());
         interpreter.attachRegion(() -> new pokemon.runtime.field.EvolutionWorld(this).mapRegion());
+        interpreter.attachFormWorld(formWorld());
         interpreter.attachScriptIr(scriptIr);
         if (database != null) {
             interpreter.attachPbs(database.pbs());
@@ -787,6 +844,7 @@ public final class RuntimeContext {
                     () -> database == null ? null : database.pbs(),
                     this::whiteOut, new java.util.Random());
             attachBattleAudio(battlePort);
+            ((pokemon.runtime.battle.InteractiveBattlePort) battlePort).setFormWorld(formWorld());
         }
         interpreter.attachBattlePort(battlePort);
         interpreter.attachMenuService(menuService);

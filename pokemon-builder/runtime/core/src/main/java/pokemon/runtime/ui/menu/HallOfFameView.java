@@ -190,15 +190,7 @@ public final class HallOfFameView {
 
     private Texture battlerTexture(MenuAssets a, Pokemon pok) {
         if (pok.egg) {
-            String name = pok.species == null ? "" : pok.species.internalName;
-            int id = pok.species == null ? 0 : pok.species.id;
-            int form = pok.formIndex();
-            for (String candidate : new String[] {name + "egg_" + form, String.format("%03degg_%d", id, form), name + "egg",
-                    String.format("%03degg", id), "egg"}) {
-                Texture t = a.graphic("Battlers", candidate);
-                if (t != null) return t;
-            }
-            return null;
+            return pokemon.runtime.pokemon.BattlerBitmaps.findEgg(pok.species, pok.formIndex(), name -> a.graphic("Battlers", name));
         }
         return EvolutionView.battler(a, pok.species, pok.effectiveGender() == PokemonStats.FEMALE, pok.shiny,
                 pok.superShiny, pok.formIndex());

@@ -475,6 +475,7 @@ public final class SummaryView {
             b.draw(menu, 0f, 0f, w, h);
         }
         if (p.egg) {
+            drawPokemon(b, a, p, h);                     // @sprites["pokemon"].setPokemonBitmap(@pokemon) (:171): the egg picture
             drawPageOneEgg(b, a, f, p, h);
             return;
         }
@@ -1208,6 +1209,7 @@ public final class SummaryView {
         // pbLoadPokemonBitmap's full file order (super shiny, shiny, female, form), as the party screen and battle use;
         // the old shiny-only lookup showed a super shiny Pokemon with its plain shiny picture.
         int form = p.form == null ? 0 : p.form.form;
+        if (p.egg) return BattlerBitmaps.findEgg(p.species, form, name -> a.graphic("Battlers", name));   // 251:11-21
         return BattlerBitmaps.find(p.species, false,
                 p.effectiveGender() == PokemonStats.FEMALE, p.shiny, p.superShiny, form,
                 name -> a.graphic("Battlers", name));

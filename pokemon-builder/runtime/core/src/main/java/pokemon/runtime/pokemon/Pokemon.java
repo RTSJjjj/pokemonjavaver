@@ -197,8 +197,9 @@ public final class Pokemon {
     public void resetMoves(PbsData data) {
         java.util.List<String> moveList = new java.util.ArrayList<>();
         if (species != null) {
-            for (int i = 0; i < species.moves.size; i++) {                    // :451-452 m[0]<=lvl
-                PbsData.LearnMove learn = species.moves.get(i);
+            Array<PbsData.LearnMove> fullMoveList = getMoveList(data);         // :450 self.getMoveList (the form's own list)
+            for (int i = 0; i < fullMoveList.size; i++) {                      // :451-452 m[0]<=lvl
+                PbsData.LearnMove learn = fullMoveList.get(i);
                 if (learn.level <= level) moveList.add(learn.move);
             }
         }
@@ -862,7 +863,7 @@ public final class Pokemon {
     }
 
     /** {@code ability} (197:224-245) for a slot: hidden when the species has one, else the personality's natural slot. */
-    private String abilityForSlot(int slot) {
+    String abilityForSlot(int slot) {
         Array<String> natural = form != null && form.abilities != null ? form.abilities : species.abilities;
         String hidden = form != null && form.hiddenAbility != null ? form.hiddenAbility : species.hiddenAbility;
         int index = slot;

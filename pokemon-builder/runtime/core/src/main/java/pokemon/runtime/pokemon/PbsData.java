@@ -311,6 +311,8 @@ public final class PbsData {
         public boolean shiny;
         public boolean superShiny;
         public int form;
+        /** trainers.txt gave a Form (poke[TPFORM] not nil), 0 included: no getFormOnCreation form then. */
+        public boolean formSet;
         public int happiness = -1;
         public int[] ivs;
         public int[] evs;
@@ -1163,6 +1165,7 @@ public final class PbsData {
                     member.shiny = node2.getBoolean("shiny", false);
                     member.superShiny = node2.getBoolean("superShiny", false);
                     member.form = node2.getInt("form", 0);
+                    member.formSet = child(node2, "form") != null;
                     member.happiness = node2.getInt("happiness", -1);
                     member.ivs = optionalIntArray(child(node2, "ivs"));
                     member.evs = optionalIntArray(child(node2, "evs"));

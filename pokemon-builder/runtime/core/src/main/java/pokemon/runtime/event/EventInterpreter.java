@@ -829,6 +829,7 @@ public final class EventInterpreter {
             collectText(program.current());
             program.advance();
         }
+        takeInlineChoices(rawLines);
         MessageText.Parsed parsed = MessageText.parse(rawLines, state, messageColumns);
         messageLines = parsed.lines;
         messagePage = 0;
@@ -840,10 +841,68 @@ public final class EventInterpreter {
         messagePosition = parsed.position;
         // R6.31: RMXP shows a following Show Choices while the last text page
         // is still on screen, so that page must not wait for its own confirm.
-        choicesFollow = !program.finished()
-                && (program.current().code == 102 || program.current().code == 103);
+        choicesFollow = inlineChoices != null || (!program.finished()
+                && (program.current().code == 102 || program.current().code == 103));
         showMessagePage();
         interpreterState = InterpreterState.WAIT_MESSAGE;
+    }
+
+    /** {@code \ch[var,cancel,choice1,choice2,...]} (071_Messages:1134-1141): the commands shown after the text, or null. */
+    private Array<String> inlineChoices;
+    /** The variable {@code \ch} writes the answer to (0 = none pending). */
+    private int inlineChoiceVariable;
+    /** {@code cmdIfCancel}: > 0 answers cmdIfCancel-1 on B, < 0 answers cmdIfCancel, 0 = B does nothing (:1370-1377). */
+    private int inlineChoiceCancel;
+
+    /**
+     * Takes a {@code \ch[...]} control out of the message (071_Messages:1134-1141 pbCsvPosInt! / pbCsvField!): the text is
+     * shown without it, then {@code $game_variables[cmdvariable] = pbShowCommands(msgwindow, commands, cmdIfCancel)}
+     * (:1270-1272). Without this the vendors of map 326 never asked: variable 1 stayed 0 and the first prize (TM54) was
+     * the answer.
+     */
+    private void takeInlineChoices(Array<String> lines) {
+        inlineChoices = null;
+        StringBuilder joined = new StringBuilder();
+        for (int i = 0; i < lines.size; i++) {
+            if (i > 0) joined.append('\n');
+            joined.append(lines.get(i));
+        }
+        String text = joined.toString();
+        int start = text.indexOf("\\ch[");
+        if (start < 0) return;
+        int end = text.indexOf(']', start);
+        if (end < 0) return;
+        String[] fields = text.substring(start + 4, end).split(",", -1);
+        lines.clear();
+        for (String line : (text.substring(0, start) + text.substring(end + 1)).split("\n", -1)) lines.add(line);
+        if (fields.length < 2) return;
+        try {
+            inlineChoiceVariable = Math.max(1, Integer.parseInt(fields[0].trim()));        // pbCsvPosInt!
+            inlineChoiceCancel = Integer.parseInt(fields[1].trim());                        // pbCsvField!.to_i
+        } catch (NumberFormatException bad) {
+            inlineChoiceVariable = 0;
+            return;
+        }
+        Array<String> commands = new Array<>();
+        for (int i = 2; i < fields.length; i++) {
+            String field = fields[i].trim();                                               // pbCsvField! skips the spaces
+            if (!field.isEmpty()) commands.add(MessageText.clean(field, state));
+        }
+        if (commands.size == 0) {
+            inlineChoiceVariable = 0;
+            return;
+        }
+        inlineChoices = commands;
+    }
+
+    /** The answer of a {@code \ch} window goes to its variable ({@code $game_map.need_refresh = true}, :1271-1272). */
+    private void applyInlineChoice(boolean cancelled) {
+        if (inlineChoiceVariable <= 0) return;
+        int value = cancelled && inlineChoiceCancel < 0 ? inlineChoiceCancel : choiceResult;
+        state.variables().set(inlineChoiceVariable, value);
+        state.touch();
+        inlineChoiceVariable = 0;
+        choiceResult = Integer.MIN_VALUE;
     }
 
     private void collectText(EventCommand command) {
@@ -1137,6 +1196,7 @@ public final class EventInterpreter {
             if (input.wasPressed(GameAction.CONFIRM)) {
                 messages.confirm();
                 choiceResult = messages.selected();
+                applyInlineChoice(false);
                 interpreterState = InterpreterState.RUNNING;
             } else if (input.wasPressed(GameAction.CANCEL)) {
                 int cancelType = messages.cancelType();
@@ -1146,6 +1206,7 @@ public final class EventInterpreter {
                     // cmdIfCancel-1 (a Yes/No question with cancel type 2 answers "No"); the
                     // "When Cancel" branch (403) only matches the RMXP branch value 4.
                     choiceResult = cancelType > 0 ? cancelType - 1 : -1;
+                    applyInlineChoice(true);
                     interpreterState = InterpreterState.RUNNING;
                 }
             }
@@ -1254,7 +1315,13 @@ public final class EventInterpreter {
     private void nextMessagePage() {
         messagePage++;
         if (messagePage * messageLinesPerPage >= messageLines.size) {
-            if (choicesFollow) {
+            if (inlineChoices != null) {
+                // \ch: the commands open over the last page (:1271 pbShowCommands(msgwindow, commands, cmdIfCancel))
+                Array<String> commands = inlineChoices;
+                inlineChoices = null;
+                choiceResult = Integer.MIN_VALUE;
+                messages.showChoices(commands, inlineChoiceCancel > 0 ? inlineChoiceCancel : inlineChoiceCancel < 0 ? 1 : 0);
+            } else if (choicesFollow) {
                 // R6.31: keep the last page visible - the 102 command opens
                 // the choice window on top of it, like RMXP.
                 interpreterState = InterpreterState.RUNNING;
@@ -2076,6 +2143,7 @@ public final class EventInterpreter {
                     public int region() { return regionSupplier.getAsInt(); }
                     public boolean hasItem(String item) { return state.inventory().has(item); }
                     public int mapId() { return mapId; }
+                    public pokemon.runtime.pokemon.FormsOnCreation.World formWorld() { return formWorld; }
                 });
                 break;
             }
@@ -2518,6 +2586,7 @@ public final class EventInterpreter {
                     partner.id = random.nextInt();
                 } while (partner.id == 0);
                 HeadlessBattlePort builder = new HeadlessBattlePort(state.trainer(), () -> pbs, null, random);
+                builder.setFormWorld(formWorld);                                  // getFormOnCreation for a member without a Form
                 for (PbsData.TrainerPokemon member : partnerData.party) {
                     Pokemon pokemon = builder.trainerPokemon(member, pbs);
                     if (pokemon == null) {
@@ -3343,6 +3412,13 @@ public final class EventInterpreter {
 
     private java.util.function.IntSupplier regionSupplier = () -> -1;
 
+    /** What {@code getFormOnCreation} (198_Pokemon_Forms) reads when an egg is made; null = no environment, daytime. */
+    private pokemon.runtime.pokemon.FormsOnCreation.World formWorld;
+
+    public void attachFormWorld(pokemon.runtime.pokemon.FormsOnCreation.World world) {
+        this.formWorld = world;
+    }
+
     /** {@code pbGetCurrentRegion} (253_PSystem_Utilities:840-843) for the Day Care's regional forms. */
     public void attachRegion(java.util.function.IntSupplier supplier) {
         regionSupplier = supplier;
@@ -3475,8 +3551,9 @@ public final class EventInterpreter {
     private void pbGenerateEgg(String speciesName, String text) {
         PbsData.Species species = pbs == null ? null : pbs.species(speciesName);
         if (species == null || state.trainer() == null) return;
+        java.util.Random eggRandom = new java.util.Random();
         Pokemon egg = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, pokemon.runtime.pokemon.DayCare.EGG_LEVEL,
-                state.trainer(), mapId, new java.util.Random());                                      // :284 pbNewPkmn(species, EGG_LEVEL)
+                state.trainer(), mapId, eggRandom);                                                   // :284 pbNewPkmn(species, EGG_LEVEL)
         egg.egg = true;
         egg.name = "Egg";                                                                              // :288
         egg.stepsToHatch = species.stepsToHatch;                                                       // :289-290

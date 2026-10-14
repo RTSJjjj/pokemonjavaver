@@ -201,6 +201,11 @@ public final class DayCare {
         boolean hasItem(String item);
 
         int mapId();
+
+        /** What {@code getFormOnCreation} (198_Pokemon_Forms) reads; null = no environment, daytime, switches off. */
+        default FormsOnCreation.World formWorld() {
+            return null;
+        }
     }
 
     private static boolean has(Pokemon p, String item) {
@@ -306,6 +311,9 @@ public final class DayCare {
         egg.personalID = (rand.nextInt(65536)) | (rand.nextInt(65536) << 16);          // :230-232
         egg.ivs = new int[6];
         egg.nature = WildGenerator.natureOf(pbs, egg);
+        // :228 pbNewPkmn -> PokeBattle_Pokemon.new runs getFormOnCreation (198_Pokemon_Forms:43-47); the parents' forms
+        // below override it for the species that inherit one. Read after the personal ID, so a gender form matches the egg.
+        FormsOnCreation.apply(egg, pbs, trainer, world.formWorld(), rand);
         // Inheriting form (:233-244)
         if (in(name, "BURMY", "SHELLOS", "BASCULIN", "FLABEBE", "PUMPKABOO", "ROCKRUFF", "MINIOR")) {
             int newForm = mother.formIndex();

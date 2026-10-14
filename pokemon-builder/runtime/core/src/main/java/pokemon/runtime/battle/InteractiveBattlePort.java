@@ -138,7 +138,15 @@ public final class InteractiveBattlePort implements BattlePort {
         factory.setObtainMap(obtainMap);
         factory.setFatefulEncounter(fatefulEncounter);
         factory.setElite(safariSource == null || safariSource.getAsInt() < 0);   // the elite roll only outside the Safari Zone
+        factory.setFormWorld(formWorld);
         return factory;
+    }
+
+    /** What the wild Pokemon's {@code getFormOnCreation} / {@code onWildPokemonCreate} read off the world. */
+    private pokemon.runtime.pokemon.FormsOnCreation.World formWorld;
+
+    public void setFormWorld(pokemon.runtime.pokemon.FormsOnCreation.World value) {
+        this.formWorld = value;
     }
 
     /** {@code $game_map.map_id} for a battle started by an event. */

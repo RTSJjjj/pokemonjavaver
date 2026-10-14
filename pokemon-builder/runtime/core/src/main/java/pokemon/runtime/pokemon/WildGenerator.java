@@ -34,6 +34,10 @@ public final class WildGenerator {
     private static final int[] SUPER_LUCK_CHANCES = {50, 50, 50};
     /** PokeBattle_Pokemon:287 {@code @personalID % 25}. */
     private static final int NATURE_COUNT = 25;
+    /** 000_Settings:319 {@code SHINY_WILD_POKEMON_SWITCH}. */
+    private static final int SHINY_WILD_POKEMON_SWITCH = 31;
+    /** 176_PField_EncounterModifiers:16: switch 36 turns every wild Pokemon into form 1. */
+    private static final int WILD_FORM_SWITCH = 36;
 
     private WildGenerator() {
     }
@@ -62,6 +66,17 @@ public final class WildGenerator {
     public static Pokemon generate(PbsData data, PbsData.Species species, int level,
                                    TrainerState trainer, Inventory bag, int mapId,
                                    boolean fatefulEncounter, boolean elite, Random random) {
+        return generate(data, species, level, trainer, bag, mapId, fatefulEncounter, elite, null, random);
+    }
+
+    /**
+     * @param world what {@code getFormOnCreation} (198_Pokemon_Forms) and {@code Events.onWildPokemonCreate}
+     *              (176_PField_EncounterModifiers) read: the environment, the region, the time and the switches; null =
+     *              none of them (no environment, region 0, daytime, every switch off)
+     */
+    public static Pokemon generate(PbsData data, PbsData.Species species, int level,
+                                   TrainerState trainer, Inventory bag, int mapId,
+                                   boolean fatefulEncounter, boolean elite, FormsOnCreation.World world, Random random) {
         if (data == null || species == null) {
             return null;
         }
@@ -90,6 +105,7 @@ public final class WildGenerator {
         pokemon.obtainLevel = level;                                     // :953
         pokemon.obtainMode = fatefulEncounter ? 4 : 0;                   // :954-955
         pokemon.hp = pokemon.maxHp();                                    // :960
+        FormsOnCreation.apply(pokemon, data, trainer, world, source);    // 198_Pokemon_Forms:43-47 getFormOnCreation
 
         Pokemon lead = trainer == null ? null : trainer.first();
 
@@ -149,13 +165,23 @@ public final class WildGenerator {
         }
 
         // --- the lazy derivations, from the final personal id (166-288) ---
-        pokemon.ability = hiddenAbility ? hiddenAbility(species) : naturalAbility(species, pokemon);
+        // the form's ability table when the Pokemon was made in another form (getFormOnCreation)
+        pokemon.ability = pokemon.abilityForSlot(hiddenAbility ? 2 : (pokemon.personalID & 1));
         if (pokemon.nature == null) {
             pokemon.nature = natureOf(data, pokemon);
         }
         pokemon.shiny = shinyFlag != null ? shinyFlag : Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
         pokemon.superShiny = pokemon.shiny && superFlag;                  // PokeBattle_Pokemon:335-339 superShiny?
         pokemon.hp = pokemon.maxHp();                                    // :254 calcStats (a full-HP Pokemon stays full)
+        // Events.onWildPokemonCreate (343:308 -> 176_PField_EncounterModifiers:9-18)
+        if (world != null && world.switchOn(SHINY_WILD_POKEMON_SWITCH)) {   // :11-14 makeShiny, makeSuperShiny
+            pokemon.shiny = true;
+            pokemon.superShiny = true;
+        }
+        if (world != null && world.switchOn(WILD_FORM_SWITCH)) {          // :15-17 形态: pokemon.form = 1
+            pokemon.setForm(data, 1);
+            pokemon.hp = pokemon.maxHp();                                // form= -> calcStats
+        }
         return pokemon;
     }
 
@@ -194,6 +220,9 @@ public final class WildGenerator {
         pokemon.nature = natureOf(data, pokemon);
         pokemon.shiny = Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
         pokemon.hp = pokemon.maxHp();                                    // :960
+        // 198_Pokemon_Forms:43-47: PokeBattle_Pokemon.new ends with getFormOnCreation - gifts, starters, Boss Pokemon,
+        // trades, eggs and trainers' Pokemon are made here, so all of them get it (a form set afterwards still wins).
+        FormsOnCreation.apply(pokemon, data, trainer, FormsOnCreation.defaultWorld(), source);
         return pokemon;
     }
 

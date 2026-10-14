@@ -245,10 +245,15 @@ public final class TradeSceneView {
         }
         assetsLoaded = true;
         background = a.graphic("Pictures", "tradebg");                       // :36 addBackgroundOrColoredPlane "tradebg"
-        texture1 = EvolutionView.battler(a, mine.species, mine.effectiveGender() == pokemon.runtime.pokemon.PokemonStats.FEMALE,
-                mine.shiny, mine.superShiny, mine.formIndex());                // super shiny / female pictures included
-        texture2 = EvolutionView.battler(a, yours.species, yours.effectiveGender() == pokemon.runtime.pokemon.PokemonStats.FEMALE,
-                yours.shiny, yours.superShiny, yours.formIndex());
+        texture1 = tradeBattler(a, mine);
+        texture2 = tradeBattler(a, yours);
+    }
+
+    /** pbLoadPokemonBitmap: an egg is traded as the egg picture (251:11-21), anything else with its shiny / female / form picture. */
+    private static Texture tradeBattler(MenuAssets a, Pokemon p) {
+        if (p.egg) return pokemon.runtime.pokemon.BattlerBitmaps.findEgg(p.species, p.formIndex(), name -> a.graphic("Battlers", name));
+        return EvolutionView.battler(a, p.species, p.effectiveGender() == pokemon.runtime.pokemon.PokemonStats.FEMALE,
+                p.shiny, p.superShiny, p.formIndex());                         // super shiny / female pictures included
     }
 
     public void render(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin) {

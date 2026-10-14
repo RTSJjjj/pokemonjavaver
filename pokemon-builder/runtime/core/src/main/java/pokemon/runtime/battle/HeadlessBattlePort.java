@@ -137,7 +137,14 @@ public final class HeadlessBattlePort implements BattlePort {
      */
     public Pokemon wildPokemon(PbsData.Species species, int level, PbsData data) {
         return pokemon.runtime.pokemon.WildGenerator.generate(data, species, level, trainer,
-                bag, obtainMap, fatefulEncounter, elite, random);
+                bag, obtainMap, fatefulEncounter, elite, formWorld, random);
+    }
+
+    /** The environment / region / time / switches the wild Pokemon's form procs read (198_Pokemon_Forms); may be null. */
+    private pokemon.runtime.pokemon.FormsOnCreation.World formWorld;
+
+    public void setFormWorld(pokemon.runtime.pokemon.FormsOnCreation.World value) {
+        this.formWorld = value;
     }
 
     /** False while the Safari Zone is open: no "elite" wild Pokemon (343_ChainCatching:222-227). */
@@ -189,6 +196,9 @@ public final class HeadlessBattlePort implements BattlePort {
         int level = Math.max(1, member.level);
         Pokemon pokemon = WildGenerator.pbNewPkmn(data, species, level, null, 0, random);   // :83 pbNewPkmn(species,level,opponent,false)
         PbsData.TrainerType type = trainerData == null || trainerData.type == null ? null : data.trainerTypes.get(trainerData.type);
+        if (member.formSet) {                                                               // :84-87 formSimple = poke[TPFORM]
+            pokemon.setForm(data, member.form);                                             // (pbNewPkmn already ran getFormOnCreation)
+        }
         if (member.item != null) {                                                          // :88
             pokemon.item = member.item;
         }
@@ -203,7 +213,7 @@ public final class HeadlessBattlePort implements BattlePort {
         } else {
             pokemon.resetMoves(data);
         }
-        applyAbility(pokemon, member.ability == null ? "0" : member.ability, species);      // :96 setAbility(poke[TPABILITY] || 0)
+        applyAbility(pokemon, member.ability == null ? "0" : member.ability);               // :96 setAbility(poke[TPABILITY] || 0)
         if (member.gender != null) {                                                        // :97-98 setGender
             pokemon.gender = "female".equalsIgnoreCase(member.gender) ? PokemonStats.FEMALE : PokemonStats.MALE;
         } else {
@@ -235,6 +245,17 @@ public final class HeadlessBattlePort implements BattlePort {
         if (member.happiness >= 0) {                                                        // :114
             pokemon.happiness = member.happiness;
         }
+        if (member.ball != null) {                                                          // :120 ballused = poke[TPBALL]
+            try {
+                pokemon.ballused = Integer.parseInt(member.ball.trim());
+            } catch (NumberFormatException notANumber) {
+                // a ball given by name is not a TPBALL value; the default ball stays
+            }
+        }
+        if (member.superShiny) {                                                            // :121-123 makeSuperShiny
+            pokemon.shiny = true;
+            pokemon.superShiny = true;
+        }
         pokemon.hp = pokemon.maxHp();                                                       // :125 calcStats
         return pokemon;
     }
@@ -244,16 +265,14 @@ public final class HeadlessBattlePort implements BattlePort {
         return type != null && type.fields != null && type.fields.size > 2 && "Female".equalsIgnoreCase(type.fields.get(2));
     }
 
-    private static void applyAbility(Pokemon pokemon, String ability, PbsData.Species species) {
+    private static void applyAbility(Pokemon pokemon, String ability) {
         if (ability == null) {
             return;
         }
         try {
             int index = Integer.parseInt(ability.trim());
-            if (index >= 0 && index < species.abilities.size) {
-                pokemon.ability = species.abilities.get(index);
-            } else if (index == 2) {
-                pokemon.ability = species.hiddenAbility;
+            if (index >= 0 && index <= 2) {
+                pokemon.setAbilitySlot(index);                                             // setAbility(index): the form's own table
             }
         } catch (NumberFormatException notAnIndex) {
             pokemon.ability = ability;

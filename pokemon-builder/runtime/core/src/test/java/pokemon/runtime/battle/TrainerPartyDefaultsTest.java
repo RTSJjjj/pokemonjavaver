@@ -91,6 +91,46 @@ class TrainerPartyDefaultsTest {
     }
 
     @Test
+    @DisplayName("a Form from trainers.txt is used, with the form's abilities, moves and stats; SuperShiny and Ball too")
+    void form(@TempDir Path dir) {
+        PbsData data = data(dir);
+        PbsData.Move move = new PbsData.Move();
+        move.internalName = "FORMMOVE";
+        move.name = "形态招式";
+        move.pp = 10;
+        data.moves.put(move.internalName, move);
+        PbsData.SpeciesForm form = new PbsData.SpeciesForm();
+        form.species = "TEST";
+        form.form = 2;
+        form.key = "TEST_2";
+        form.baseStats = new int[] {100, 50, 50, 50, 50, 50};
+        form.abilities = new com.badlogic.gdx.utils.Array<>();
+        form.abilities.add("FORMABILITY");
+        form.moves = new com.badlogic.gdx.utils.Array<>();
+        PbsData.LearnMove learn = new PbsData.LearnMove();
+        learn.level = 1;
+        learn.move = "FORMMOVE";
+        form.moves.add(learn);
+        data.forms.put(form.key, form);
+        HeadlessBattlePort port = new HeadlessBattlePort(new TrainerState(), () -> data, null, new Random(1));
+        PbsData.TrainerPokemon member = new PbsData.TrainerPokemon();
+        member.species = "TEST";
+        member.level = 40;
+        member.form = 2;
+        member.formSet = true;
+        member.superShiny = true;
+        member.ball = "4";
+        Pokemon pokemon = port.trainerPokemon(trainer(), member, data);
+        assertEquals(2, pokemon.formIndex(), ":86 formSimple = poke[TPFORM]");
+        assertEquals("FORMABILITY", pokemon.ability, ":96 setAbility(0) reads the form's table");
+        assertEquals("FORMMOVE", pokemon.moves.get(0).move.internalName, ":94 resetMoves: the form's list");
+        assertEquals(pokemon.maxHp(), pokemon.hp);
+        assertEquals(100, pokemon.baseStat(0));
+        assertTrue(pokemon.shiny && pokemon.superShiny, ":121-123 makeSuperShiny");
+        assertEquals(4, pokemon.ballused, ":120 ballused = poke[TPBALL]");
+    }
+
+    @Test
     @DisplayName("two Pokemon of the same trainer get different personal ids")
     void personalIds(@TempDir Path dir) {
         PbsData data = data(dir);

@@ -57,4 +57,19 @@ public final class BattlerBitmaps {
         }
         return null;
     }
+
+    /**
+     * {@code pbLoadPokemonBitmapSpecies} for an egg (251_PSystem_FileUtilities:11-21): {@code <SPECIES>egg_<form>},
+     * {@code <id>egg_<form>}, {@code <SPECIES>egg}, {@code <id>egg}, then the plain {@code egg}.
+     */
+    public static <T> T findEgg(PbsData.Species species, int form, Function<String, T> lookup) {
+        String name = species == null ? "" : species.internalName;
+        int id = species == null ? 0 : species.id;
+        for (String candidate : new String[] {name + "egg_" + form, String.format("%03degg_%d", id, form), name + "egg",
+                String.format("%03degg", id), "egg"}) {
+            T found = lookup.apply(candidate);
+            if (found != null) return found;
+        }
+        return null;
+    }
 }
