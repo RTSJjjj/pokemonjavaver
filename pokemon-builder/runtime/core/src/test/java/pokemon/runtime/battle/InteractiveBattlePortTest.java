@@ -47,6 +47,24 @@ class InteractiveBattlePortTest {
         mine.syncHp();
         assertEquals("", trainer.first().status, "syncHp must not write the old status back");
     }
+    @Test void etherRestoresTheChosenMovesPp() {
+        medicine("ETHER");
+        port.freeWildBattle(pokemon(20));
+        Pokemon.MoveSlot slot = trainer.first().moves.get(0);
+        slot.pp = 3;
+        assertFalse(port.session().item("ETHER", 0), "no move chosen");
+        assertTrue(port.session().item("ETHER", 0, 0));
+        assertEquals(13, slot.pp);
+        assertFalse(bag.has("ETHER"));
+    }
+    @Test void elixirFailsWhenNothingToRestore() {
+        medicine("MAXELIXIR");
+        port.freeWildBattle(pokemon(20));
+        assertFalse(port.session().item("MAXELIXIR", 0));
+        trainer.first().moves.get(0).pp = 1;
+        assertTrue(port.session().item("MAXELIXIR", 0));
+        assertEquals(trainer.first().moves.get(0).totalPp(), trainer.first().moves.get(0).pp);
+    }
     @Test void fullHealCuresConfusionAlone() {
         medicine("FULLHEAL");
         port.freeWildBattle(pokemon(20));
@@ -84,6 +102,20 @@ class InteractiveBattlePortTest {
         assertTrue(trainer.party.contains(foe)); assertTrue(trainer.owned.contains("A"));
         assertTrue(steps.stream().anyMatch(step -> step.dex != null), "a new species opens its Pokedex page");
         assertTrue(port.pending()); port.finish(); assertFalse(port.pending());
+    }
+    @Test void bossCaughtMidMoveEndsAsACapture() {
+        // pbCatchBossPokemon (PokeBattle_BOSS:157-187) catches the Boss inside pbFaint; the pbJudge after the move
+        // (Battler_UseMove:62) turns @decision 4 into 1, which pbEndOfBattle (Battle_StartAndEnd:446) turns back into 4.
+        bag.add("MASTERBALL", 1); Pokemon foe = pokemon(10); foe.battleRank = 4; port.freeWildBattle(foe);
+        port.session().battle.foe().setHp(1);
+        port.session().chooseMove(0);
+        for (int guard = 0; port.session().suspended() && guard < 10; guard++) {
+            Battle.SceneCall call = port.session().request();
+            if (call.kind == Battle.SceneCall.Kind.CONFIRM) port.session().answer(true);
+            else if (call.kind == Battle.SceneCall.Kind.CHOOSE_BALL) port.session().answer("MASTERBALL");
+            else port.session().answer(null);
+        }
+        assertEquals(BattleResult.Outcome.CAUGHT, port.session().result.outcome);
     }
     @Test void switchingUsesATurnAndProtectsFaintedOrActiveTargets() {
         trainer.party.add(pokemon(20)); port.freeWildBattle(pokemon(20));

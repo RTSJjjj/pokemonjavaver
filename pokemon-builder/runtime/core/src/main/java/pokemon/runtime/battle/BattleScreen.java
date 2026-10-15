@@ -504,6 +504,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** The current {@code Stage} name. */
     public String debugStage() { return stage.name(); }
+    /** The sprite file id the battler at {@code idx} is drawn with now (capture tool), or "-". */
+    public String debugSpriteOf(int idx) {
+        Battler b = session == null ? null : session.battle.battlerAt(idx);
+        return b == null || b.pokemon == null ? "-" : battlerSpriteId(b.pokemon, (idx & 1) == 0);
+    }
 
     /** PokeBattle_Scene's window constant (0 BLANK / 1 MESSAGE / 2 COMMAND / 3 FIGHT). */
     public int debugWindow() { return window; }
@@ -959,7 +964,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         if (context.audioManager() == null) {
             return null;
         }
-        int form = pokemon.form == null ? 0 : pokemon.form.form;                // :525
+        Integer held = heldForm.get(pokemon);                                   // the faint cry plays before the form goes back
+        int form = held != null ? held : (pokemon.form == null ? 0 : pokemon.form.form);   // :525
         return context.audioManager().resolveCryFile(pokemon.species.id,
                 pokemon.species.internalName, form);
     }
@@ -1348,6 +1354,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
 
     /** {@code @battle.pbMegaEvolve}'s Pokemon whose sprite still shows its old form: Pokemon -> form. */
     private final java.util.IdentityHashMap<Pokemon, Integer> heldForm = new java.util.IdentityHashMap<>();
+    /** The Pokemon whose pre-faint form is held, by the battler index of its FAINT event. */
+    private final java.util.Map<Integer, Pokemon> faintHeldForms = new java.util.HashMap<>();
     private MegaEvolutionScene megaScene;
     private int megaSceneBattler = -1;
     /** The Pokemon that is Mega Evolving in the running scene (the position may hold another one by the time it plays). */
@@ -1883,6 +1891,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private PartyView itemParty;
     private String itemPartyItem;
     private int itemPartyResult = -1;
+    /** The move an Ether restores (Scene_Commands:310-313 {@code idxMove}), or -1. */
+    private int bagMove = -1;
 
     private void openItemParty(String item) {
         final int[] order = playerDisplayOrder();
@@ -1890,6 +1900,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         final int useType = data == null ? 1 : data.battleUse;
         itemPartyItem = item;
         itemPartyResult = -1;
+        bagMove = -1;
         if ((useType == 1 || useType == 6) && order.length == 1) {   // :276-279 the only Pokemon is used at once
             itemPartyResult = order[0];
             finishItemParty();
@@ -1910,9 +1921,11 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                     continue;                                       // :308 next if !pkmn || pkmn.egg?
                 }
                 if (useType == 2 || useType == 7) {                  // :310-313 an Ether asks for the move
-                    if (scene.pbChooseMove(pkmn, "要回复哪个招式？") < 0) {
+                    int move = scene.pbChooseMove(pkmn, "要回复哪个招式？");
+                    if (move < 0) {
                         continue;
                     }
+                    bagMove = move;
                 }
                 chosen[0] = real;
                 break;
@@ -1942,9 +1955,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             return;
         }
         if (bagItem != null) {
-            if (!session.item(bagItem, Math.max(0, bagTarget))) session.message = "现在无法使用这个道具。";
+            if (!session.item(bagItem, Math.max(0, bagTarget), bagMove)) session.message = "现在无法使用这个道具。";
             queueSessionEvents();
-            bagItem = null; bagTarget = -1;
+            bagItem = null; bagTarget = -1; bagMove = -1;
         }
         go(0);
     }
@@ -2140,6 +2153,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
      */
     private void queueSessionEvents() {
         com.badlogic.gdx.utils.Array<Battle.RoundEvent> events = session.takeEvents();
+        for (java.util.Map.Entry<Pokemon, Integer> end : session.battle.endFormHold.entrySet()) {
+            if (!heldForm.containsKey(end.getKey())) heldForm.put(end.getKey(), end.getValue());   // until the screen closes
+        }
         if (events.size == 0) {
             pushMessages(session.message);
             return;
@@ -2163,6 +2179,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 if (changed != null && event.oldLook != null && !heldLook.containsKey(changed)) {
                     heldLook.put(changed, event.oldLook);
                 }
+            } else if (event.kind == Battle.RoundEvent.Kind.FAINT && event.pokemon != null && event.formBefore >= 0) {
+                if (!heldForm.containsKey(event.pokemon)) heldForm.put(event.pokemon, event.formBefore);   // released after the faint
             } else if (event.kind == Battle.RoundEvent.Kind.MEGA_SCENE
                     || event.kind == Battle.RoundEvent.Kind.CHANGE_POKEMON) {
                 // The engine already changed the form; the sprite keeps showing the old one until the event plays.
@@ -2699,7 +2717,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         int idxBattler = actingIndex();
         PbsData.Item data = context.pbsData().item(id);
         boolean ball = data != null && data.isPokeBall();
-        if (!session.commandItem(id, target, idxBattler, idxTarget)) {
+        int idxMove = bagMove;
+        bagMove = -1;
+        if (!session.commandItem(id, target, idxBattler, idxTarget, idxMove)) {
             session.message = "现在无法使用这个道具。";
             queueSessionEvents();
             go(0);
@@ -3119,6 +3139,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
                 return;
             case FAINT:
                 // Battler_ChangeSelf:73 @battle.scene.pbFaintBattler(self)
+                if (event.pokemon != null && event.formBefore >= 0) faintHeldForms.put(event.idxBattler, event.pokemon);
                 beginFaintBattler(event.idxBattler);
                 return;
             case ANIMATION:
@@ -3766,7 +3787,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             faintPhase = 1;
             return;
         }
-        faintQueue.poll();                                         // :310-311 dispose
+        Pokemon fainted = faintHeldForms.remove(faintQueue.poll());  // :310-311 dispose
+        if (fainted != null) heldForm.remove(fainted);             // :87-89 the form goes back once the sprite is gone
         faintPhase = 0;
         if (faintQueue.isEmpty()) {
             resumeRound();

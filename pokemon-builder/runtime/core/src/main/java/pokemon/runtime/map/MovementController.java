@@ -78,7 +78,13 @@ public final class MovementController {
                 if (!mover.tryStep(character, direction) || !character.isMoving()) break;
                 moved = true;
             }
+            boolean stepping = character.isMoving();
             remaining = character.advance(remaining);
+            // RMXP moves the player at most one tile per frame and checks the touch events of a tile on its landing
+            // frame (Game_Player#update_event_triggering). Chaining the next step with the frame's leftover time
+            // walked the player off a stair event's tile before it started, so the event's diagonal step began from
+            // the wrong tile (into walls) depending on the frame timing.
+            if (stepping && !character.isMoving() && mover.stopsAt(character)) break;
         }
         movedLastFrame = moved || character.isMoving();
     }
@@ -109,5 +115,10 @@ public final class MovementController {
     /** One attempted step; returns true when the character started moving. */
     public interface StepMover {
         boolean tryStep(MapCharacter character, int direction);
+
+        /** True when a step that landed here must end this frame's movement (an event triggers on the tile). */
+        default boolean stopsAt(MapCharacter character) {
+            return false;
+        }
     }
 }

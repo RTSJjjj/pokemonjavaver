@@ -13,8 +13,8 @@
 //   [$game_switches[196] = false]
 //   return decision==N
 // The parser accepts exactly those statements and throws on anything else, so nothing is silently dropped.
-// `battleBoss(species,level,rank)` is not a def of that shape: it calls changeEVandNature / pbRandomIV, which are
-// not part of the exported sections, so it is reported and left out.
+// `battleBoss(species,level,rank)` is not a def of that shape: the generated class matches its calls by pattern
+// (BossBattleData#find -> battleBoss), so the def itself is reported as not transcribed and left out of the table.
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -144,8 +144,7 @@ import java.util.Map;
  * [$game_switches[196] = false]
  * return decision==N                                -> decision
  * </pre>
- * Not transcribed: \`battleBoss(species,level,rank)\` (319:5-31) calls changeEVandNature and pbRandomIV, which are in
- * none of the exported sections.
+ * The generic \`battleBoss(species,level,rank)\` (319:5-31) is parsed from the condition by {@link #find}.
  */
 final class BossBattleData {
 
@@ -192,7 +191,30 @@ final class BossBattleData {
     private static final Map<String, Entry> BY_NAME = new HashMap<>();
 
     static Entry find(String name) {
-        return BY_NAME.get(name);
+        Entry entry = BY_NAME.get(name);
+        return entry != null ? entry : battleBoss(name);
+    }
+
+    private static final java.util.regex.Pattern BATTLE_BOSS = java.util.regex.Pattern.compile(
+            "battleBoss\\\\(\\\\s*:([A-Za-z0-9_]+)\\\\s*(?:,\\\\s*(\\\\d+)\\\\s*)?(?:,\\\\s*(\\\\d+)\\\\s*)?\\\\)");
+
+    /**
+     * {@code battleBoss(species, level=100, rank=3)} (319:5-31), the generic boss def: the lazy-dog skip, 1-3 v 1,
+     * canlose / noexp, battleRank, {@code pbRandomIV(rank-1)}, changeEVandNature, and {@code return decision==4}
+     * (only a capture counts). The {@code rand(65536)<64} shiny roll (:17-20) is left out: {@code makeNotShiny}
+     * (:24) undoes it, and {@code superShiny?} is false for a Pokemon that is not shiny.
+     */
+    private static Entry battleBoss(String script) {
+        java.util.regex.Matcher m = BATTLE_BOSS.matcher(script == null ? "" : script.trim());
+        if (!m.matches()) return null;
+        int level = m.group(2) == null ? 100 : Integer.parseInt(m.group(2));
+        int rank = m.group(3) == null ? 3 : Integer.parseInt(m.group(3));
+        return new Entry("battleBoss", 5, true, false, new int[] { 1, 1, 2, 3, 3, 3, 3 }, m.group(1), level, 4,
+                op("battleRank", rank),                                         // :21
+                op("randomIV", rank - 1),                                       // :22
+                op("changeEVandNature"),                                        // :23
+                op("makeNotShiny"),                                             // :24
+                op("calcStats"));                                               // :25
     }
 
     private static Op op(String name) {

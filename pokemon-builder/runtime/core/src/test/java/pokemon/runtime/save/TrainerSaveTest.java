@@ -48,6 +48,43 @@ class TrainerSaveTest {
     }
 
     @Test
+    @DisplayName("the registered partner ($PokemonGlobal.partner) survives a round trip")
+    void partnerRoundTrip(@TempDir Path tempDir) throws Exception {
+        PbsData data = PbsData.parse(syntheticPbs(tempDir));
+        SaveManager saves = new SaveManager();
+        saves.attachPbs(data);
+        GameState original = new GameState();
+        original.enterMap(3, 2, 2);
+        GameState.Partner partner = new GameState.Partner();
+        partner.trainerType = "RIVAL";
+        partner.name = "伊紫";
+        partner.id = 31337;
+        Pokemon member = new Pokemon(data.species("BULBASAUR"), 20, data);
+        member.setTrainerID(31337);
+        member.originalTrainer = "伊紫";
+        partner.party.add(member);
+        original.partner(partner);
+
+        GameState restored = new GameState();
+        assertTrue(saves.fromJson(saves.toJson(original), restored));
+        GameState.Partner loaded = restored.partner();
+        assertNotNull(loaded);
+        assertEquals("RIVAL", loaded.trainerType);
+        assertEquals("伊紫", loaded.name);
+        assertEquals(31337, loaded.id);
+        assertEquals(1, loaded.party.size);
+        assertEquals(20, loaded.party.get(0).level);
+        assertEquals(31337, loaded.party.get(0).trainerID);
+
+        GameState none = new GameState();
+        none.enterMap(3, 2, 2);
+        GameState reloaded = new GameState();
+        reloaded.partner(partner);
+        assertTrue(saves.fromJson(saves.toJson(none), reloaded));
+        assertNull(reloaded.partner());
+    }
+
+    @Test
     @DisplayName("P1: party, PC storage, money and the heal point survive a round trip")
     void roundTrip(@TempDir Path tempDir) throws Exception {
         PbsData data = PbsData.parse(syntheticPbs(tempDir));

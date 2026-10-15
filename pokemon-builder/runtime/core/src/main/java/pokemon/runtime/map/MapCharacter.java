@@ -396,6 +396,12 @@ public final class MapCharacter {
      *
      * @param delta seconds since the previous frame
      */
+    /** RGSS {@code Game_Character#straighten}: back to the standing column. */
+    public void straighten() {
+        pattern = basePattern;
+        animeCount = 0f;
+    }
+
     public void updateAnimation(float delta) {
         boolean moving = isMoving();
         float frames = Math.max(0f, delta) * 40f; // RGSS counts frames at 40 fps

@@ -324,8 +324,8 @@ public final class MapScreen extends ScreenAdapter {
         locator = new GraphicsLocator(database);
         renderer = new MapRenderer(tileMap, textures, locator, gameState);
         interpreter = context.eventInterpreter();
-        if (interpreter != null) {
-            interpreter.stop(); // a transfer or a fresh screen never resumes an old event
+        if (interpreter != null && !interpreter.continueOnNewMap(mapData.mapId)) {
+            interpreter.stop(); // a fresh screen never resumes an old event; a transfer's event goes on (switchMap)
         }
         if (interpreter != null) {
             messageWindow = new MessageWindow(context.messageService(),
@@ -766,7 +766,23 @@ public final class MapScreen extends ScreenAdapter {
         // player tile for codes 10/11/25/26 and autonomous movement.
         routeContext = new MapRouteContext(gameState, tileMap, mapData, player,
                 this::playerStep, context.audioManager(), context.game()::log);
-        stepMover = (character, stepDirection) -> playerStep(character, stepDirection);
+        stepMover = new MovementController.StepMover() {
+            @Override
+            public boolean tryStep(MapCharacter character, int stepDirection) {
+                return playerStep(character, stepDirection);
+            }
+
+            @Override
+            public boolean stopsAt(MapCharacter character) {
+                if (pokemon.runtime.field.PBTerrain.isIce(tileMap.terrainTag(character.x(), character.y(), false, gameState.bridge()))) {
+                    return true;                                            // the slide starts from this tile
+                }
+                return EventTriggers.pageAt(gameState, mapData, character.x(), character.y(),
+                        EventTriggers.PLAYER_TOUCH) != null
+                        || EventTriggers.pageAt(gameState, mapData, character.x(), character.y(),
+                        EventTriggers.EVENT_TOUCH) != null;
+            }
+        };
         followers = new FollowerController(gameState, tileMap, mapData, player, followerHost());
         followers.bind(tileMap, mapData, true);
         bindEntities(baseEntities(), locator);
@@ -1020,6 +1036,9 @@ public final class MapScreen extends ScreenAdapter {
         if (berryPlants != null && berryPlants.update()) {
             bindEntities(baseEntities(), locator);
         }
+        int frameStartX = player.x();
+        int frameStartY = player.y();
+        boolean inputStepped = false;
         if (playerRoute != null && routeContext != null) {
             playerRoute.update(delta, player, routeContext);
             if (playerRoute.finished()) {
@@ -1075,7 +1094,12 @@ public final class MapScreen extends ScreenAdapter {
             blockedStep = false;
             movement.runStyle = context.settings().runstyle;
             movement.runToggle(gameState.fieldGlobals().runToggle);          // inherited from the previous map
-            movement.update(context.inputManager(), delta, player, stepMover);
+            if (iceSliding) {
+                updateIceSlide(delta);                                       // pbSlideOnIce: the keys do nothing
+            } else {
+                movement.update(context.inputManager(), delta, player, stepMover);
+            }
+            inputStepped = true;
             gameState.fieldGlobals().runToggle = movement.runToggle();
             // P0d: a jump's tile changed when it started; its step triggers
             // run on the landing frame (Game_Character:833 requires !jumping?).
@@ -1091,8 +1115,13 @@ public final class MapScreen extends ScreenAdapter {
                     startOwnTileTouch();                     // Player Touch: arrived
                     checkEventTouch();                       // Event Touch: same tile
                     checkSightTriggers();                    // L6b: Trainer(N)/Counter(N) sight
+                    startIceSlide();                         // 170:349-350 onStepTakenFieldMovement: ice
+                    descendWaterfall();                      // 170:345-348 onStepTakenFieldMovement: waterfall crest
                 } else {
-                    boolean touched = startBlockedTouchEvent(); // Player Touch: walked into it
+                    // Player Touch: walked into it - only when this frame's step was refused (Game_Player#move_generic
+                    // calls check_event_trigger_touch in the else of `if passable?`). Checking every still frame
+                    // started the stair event in front while the step onto its tile was still sliding (map 40).
+                    boolean touched = blockedStep && startBlockedTouchEvent();
                     // Game_Player#move_generic:84-88: only a step blocked by an
                     // obstacle without a touch event plays the bump SE.
                     if (blockedStep && !touched) {
@@ -1109,6 +1138,13 @@ public final class MapScreen extends ScreenAdapter {
         if (scriptDriven && player.isMoving()) {
             player.advance(delta);
             gameState.setPlayerPosition(player.x(), player.y(), player.direction());
+        }
+        if (!inputStepped && (player.x() != frameStartX || player.y() != frameStartY)) {
+            // A step a move route made (the stair events: Through, one diagonal step) ends while the event is still
+            // running, so RMXP's check_event_trigger_here does nothing on that tile (the interpreter is running). Without
+            // this the standing-still fallback of startOwnTileTouch started the next stair event and pushed the hero
+            // onto a wall tile (map 40 / 月央市 stairs).
+            latchOwnTouchTile();
         }
         playerWasJumping = player.isJumping();
         updateFollowers(delta, false);
@@ -1300,6 +1336,9 @@ public final class MapScreen extends ScreenAdapter {
         try {
             if (transfer.fade != 0) {
                 context.screenEffects().fade(0, true); // the new map starts black
+            }
+            if (interpreter != null) {
+                interpreter.carryOverTransfer();                           // the commands after 201 run on the new map
             }
             MapScreen next = new MapScreen(context, transfer.mapId, transfer.x, transfer.y, transfer.direction);
             context.game().setScreen(next);
@@ -1669,12 +1708,9 @@ public final class MapScreen extends ScreenAdapter {
      *         (Game_Player#move_generic:84-88)
      */
     private boolean startBlockedTouchEvent() {
-        var input = context.inputManager();
-        if (input.isDown(GameAction.UP) && startBlockedTouch(player.x(), player.y() - 1)) return true;
-        if (input.isDown(GameAction.DOWN) && startBlockedTouch(player.x(), player.y() + 1)) return true;
-        if (input.isDown(GameAction.LEFT) && startBlockedTouch(player.x() - 1, player.y())) return true;
-        if (input.isDown(GameAction.RIGHT)) return startBlockedTouch(player.x() + 1, player.y());
-        return false;
+        int direction = player.direction();                                   // the step faced it before it was refused
+        if (direction != 2 && direction != 4 && direction != 6 && direction != 8) return false;
+        return startBlockedTouch(Collision.targetX(player.x(), direction), Collision.targetY(player.y(), direction));
     }
 
     /**
@@ -2162,6 +2198,11 @@ public final class MapScreen extends ScreenAdapter {
         if (entry == null || entry.commonEvent < 0) {
             return false;
         }
+        MapCharacter character = followers.characterOf(entry);
+        if (character != null) {
+            facePlayer(character);                                          // the NPC turns to the player it talks to
+            entry.direction = character.direction();
+        }
         return interpreter.startCommonEvent(entry.commonEvent, mapData.mapId);
     }
 
@@ -2271,6 +2312,57 @@ public final class MapScreen extends ScreenAdapter {
         return routeContext;
     }
 
+    /** {@code $PokemonGlobal.sliding} (170:1147-1170 pbSlideOnIce). */
+    private boolean iceSliding;
+    private int iceDirection;
+    private boolean iceWalkAnime;
+
+    /**
+     * 170_PField_Field:349-350: a step of the player that lands on an Ice tile ({@code pbGetTerrainTag(event)}, the
+     * bridge not counted) starts {@code pbSlideOnIce}: the player keeps going the way they face, without walking
+     * animation, until the next tile is not passable or the current one is no ice.
+     */
+    private void startIceSlide() {
+        if (iceSliding || player.isMoving() || player.isJumping()
+                || (interpreter != null && interpreter.running())) {
+            return;
+        }
+        if (!pokemon.runtime.field.PBTerrain.isIce(tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge()))) {
+            return;                                                         // :1150
+        }
+        iceSliding = true;                                                  // :1151
+        iceDirection = player.direction();                                  // :1152
+        iceWalkAnime = player.walkAnime;                                    // :1153
+        player.straighten();                                                // :1154
+        player.walkAnime = false;                                           // :1155
+    }
+
+    /** One frame of the slide loop (170:1156-1164): at most one tile per frame, so each landing is checked. */
+    private void updateIceSlide(float delta) {
+        float remaining = delta;
+        while (remaining > 0f) {
+            if (!player.isMoving()) {
+                boolean ice = pokemon.runtime.field.PBTerrain.isIce(tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge()));
+                if (!ice || !Collision.canStep(gameState, tileMap, mapData, player, iceDirection)   // :1157-1158
+                        || !playerStep(player, iceDirection) || !player.isMoving()) {
+                    endIceSlide();
+                    return;
+                }
+            }
+            boolean stepping = player.isMoving();
+            remaining = player.advance(remaining);                          // :1159-1163 move_forward, wait for it
+            if (stepping && !player.isMoving()) {
+                return;
+            }
+        }
+    }
+
+    private void endIceSlide() {
+        iceSliding = false;                                                 // :1169
+        player.straighten();                                                // :1166-1167 center, straighten
+        player.walkAnime = iceWalkAnime;                                    // :1168
+    }
+
     /** {@code pbAscendWaterfall} (179:919-936): up through every waterfall tile, through everything, at move speed 2. */
     private float ascendWaterfall() {
         if (player.direction() != 8) {
@@ -2280,10 +2372,43 @@ public final class MapScreen extends ScreenAdapter {
         if (!pokemon.runtime.field.PBTerrain.isWaterfall(terrain)) {
             return 0f;                                                             // :926
         }
+        return waterfallRoute(-1, 4);                                              // :929-933 move_up
+    }
+
+    /**
+     * {@code pbDescendWaterfall} (179:938-955), from 170_PField_Field:345-348: a step of the player that lands on a
+     * WaterfallCrest tile, facing down at a waterfall, goes down through every waterfall tile at move speed 2.
+     */
+    private void descendWaterfall() {
+        if (playerRoute != null || player.isMoving() || player.isJumping()
+                || (interpreter != null && interpreter.running())) {
+            return;
+        }
+        if (tileMap.terrainTag(player.x(), player.y(), false, gameState.bridge())
+                != pokemon.runtime.field.PBTerrain.WATERFALL_CREST) {
+            return;                                                                // 170:346 currentTag==WaterfallCrest
+        }
+        if (player.direction() != 2) {
+            return;                                                                // :941
+        }
+        if (!tileMap.valid(player.x(), player.y() + 1) || !pokemon.runtime.field.PBTerrain.isWaterfall(
+                tileMap.terrainTag(player.x(), player.y() + 1, false, gameState.bridge()))) {
+            return;                                                                // :944-945 pbFacingTerrainTag
+        }
+        waterfallRoute(1, 1);                                                      // :948-952 move_down
+    }
+
+    /**
+     * The loop of {@code pbAscendWaterfall} / {@code pbDescendWaterfall}: through on, move speed 2, a step
+     * ({@code moveCode}) until the tile reached is no waterfall, then through and speed restored.
+     *
+     * @return the seconds it takes
+     */
+    private float waterfallRoute(int dy, int moveCode) {
         int steps = 0;
         int y = player.y();
-        do {                                                                       // :929-933 move_up until the tile is no waterfall
-            y--;
+        do {
+            y += dy;
             steps++;
         } while (tileMap.valid(player.x(), y)
                 && pokemon.runtime.field.PBTerrain.isWaterfall(tileMap.terrainTag(player.x(), y, false, gameState.bridge())));
@@ -2291,7 +2416,7 @@ public final class MapScreen extends ScreenAdapter {
         route.commands.add(command(37, 0));                                         // through on
         route.commands.add(command(29, 2));                                         // move_speed = 2
         for (int i = 0; i < steps; i++) {
-            route.commands.add(command(4, -1));                                     // move_up
+            route.commands.add(command(moveCode, -1));
         }
         route.commands.add(command(38, 0));                                         // through off
         route.commands.add(command(29, player.moveSpeedLevel));                     // restore the speed
@@ -4497,11 +4622,11 @@ public final class MapScreen extends ScreenAdapter {
 
     /**
      * 378_001_MSF_AutoSave {@code Events.onStepTaken}: every 200 steps the game is saved to the autosave slot (not on maps 1, 119 and
-     * 426). 登记: {@code next if $PokemonGlobal.sliding} - ice sliding is not modelled in this engine, so every step counts.
+     * 426), {@code next if $PokemonGlobal.sliding}.
      */
     private void autosaveStep() {
         int map = gameState.currentMapId();
-        if (map == 1 || map == 119 || map == 426) {
+        if (map == 1 || map == 119 || map == 426 || iceSliding) {
             return;
         }
         pokemon.runtime.pokemon.TrainerState trainer = gameState.trainer();
@@ -4885,6 +5010,13 @@ public final class MapScreen extends ScreenAdapter {
                     + (wild.size() > 1 ? " + " + wild.get(1).species + " L" + wild.get(1).level : ""));
         }
         applyBattleEnvironment();           // before the battle is created: the port reads these when it builds the session
+        // PField_Battles:303-318: the registered partner fights alongside in a wild battle opened by walking too.
+        pokemon.runtime.state.GameState.Partner partner = gameState.partner();
+        if (partner == null) {
+            context.battlePort().setPartner(null, null, java.util.Collections.<pokemon.runtime.pokemon.Pokemon>emptyList());
+        } else {
+            context.battlePort().setPartner(partner.trainerType, partner.name, partner.party);
+        }
         context.battlePort().markEncounterBattle();                         // a Safari battle inside the Zone (an event's is not)
         if (wild.size() > 1) {
             context.battlePort().doubleWildBattle(first.species, first.level, wild.get(1).species, wild.get(1).level);

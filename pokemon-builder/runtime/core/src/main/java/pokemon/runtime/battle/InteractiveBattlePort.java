@@ -296,6 +296,8 @@ public final class InteractiveBattlePort implements BattlePort {
     /** Settings:28 {@code EXP_POT_MAX}. */
     private static final int EXP_POT_MAX = 99999999;
     /** 190_PItem_BattleItemEffects:429-446, :491-494: the BattleUseOnPokemon handlers that also call pbCureConfusion. */
+    private static final java.util.Set<String> PP_ITEMS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "ETHER", "MAXETHER", "LEPPABERRY", "ELIXIR", "MAXELIXIR"));
     private static final java.util.Set<String> CURES_CONFUSION = new java.util.HashSet<>(java.util.Arrays.asList(
             "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
             "BIGMALASADA", "LUMBERRY", "FULLRESTORE", "HEALPOWDER"));
@@ -1423,8 +1425,13 @@ public final class InteractiveBattlePort implements BattlePort {
             return false;
         }
         public boolean item(String id, int target) {
+            return item(id, target, -1);
+        }
+
+        /** @param idxMove the move an Ether / Max Ether / Leppa Berry restores (Scene_Commands:310-313), or -1 */
+        public boolean item(String id, int target, int idxMove) {
             Battler user = battle.player();
-            return useItem(id, target, user == null ? 0 : user.index, battle.foe(), true);
+            return useItem(id, target, user == null ? 0 : user.index, battle.foe(), true, idxMove);
         }
 
         /**
@@ -1441,10 +1448,14 @@ public final class InteractiveBattlePort implements BattlePort {
         }
 
         public boolean commandItem(String id, int target, int idxBattler, int idxTarget) {
-            return useItem(id, target, idxBattler, battle.battlerAt(idxTarget), false);
+            return commandItem(id, target, idxBattler, idxTarget, -1);
         }
 
-        private boolean useItem(String id, int target, int idxBattler, Battler ballTarget, boolean endsRound) {
+        public boolean commandItem(String id, int target, int idxBattler, int idxTarget, int idxMove) {
+            return useItem(id, target, idxBattler, battle.battlerAt(idxTarget), false, idxMove);
+        }
+
+        private boolean useItem(String id, int target, int idxBattler, Battler ballTarget, boolean endsRound, int idxMove) {
             if (result != null || !inventory.has(id)) return false;
             // Every Poke Ball (items of pocket type 3/4), not only the first four.
             PbsData ballData = data.get();
@@ -1455,7 +1466,10 @@ public final class InteractiveBattlePort implements BattlePort {
             PbsData.Item item = data.get().item(id);
             if (item == null || item.battleUse <= 0) return false;
             // Source PItem_BattleItemEffects uses 50/200 for these two medicines.
-            if ("SUPERPOTION".equals(id) || "HYPERPOTION".equals(id)) {
+            if (PP_ITEMS.contains(id)) {
+                if (!restorePpInBattle(id, battler, idxMove)) return false;
+                inventory.remove(id, 1);
+            } else if ("SUPERPOTION".equals(id) || "HYPERPOTION".equals(id)) {
                 if (battler.fainted() || battler.hp >= battler.maxHp()) return false;
                 battler.hp = Math.min(battler.maxHp(), battler.hp + ("SUPERPOTION".equals(id) ? 50 : 200));
                 battler.syncHp(); inventory.remove(id, 1);
@@ -1493,6 +1507,38 @@ public final class InteractiveBattlePort implements BattlePort {
             }
             return true;
         }
+        /**
+         * 190_PItem_BattleItemEffects ETHER / MAXETHER / LEPPABERRY / ELIXIR / MAXELIXIR: CanUseInBattle (the Pokemon
+         * must be able and have PP to restore) and BattleUseOnPokemon {@code pbBattleRestorePP}. The PP lives on the
+         * Pokemon's move slot only, which is also what the battler reads.
+         */
+        private boolean restorePpInBattle(String id, Battler battler, int idxMove) {
+            Pokemon pkmn = battler.pokemon;
+            if (pkmn == null || pkmn.egg || battler.fainted()) return false;     // !pokemon.able?
+            boolean max = id.startsWith("MAX");
+            if (id.endsWith("ELIXIR")) {
+                int restored = 0;
+                for (int i = 0; i < pkmn.moves.size; i++) {
+                    Pokemon.MoveSlot m = pkmn.moves.get(i);
+                    if (m == null || m.move == null) continue;
+                    restored += restorePp(m, max ? m.totalPp() - m.pp : 10);
+                }
+                return restored > 0;
+            }
+            if (idxMove < 0 || idxMove >= pkmn.moves.size) return false;
+            Pokemon.MoveSlot m = pkmn.moves.get(idxMove);
+            if (m == null || m.move == null) return false;
+            return restorePp(m, max ? m.totalPp() - m.pp : 10) > 0;
+        }
+
+        /** {@code pbRestorePP} (188_PItem_Items:602-610). */
+        private int restorePp(Pokemon.MoveSlot slot, int pp) {
+            if (slot.totalPp() <= 0) return 0;
+            int old = slot.pp;
+            slot.pp = Math.min(slot.totalPp(), slot.pp + pp);
+            return slot.pp - old;
+        }
+
         /**
          * Throwing a Poké Ball: {@code PItem_BattleItemEffects:24-53}
          * (CanUseInBattle) and {@code PokeBattle_BattleCommon:68-164}

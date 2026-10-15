@@ -528,7 +528,9 @@ public final class MenuCapture extends ApplicationAdapter {
             boolean foeSwitchCapture = args.length > 2 && "trainer2-switch".equals(args[2]);
             // B2: the player's lead faints in a wild battle, so pbEORSwitch asks
             // "要更换宝可梦吗？" and then replaces it (:221-231).
-            boolean faintCapture = args.length > 2 && "faint".equals(args[2]);
+            boolean megaFaintCapture = args.length > 2 && "mega-faint".equals(args[2]);
+            boolean megaWinCapture = args.length > 2 && "mega-win".equals(args[2]);
+            boolean faintCapture = args.length > 2 && ("faint".equals(args[2]) || megaFaintCapture);
             // B6 (§8.1 / §8.2): a wild battle whose lead is prepared so the data
             // box status icon and the fight menu's 0 PP slot can be inspected.
             boolean fightStatusCapture = args.length > 2 && "fight-status".equals(args[2]);
@@ -560,7 +562,22 @@ public final class MenuCapture extends ApplicationAdapter {
             boolean safariCapture = args.length > 2 && args[2].startsWith("safari");
             // Two trainers whose sight lines meet (map 41 events 22 / 23): they must make one double battle.
             boolean sightMergeCapture = args.length > 2 && "sight-merge".equals(args[2]);
-            if (sightMergeCapture) {
+            if (megaWinCapture) {
+                // A Mega form on the field when the battle is decided keeps its picture until the screen closes.
+                pokemon.runtime.pokemon.Pokemon mega = megaLead(100);
+                mega.moves.clear();
+                mega.moves.add(new pokemon.runtime.pokemon.Pokemon.MoveSlot(context.pbsData().move("TACKLE")));
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                context.battlePort().wildBattle("BULBASAUR", 2);
+                renderMap();
+                advanceMap(1f / 60f, 256);
+                advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 1200);
+                stepMap(GameAction.CONFIRM);
+                stepMap(GameAction.CONFIRM);
+                logLeadSprite("mega-win", 4000);
+                System.out.println("mega-win: form after the battle " + (mega.form == null ? 0 : mega.form.form));
+            } else if (sightMergeCapture) {
                 int startX = args.length > 3 ? Integer.parseInt(args[3]) : 35;
                 int startY = args.length > 4 ? Integer.parseInt(args[4]) : 16;
                 mapScreen = new MapScreen(context, 41, startX, startY, 6);
@@ -646,6 +663,7 @@ public final class MenuCapture extends ApplicationAdapter {
                     // captured foe to its damaging moves, so any foe turn faints
                     // the lead and the branch is deterministic again. Nothing
                     // outside this capture's own state is touched.
+                    if (megaFaintCapture) megaLead(50);
                     pinFaintCaptureLeadToOneHp();
                     context.battlePort().wildBattle("BULBASAUR", 50);
                     narrowCapturedFoeToDamagingMoves();
@@ -659,6 +677,7 @@ public final class MenuCapture extends ApplicationAdapter {
                 }
                 stepMap(GameAction.CONFIRM);        // 战斗 -> the fight menu
                 stepMap(GameAction.CONFIRM);        // use the first move
+                if (megaFaintCapture) logLeadSprite("mega-faint", 3000);
                 // The round plays out: the exp / faint line, then pbEORSwitch.
                 advanceUntilBattle(s -> s.debugChoice() != null || s.debugPage() == 3
                         || (s.debugWindow() == 2 && s.debugMessage() == null
@@ -1088,6 +1107,124 @@ public final class MenuCapture extends ApplicationAdapter {
                 }
                 shotMap(args[2] + "-end");
                 System.out.println("flow end: safari=" + safari.inProgress + " from " + bx + "," + by);
+            } else if (args.length > 2 && "transfer-carry".equals(args[2])) {
+                // Commands after a cross-map Transfer Player (201) run on the new map: map 11 EV056 ends with
+                // 201 -> map 40 and then pbSetSelfSwitch(54/55,"A",true) for map 11; map 40 EV002 (Exit) ends with
+                // 201 -> map 11 and a 223 tone back to normal.
+                String savePath = System.getenv("CAPTURE_SAVE");
+                if (savePath != null && !context.saveManager().load(new File(savePath), context.gameState())) {
+                    throw new IllegalStateException("cannot load " + savePath);
+                }
+                pokemon.runtime.state.GameState gs = context.gameState();
+                gs.selfSwitches().set(11, 54, "A", false);
+                gs.selfSwitches().set(11, 55, "A", false);
+                gs.selfSwitches().set(11, 56, "A", false);
+                mapScreen = new MapScreen(context, 11, 24, 45, 2);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                for (int run = 0; run < 2; run++) {
+                    int fromMap = run == 0 ? 11 : 40;
+                    int eventId = run == 0 ? 56 : 2;
+                    pokemon.runtime.data.MapData data = context.database().map(fromMap);
+                    pokemon.runtime.data.MapData.EventData event = null;
+                    for (pokemon.runtime.data.MapData.EventData e : data.events) if (e.id == eventId) event = e;
+                    context.eventInterpreter().start(event.pages.get(0).commands, fromMap, eventId);
+                    int frames = 0;
+                    while (frames < 3000) {
+                        advanceMap(1f / 60f, 1);
+                        frames++;
+                        if (context.messageService().visible() && frames % 10 == 0) stepMap(GameAction.CONFIRM);
+                        if (frames > 30 && !context.eventInterpreter().running() && !context.transferPending()) break;
+                    }
+                    for (int f = 0; f < 60; f++) advanceMap(1f / 60f, 1);
+                    System.out.println("carry run " + run + ": map " + gs.currentMapId() + " after " + frames + " frames, running="
+                            + context.eventInterpreter().running()
+                            + " self(11,54,A)=" + gs.selfSwitches().get(11, 54, "A")
+                            + " self(11,55,A)=" + gs.selfSwitches().get(11, 55, "A")
+                            + " self(11,56,A)=" + gs.selfSwitches().get(11, 56, "A")
+                            + " tone=" + context.screenEffects().toneRed() + "," + context.screenEffects().toneGreen() + ","
+                            + context.screenEffects().toneBlue() + " fade=" + context.screenEffects().fade());
+                    shotMap("transfer-carry-" + run);
+                }
+            } else if (args.length > 2 && "ice133".equals(args[2])) {
+                // pbSlideOnIce (170:1147-1170) on map 133: a short tap onto the ice slides until the ice ends or a wall.
+                String savePath = System.getenv("CAPTURE_SAVE");
+                if (savePath != null && !context.saveManager().load(new File(savePath), context.gameState())) {
+                    throw new IllegalStateException("cannot load " + savePath);
+                }
+                int[][] runs = {{8, 32, 6}, {16, 28, 2}};
+                for (int r = 0; r < runs.length; r++) {
+                    mapScreen = new MapScreen(context, 133, runs[r][0], runs[r][1], runs[r][2]);
+                    context.game().setScreen(mapScreen);
+                    for (int f = 0; f < 30; f++) advanceMap(1f / 60f, 1);
+                    GameAction dir = runs[r][2] == 6 ? GameAction.RIGHT : runs[r][2] == 2 ? GameAction.DOWN : GameAction.UP;
+                    InputManager input = context.inputManager();
+                    StringBuilder path = new StringBuilder();
+                    String last = "";
+                    input.beginFrame(); input.press(dir); renderMap(); input.endFrame();
+                    for (int f = 0; f < 240; f++) {
+                        if (f == 8) input.release(dir);                    // a short tap: only the first step is walked
+                        advanceMap(1f / 60f, 1);
+                        String key = context.gameState().playerX() + "," + context.gameState().playerY();
+                        if (!key.equals(last)) { path.append(' ').append(key).append("@").append(f); last = key; }
+                        if (f == 40) shotMap("ice133-" + r + "-mid");
+                    }
+                    System.out.println("ice run " + r + " from " + runs[r][0] + "," + runs[r][1] + ":" + path);
+                    shotMap("ice133-" + r + "-end");
+                }
+            } else if (args.length > 2 && "stairs40".equals(args[2])) {
+                // Map 40's left stairs ((12,20) <-> (11,19), Player Touch, Through + one diagonal step): walk up and
+                // down with held keys and uneven frame times; report every settled tile that is not walkable.
+                String savePath = System.getenv("CAPTURE_SAVE");
+                if (savePath != null && !context.saveManager().load(new File(savePath), context.gameState())) {
+                    throw new IllegalStateException("cannot load " + savePath);
+                }
+                mapScreen = new MapScreen(context, 40, 14, 20, 4);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                String blocked = " 10,18 11,18 12,19 13,19 14,19 9,20 10,20 11,20 15,20 12,21 13,21 15,21 11,17 12,17 13,17 ";
+                java.util.Random random = new java.util.Random(Long.getLong("stairs.seed", 1L));
+                float[] deltas = {1f / 60f, 1f / 60f, 1f / 40f, 1f / 30f, 1f / 20f, 0.07f, 0.011f};
+                int cycles = Integer.getInteger("stairs.cycles", 300);
+                int bad = 0;
+                InputManager input = context.inputManager();
+                for (int c = 0; c < cycles; c++) {
+                    GameAction dir = c % 2 == 0 ? GameAction.LEFT : GameAction.RIGHT;
+                    if (random.nextInt(8) == 0) dir = random.nextBoolean() ? GameAction.UP : GameAction.DOWN;
+                    int hold = 5 + random.nextInt(90);
+                    StringBuilder path = new StringBuilder();
+                    String last = "";
+                    input.beginFrame(); input.press(dir); renderMap(); input.endFrame();
+                    for (int f = 0; f < hold; f++) {
+                        advanceMap(deltas[random.nextInt(deltas.length)], 1);
+                        String key = context.gameState().playerX() + "," + context.gameState().playerY();
+                        if (!key.equals(last)) { path.append(' ').append(key); last = key; }
+                        if (random.nextInt(25) == 0) {                 // a short release and re-press mid-walk
+                            input.release(dir);
+                            advanceMap(deltas[random.nextInt(deltas.length)], 1 + random.nextInt(3));
+                            input.beginFrame(); input.press(dir); renderMap(); input.endFrame();
+                        }
+                    }
+                    input.release(dir);
+                    for (int f = 0; f < 90; f++) {
+                        advanceMap(1f / 60f, 1);
+                        String key = context.gameState().playerX() + "," + context.gameState().playerY();
+                        if (!key.equals(last)) { path.append(' ').append(key); last = key; }
+                    }
+                    String at = context.gameState().playerX() + "," + context.gameState().playerY();
+                    boolean wrong = blocked.contains(" " + at + " ") || context.gameState().currentMapId() != 40;
+                    if (wrong || Boolean.getBoolean("stairs.verbose")) {
+                        System.out.println("stairs cycle " + c + " " + dir + " hold " + hold + ":" + path + (wrong ? "  <<< BLOCKED TILE" : ""));
+                    }
+                    if (wrong) {
+                        bad++;
+                        if (bad <= 5) shotMap("stairs40-bad-" + c);
+                        mapScreen = new MapScreen(context, 40, 14, 20, 4);   // start over from the bottom
+                        context.game().setScreen(mapScreen);
+                        renderMap();
+                    }
+                }
+                System.out.println("stairs40 done: " + bad + " of " + cycles + " cycles ended on a blocked tile");
             } else if (args.length > 2 && "boss-event".equals(args[2])) {
                 // map 132 EV010: "要和音箱蟀侠对战吗？" -> 是 -> battleMelodicricket, driven by CONFIRM like a player.
                 mapScreen = new MapScreen(context, 132, 36, 12, 8);
@@ -2600,6 +2737,38 @@ public final class MenuCapture extends ApplicationAdapter {
      * {@code pbEORSwitch} asks "要更换宝可梦吗？" deterministically. Only the
      * state this capture starts from is shaped; the battle rules are untouched.
      */
+    /** A Mega Venusaur in front of the party (mega-faint / mega-win captures). */
+    private pokemon.runtime.pokemon.Pokemon megaLead(int level) {
+        pokemon.runtime.pokemon.PbsData pbs = context.pbsData();
+        pokemon.runtime.pokemon.Pokemon mega = new pokemon.runtime.pokemon.Pokemon(pbs.species("VENUSAUR"), level, pbs);
+        mega.item = "VENUSAURITE";
+        mega.makeMega(pbs);
+        mega.hp = mega.maxHp();
+        context.gameState().trainer().party.members().insert(0, mega);
+        System.out.println("mega lead: form " + (mega.form == null ? 0 : mega.form.form));
+        return mega;
+    }
+
+    /** Logs every change of the lead's sprite id (and the screen stage) frame by frame, with a shot at each change. */
+    private void logLeadSprite(String tag, int frames) {
+        String last = "";
+        int shots = 0;
+        for (int f = 0; f < frames; f++) {
+            advanceMap(1f / 60f, 1);
+            BattleScreen live = battleScreen();
+            String now = live == null ? "closed" : live.debugStage() + " sprite=" + live.debugSpriteOf(0);
+            if (!now.equals(last)) {
+                System.out.println(tag + " @" + f + ": " + now);
+                last = now;
+                if (shots < 12) shotMap(String.format(java.util.Locale.ROOT, "%s-%02d", tag, shots++));
+            }
+            if (live == null) return;
+            if (live.debugChoice() != null || live.debugPage() == 3) return;            // the lead fainted: the switch question
+            if (live.debugMessage() != null && f % 30 == 0) stepMap(GameAction.CONFIRM);
+            else if ("mega-win".equals(tag) && f > 200 && f % 40 == 0) stepMap(GameAction.CONFIRM);   // the closing lines
+        }
+    }
+
     private void pinFaintCaptureLeadToOneHp() {
         pokemon.runtime.pokemon.TrainerState trainer = context.gameState().trainer();
         if (trainer.partyCount() == 0) {

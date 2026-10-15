@@ -242,6 +242,19 @@ public final class SaveManager {
             dependents.addChild(entry);
         }
         globals.addChild("dependents", dependents);
+        GameState.Partner partner = state.partner();
+        if (partner != null) {                                              // $PokemonGlobal.partner (PField_Field:1399-1416)
+            JsonValue entry = object();
+            entry.addChild("trainerType", new JsonValue(partner.trainerType == null ? "" : partner.trainerType));
+            entry.addChild("name", new JsonValue(partner.name == null ? "" : partner.name));
+            entry.addChild("id", new JsonValue(partner.id));
+            JsonValue team = array();
+            for (Pokemon member : partner.party) {
+                if (member != null) team.addChild(pokemonJson(member));
+            }
+            entry.addChild("party", team);
+            globals.addChild("partner", entry);
+        }
         if (state.fieldGlobals().pcItemStorage != null) {
             JsonValue pc = array();
             for (int i = 0; i < state.fieldGlobals().pcItemStorage.length(); i++) {
@@ -806,6 +819,22 @@ public final class SaveManager {
                     dependent.commonEvent = entry.getInt("commonEvent", -1);
                     state.fieldGlobals().dependents.add(dependent);
                 }
+            }
+            state.partner(null);
+            JsonValue partnerNode = globals.get("partner");
+            if (partnerNode != null && partnerNode.isObject()) {
+                GameState.Partner partner = new GameState.Partner();
+                partner.trainerType = partnerNode.getString("trainerType", "");
+                partner.name = partnerNode.getString("name", "");
+                partner.id = partnerNode.getInt("id", 0);
+                JsonValue team = partnerNode.get("party");
+                if (team != null && team.isArray()) {
+                    for (JsonValue member = team.child; member != null; member = member.next) {
+                        Pokemon pokemon = readPokemon(member);
+                        if (pokemon != null) partner.party.add(pokemon);
+                    }
+                }
+                state.partner(partner);
             }
             JsonValue triads = globals.get("triads");
             if (triads != null && triads.isArray()) {

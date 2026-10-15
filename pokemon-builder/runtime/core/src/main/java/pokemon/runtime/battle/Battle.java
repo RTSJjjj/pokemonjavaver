@@ -557,7 +557,12 @@ public final class Battle {
         if (this.decision == 4) return finish(BattleResult.Outcome.CAUGHT);   // @decision = 4 "Battle ended by capture" (PokeBattle_BattleCommon:141)
         int decision = judge();
         if (decision == 2) return finish(BattleResult.Outcome.LOSS);
-        if (decision == 1) return finish(BattleResult.Outcome.WIN);
+        if (decision == 1) {
+            // Battle_StartAndEnd:446 pbEndOfBattle: @decision = 4 if @decision==1 && wildBattle? && @caughtPokemon.length>0
+            // (a Boss caught from pbCatchBossPokemon mid-move: the pbJudge after the move turned the 4 into a win)
+            if (!trainerBattle && !caughtPokemon.isEmpty()) return finish(BattleResult.Outcome.CAUGHT);
+            return finish(BattleResult.Outcome.WIN);
+        }
         if (decision == 5) return finish(BattleResult.Outcome.DRAW);
         return null;
     }
@@ -1397,6 +1402,11 @@ public final class Battle {
          * and was replaced): the event has to carry its own.
          */
         public Pokemon pokemon;
+        /**
+         * FAINT: the form {@link #pokemon} had before pbFaint sent it back (pbOnLeavingBattle, makeUnmega, :87-89), or -1.
+         * Ruby plays pbFaintBattler (:73) before those lines, so the sprite keeps this form until the faint has played.
+         */
+        public int formBefore = -1;
         /** TRANSFORM_SPRITE: the Pokemon the sprite showed before the change. */
         public Pokemon oldLook;
         static RoundEvent transformSprite(int idxBattler, Pokemon oldLook) {
@@ -2892,6 +2902,9 @@ public final class Battle {
         consumedHeldItems.clear();
     }
 
+    /** The forms the battlers on the field had when the battle was decided (see {@link #finish}); the screen holds them. */
+    public final java.util.IdentityHashMap<Pokemon, Integer> endFormHold = new java.util.IdentityHashMap<>();
+
     private BattleResult finish(BattleResult.Outcome outcome) {
         pbRestoreHeldItems();
         for (Battler battler : playerParty) battler.restoreMimickedMoves();
@@ -2909,6 +2922,15 @@ public final class Battle {
             Battler onField = battlerAt(idx);
             if (onField != null && onField.pokemon != null && onField.abilityActive()) {
                 BattleHandlers.triggerAbilityOnSwitchOut(onField.ability, onField, true);
+            }
+        }
+        // Ruby resets the forms after the last lines of the battle were shown; this engine decides first and the screen
+        // plays the round afterwards, so the forms on the field are kept for the screen until it closes.
+        for (int idx = 0; idx <= maxBattlerIndex(); idx++) {
+            Battler onField = battlerAt(idx);
+            if (onField != null && onField.pokemon != null && !onField.fainted()          // a fainted one holds its own (FAINT)
+                    && !endFormHold.containsKey(onField.pokemon)) {
+                endFormHold.put(onField.pokemon, onField.pokemon.form == null ? 0 : onField.pokemon.form.form);
             }
         }
         for (Battler battler : playerParty) {

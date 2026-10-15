@@ -2325,7 +2325,9 @@ public final class Battler {
         if (showMessage) {                                                // :71
             battle.displayBrief(pbThis() + "倒下了！");
         }
-        battle.roundEvents.add(Battle.RoundEvent.faint(index));           // :73 @battle.scene.pbFaintBattler(self) = the FAINT round event
+        Battle.RoundEvent faintEvent = Battle.RoundEvent.faint(index);
+        battle.roundEvents.add(faintEvent);                               // :73 @battle.scene.pbFaintBattler(self) = the FAINT round event
+        int formBefore = pokemon == null || pokemon.form == null ? 0 : pokemon.form.form;
         initEffects(false);                                               // :74 pbInitEffects(false)
         status = "";                                                      // :76 self.status = PBStatuses::NONE
         if (pokemon != null) pokemon.status = "";                         // :104
@@ -2346,6 +2348,11 @@ public final class Battler {
         }
         if (isPrimal()) {                                                 // :89
             pokemon.makeUnprimal(pbs);
+        }
+        int formAfter = pokemon == null || pokemon.form == null ? 0 : pokemon.form.form;
+        if (pokemon != null && formAfter != formBefore) {
+            faintEvent.pokemon = pokemon;                                 // the faint plays with the form it fainted in
+            faintEvent.formBefore = formBefore;
         }
         yamaskhp = 0;                                                     // :90 Yamask（@pokemon.yamaskhp；本运行时 Pokemon 无此字段 → 只写 battler 侧）
         if (battle != null) {                                             // :92 @battle.pbClearChoice(@index)

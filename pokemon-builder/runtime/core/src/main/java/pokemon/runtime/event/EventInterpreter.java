@@ -207,6 +207,7 @@ public final class EventInterpreter {
 
     /** Aborts the current event (map change, event erased, new interaction). */
     public void stop() {
+        carryOverTransfer = false;
         if (scriptTask != null) {
             scriptTask.abort();
             scriptTask = null;
@@ -1548,7 +1549,7 @@ public final class EventInterpreter {
         JsonValue p = command.parameters;
         String channel = p != null && p.get(0) != null ? p.get(0).asString() : "A";
         boolean on = intParam(p, 1, 0) == 0;
-        if (eventId < 0) {
+        if (eventId <= 0) {                                              // command_123: only if @event_id > 0
             log.warn("Control Self Switch outside an event; ignored");
         } else {
             state.selfSwitches().set(mapId, eventId, channel, on);
@@ -1598,6 +1599,35 @@ public final class EventInterpreter {
         if (interpreterState == InterpreterState.WAIT_TRANSFER) {
             interpreterState = InterpreterState.RUNNING;
         }
+    }
+
+    /** Set by a transfer to another map: the screen built for it continues this event instead of stopping it. */
+    private boolean carryOverTransfer;
+
+    /** A transfer to another map is about to build the next screen; keep the event that is waiting for it. */
+    public void carryOverTransfer() {
+        carryOverTransfer = interpreterState == InterpreterState.WAIT_TRANSFER;
+    }
+
+    /**
+     * The next map's screen is built. RMXP's map interpreter is global, so the event that transferred the player goes
+     * on with the commands after 201 ({@code Interpreter#update}: on another map {@code @event_id = 0}, while
+     * {@code @map_id} stays the event's own map, so {@code pbSetSelfSwitch(54,"A",true)} still names map 11's event
+     * 54). Rebuilding the screen used to stop it: everything after a cross-map transfer was dropped.
+     *
+     * @return true when the event goes on
+     */
+    public boolean continueOnNewMap(int newMapId) {
+        boolean carry = carryOverTransfer && interpreterState == InterpreterState.WAIT_TRANSFER;
+        carryOverTransfer = false;
+        if (!carry) {
+            return false;
+        }
+        if (newMapId != mapId) {
+            eventId = 0;                                                 // "this event" no longer exists here
+        }
+        interpreterState = InterpreterState.RUNNING;
+        return true;
     }
 
     /** Set Move Route (209): parse the route and hand it to the map side. */
@@ -3212,6 +3242,7 @@ public final class EventInterpreter {
             return false;                                                       // :490 return false if !encounter1
         }
         BattleResult result;
+        applyBattleSizeAndPartner(state.battleRules());                         // pbWildBattle/pbDoubleWildBattle read the partner
         if (state.partner() != null) {                                          // :491 $PokemonGlobal.partner
             PokemonEncounters.Encounter second = wild.pbEncounter(method);
             if (second == null) {

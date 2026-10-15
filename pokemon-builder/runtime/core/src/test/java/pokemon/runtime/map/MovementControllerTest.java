@@ -231,6 +231,36 @@ class MovementControllerTest {
     }
 
     @Test
+    @DisplayName("a held step that lands on a touch-event tile ends the frame's movement there (no chained step)")
+    void stopsOnTouchTile() {
+        MapData data = mapData(0);
+        TilesetData open = tileset(new int[] { 0, 0, 0, 0, 0, 0, 0, 0 });
+        TileMap map = new TileMap(data, open);
+        MapCharacter character = new MapCharacter(1, 1, 5, 3, "boy_walk");
+        MovementController.StepMover plain = mover(map, data, character);
+        MovementController.StepMover stairs = new MovementController.StepMover() {
+            @Override public boolean tryStep(MapCharacter who, int direction) { return plain.tryStep(who, direction); }
+            @Override public boolean stopsAt(MapCharacter who) { return who.x() == 2; }
+        };
+
+        InputManager input = new InputManager();
+        StubKeys keys = new StubKeys();
+        InputSampler sampler = new InputSampler(new DefaultKeyBindings());
+        MovementController controller = new MovementController();
+        keys.down.add(com.badlogic.gdx.Input.Keys.RIGHT);
+        input.beginFrame();
+        sampler.sample(keys, input);
+        controller.update(input, 0.016f, character, stairs);     // the step starts (held move: no turn delay once moving)
+        input.endFrame();
+        input.beginFrame();
+        sampler.sample(keys, input);
+        controller.update(input, 1f, character, stairs);         // time for several tiles
+        input.endFrame();
+        assertEquals(2, character.x(), "the frame ends on the event's tile");
+        assertFalse(character.isMoving());
+    }
+
+    @Test
     @DisplayName("a blocked direction turns the character without moving")
     void blockedTurns() {
         MapData data = mapData(1);
