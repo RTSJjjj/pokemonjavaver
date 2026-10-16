@@ -51,7 +51,7 @@ public final class HeadlessBattlePort implements BattlePort {
         if (found == null) {
             return null;
         }
-        Pokemon foe = wildPokemon(found, Math.max(1, level), data);
+        Pokemon foe = wildPokemon(found, data.formOf(species), Math.max(1, level), data);
         Array<Pokemon> foes = new Array<>();
         foes.add(foe);
         return run(foes, data);
@@ -136,7 +136,12 @@ public final class HeadlessBattlePort implements BattlePort {
      * and shininess all come from the plugin's rolls.
      */
     public Pokemon wildPokemon(PbsData.Species species, int level, PbsData data) {
-        return pokemon.runtime.pokemon.WildGenerator.generate(data, species, level, trainer,
+        return wildPokemon(species, 0, level, data);
+    }
+
+    /** @param form the form an fSpecies spelling ({@code RATICATE_1}) names, see {@link PbsData#formOf} */
+    public Pokemon wildPokemon(PbsData.Species species, int form, int level, PbsData data) {
+        return pokemon.runtime.pokemon.WildGenerator.generate(data, species, form, level, trainer,
                 bag, obtainMap, fatefulEncounter, elite, formWorld, random);
     }
 
@@ -194,7 +199,7 @@ public final class HeadlessBattlePort implements BattlePort {
             return null;
         }
         int level = Math.max(1, member.level);
-        Pokemon pokemon = WildGenerator.pbNewPkmn(data, species, level, null, 0, random);   // :83 pbNewPkmn(species,level,opponent,false)
+        Pokemon pokemon = WildGenerator.pbNewPkmn(data, species, data.formOf(member.species), level, null, 0, random);   // :83 pbNewPkmn(species,level,opponent,false)
         PbsData.TrainerType type = trainerData == null || trainerData.type == null ? null : data.trainerTypes.get(trainerData.type);
         if (member.formSet) {                                                               // :84-87 formSimple = poke[TPFORM]
             pokemon.setForm(data, member.form);                                             // (pbNewPkmn already ran getFormOnCreation)

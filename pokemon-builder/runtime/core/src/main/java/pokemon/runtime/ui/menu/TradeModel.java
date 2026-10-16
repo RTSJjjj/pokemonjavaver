@@ -19,7 +19,7 @@ public final class TradeModel {
             yours = (Pokemon) newpoke;
             resetMoves = false;
         } else if (newpoke instanceof String && data != null && data.species((String) newpoke) != null) {   // :204-209
-            yours = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(data, data.species((String) newpoke), mine.level, null, 0, random);   // :204-209 PokeBattle_Pokemon.new
+            yours = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(data, (String) newpoke, mine.level, null, 0, random);   // :204-209 PokeBattle_Pokemon.new
         } else {
             return null;                                                    // :206 the species does not exist
         }

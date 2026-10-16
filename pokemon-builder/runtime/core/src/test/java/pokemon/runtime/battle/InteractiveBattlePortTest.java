@@ -149,6 +149,43 @@ class InteractiveBattlePortTest {
         port.session().chooseMove(0); assertEquals(BattleResult.Outcome.LOSS, port.session().result.outcome);
         assertEquals(0, whiteouts); port.finish(); assertEquals(1, whiteouts); port.finish(); assertEquals(1, whiteouts);
     }
+    /** The party's only Pokemon knows nothing but Explosion and outspeeds the foe, so one move knocks out both sides. */
+    private void explosionLead() {
+        PbsData.Move m = new PbsData.Move(); m.id = 2; m.internalName = "EXPLOSION"; m.name = "大爆炸"; m.type = "NORMAL";
+        m.power = 250; m.pp = 5; m.category = "Physical"; m.function = "0E0"; m.target = "AllNearOthers"; data.moves.put("EXPLOSION", m);
+        Pokemon lead = trainer.first(); lead.moves.clear(); lead.moves.add(new Pokemon.MoveSlot(data.move("EXPLOSION")));
+    }
+    @Test void aWildBattleBothSidesFaintInWhitesOut() {
+        explosionLead();
+        port.freeWildBattle(pokemon(5));
+        port.session().chooseMove(0);
+        assertEquals(BattleResult.Outcome.DRAW, port.session().result.outcome, "pbJudge returns 5 (Battle_StartAndEnd:590)");
+        assertTrue(port.session().message.contains("你眼前一黑！"), port.session().message);   // :472-495 when 2, 5
+        port.finish();
+        assertEquals(1, whiteouts, "a draw is pbStartOver like a loss (PField_Battles:702)");
+    }
+    @Test void aTrainerBattleBothSidesFaintInWhitesOut() {
+        explosionLead();
+        PbsData.TrainerData opponent = trainerOf("小明");
+        opponent.party.get(0).level = 5;
+        port.trainerBattle(opponent);
+        port.session().chooseMove(0);
+        assertEquals(BattleResult.Outcome.DRAW, port.session().result.outcome);
+        assertTrue(port.session().message.contains("你输给了"), port.session().message);
+        port.finish();
+        assertEquals(1, whiteouts);
+    }
+    @Test void canLoseHealsInsteadOfWhitingOutAfterADraw() {
+        explosionLead();
+        port.setCanLose(true);
+        port.freeWildBattle(pokemon(5));
+        port.session().chooseMove(0);
+        assertEquals(BattleResult.Outcome.DRAW, port.session().result.outcome);
+        assertFalse(port.session().message.contains("你眼前一黑！"));
+        port.finish();
+        assertEquals(0, whiteouts, "canLose skips pbStartOver");
+        assertEquals(trainer.first().maxHp(), trainer.first().hp, "pbAfterBattle heals the party (PField_Battles:650-653)");
+    }
     @Test void trainerBattleRejectsCaptureWithoutConsumingBall() {
         PbsData.TrainerData opponent = new PbsData.TrainerData();
         PbsData.TrainerPokemon member = new PbsData.TrainerPokemon(); member.species = "A"; member.level = 10; opponent.party.add(member);

@@ -41,7 +41,7 @@ public final class PokemonGrowth {
         if (pokemon == null || pokemon.species == null || data == null) {
             return null;
         }
-        for (PbsData.Evolution evolution : pokemon.species.evolutions) {
+        for (PbsData.Evolution evolution : PBEvolution.evolutionsOf(pokemon)) {
             if (levelConditionReached(evolution, pokemon)) {
                 PbsData.Species target = data.species(evolution.species);
                 if (target != null) {
@@ -80,7 +80,7 @@ public final class PokemonGrowth {
         if (pokemon == null || pokemon.species == null) {
             return false;
         }
-        for (PbsData.Evolution evolution : pokemon.species.evolutions) {
+        for (PbsData.Evolution evolution : PBEvolution.evolutionsOf(pokemon)) {
             if (!levelConditionReached(evolution, pokemon)) {
                 continue;
             }

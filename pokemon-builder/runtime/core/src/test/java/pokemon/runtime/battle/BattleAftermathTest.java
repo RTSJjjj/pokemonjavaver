@@ -187,6 +187,18 @@ class BattleAftermathTest {
     }
 
     @Test
+    @DisplayName("a draw (both sides out at once) whites out and heals under canLose like a loss (:650, :702 when 2, 5)")
+    void drawIsALoss() {
+        assertTrue(BattleAftermath.onEndBattle(trainer, pbs, random, draw(), false));
+        assertFalse(BattleAftermath.onEndBattle(trainer, pbs, random, draw(), true));
+        Pokemon hurt = pokemon("CATERPIE");
+        hurt.hp = 0;
+        trainer.party.add(hurt);
+        BattleAftermath.pbAfterBattle(trainer, pbs, draw(), true);
+        assertEquals(hurt.maxHp(), hurt.hp, "canLose heals the party after a draw too");
+    }
+
+    @Test
     @DisplayName("the escape chance uses unmodified Speed (Battle_Action_Running:134-148)")
     void escapeUsesRawSpeed() {
         Battle battle = new Battle(pbs, new Random(1), null);
@@ -278,5 +290,9 @@ class BattleAftermathTest {
 
     private static BattleResult loss() {
         return new BattleResult(BattleResult.Outcome.LOSS, 3, null);
+    }
+
+    private static BattleResult draw() {
+        return new BattleResult(BattleResult.Outcome.DRAW, 3, null);
     }
 }

@@ -525,9 +525,11 @@ public final class DexEntryView {
         float[] xs = {16f, ScreenMetrics.logicalWidth() / 2f + 16f};
         int[] ys = {96, 118, 140, 162, 184, 206, 228, 250, 272, 294, 316};
         List<String> lines = new ArrayList<>();
-        if (s.evolutions != null) {
-            for (PbsData.Evolution evo : s.evolutions) {
-                if (evo.species == null) continue;
+        PbsData.SpeciesForm shown = form > 0 && context.pbsData() != null ? context.pbsData().form(s.internalName, form) : null;
+        Array<PbsData.Evolution> evolutions = shown != null && shown.evolutions != null ? shown.evolutions : s.evolutions;
+        if (evolutions != null) {
+            for (PbsData.Evolution evo : evolutions) {
+                if (evo.species == null || evo.method == null || evo.method.isEmpty() || "None".equals(evo.method)) continue;   // pbGetEvolvedFormData(fSpecies, true)
                 PbsData.Species target = context.pbsData() == null ? null : context.pbsData().species(evo.species);
                 String targetName = target != null ? target.name : evo.species;
                 String method = evoMethodName(evo.method);

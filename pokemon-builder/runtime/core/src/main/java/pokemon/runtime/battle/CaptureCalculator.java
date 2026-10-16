@@ -1,5 +1,6 @@
 package pokemon.runtime.battle;
 
+import pokemon.runtime.pokemon.PBEvolution;
 import pokemon.runtime.pokemon.PbsData;
 import pokemon.runtime.pokemon.Pokemon;
 import pokemon.runtime.pokemon.PokemonStats;
@@ -354,8 +355,7 @@ public final class CaptureCalculator {
         if (context.pbs == null || context.target == null || context.target.species == null) {
             return false;
         }
-        PbsData.Species species = context.target.species;
-        for (PbsData.Evolution evolution : species.evolutions) {
+        for (PbsData.Evolution evolution : PBEvolution.evolutionsOf(context.target)) {
             if ("Item".equals(evolution.method) && "MOONSTONE".equals(evolution.parameter)) {
                 return true;
             }

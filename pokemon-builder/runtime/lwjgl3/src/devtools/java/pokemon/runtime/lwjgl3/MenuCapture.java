@@ -290,7 +290,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "dive".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -2008,6 +2008,25 @@ public final class MenuCapture extends ApplicationAdapter {
                     advanceMap(1f / 40f, 2);
                     if (i % 3 == 0) shotMap(String.format(java.util.Locale.ROOT, "fishing-%02d", i));
                     if (i == 30 || i == 36) stepMap(GameAction.CONFIRM);
+                }
+                break;
+            }
+            case "dive": {                                             // map 51 (12号道路) deep water -> DiveMap 494 and back
+                for (int b = 0; b < 8; b++) state.trainer().badges.add(b);
+                state.inventory().add("HM06", 1);
+                state.fieldGlobals().surfing = true;
+                mapScreen = new MapScreen(context, Integer.getInteger("dive.map", 51), Integer.getInteger("dive.x", 31), Integer.getInteger("dive.y", 11), 2);
+                context.game().setScreen(mapScreen);
+                advanceMap(1f / 60f, 6);
+                shotMap("dive-0-surfing");
+                for (int i = 0; i < 60; i++) {
+                    stepMap(GameAction.CONFIRM);
+                    advanceMap(1f / 30f, 4);
+                    if (i % 6 == 0) {
+                        System.out.println("dive " + i + " map=" + state.currentMapId() + " surfing=" + state.fieldGlobals().surfing
+                                + " diving=" + state.fieldGlobals().diving + " at " + state.playerX() + "," + state.playerY());
+                        shotMap(String.format(java.util.Locale.ROOT, "dive-%02d", i));
+                    }
                 }
                 break;
             }

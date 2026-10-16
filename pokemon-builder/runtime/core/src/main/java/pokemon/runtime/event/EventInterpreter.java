@@ -2584,7 +2584,7 @@ public final class EventInterpreter {
                     log.warn("GIVE_POKEMON unknown species " + speciesName + "; skipped");
                     break;
                 }
-                Pokemon gifted = newPkmn(species, level);                             // pbNewPkmn
+                Pokemon gifted = newPkmn(species, pbs.formOf(speciesName), level);                             // pbNewPkmn
                 if (pbAddPokemon(gifted, false)) {                               // :67-83 pbAddPokemon
                     log.warn("received " + speciesName + " L" + level);
                 }
@@ -2952,7 +2952,7 @@ public final class EventInterpreter {
                     setLocal(local, null);
                     break;
                 }
-                setLocal(local, newPkmn(species, level));
+                setLocal(local, newPkmn(species, pbs.formOf(speciesName), level));
                 break;
             }
             case "POKEMON_CALL": {
@@ -3002,7 +3002,7 @@ public final class EventInterpreter {
                     log.warn("ADD_EGG unknown species " + speciesName + "; skipped");
                     break;
                 }
-                Pokemon egg = newPkmn(species, 1); // 361:5 pbNewPkmn(egg, EGG_LEVEL)
+                Pokemon egg = newPkmn(species, pbs.formOf(speciesName), 1); // 361:5 pbNewPkmn(egg, EGG_LEVEL)
                 egg.egg = true;
                 egg.name = "神秘的蛋";                                               // 361:10
                 egg.stepsToHatch = species.stepsToHatch;                             // 361:8-11
@@ -3582,7 +3582,7 @@ public final class EventInterpreter {
         PbsData.Species species = pbs == null ? null : pbs.species(speciesName);
         if (species == null || state.trainer() == null) return;
         java.util.Random eggRandom = new java.util.Random();
-        Pokemon egg = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, pokemon.runtime.pokemon.DayCare.EGG_LEVEL,
+        Pokemon egg = pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, pbs.formOf(speciesName), pokemon.runtime.pokemon.DayCare.EGG_LEVEL,
                 state.trainer(), mapId, eggRandom);                                                   // :284 pbNewPkmn(species, EGG_LEVEL)
         egg.egg = true;
         egg.name = "Egg";                                                                              // :288
@@ -4339,7 +4339,7 @@ public final class EventInterpreter {
         rules.record(size + "v1", null);                                          // setBattleRule(sprintf("%dv1",size))
         rules.record("canlose", null);
         rules.record("noexp", null);
-        Pokemon pkmn = newPkmn(species, boss.level);                     // pkmn = pbGenPkmn(:SPECIES, level)
+        Pokemon pkmn = newPkmn(species, pbs.formOf(boss.species), boss.level);                     // pkmn = pbGenPkmn(:SPECIES, level)
         for (BossBattleData.Op op : boss.ops) {
             applyBossOp(pkmn, op);
         }
@@ -4878,7 +4878,7 @@ public final class EventInterpreter {
 
     /**
      * PField_Battles:510-516: the battle decision stored in the outcome
-     * variable - 0 aborted, 1 won, 2 lost, 3 fled, 4 caught.
+     * variable - 0 aborted, 1 won, 2 lost, 3 fled, 4 caught, 5 draw.
      */
     private static int battleDecision(BattleResult result) {
         if (result == null) {
@@ -4892,6 +4892,7 @@ public final class EventInterpreter {
             case LOSS: return 2;
             case ESCAPE: return 3;
             case CAUGHT: return 4;
+            case DRAW: return 5;                       // Battle_StartAndEnd:590 pbJudge
             default: return 0;
         }
     }
@@ -5395,7 +5396,12 @@ public final class EventInterpreter {
      * personal id (nature, gender, ability slot, shininess), random IVs and the player as the owner.
      */
     private Pokemon newPkmn(PbsData.Species species, int level) {
-        return pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, level, state.trainer(),
+        return newPkmn(species, 0, level);
+    }
+
+    /** @param form the form an fSpecies spelling ({@code RATICATE_1}) names, see {@link PbsData#formOf} */
+    private Pokemon newPkmn(PbsData.Species species, int form, int level) {
+        return pokemon.runtime.pokemon.WildGenerator.pbNewPkmn(pbs, species, form, level, state.trainer(),
                 state.currentMapId(), random);
     }
 
@@ -5410,7 +5416,7 @@ public final class EventInterpreter {
             log.warn("boss reward unknown species " + entry.species + "; skipped");
             return;
         }
-        Pokemon pokemon = newPkmn(species, level);
+        Pokemon pokemon = newPkmn(species, pbs.formOf(entry.species), level);
         pokemon.ballused = 26;                  // "封印球" (Boss_reward:336)
         if (entry.form > 0) {
             applyForm(pokemon, entry.form);

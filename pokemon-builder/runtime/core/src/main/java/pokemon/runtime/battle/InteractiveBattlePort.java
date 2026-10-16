@@ -69,7 +69,7 @@ public final class InteractiveBattlePort implements BattlePort {
     public boolean pending() { return session != null; }
     public BattleResult wildBattle(String species, int level) {
         PbsData pbs = data.get();
-        if (pbs != null && pbs.species(species) != null) freeWildBattle(factory().wildPokemon(pbs.species(species), level, pbs));
+        if (pbs != null && pbs.species(species) != null) freeWildBattle(factory().wildPokemon(pbs.species(species), pbs.formOf(species), level, pbs));
         return null;
     }
     @Override
@@ -79,8 +79,8 @@ public final class InteractiveBattlePort implements BattlePort {
             return wildBattle(species1, level1);
         }
         java.util.List<Pokemon> foes = new java.util.ArrayList<>();
-        foes.add(factory().wildPokemon(pbs.species(species1), level1, pbs));
-        foes.add(factory().wildPokemon(pbs.species(species2), level2, pbs));
+        foes.add(factory().wildPokemon(pbs.species(species1), pbs.formOf(species1), level1, pbs));
+        foes.add(factory().wildPokemon(pbs.species(species2), pbs.formOf(species2), level2, pbs));
         return freeWildBattle(foes);
     }
     public BattleResult freeWildBattle(Pokemon foe) {
@@ -1900,7 +1900,8 @@ public final class InteractiveBattlePort implements BattlePort {
                         awardPayDay();                                             // :411-421 (pbGainMoney runs for every win that is not a capture)
                         break;
                     case LOSS:
-                        // Battle_StartAndEnd:479-495: every line is a pbDisplayPaused.
+                    case DRAW:
+                        // Battle_StartAndEnd:472-495 "when 2, 5": every line is a pbDisplayPaused.
                         lossLines.add("所有的宝可梦都倒下了……");                        // :480
                         if (trainerBattle) {                                           // :481-491
                             String[] names = {trainerFullname, trainerFullname2, trainerFullname3};

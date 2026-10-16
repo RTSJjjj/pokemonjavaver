@@ -388,7 +388,8 @@ public final class PBEvolution {
     // Evolution data helpers (201:138-248)
     // ------------------------------------------------------------------
 
-    private static Array<PbsData.Evolution> evolutionsOf(Pokemon pkmn) {
+    /** The form's own evolution table when its PBS entry has one (CARBINK_1 -> DIANCIE), else the species'. */
+    public static Array<PbsData.Evolution> evolutionsOf(Pokemon pkmn) {
         if (pkmn.form != null && pkmn.form.evolutions != null) {
             return pkmn.form.evolutions;
         }

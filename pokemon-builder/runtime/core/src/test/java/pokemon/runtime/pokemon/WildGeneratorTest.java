@@ -109,6 +109,25 @@ class WildGeneratorTest {
     }
 
     @Test
+    @DisplayName("an encounter's fSpecies spelling (RATICATE_1) gives the wild Pokemon that form")
+    void encounterFormSuffix() {
+        assertEquals(1, pbs.formOf("CATERPIE_1"));
+        assertEquals(0, pbs.formOf("CATERPIE"));
+        assertEquals(pbs.species("CATERPIE"), pbs.species("CATERPIE_1"));
+        Pokemon regional = WildGenerator.generate(pbs, pbs.species("CATERPIE_1"), pbs.formOf("CATERPIE_1"), 10,
+                trainer, null, 42, false, true, null, random);
+        assertEquals(1, regional.formIndex(), "the _1 suffix is no longer dropped");
+        assertEquals(0, wild("CATERPIE", 10).formIndex());
+    }
+
+    @Test
+    @DisplayName("gifts, eggs and trades made by name keep the fSpecies form too (pbNewPkmn)")
+    void newPkmnFormSuffix() {
+        assertEquals(1, WildGenerator.pbNewPkmn(pbs, "CATERPIE_1", 5, trainer, 42, random).formIndex());
+        assertEquals(0, WildGenerator.pbNewPkmn(pbs, "CATERPIE", 5, trainer, 42, random).formIndex());
+    }
+
+    @Test
     @DisplayName("the personality value is rolled, so gender and nature vary (PokeBattle_Pokemon:919-922)")
     void rollsPersonalityValue() {
         Set<Integer> ids = new HashSet<>();

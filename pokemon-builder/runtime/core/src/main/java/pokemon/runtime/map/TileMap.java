@@ -120,6 +120,69 @@ public final class TileMap {
     }
 
     /**
+     * {@code Game_Map#passable?(x,y,d,self_event)} for a character that is not the player (027_Game_Map:163-221):
+     * on plain water it may only go on to another water tile (a swimmer's sight and steps stay on the sea), ice is
+     * never entered, and from its own tile ({@code ownTile}) it does not step onto a ledge. Tile id 0 is skipped:
+     * RMXP gives it priority 5, so it never ends the search.
+     */
+    public boolean eventPassable(int column, int row, int direction, boolean ownTile) {
+        if (!valid(column, row)) {
+            return false;
+        }
+        int bit = direction == 2 ? 1 : direction == 4 ? 2 : direction == 6 ? 4 : direction == 8 ? 8 : 0;
+        int newX = column + (direction == 6 ? 1 : direction == 4 ? -1 : 0);
+        int newY = row + (direction == 2 ? 1 : direction == 8 ? -1 : 0);
+        if (!valid(newX, newY)) {
+            return false;                                                     // :174
+        }
+        for (int layer = 2; layer >= 0; layer--) {
+            int tile = tileId(layer, column, row);
+            if (tile <= 0) {
+                continue;
+            }
+            int terrain = tileset.terrainTag(tile);
+            int passage = tileset.passage(tile);
+            if (pokemon.runtime.field.PBTerrain.isJustWater(terrain)) {       // :179-189 only water after water
+                int facing = facingTerrain(newX, newY);
+                return facing > 0 && pokemon.runtime.field.PBTerrain.isJustWater(facing);
+            }
+            if (pokemon.runtime.field.PBTerrain.isIce(terrain)) {
+                return false;                                                 // :190-191
+            }
+            if (ownTile) {
+                int facing = facingTerrain(newX, newY);                       // :193-201 no walking onto a ledge
+                if (facing > 0 && pokemon.runtime.field.PBTerrain.isLedge(facing)) {
+                    return false;
+                }
+            }
+            if (terrain != TERRAIN_NEUTRAL) {                                 // :203-217
+                if ((passage & bit) != 0 || (passage & 0x0f) == 0x0f) {
+                    return false;
+                }
+                if (tileset.priority(tile) == 0) {
+                    return true;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** The topmost terrain tag of a tile that is neither 0 nor Neutral, or 0. */
+    private int facingTerrain(int column, int row) {
+        for (int layer = 2; layer >= 0; layer--) {
+            int tile = tileId(layer, column, row);
+            if (tile <= 0) {
+                continue;
+            }
+            int terrain = tileset.terrainTag(tile);
+            if (terrain != 0 && terrain != TERRAIN_NEUTRAL) {
+                return terrain;
+            }
+        }
+        return 0;
+    }
+
+    /**
      * {@code Game_Map#counter?(x,y)} (027_Game_Map:294-301): a tile is a counter
      * when any of its three layers (top first) has bit 0x80 in its passage. A
      * player facing a counter talks to the event behind it

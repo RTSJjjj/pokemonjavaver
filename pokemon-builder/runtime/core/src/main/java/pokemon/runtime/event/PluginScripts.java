@@ -274,7 +274,7 @@ final class PluginScripts {
         scene.pbMessage("化石复活完成！");                                              // :29
         state.inventory().remove(items.get(i)[0], 1);                               // :30
         state.inventory().remove(items.get(i)[1], 1);                               // :31
-        Pokemon pkmn = WildGenerator.pbNewPkmn(pbs, pbs.species(species.get(i)), 1, state.trainer(),
+        Pokemon pkmn = WildGenerator.pbNewPkmn(pbs, species.get(i), 1, state.trainer(),
                 state.currentMapId(), random);                                      // :32 pbGenPkmn(species[i], 1)
         if (pkmn == null) return;
         if (state.variables().get(25) == 0) {                                       // :33

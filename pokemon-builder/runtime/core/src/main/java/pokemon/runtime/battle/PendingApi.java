@@ -182,9 +182,8 @@ public final class PendingApi {
      */
     public static java.util.List<Object[]> pbGetEvolvedFormData(Battler target, boolean ignoreNone) {
         java.util.List<Object[]> out = new java.util.ArrayList<>();
-        pokemon.runtime.pokemon.PbsData.Species sp = target.pokemon.species;
-        if (sp != null && sp.evolutions != null) {
-            for (pokemon.runtime.pokemon.PbsData.Evolution e : sp.evolutions) {
+        if (target.pokemon.species != null) {
+            for (pokemon.runtime.pokemon.PbsData.Evolution e : pokemon.runtime.pokemon.PBEvolution.evolutionsOf(target.pokemon)) {
                 if (ignoreNone && (e.method == null || e.method.equals("None"))) continue;   // :143 skips the "None" method
                 out.add(new Object[] {e.method, e.parameter, e.species});
             }

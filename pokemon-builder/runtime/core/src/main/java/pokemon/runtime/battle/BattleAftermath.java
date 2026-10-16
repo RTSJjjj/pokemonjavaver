@@ -81,8 +81,7 @@ public final class BattleAftermath {
         }
         // :642-649 heals the partner trainer's party; partner battles (and the
         // partner party in battle) do not exist in the runtime yet.
-        if (canLose && result != null
-                && (result.outcome == BattleResult.Outcome.LOSS)) {   // :650-655
+        if (canLose && result != null && result.lostOrDrew()) {      // :650-655 if decision==2 || decision==5
             trainer.healParty();
         }
     }
@@ -91,8 +90,8 @@ public final class BattleAftermath {
      * {@code Events.onEndBattle} (PField_Battles:684-708), minus the white-out:
      * the white-out is the caller's job, because it swaps the screen.
      *
-     * @return true when the caller must white the player out (a loss without
-     *         {@code canLose}), which is {@code :701-706}
+     * @return true when the caller must white the player out (a loss or a draw
+     *         without {@code canLose}), which is {@code :701-706}
      */
     public static boolean onEndBattle(TrainerState trainer, PbsData pbs, Random random,
                                       BattleResult result, boolean canLose) {
@@ -109,7 +108,8 @@ public final class BattleAftermath {
                 }
                 return false;
             case LOSS:
-                // :701-706: no white-out when the battle allowed a loss.
+            case DRAW:
+                // :701-706 "when 2, 5": no white-out when the battle allowed a loss.
                 return !canLose;
             default:
                 return false;

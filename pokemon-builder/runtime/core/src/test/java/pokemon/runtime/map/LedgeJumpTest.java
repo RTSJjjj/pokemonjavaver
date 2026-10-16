@@ -55,6 +55,7 @@ class LedgeJumpTest {
         TilesetData t = tiles();
         TileMap map = ledgeMap(d, t);
         MapCharacter player = new MapCharacter(2, 1, 20, 4, "trchar000");
+        player.isPlayer = true;
 
         assertTrue(Collision.isFacingLedge(state, map, d, player, 6),
                 "the ledge is passable from this side (Game_Player:74)");
@@ -72,6 +73,7 @@ class LedgeJumpTest {
         d.tileData.layers[0][4 + 1 * 20] = 386;
         t.passages.layers[0][386] = 15; // tile (4,1) blocks every direction
         MapCharacter player = new MapCharacter(2, 1, 20, 4, "trchar000");
+        player.isPlayer = true;
 
         assertTrue(Collision.isFacingLedge(state, map, d, player, 6));
         assertNull(Collision.ledgeLanding(state, map, d, player, 6),
@@ -86,6 +88,7 @@ class LedgeJumpTest {
         TileMap map = ledgeMap(d, t);
         t.passages.layers[0][385] = 0x02; // entering from the left is blocked
         MapCharacter player = new MapCharacter(2, 1, 20, 4, "trchar000");
+        player.isPlayer = true;
 
         assertFalse(Collision.canStep(state, map, d, player, 6));
         assertFalse(Collision.isFacingLedge(state, map, d, player, 6),

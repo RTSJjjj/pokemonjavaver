@@ -358,6 +358,23 @@ public final class PbsData {
         return null;
     }
 
+    /**
+     * The form an fSpecies spelling names: {@code RATICATE_1} -> 1 (PokeBattle_Pokemon#initialize's
+     * {@code @species, @form = pbGetSpeciesFromFSpecies(species)}), 0 for a plain species name.
+     */
+    public int formOf(String internalName) {
+        if (internalName == null || species.containsKey(internalName)) return 0;
+        int cut = internalName.lastIndexOf('_');
+        if (cut <= 0) return 0;
+        String suffix = internalName.substring(cut + 1);
+        if (suffix.isEmpty() || !suffix.chars().allMatch(Character::isDigit)) return 0;
+        try {
+            return Integer.parseInt(suffix);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     public SpeciesForm form(String key) {
         return key == null ? null : forms.get(key);
     }

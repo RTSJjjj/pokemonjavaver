@@ -96,4 +96,16 @@ class PBEvolutionTest {
         torchic.setForm(data, 0);
         assertEquals("DEFIANT", torchic.ability);
     }
+
+    @Test
+    void formEvolutionTableIsUsedByTheBagStone() throws Exception {
+        PbsData data = data();
+        if (data == null) return;
+        Pokemon carbink = new Pokemon(data.species("CARBINK"), 45, data);
+        assertNull(ItemUse.evolution(carbink, "DAWNSTONE", data, true), "the base Carbink does not evolve");
+        carbink.setForm(data, 1);
+        PbsData.Species diancie = ItemUse.evolution(carbink, "DAWNSTONE", data, true);
+        assertNotNull(diancie, "CARBINK_1 evolves with a Dawn Stone");
+        assertEquals("DIANCIE", diancie.internalName);
+    }
 }

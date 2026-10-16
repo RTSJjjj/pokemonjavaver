@@ -57,7 +57,11 @@ public final class Collision {
             return map.playerPassable(x, y, bit, state == null ? 0 : state.bridge(),
                     state != null && state.fieldGlobals().surfing, state != null && state.fieldGlobals().bicycle);
         }
-        return map.passable(x, y, bit);
+        if (character == null) {
+            return map.passable(x, y, bit);
+        }
+        int direction = bit == 1 ? 2 : bit == 2 ? 4 : bit == 4 ? 6 : bit == 8 ? 8 : 0;
+        return map.eventPassable(x, y, direction, character.x() == x && character.y() == y);
     }
 
     private static boolean characterAt(GameState state, MapData data, int x, int y) {
@@ -196,7 +200,13 @@ public final class Collision {
         if (character.through) {
             return true;
         }
-        return map.passableAnyDirection(x, y) && !characterAt(state, data, x, y);
+        // MapFactory:172-174 map.passable?(x, y, 0, $game_player) -> Game_Map:162 playerPassable? (d = 0: bit 0), so
+        // surfable water is open to a surfing player here as well, not only on the current map
+        boolean open = character.isPlayer
+                ? map.playerPassable(x, y, 0, state == null ? 0 : state.bridge(),
+                        state != null && state.fieldGlobals().surfing, state != null && state.fieldGlobals().bicycle)
+                : map.passableAnyDirection(x, y);
+        return open && !characterAt(state, data, x, y);
     }
 
     /** Nearest usable spawn for a debug map override; never changes the source map. */

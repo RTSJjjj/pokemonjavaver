@@ -43,4 +43,13 @@ public final class BattleResult {
     public boolean won() {
         return outcome == Outcome.WIN || outcome == Outcome.CAUGHT;
     }
+
+    /**
+     * {@code decision==2 || decision==5} (PField_Battles:650, :702; Battle_StartAndEnd:472): the plugin treats a draw
+     * - both sides out of able Pokemon at once - exactly like a loss: the loss lines, the canLose heal and the
+     * white-out.
+     */
+    public boolean lostOrDrew() {
+        return outcome == Outcome.LOSS || outcome == Outcome.DRAW;
+    }
 }

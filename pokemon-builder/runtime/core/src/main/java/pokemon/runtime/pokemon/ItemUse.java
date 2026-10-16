@@ -181,7 +181,7 @@ public final class ItemUse {
     }
     public static PbsData.Species evolution(Pokemon p, String id, PbsData data, boolean day) {
         if (p == null || p.egg || p.species == null) return null;
-        for (PbsData.Evolution e : p.species.evolutions) {
+        for (PbsData.Evolution e : PBEvolution.evolutionsOf(p)) {
             if (!id.equals(e.parameter)) continue;
             boolean matches;
             switch (e.method) {

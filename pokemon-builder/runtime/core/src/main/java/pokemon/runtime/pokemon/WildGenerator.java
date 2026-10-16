@@ -77,6 +77,16 @@ public final class WildGenerator {
     public static Pokemon generate(PbsData data, PbsData.Species species, int level,
                                    TrainerState trainer, Inventory bag, int mapId,
                                    boolean fatefulEncounter, boolean elite, FormsOnCreation.World world, Random random) {
+        return generate(data, species, 0, level, trainer, bag, mapId, fatefulEncounter, elite, world, random);
+    }
+
+    /**
+     * @param form the form the encounter names ({@code RATICATE_1} in encounters.txt -> 1); 0 = the default form, which
+     *             getFormOnCreation may still change
+     */
+    public static Pokemon generate(PbsData data, PbsData.Species species, int form, int level,
+                                   TrainerState trainer, Inventory bag, int mapId,
+                                   boolean fatefulEncounter, boolean elite, FormsOnCreation.World world, Random random) {
         if (data == null || species == null) {
             return null;
         }
@@ -104,8 +114,12 @@ public final class WildGenerator {
         pokemon.obtainMap = mapId;                                       // :951
         pokemon.obtainLevel = level;                                     // :953
         pokemon.obtainMode = fatefulEncounter ? 4 : 0;                   // :954-955
+        if (form > 0) {                                                  // :913 @species, @form = pbGetSpeciesFromFSpecies
+            pokemon.setForm(data, form);
+            pokemon.resetMoves(data);                                    // :957 resetMoves reads the form's moveset
+        }
         pokemon.hp = pokemon.maxHp();                                    // :960
-        FormsOnCreation.apply(pokemon, data, trainer, world, source);    // 198_Pokemon_Forms:43-47 getFormOnCreation
+        FormsOnCreation.apply(pokemon, data, trainer, world, source);    // 198_Pokemon_Forms:43-47 getFormOnCreation (form 0 only)
 
         Pokemon lead = trainer == null ? null : trainer.first();
 
@@ -192,6 +206,19 @@ public final class WildGenerator {
      */
     public static Pokemon pbNewPkmn(PbsData data, PbsData.Species species, int level, TrainerState trainer, int mapId,
                                     Random random) {
+        return pbNewPkmn(data, species, 0, level, trainer, mapId, random);
+    }
+
+    /** {@code pbNewPkmn} by name: an fSpecies spelling ({@code RATICATE_1}) gives that form, see {@link PbsData#formOf}. */
+    public static Pokemon pbNewPkmn(PbsData data, String speciesName, int level, TrainerState trainer, int mapId,
+                                    Random random) {
+        if (data == null) return null;
+        return pbNewPkmn(data, data.species(speciesName), data.formOf(speciesName), level, trainer, mapId, random);
+    }
+
+    /** @param form the form the fSpecies names (:913 pbGetSpeciesFromFSpecies); 0 = default, getFormOnCreation may change it */
+    public static Pokemon pbNewPkmn(PbsData data, PbsData.Species species, int form, int level, TrainerState trainer,
+                                    int mapId, Random random) {
         if (data == null || species == null) {
             return null;
         }
@@ -219,6 +246,10 @@ public final class WildGenerator {
         pokemon.ability = naturalAbility(species, pokemon);
         pokemon.nature = natureOf(data, pokemon);
         pokemon.shiny = Pokemon.isShiny(pokemon.personalID, pokemon.trainerID);
+        if (form > 0) {                                                  // :913 @species, @form = pbGetSpeciesFromFSpecies
+            pokemon.setForm(data, form);
+            pokemon.resetMoves(data);                                    // :957 resetMoves reads the form's moveset
+        }
         pokemon.hp = pokemon.maxHp();                                    // :960
         // 198_Pokemon_Forms:43-47: PokeBattle_Pokemon.new ends with getFormOnCreation - gifts, starters, Boss Pokemon,
         // trades, eggs and trainers' Pokemon are made here, so all of them get it (a form set afterwards still wins).
