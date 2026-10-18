@@ -223,6 +223,11 @@ final class HiddenMoveTask {
         scene.runAction(port::smashFacingEvent);
     }
 
+    /** {@code pbSweetScent} for the Honey (189:207-211 UseInField). */
+    void sweetScentForItem() {
+        sweetScent();
+    }
+
     /** {@code pbSweetScent} (:813-845). */
     private void sweetScent() {
         if (state.weather().type() != ScreenWeather.NONE) {

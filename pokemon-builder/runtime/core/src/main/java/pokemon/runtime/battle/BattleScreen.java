@@ -1906,6 +1906,15 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             finishItemParty();
             return;
         }
+        // :314-325 useType 3/8 (on a battler: X items, the Red/Yellow Flute, Persim) go to the only battler of a single
+        // battle at once; 5/10 (no target: Guard Spec, Poke Doll, Poke Flute) never ask for a Pokemon.
+        Battler acting = fighter();
+        if (acting != null && acting.pokemonIndex >= 0
+                && (useType == 5 || useType == 10 || ((useType == 3 || useType == 8) && !doubles()))) {
+            itemPartyResult = acting.pokemonIndex;
+            finishItemParty();
+            return;
+        }
         final int[] chosen = {-1};
         itemParty = PartyView.forItem(context, scene -> {
             scene.pbStartScene("要对哪只宝可梦使用？", null);       // :290 pkmnScreen.pbStartScene

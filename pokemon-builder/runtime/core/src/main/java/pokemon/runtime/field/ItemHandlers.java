@@ -41,7 +41,10 @@ public final class ItemHandlers {
 
     private static final Set<String> FULLHEAL_GROUP = new HashSet<>(Arrays.asList(
             "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
-            "BIGMALASADA", "LUMBERRY", "XIANGSHAWLPILL"));
+            "BIGMALASADA", "LUMBERRY", "XIANGSHAWLPILL",
+            // 插件缺陷已修: 189:575 copies FULLHEAL to :RAGECANDYBARY (a typo), so the Rage Candy Bar had no field use;
+            // 190:127 / :441 already treat it as a Full Heal in battle (NEWEST_BATTLE_MECHANICS).
+            "RAGECANDYBAR"));
     private static final Set<String> MINTS = new HashSet<>(Arrays.asList(
             "LONELYMINT", "ADAMANTMINT", "NAUGHTYMINT", "BRAVEMINT", "BOLDMINT", "IMPISHMINT", "LAXMINT",
             "RELAXEDMINT", "MODESTMINT", "MILDMINT", "RASHMINT", "QUIETMINT", "CALMMINT", "GENTLEMINT",
@@ -404,12 +407,8 @@ public final class ItemHandlers {
      */
     public static boolean isMapItem(String item) {
         return "SUPERROD".equals(item) || "ESCAPEROPE".equals(item) || "INFINITEROPE".equals(item) || "LANTERN".equals(item)
-                || "EONFLUTE".equals(item) || "ETHEREALNEXUS".equals(item) || "HEAVENCRYSEAL".equals(item);
-    }
-
-    /** {@code UseFromBag} answered 4 (189:25-35 {@code :ESCAPEROPE}): the bag deletes the item before the screens end. */
-    public static boolean consumedInBag(String item) {
-        return "ESCAPEROPE".equals(item);
+                || "EONFLUTE".equals(item) || "ETHEREALNEXUS".equals(item) || "HEAVENCRYSEAL".equals(item)
+                || "HONEY".equals(item);
     }
 
     /** 189:1522-1620: the maps the Eon Flute / Ethereal Nexus / Heaven Seal refuse ({@code ESMM_Config::BAN_MAPS}, 335_001_ESMM_Config:10-). */
@@ -1527,6 +1526,7 @@ public final class ItemHandlers {
                 return statusCure(pkmn, "FROZEN", "{1}不再被冰冻了", scene);
             case "FULLHEAL": case "LAVACOOKIE": case "OLDGATEAU": case "CASTELIACONE": case "LUMIOSEGALETTE":
             case "SHALOURSABLE": case "BIGMALASADA": case "LUMBERRY": case "XIANGSHAWLPILL":           // :549-575
+            case "RAGECANDYBAR":
                 if (!able(pkmn) || !hasStatus(pkmn)) {
                     scene.pbDisplay(NO_EFFECT);
                     return false;

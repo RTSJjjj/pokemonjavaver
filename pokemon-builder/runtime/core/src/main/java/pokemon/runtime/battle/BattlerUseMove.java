@@ -523,6 +523,11 @@ public final class BattlerUseMove {
                 b.droppedBelowHalfHP = false;                                        // :546
                 b.statsDropped = false;                                              // :547
             }
+            // 插件缺陷已修: pbMirrorStatUpsOpposing (Mirror Herb / Opportunist) was only reached from pbRaiseStatStageByAbility,
+            // so the stat raises of moves (Swords Dance, Dragon Dance, ...) were tallied in sideStatUps and never mirrored.
+            for (Battler b : battle.allBattlers()) b.pbMirrorStatUpsOpposing();
+            battle.sideStatUps[0].clear();                                           // a side with no one left to mirror for
+            battle.sideStatUps[1].clear();
         }
         // End effect of Mold Breaker
         battle.moldBreaker = false;                                                  // :551

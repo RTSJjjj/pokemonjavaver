@@ -62,14 +62,18 @@ final class FieldItemTask {
                 return etherealNexus();
             case "HEAVENCRYSEAL":
                 return heavenCrySeal();
+            case "HONEY":                                                              // 189:207-211
+                useItemMessage(item);
+                new HiddenMoveTask(state, pbs, port, scene, services::pbEncounter, random, null).sweetScentForItem();
+                return 3;
             case "TOWNMAP":                                                            // :372-375 pbShowMap(-1, false)
                 scene.showMap();
                 return 1;
             default: {
                 pokemon.runtime.field.ItemHandlers handlers = new pokemon.runtime.field.ItemHandlers(pbs, state, java.time.LocalTime::now);
                 if (!pokemon.runtime.field.ItemHandlers.hasUseInFieldHandler(item) || !handlers.hasBagFieldHandler(item)) {
-                    scene.pbMessage("这里不能使用。");                                      // 188:971-972 ret == -1 (登记: the Honey, Itemfinder and
-                    return -1;                                                          // Poke Radar bodies are not modelled)
+                    scene.pbMessage("这里不能使用。");                                      // 188:971-972 ret == -1 (登记: the Itemfinder and
+                    return -1;                                                          // Poke Radar bodies are not modelled: no event gives them)
                 }
                 return handlers.useInField(item, new EggMoveTutor(state, pbs, scene, handlers).itemSceneFor());
             }

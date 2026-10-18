@@ -80,7 +80,7 @@ public final class ItemUse {
             case "FULLRESTORE": case "LUMBERRY": return "*";
             // 190_PItem_BattleItemEffects:438-441 BattleUseOnPokemon.copy(:FULLHEAL, ...)
             case "LAVACOOKIE": case "OLDGATEAU": case "CASTELIACONE": case "LUMIOSEGALETTE": case "SHALOURSABLE":
-            case "BIGMALASADA": return "*";
+            case "BIGMALASADA": case "RAGECANDYBAR": return "*";   // 190:127 / :441 copy(:FULLHEAL, :RAGECANDYBAR)
             default: return null;
         }
     }

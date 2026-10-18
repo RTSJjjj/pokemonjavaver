@@ -300,7 +300,25 @@ public final class InteractiveBattlePort implements BattlePort {
             "ETHER", "MAXETHER", "LEPPABERRY", "ELIXIR", "MAXELIXIR"));
     private static final java.util.Set<String> CURES_CONFUSION = new java.util.HashSet<>(java.util.Arrays.asList(
             "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
-            "BIGMALASADA", "LUMBERRY", "FULLRESTORE", "HEALPOWDER"));
+            "BIGMALASADA", "LUMBERRY", "FULLRESTORE", "HEALPOWDER", "RAGECANDYBAR"));
+    /** 190:12-22 / :294-299: the items that end a wild battle at once. */
+    private static final java.util.Set<String> POKE_DOLLS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "POKEDOLL", "FLUFFYTAIL", "POKETOY"));
+    /** 190:554-688 BattleUseOnBattler: {stat, stages} of the X items (NEWEST_BATTLE_MECHANICS: the plain ones raise 2). */
+    private static final java.util.Map<String, int[]> X_ITEMS = new java.util.HashMap<>();
+    static {
+        String[][] names = {{"XATTACK", "XATTACK"}, {"XDEFENSE", "XDEFEND"}, {"XSPATK", "XSPECIAL"}, {"XSPDEF", "XSPDEF"},
+                {"XSPEED", "XSPEED"}, {"XACCURACY", "XACCURACY"}};
+        int[] stats = {PBStats.ATTACK, PBStats.DEFENSE, PBStats.SPATK, PBStats.SPDEF, PBStats.SPEED, PBStats.ACCURACY};
+        for (int i = 0; i < names.length; i++) {
+            for (String base : names[i]) {
+                X_ITEMS.put(base, new int[] {stats[i], 2});
+                X_ITEMS.put(base + "2", new int[] {stats[i], 2});
+                X_ITEMS.put(base + "3", new int[] {stats[i], 3});
+                X_ITEMS.put(base + "6", new int[] {stats[i], 6});
+            }
+        }
+    }
     private static final java.util.Map<String, String> BATTLE_HAPPINESS = new java.util.HashMap<>();
     static {
         BATTLE_HAPPINESS.put("ENERGYPOWDER", "powder");
@@ -1039,6 +1057,8 @@ public final class InteractiveBattlePort implements BattlePort {
             log.clear();
             engineEvents.clear();
             addLog(printed);
+            engineEvents.addAll(pendingItemEvents);                     // the item's own lines, after "使用了…"
+            pendingItemEvents.clear();
             drive(() -> result = battle.foeTurn(), () -> {
                 message = null;
                 endMessage();
@@ -1472,8 +1492,13 @@ public final class InteractiveBattlePort implements BattlePort {
             Battler battler = battle.playerParty().get(target);
             PbsData.Item item = data.get().item(id);
             if (item == null || item.battleUse <= 0) return false;
+            if (POKE_DOLLS.contains(id)) return pokeDoll(id, item);
             // Source PItem_BattleItemEffects uses 50/200 for these two medicines.
-            if (PP_ITEMS.contains(id)) {
+            if (item.battleUse == 3 || item.battleUse == 8 || item.battleUse == 5 || item.battleUse == 10) {
+                if (!useOnBattler(id, item.battleUse, idxBattler, battler)) return false;
+                // 135_Battle_Action_UseItem:45-46 pbConsumeItemInBag: useType 6-10 (the flutes) are not used up
+                if (item.battleUse < 6) inventory.remove(id, 1);
+            } else if (PP_ITEMS.contains(id)) {
                 if (!restorePpInBattle(id, battler, idxMove)) return false;
                 inventory.remove(id, 1);
             } else if ("SUPERPOTION".equals(id) || "HYPERPOTION".equals(id)) {
@@ -1486,11 +1511,16 @@ public final class InteractiveBattlePort implements BattlePort {
                 battler.syncHp();                                   // the battler's HP/status is the truth; ItemUse reads the Pokemon
                 boolean curesConfusion = CURES_CONFUSION.contains(id);
                 boolean confused = battler.effects.intVal(PBEffects.Battler.Confusion) > 0;
+                ItemUse.lastMessage = "";
                 if (ItemUse.use(id, battler.pokemon, trainer, inventory, data.get(), -1, true) != ItemUse.Result.USED) {
                     // 190_PItem_BattleItemEffects:114-139 CanUseInBattle: confusion alone makes Full Heal / Full Restore usable
                     if (!curesConfusion || !confused || battler.fainted()) return false;
                     inventory.remove(id, 1);
                 } else {
+                    // 188:586-597 pbBattleHPItem "{1}的HP回复了。" / the status lines of 190:379-446
+                    String line = ItemUse.lastMessage;
+                    if (line != null && line.matches(".*的HP恢复了\\d+点。")) line = battler.pbThis() + "的HP回复了。";
+                    if (line != null && !line.isEmpty()) battle.display(line);
                     // 190_PItem_BattleItemEffects:479-501 pokemon.changeHappiness("powder" / "energyroot" / "revivalherb")
                     String happiness = BATTLE_HAPPINESS.get(id);
                     if (happiness != null) battle.changeHappiness(battler.pokemon, happiness);
@@ -1508,15 +1538,105 @@ public final class InteractiveBattlePort implements BattlePort {
             // the owner's name (the trainer), not the Pokemon's. The rest of the
             // round (the opponent's move) follows it.
             message = trainer.name + "使用了" + item.name + "。";
+            // The item's own lines (the stat raise, "被白雾包围了！") follow the use line; the round's start clears
+            // battle.roundEvents, so they are taken out here.
+            Array<Battle.RoundEvent> effects = new Array<>(battle.roundEvents);
+            battle.roundEvents.clear();
             if (endsRound) {
+                pendingItemEvents.addAll(effects);
                 foeTurn();
             } else {
                 battle.markItemUsed(idxBattler);                    // Battle_Action_UseItem:29: the battler's action is spent
                 log.clear();
                 engineEvents.clear();
+                addLog(message);
+                engineEvents.addAll(effects);
+                message = null;
                 endMessage();
             }
             return true;
+        }
+
+        /** {@link #useItem}'s own lines, played right after "使用了…" when the round runs ({@link #foeTurn()}). */
+        private final Array<Battle.RoundEvent> pendingItemEvents = new Array<>();
+
+        /** The Poke Doll / Fluffy Tail / Poke Toy (190:12-22 CanUseInBattle, :294-299 UseInBattle): a sure escape. */
+        private boolean pokeDoll(String id, PbsData.Item item) {
+            if (trainerBattle) return false;                        // :13 !battle.wildBattle?
+            inventory.remove(id, 1);
+            log.clear();
+            engineEvents.clear();
+            addLog(trainer.name + "使用了" + item.name + "。");     // 135:87 pbUseItemMessage
+            message = "安全地逃跑了！";                               // :296 battle.decision = 3; pbDisplayPaused
+            result = new BattleResult(BattleResult.Outcome.ESCAPE, battle.turns(), null);
+            endMessage();
+            return true;
+        }
+
+        /**
+         * 190_PItem_BattleItemEffects CanUseInBattle + BattleUseOnBattler (useType 3/8: X items, Dire Hit, the Red / Yellow
+         * Flute, Persim Berry) and UseInBattle (useType 5/10: Guard Spec, Poke Flute). The battler is the active one the
+         * chosen party member is; an item with no target acts for the battler whose turn it is.
+         */
+        private boolean useOnBattler(String id, int useType, int idxBattler, Battler chosen) {
+            Battler battler = null;
+            if (useType == 5 || useType == 10) {
+                battler = battle.battlerAt(idxBattler);
+            } else {
+                for (Battler b : battle.allSameSideBattlers(idxBattler)) {
+                    if (b != null && chosen != null && b.pokemon == chosen.pokemon) battler = b;
+                }
+            }
+            if (battler == null || battler.fainted()) return false;
+            if (battler.effects.intVal(PBEffects.Battler.Embargo) > 0) return false;   // 135:11-15 pbCanUseItemOnPokemon?
+            int[] stat = X_ITEMS.get(id);
+            if (stat != null) {
+                if (!battler.pbCanRaiseStatStage(stat[0], battler)) return false;     // 188:713-719 pbBattleItemCanRaiseStat?
+                battler.pbRaiseStatStage(stat[0], stat[1], battler);                // :554-688
+                battle.changeHappiness(battler.pokemon, "battleitem");
+                return true;
+            }
+            switch (id) {
+                case "DIREHIT": case "DIREHIT2": case "DIREHIT3": {                 // :246-268, :690-707
+                    int level = "DIREHIT".equals(id) ? 1 : "DIREHIT2".equals(id) ? 2 : 3;
+                    if (battler.effects.intVal(PBEffects.Battler.FocusEnergy) >= level) return false;
+                    battler.effects.set(PBEffects.Battler.FocusEnergy, "DIREHIT3".equals(id) ? 3 : 2);
+                    battle.display(battler.pbThis() + "变得兴奋了！");
+                    battle.changeHappiness(battler.pokemon, "battleitem");
+                    return true;
+                }
+                case "REDFLUTE":                                                    // :182-189, :542-545
+                    if (battler.effects.intVal(PBEffects.Battler.Attract) < 0 || battler.hasActiveAbility("SOUNDPROOF")) return false;
+                    battler.pbCureAttract();
+                    battle.display(battler.pbThis() + "不再迷恋对方了！");
+                    return true;
+                case "YELLOWFLUTE": case "PERSIMBERRY":                              // :191-206, :547-552
+                    if (battler.effects.intVal(PBEffects.Battler.Confusion) == 0
+                            || ("YELLOWFLUTE".equals(id) && battler.hasActiveAbility("SOUNDPROOF"))) return false;
+                    battler.pbCureConfusion();
+                    battle.display(battler.pbThis() + "解除了混乱！");
+                    return true;
+                case "GUARDSPEC":                                                   // :4-10, :288-292
+                    if (battler.pbOwnSide().effects.intVal(PBEffects.Side.Mist) > 0) return false;
+                    battler.pbOwnSide().effects.set(PBEffects.Side.Mist, 5);
+                    battle.display(battler.pbTeam(false) + "被白雾包围了！");
+                    battle.changeHappiness(battler.pokemon, "battleitem");
+                    return true;
+                case "POKEFLUTE": {                                                 // :270-286, :301-307
+                    boolean anyAsleep = false;
+                    for (Battler b : battle.eachBattler()) {
+                        if ("SLEEP".equals(b.status) && !b.hasActiveAbility("SOUNDPROOF")) anyAsleep = true;
+                    }
+                    if (!anyAsleep) return false;
+                    for (Battler b : battle.eachBattler()) {
+                        if ("SLEEP".equals(b.status) && !b.hasActiveAbility("SOUNDPROOF")) b.pbCureStatus(false);
+                    }
+                    battle.display("所有宝可梦都被唤醒了！");
+                    return true;
+                }
+                default:
+                    return false;
+            }
         }
         /**
          * 190_PItem_BattleItemEffects ETHER / MAXETHER / LEPPABERRY / ELIXIR / MAXELIXIR: CanUseInBattle (the Pokemon

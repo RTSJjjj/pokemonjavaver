@@ -37,6 +37,25 @@ class InteractiveBattlePortTest {
         PbsData.Item item = new PbsData.Item(); item.internalName = id; item.name = id; item.pocket = 2; item.battleUse = 1;
         data.items.put(id, item); bag.add(id, 1);
     }
+    @Test void potionShowsTheHpLineAfterTheUseLine() {
+        medicine("POTION");
+        port.freeWildBattle(pokemon(20));
+        Battler mine = port.session().battle.player();
+        mine.hp = 1; mine.syncHp();
+        assertTrue(port.session().item("POTION", 0));
+        String text = port.session().message;
+        int used = text.indexOf("使用了POTION");
+        int healed = text.indexOf("的HP回复了。");
+        assertTrue(used >= 0 && healed > used, "188:586-597 pbBattleHPItem: " + text);
+    }
+    @Test void rageCandyBarIsAFullHealInBattle() {
+        medicine("RAGECANDYBAR");
+        port.freeWildBattle(pokemon(20));
+        Battler mine = port.session().battle.player();
+        mine.status = "BURN"; mine.syncHp();
+        assertTrue(port.session().item("RAGECANDYBAR", 0), "190:127 / :441 copy(:FULLHEAL, :RAGECANDYBAR)");
+        assertEquals("", mine.status);
+    }
     @Test void statusMedicineCuresTheBattlerNotOnlyThePokemon() {
         medicine("ANTIDOTE");
         port.freeWildBattle(pokemon(20));
@@ -46,6 +65,63 @@ class InteractiveBattlePortTest {
         assertEquals("", mine.status, "190:391 battler.pbCureStatus(false)");
         mine.syncHp();
         assertEquals("", trainer.first().status, "syncHp must not write the old status back");
+    }
+    private void battleItem(String id, int useType) {
+        PbsData.Item item = new PbsData.Item(); item.internalName = id; item.name = id; item.pocket = 7; item.battleUse = useType;
+        data.items.put(id, item); bag.add(id, 1);
+    }
+    @Test void xAttackRaisesAttackAndItsLineFollowsTheUseLine() {
+        battleItem("XATTACK", 3);
+        port.freeWildBattle(pokemon(20));
+        Battler mine = port.session().battle.player();
+        assertTrue(port.session().item("XATTACK", 0), "190:208 / :554 X Attack on the battler");
+        assertEquals(2, mine.stage(PBStats.ATTACK));
+        assertFalse(bag.has("XATTACK"));
+        String text = port.session().message;
+        int used = text.indexOf("使用了XATTACK");
+        int raised = text.indexOf("攻击大幅提升了");
+        assertTrue(used >= 0 && raised > used, text);
+    }
+    @Test void xAttackFailsAtTheTopStage() {
+        battleItem("XATTACK", 3);
+        port.freeWildBattle(pokemon(20));
+        port.session().battle.player().setStage(PBStats.ATTACK, 6);
+        assertFalse(port.session().item("XATTACK", 0));
+        assertTrue(bag.has("XATTACK"));
+    }
+    @Test void guardSpecSetsMist() {
+        battleItem("GUARDSPEC", 5);
+        port.freeWildBattle(pokemon(20));
+        assertTrue(port.session().item("GUARDSPEC", 0));
+        assertEquals(4, port.session().battle.player().pbOwnSide().effects.intVal(PBEffects.Side.Mist), "5 turns, one spent by the end of this round");
+        assertFalse(port.session().item("GUARDSPEC", 0), "no second Guard Spec while the mist lasts");
+    }
+    @Test void pokeDollEscapesAWildBattle() {
+        battleItem("POKEDOLL", 5);
+        port.freeWildBattle(pokemon(20));
+        assertTrue(port.session().item("POKEDOLL", 0));
+        assertEquals(BattleResult.Outcome.ESCAPE, port.session().result.outcome);
+        assertFalse(bag.has("POKEDOLL"));
+    }
+    @Test void pokeFluteWakesTheSleepersAndIsKept() {
+        battleItem("POKEFLUTE", 10);
+        port.freeWildBattle(pokemon(20));
+        Battler mine = port.session().battle.player();
+        assertFalse(port.session().item("POKEFLUTE", 0), "no one asleep");
+        mine.status = "SLEEP"; mine.statusCount = 3;
+        assertTrue(port.session().item("POKEFLUTE", 0));
+        assertEquals("", mine.status);
+        assertTrue(bag.has("POKEFLUTE"), "135:46 useType 6-10 is not used up");
+    }
+    @Test void revivalHerbRevivesAFaintedPartyMemberInBattle() {
+        medicine("REVIVALHERB");
+        Pokemon second = pokemon(20);
+        second.hp = 0;
+        trainer.party.add(second);
+        port.freeWildBattle(pokemon(20));
+        assertTrue(port.session().item("REVIVALHERB", 1), "190:471-501 a revive on the fainted second Pokemon");
+        assertEquals(second.maxHp(), second.hp);
+        assertFalse(bag.has("REVIVALHERB"));
     }
     @Test void etherRestoresTheChosenMovesPp() {
         medicine("ETHER");

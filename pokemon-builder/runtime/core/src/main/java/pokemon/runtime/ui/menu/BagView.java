@@ -534,9 +534,8 @@ public final class BagView {
                 sayAll(refusal, 0);
                 return;
             }
-            if (ItemHandlers.consumedInBag(item)) {
-                state().inventory().remove(item, 1);                // :917 case 4: bag.pbDeleteItem(item), end screen
-            }
+            // 插件缺陷已修: UseFromBag 4 (the ropes, Honey) deleted the item here (:917) and pbUseKeyItemInField deleted it
+            // again for UseInField's 3 (188:978-980), so two were spent. Only the field step consumes it now.
             mapItems.use(item);                                    // next 2 / 4: end screen, then pbUseKeyItemInField
             return;
         }
