@@ -16,9 +16,9 @@ import java.util.function.IntConsumer;
  * (:1304-1318) / {@code pbMessageDisplay}(:1007-1297) / {@code pbShowCommands}(:1355-1389)。
  * PScreen_PC 与 B2W2 PC 的整句对话(「登录了精灵寄存服务！」「要登录哪一个服务？」「确定提交…」)用它。
  *
- * <p>只覆盖本段文案用到的控制符: {@code \se[] \me[] \wtnp[] \wt[] \. \| \G \1 \n};
- * 其余控制符(\c[] 取色、\f 头像、\l 行数等)按原文语义被识别后<b>忽略</b>，
- * 登记: 取色(\c[1])未画，消息窗固定 2 行。</p>
+ * <p>只覆盖本段文案用到的控制符: {@code \se[] \me[] \wtnp[] \wt[] \. \| \G \1 \n}；取色 {@code \c[n]} 与
+ * {@code <icon=X>} / {@code <c3=...>} 由 {@link RichText} 画出；
+ * 其余控制符(\f 头像、\l 行数等)按原文语义被识别后<b>忽略</b>，登记: 消息窗固定 2 行。</p>
  *
  * <p>状态机: 每帧 {@link #update} 一次；{@code ticks} 是 40fps 的 tick 数（{@link MenuClock}）。</p>
  */
@@ -120,6 +120,11 @@ final class PbMessage {
                 if (type.equals("se") || type.equals("me") || type.equals("wtnp") || type.equals("wt")) {
                     controls.add(new String[] {type, param, String.valueOf(plain.length())});
                     if (type.equals("wt") || type.equals("wtnp")) plain.append('\u0002');   // :1105 textchunks[i] += "\2"
+                    i = j;
+                    continue;
+                }
+                if (type.equals("c") && j > i + 2 && source.charAt(i + 2) == '[') {   // \c[n]: drawn by RichText
+                    plain.append(source, i, j);
                     i = j;
                     continue;
                 }
@@ -254,6 +259,8 @@ final class PbMessage {
             int speed = context.settings().textspeed;
             int step = speed == 0 ? ((stepCounter++ % 3 == 0) ? 1 : 0) : speed == 2 ? 3 : 1;
             for (int k = 0; k < step && busy(); k++) {
+                shown = RichText.skipCodes(text, shown);                     // a colour / icon code shows at once
+                if (!busy()) break;
                 char c = text.charAt(shown);
                 if (c == PAUSE) {
                     pausing = true;
@@ -308,11 +315,8 @@ final class PbMessage {
         float msgTop = h - msgHeight;
         Color[] mc = MenuPanel.textColors(speech);
         MenuPanel.window(b, a, speech, 0f, h - msgTop - msgHeight, w, msgHeight);
-        String[] lines = (text == null ? "" : text).split("\n", -1);
-        for (int i = 0; i < lines.length && i < 2; i++) {
-            float top = msgTop + 16f + i * ROW + (ROW - f.lineHeight()) / 2f;
-            f.draw(b, lines[i], 16f, h - top, mc[0], mc[1]);
-        }
+        RichText.drawLines(b, f, a, text, 16f, h - (msgTop + 16f + (ROW - f.lineHeight()) / 2f), ROW, 2,
+                mc[0], mc[1], speech != null && speech.dark);
     }
 
     private void renderWindow(SpriteBatch b, MenuAssets a, MenuFont f, WindowSkin skin, WindowSkin speech,
@@ -323,11 +327,8 @@ final class PbMessage {
         MenuPanel.window(b, a, speech, 0f, h - msgTop - msgHeight, w, msgHeight);
         String visible = shown >= text.length() ? text : text.substring(0, shown);
         visible = visible.replace("\u0002", "").replace(String.valueOf(PAUSE), "");
-        String[] lines = visible.split("\n", -1);
-        for (int i = 0; i < lines.length && i < 2; i++) {
-            float top = msgTop + 16f + i * ROW + (ROW - f.lineHeight()) / 2f;
-            f.draw(b, lines[i], 16f, h - top, mc[0], mc[1]);
-        }
+        RichText.drawLines(b, f, a, visible, 16f, h - (msgTop + 16f + (ROW - f.lineHeight()) / 2f), ROW, 2,
+                mc[0], mc[1], speech != null && speech.dark);
         if (goldWindow) {                                        // :926-940 pbDisplayGoldWindow
             WindowSkin gold = a.skin("goldskin");
             WindowSkin use = gold != null ? gold : skin;

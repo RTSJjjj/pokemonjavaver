@@ -60,14 +60,16 @@ final class FieldItemTask {
                 return eonFlute();
             case "ETHEREALNEXUS":
                 return etherealNexus();
+            case "HEAVENCRYSEAL":
+                return heavenCrySeal();
             case "TOWNMAP":                                                            // :372-375 pbShowMap(-1, false)
                 scene.showMap();
                 return 1;
             default: {
                 pokemon.runtime.field.ItemHandlers handlers = new pokemon.runtime.field.ItemHandlers(pbs, state, java.time.LocalTime::now);
                 if (!pokemon.runtime.field.ItemHandlers.hasUseInFieldHandler(item) || !handlers.hasBagFieldHandler(item)) {
-                    scene.pbMessage("这里不能使用。");                                      // 188:971-972 ret == -1 (登记: the Honey, Itemfinder,
-                    return -1;                                                          // Poke Radar and Heaven Seal bodies are not modelled)
+                    scene.pbMessage("这里不能使用。");                                      // 188:971-972 ret == -1 (登记: the Honey, Itemfinder and
+                    return -1;                                                          // Poke Radar bodies are not modelled)
                 }
                 return handlers.useInField(item, new EggMoveTutor(state, pbs, scene, handlers).itemSceneFor());
             }
@@ -219,6 +221,26 @@ final class FieldItemTask {
             port.transferThroughFade(to[0], to[1], to[2], 2, false);                   // 363:355-399 pbWarpWithFade(map, x, y, 2)
             return 0f;
         });
+        return 1;
+    }
+
+    /** {@code UseInField :HEAVENCRYSEAL} (189:1690-1702): the island list of 360_pbCrystalWarp, then the warp. */
+    private int heavenCrySeal() {
+        boolean[] flags = {false, false};                                              // {partnered, outdoor}
+        scene.runAction(() -> {
+            flags[0] = port.hasDependentEvents();
+            flags[1] = port.currentMapOutdoor();
+            return 0f;
+        });
+        if (flags[0]) {
+            scene.pbMessage("与他人同行时不能使用。");                                      // :1691-1694
+            return 0;
+        }
+        if (!flags[1] || pokemon.runtime.field.ItemHandlers.banMap(state.currentMapId())) {
+            scene.pbMessage("无法在这里使用");                                            // :1695-1699
+            return 0;
+        }
+        new PluginScripts(state, pbs, scene, port).pbCrystalWarp();                    // :1700
         return 1;
     }
 

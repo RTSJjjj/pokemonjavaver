@@ -528,7 +528,7 @@ public final class BagView {
             townMapHost.run();
             return;
         }
-        if (ItemHandlers.isMapItem(item) && mapItems != null) {   // 189 UseFromBag: SUPERROD / ropes / LANTERN / EONFLUTE / ETHEREALNEXUS
+        if (ItemHandlers.isMapItem(item) && mapItems != null) {   // 189 UseFromBag: SUPERROD / ropes / LANTERN / EONFLUTE / ETHEREALNEXUS / HEAVENCRYSEAL
             String[] refusal = mapItems.unusable(item);
             if (refusal != null) {
                 sayAll(refusal, 0);

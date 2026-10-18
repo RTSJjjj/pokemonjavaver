@@ -30,7 +30,7 @@ public final class EventTriggers {
                 continue;
             }
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
-            if (page == null || page.trigger != trigger || page.commands.size == 0) {
+            if (page == null || page.trigger != trigger || !startable(page)) {
                 continue;
             }
             return page;
@@ -45,7 +45,7 @@ public final class EventTriggers {
                 continue;
             }
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
-            if (page != null && page.trigger == trigger && page.commands.size > 0) {
+            if (page != null && page.trigger == trigger && startable(page)) {
                 return event.id;
             }
         }
@@ -70,7 +70,7 @@ public final class EventTriggers {
                 continue;
             }
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
-            if (page != null && page.trigger == EVENT_TOUCH && page.commands.size > 0) {
+            if (page != null && page.trigger == EVENT_TOUCH && startable(page)) {
                 return page;
             }
         }
@@ -81,7 +81,7 @@ public final class EventTriggers {
     public static int autorunEventId(GameState state, MapData data) {
         for (MapData.EventData event : data.events) {
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
-            if (page != null && page.trigger == AUTORUN && page.commands.size > 0) {
+            if (page != null && page.trigger == AUTORUN && startable(page)) {
                 return event.id;
             }
         }
@@ -96,7 +96,7 @@ public final class EventTriggers {
     /** Parallel page (trigger 4) of one event, or null. */
     public static MapData.EventPageData parallelPage(GameState state, MapData data, MapData.EventData event) {
         MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
-        return page != null && page.trigger == PARALLEL && page.commands.size > 0 ? page : null;
+        return page != null && page.trigger == PARALLEL && startable(page) ? page : null;
     }
 
     /**
@@ -107,7 +107,7 @@ public final class EventTriggers {
      * the "keep the hero hidden until the walk-out step" treatment.
      */
     public static boolean isArrivalDoorPage(MapData.EventPageData page) {
-        if (page == null || page.trigger != AUTORUN || page.commands.size == 0) {
+        if (page == null || page.trigger != AUTORUN || !startable(page)) {
             return false;
         }
         EventCommand first = page.commands.first();
@@ -118,10 +118,27 @@ public final class EventTriggers {
         return script != null && script.isString() && script.asString().contains("onEvent?");
     }
 
+    /**
+     * {@code Game_Event#start}: {@code if @list.size > 1} - a page holding nothing but the closing empty command never
+     * starts. An empty autorun page (map 201 event 3 page 2) otherwise restarted every frame and kept the player from
+     * moving whenever the frame was longer than the restart delay (the speed-up).
+     */
+    public static boolean startable(MapData.EventPageData page) {
+        if (page == null) {
+            return false;
+        }
+        for (int i = 0; i < page.commands.size; i++) {                // index loop: libGDX Array iterators cannot nest
+            if (page.commands.get(i).code != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static MapData.EventPageData firstPage(GameState state, MapData data, int trigger) {
         for (MapData.EventData event : data.events) {
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
-            if (page != null && page.trigger == trigger && page.commands.size > 0) {
+            if (page != null && page.trigger == trigger && startable(page)) {
                 return page;
             }
         }

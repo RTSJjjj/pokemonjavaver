@@ -4303,7 +4303,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         int total = message.text.length();
         boolean skip = input.wasPressed(GameAction.CONFIRM) || input.wasPressed(GameAction.CANCEL);
         if (revealedChars < total) {
-            revealedChars = Math.min(total, revealedChars + revealStep());
+            revealedChars = pokemon.runtime.ui.menu.RichText.advance(message.text, revealedChars, revealStep());
             if (skip) revealedChars = total;
             return;
         }
@@ -4331,7 +4331,7 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         int total = message.text.length();
         boolean skip = input.wasPressed(GameAction.CONFIRM) || input.wasPressed(GameAction.CANCEL);
         if (revealedChars < total) {
-            revealedChars = Math.min(total, revealedChars + revealStep());
+            revealedChars = pokemon.runtime.ui.menu.RichText.advance(message.text, revealedChars, revealStep());
             if (skip) revealedChars = total;
             return;
         }
@@ -5436,10 +5436,9 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         String[] lines = shown.split("\n", -1);
         float lineHeight = font.lineHeight();
         float top = BAR_Y + 2f + Math.max(0f, (96f - lines.length * lineHeight) / 2f);
-        for (int i = 0; i < lines.length; i++) {
-            if (lines[i].isEmpty()) continue;
-            font.draw(batch, lines[i], 16f, h - (top + i * lineHeight), TEXT_BASE, TEXT_SHADOW);
-        }
+        // The boss lines are coloured (320_PokeBattle_BOSS <c3=FFEE88,FF6600>...</c3>): the codes are drawn, not shown.
+        pokemon.runtime.ui.menu.RichText.drawLines(batch, font, assets, shown, 16f, h - top, lineHeight, lines.length,
+                TEXT_BASE, TEXT_SHADOW, true);
         if (message.paused && revealedChars >= message.text.length()) {
             Texture pause = assets.graphic("Pictures", "pause");
             if (pause != null) batch.draw(pause, 628f, h - 432f - pause.getHeight());

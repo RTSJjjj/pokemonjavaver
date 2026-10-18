@@ -404,7 +404,7 @@ public final class ItemHandlers {
      */
     public static boolean isMapItem(String item) {
         return "SUPERROD".equals(item) || "ESCAPEROPE".equals(item) || "INFINITEROPE".equals(item) || "LANTERN".equals(item)
-                || "EONFLUTE".equals(item) || "ETHEREALNEXUS".equals(item);
+                || "EONFLUTE".equals(item) || "ETHEREALNEXUS".equals(item) || "HEAVENCRYSEAL".equals(item);
     }
 
     /** {@code UseFromBag} answered 4 (189:25-35 {@code :ESCAPEROPE}): the bag deletes the item before the screens end. */

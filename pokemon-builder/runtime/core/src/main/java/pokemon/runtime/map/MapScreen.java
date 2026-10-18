@@ -3181,6 +3181,11 @@ public final class MapScreen extends ScreenAdapter {
                 if (partnered) return new String[] {"与他人同行时不能使用。", "这里不能使用。"};
                 if (pokemon.runtime.field.ItemHandlers.banMap(gameState.currentMapId())) return new String[] {"无法在这里使用"};
                 return null;
+            case "HEAVENCRYSEAL":                                          // :1677-1688
+                if (partnered) return new String[] {"与他人同行时不能使用。", "这里不能使用。"};
+                if (mapData == null || !Boolean.TRUE.equals(mapData.outdoor)
+                        || pokemon.runtime.field.ItemHandlers.banMap(gameState.currentMapId())) return new String[] {"无法在这里使用"};
+                return null;
             default:
                 return null;
         }

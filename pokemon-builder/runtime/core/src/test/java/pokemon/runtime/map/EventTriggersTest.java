@@ -61,6 +61,22 @@ class EventTriggersTest {
     }
 
     @Test
+    @DisplayName("an autorun page holding only the closing empty command never starts (Game_Event#start @list.size > 1)")
+    void emptyAutorunPageDoesNotStart() {
+        MapData data = mapData();
+        MapData.EventData empty = event(1, 0, 0, EventTriggers.AUTORUN);
+        empty.pages.first().commands.first().code = 0;
+        data.events.add(empty);
+        data.events.add(event(2, 1, 1, EventTriggers.AUTORUN));
+        GameState state = new GameState();
+        state.enterMap(data.mapId, 0, 0);
+
+        assertFalse(EventTriggers.startable(empty.pages.first()));
+        assertSame(data.events.get(1).pages.first(), EventTriggers.autorunPage(state, data));
+        assertEquals(2, EventTriggers.autorunEventId(state, data));
+    }
+
+    @Test
     @DisplayName("a door whose page is hidden by a switch no longer triggers")
     void hiddenDoorDoesNotTrigger() {
         MapData data = mapData();
