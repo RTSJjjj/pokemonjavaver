@@ -125,8 +125,9 @@ public final class ItemUse {
             bag.remove(id, 1);
             return Result.USED;
         }
-        // REVIVE / MAXREVIVE: "if !pkmn.fainted?" -> no effect (PItem_ItemEffects).
-        if ("REVIVE".equals(id) || "MAXREVIVE".equals(id)) {
+        // REVIVE / MAXREVIVE / EVEBURGER / REVIVALHERB: "if !pkmn.fainted?" -> no effect (PItem_ItemEffects);
+        // 190_PItem_BattleItemEffects:471 EVEBURGER heals like MAXREVIVE.
+        if ("REVIVE".equals(id) || "MAXREVIVE".equals(id) || "EVEBURGER".equals(id) || "REVIVALHERB".equals(id)) {
             if (!p.fainted()) { lastMessage = NO_EFFECT_TEXT; return Result.NO_EFFECT; }
             p.hp = "REVIVE".equals(id) ? Math.max(1, p.maxHp() / 2) : p.maxHp();
             p.status = "";

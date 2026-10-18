@@ -301,6 +301,13 @@ public final class InteractiveBattlePort implements BattlePort {
     private static final java.util.Set<String> CURES_CONFUSION = new java.util.HashSet<>(java.util.Arrays.asList(
             "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
             "BIGMALASADA", "LUMBERRY", "FULLRESTORE", "HEALPOWDER"));
+    private static final java.util.Map<String, String> BATTLE_HAPPINESS = new java.util.HashMap<>();
+    static {
+        BATTLE_HAPPINESS.put("ENERGYPOWDER", "powder");
+        BATTLE_HAPPINESS.put("HEALPOWDER", "powder");
+        BATTLE_HAPPINESS.put("ENERGYROOT", "energyroot");
+        BATTLE_HAPPINESS.put("REVIVALHERB", "revivalherb");
+    }
 
     /** One thing {@code pbRecordAndStoreCaughtPokemon} shows: a line, or the Pokedex entry page of a new species. */
     public static final class CaughtStep {
@@ -1483,6 +1490,10 @@ public final class InteractiveBattlePort implements BattlePort {
                     // 190_PItem_BattleItemEffects:114-139 CanUseInBattle: confusion alone makes Full Heal / Full Restore usable
                     if (!curesConfusion || !confused || battler.fainted()) return false;
                     inventory.remove(id, 1);
+                } else {
+                    // 190_PItem_BattleItemEffects:479-501 pokemon.changeHappiness("powder" / "energyroot" / "revivalherb")
+                    String happiness = BATTLE_HAPPINESS.get(id);
+                    if (happiness != null) battle.changeHappiness(battler.pokemon, happiness);
                 }
                 battler.hp = battler.pokemon.hp;
                 // 190:379-446 BattleUseOnPokemon: pokemon.healStatus is followed by battler.pbCureStatus(false) - the battler

@@ -49,6 +49,15 @@ class P4MenuTest {
         p.hp = 0; ItemUse.use("POTION", p, state.trainer(), state.inventory(), data, -1, true);
         assertEquals(0, p.hp); assertEquals(1, state.inventory().count("POTION"));
     }
+    @Test void eveBurgerAndRevivalHerbReviveToFullHp() {
+        for (String id : new String[] {"EVEBURGER", "REVIVALHERB"}) {
+            Pokemon p = pokemon(); item(id, 2);
+            assertEquals(ItemUse.Result.NO_EFFECT, ItemUse.use(id, p, state.trainer(), state.inventory(), data, -1, true));
+            p.hp = 0; p.status = "POISON";
+            assertEquals(ItemUse.Result.USED, ItemUse.use(id, p, state.trainer(), state.inventory(), data, -1, true));
+            assertEquals(p.maxHp(), p.hp); assertEquals("", p.status); assertEquals(1, state.inventory().count(id));
+        }
+    }
     @Test void evolutionChecksGenderAndRegistersDex() {
         Pokemon p = pokemon(); item("STONE", 1);
         PbsData.Evolution evo = new PbsData.Evolution(); evo.method = "ItemFemale"; evo.parameter = "STONE"; evo.species = "B";
