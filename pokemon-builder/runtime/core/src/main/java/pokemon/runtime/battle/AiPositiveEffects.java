@@ -209,7 +209,7 @@ final class AiPositiveEffects {
                     if (!AiDoublesScore.isDouble(ctx.battle, atk)) {
                         return AiPositiveHelpers.goodIdeaToLowerSpeed(ctx, def, atk, move, 1) ? inc(viability, 3) : viability;
                     }
-                    if (!def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST"}) && !defAbility.equals("CONTRARY")
+                    if (!def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST", "STEELDYNASTY"}) && !defAbility.equals("CONTRARY")
                             && def.stage(PBStats.SPEED) > -6) {
                         return AiDoublesScore.increaseSpeedControl(ctx, viability, cls, atk, def)[0];
                     }
@@ -421,13 +421,14 @@ final class AiPositiveEffects {
             case "0FF": case "100": case "101": {                                                  // EFFECT_SUNNY_DAY / RAIN_DANCE / SANDSTORM (:1405,:1536,:1565)
                 boolean useful;
                 if (f.equals("101")) {
-                    useful = atkAbility.equals("SANDVEIL") || atkAbility.equals("SANDRUSH") || atkAbility.equals("SANDFORCE") || atkAbility.equals("OVERCOAT")
+                    useful = atkAbility.equals("SANDVEIL") || atkAbility.equals("SANDRUSH") || atkAbility.equals("SANDFORCE") || atkAbility.equals("OVERCOAT") || atkAbility.equals("DIVINEPACT")
                             || atkAbility.equals("MAGICGUARD") || atk.hasActiveItem("SAFETYGOGGLES") || atk.hasType("ROCK") || atk.hasType("STEEL")
                             || atk.hasType("GROUND") || AiCalc.named(firstNamed(atk, "SHOREUP"), "SHOREUP") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
                             || atk.hasActiveItem("SMOOTHROCK");
                 } else if (f.equals("100")) {
                     useful = !atk.hasActiveItem("UTILITYUMBRELLA") && (atkAbility.equals("SWIFTSWIM") || atkAbility.equals("FORECAST") || atkAbility.equals("HYDRATION")
-                            || atkAbility.equals("RAINDISH") || atkAbility.equals("DRYSKIN") || AiCalc.moveFunctionInMoveset(atk, "008", "015")
+                            || atkAbility.equals("RAINDISH") || atkAbility.equals("DRYSKIN") || atkAbility.equals("BESTOWEDRAIN") || atkAbility.equals("RAINCURTAIN")
+                            || AiCalc.moveFunctionInMoveset(atk, "008", "015")
                             || AiCalc.moveFunctionInMoveset(def, "0D8") || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
                             || AiCalc.damagingTypeInMoveset(ctx, atk, "WATER") || AiCalc.damagingTypeInMoveset(ctx, def, "FIRE") || atk.hasActiveItem("DAMPROCK"));
                 } else {
@@ -485,7 +486,7 @@ final class AiPositiveEffects {
                     return AiDoublesScore.increaseTailwind(ctx, viability, cls, atk, def);
                 }
                 if (atkAbility.equals("SNOWCLOAK") || atkAbility.equals("ICEBODY") || atkAbility.equals("FORECAST") || atkAbility.equals("SLUSHRUSH")
-                        || atkAbility.equals("MAGICGUARD") || atkAbility.equals("OVERCOAT") || AiCalc.named(firstNamed(atk, "BLIZZARD"), "BLIZZARD")
+                        || atkAbility.equals("MAGICGUARD") || atkAbility.equals("OVERCOAT") || atkAbility.equals("DIVINEPACT") || AiCalc.named(firstNamed(atk, "BLIZZARD"), "BLIZZARD")
                         || AiCalc.named(firstNamed(atk, "WEATHERBALL"), "WEATHERBALL")
                         || AiCalc.moveFunctionInMoveset(def, "0D8") || atk.hasActiveItem("ICYROCK")) {
                     viability = AiCalc.classDoublesTeamSupport(cls) ? inc(viability, 17) : incStatus(ctx, viability, cls, 2, atk, def);
@@ -567,8 +568,8 @@ final class AiPositiveEffects {
         return !AiCalc.canBeBurned(ctx.battle, def, atk)
                 || d.equals("SHEDSKIN") || d.equals("QUICKFEET") || d.equals("MAGICGUARD")
                 || (d.equals("MARVELSCALE") && AiCalc.physicalMoveInMoveset(ctx, atk))
-                || (d.equals("FLAREBOOST") && AiCalc.specialMoveInMoveset(ctx, def))
-                || (d.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, def))
+                || (d.equals("FLAREBOOST") && AiCalc.specialMoveInMoveset(ctx, def)) || d.equals("BIYIHUANGYAN")   // original: burn heals it
+                || ((d.equals("GUTS") || d.equals("ANGERFLAME")) && AiCalc.physicalMoveInMoveset(ctx, def))
                 || hasNamed(def, "FACADE") || AiCalc.moveFunctionInMoveset(def, "01B");
     }
 
@@ -772,7 +773,7 @@ final class AiPositiveEffects {
                 || (d.equals("MAGICGUARD") && !AiCalc.moveFunctionInMoveset(atk, "07B"))
                 || (d.equals("MARVELSCALE") && AiCalc.physicalMoveInMoveset(ctx, atk))
                 || (d.equals("TOXICBOOST") && AiCalc.physicalMoveInMoveset(ctx, def))
-                || (d.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, def))
+                || ((d.equals("GUTS") || d.equals("ANGERFLAME")) && AiCalc.physicalMoveInMoveset(ctx, def))
                 || hasNamed(def, "FACADE") || AiCalc.moveFunctionInMoveset(def, "01B");
     }
 
@@ -782,7 +783,7 @@ final class AiPositiveEffects {
         return !AiCalc.canBeParalyzed(ctx.battle, def, atk)
                 || d.equals("SHEDSKIN") || d.equals("QUICKFEET")
                 || (d.equals("MARVELSCALE") && AiCalc.physicalMoveInMoveset(ctx, atk))
-                || (d.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, def))
+                || ((d.equals("GUTS") || d.equals("ANGERFLAME")) && AiCalc.physicalMoveInMoveset(ctx, def))
                 || hasNamed(def, "FACADE") || AiCalc.moveFunctionInMoveset(def, "01B", "0D9");
     }
 

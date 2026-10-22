@@ -78,13 +78,13 @@ final class AiPartner {
                         viability = AiDoublesScore.increaseHelpingHand(viability, cls);
                     }
                     break;
-                case "SAPSIPPER":
-                    if (type.equals("GRASS") && !totalSupport && AiCalc.physicalMoveInMoveset(ctx, partner)
+                case "SAPSIPPER": case "ANGRYBODY":                                                  // ANGRYBODY: original, Sap Sipper for Fairy
+                    if (type.equals(partnerAbility.equals("ANGRYBODY") ? "FAIRY" : "GRASS") && !totalSupport && AiCalc.physicalMoveInMoveset(ctx, partner)
                             && AiCalc.statCanRise(partner, PBStats.ATTACK)) {
                         viability = AiDoublesScore.increaseHelpingHand(viability, cls);
                     }
                     break;
-                case "JUSTIFIED":
+                case "JUSTIFIED": case "GHOSTRAMPAGE":                                               // GHOSTRAMPAGE: original, Attack +2 on a Dark hit
                     if (type.equals("DARK") && !statusMove && !totalSupport
                             && (!f.equals("0F0") || partnerAbility.equals("STICKYHOLD") || !canKnockOffItem(partner))
                             && AiCalc.physicalMoveInMoveset(ctx, partner) && AiCalc.statCanRise(partner, PBStats.ATTACK)
@@ -171,7 +171,7 @@ final class AiPartner {
                 break;
             case "101":                                                                                // Sandstorm
                 if (partnerAbility.equals("SANDVEIL") || partnerAbility.equals("SANDRUSH") || partnerAbility.equals("SANDFORCE")
-                        || partnerAbility.equals("OVERCOAT") || partnerAbility.equals("MAGICGUARD") || partner.hasActiveItem("SAFETYGOGGLES")
+                        || partnerAbility.equals("OVERCOAT") || partnerAbility.equals("DIVINEPACT") || partnerAbility.equals("MAGICGUARD") || partner.hasActiveItem("SAFETYGOGGLES")
                         || partner.pbHasType("ROCK") || partner.pbHasType("STEEL") || partner.pbHasType("GROUND")
                         || has(partner, "SHOREUP") || has(partner, "WEATHERBALL")) {
                     viability = weatherBoost(ctx, viability, cls, atk, partner);
@@ -197,7 +197,7 @@ final class AiPartner {
                 break;
             case "102": case "1C0":                                                                    // Hail / Snowscape
                 if (partnerAbility.equals("SNOWCLOAK") || partnerAbility.equals("ICEBODY") || partnerAbility.equals("FORECAST")
-                        || partnerAbility.equals("SLUSHRUSH") || partnerAbility.equals("MAGICGUARD") || partnerAbility.equals("OVERCOAT")
+                        || partnerAbility.equals("SLUSHRUSH") || partnerAbility.equals("MAGICGUARD") || partnerAbility.equals("OVERCOAT") || partnerAbility.equals("DIVINEPACT")
                         || has(partner, "BLIZZARD") || has(partner, "AURORAVEIL") || has(partner, "WEATHERBALL")) {
                     viability = weatherBoost(ctx, viability, cls, atk, partner);
                 }
@@ -356,7 +356,7 @@ final class AiPartner {
     }
 
     private static boolean checkContact(BattleMove move, Battler atk) {
-        return AiCalc.has(move, 'a') && !atk.hasActiveItem("PROTECTIVEPADS") && !atk.hasActiveAbility("LONGREACH");
+        return AiCalc.has(move, 'a') && !atk.hasActiveItem("PROTECTIVEPADS") && !atk.hasActiveAbility(new String[] {"LONGREACH", "NOBLESTRIKE", "RUYIBLADE"});   // pbContactMove
     }
 
     /** {@code PARTNER_MOVE_EFFECT_IS_SKILL_SWAP} (ai_partner.c:25). */
@@ -426,7 +426,7 @@ final class AiPartner {
     private static boolean goodIdeaToParalyzeSelf(AiCtx ctx, Battler a) {
         String ab = a.ability == null ? "" : a.ability;
         return AiCalc.canBeParalyzed(ctx.battle, a, a)
-                && (ab.equals("MARVELSCALE") || ab.equals("QUICKFEET") || (ab.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, a))
+                && (ab.equals("MARVELSCALE") || ab.equals("QUICKFEET") || ((ab.equals("GUTS") || ab.equals("ANGERFLAME")) && AiCalc.physicalMoveInMoveset(ctx, a))
                 || has(a, "FACADE") || AiCalc.moveFunctionInMoveset(a, "01B"));
     }
 
@@ -435,7 +435,7 @@ final class AiPartner {
         boolean statusSplit = move.statusMove();
         boolean noKo = !AiCalc.knocksOutXHits(ctx, move, atk, partner, 1);
         switch (partnerAbility) {
-            case "JUSTIFIED":
+            case "JUSTIFIED": case "GHOSTRAMPAGE":
                 if (AiCalc.fx(move).pbCalcType(move, atk).equals("DARK") && !statusSplit && AiCalc.physicalMoveInMoveset(ctx, partner)
                         && AiCalc.statCanRise(partner, PBStats.ATTACK) && noKo) viability = AiDoublesScore.increaseHelpingHand(viability, cls);
                 break;
@@ -446,7 +446,7 @@ final class AiPartner {
                 if (!statusSplit && noKo) {
                     for (Battler foe : AiDoublesScore.foes(ctx.battle, atk)) {
                         String fa = foe.ability == null ? "" : foe.ability;
-                        if (fa.equals("CONTRARY") || fa.equals("MIRRORARMOR")) return viability;       // do not benefit the enemy
+                        if (fa.equals("CONTRARY") || fa.equals("MIRRORARMOR") || fa.equals("SPOVERLORD")) return viability;       // do not benefit the enemy
                     }
                     for (Battler foe : AiDoublesScore.foes(ctx.battle, atk)) {
                         if (AiCalc.statCanBeLowered(foe, atk, PBStats.SPEED)) return AiDoublesScore.increaseHelpingHand(viability, cls);

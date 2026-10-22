@@ -676,6 +676,7 @@ final class AiSwitching {
             case "GRASS": abil = new String[]{"SAPSIPPER"}; break;
             case "GROUND": abil = new String[]{"EARTHEATER"}; break;                                 // project absorbers (same hooks)
             case "ICE": abil = new String[]{"ICEBSORB"}; break;
+            case "FAIRY": abil = new String[]{"ANGRYBODY"}; break;                                  // original: Sap Sipper for Fairy
             default: return NONE;
         }
         for (String a : abil) if (user.hasActiveAbility(a)) return NONE;                            // :531
@@ -950,7 +951,7 @@ final class AiSwitching {
 
     /** {@code TakesGeneralWeatherDamage(bank)} reduced to what this runtime has: Magic Guard, Overcoat, Safety Goggles. */
     private static boolean takesGeneralWeatherDamage(Battler b) {
-        return !b.hasActiveAbility(new String[] {"MAGICGUARD", "OVERCOAT"}) && !b.hasActiveItem("SAFETYGOGGLES");
+        return !b.hasActiveAbility(new String[] {"MAGICGUARD", "OVERCOAT", "DIVINEPACT"}) && !b.hasActiveItem("SAFETYGOGGLES");
     }
 
     /** {@code SandstormHurts(bank)} (general_bs_commands.c:3206). */
@@ -1113,7 +1114,7 @@ final class AiSwitching {
         boolean keenEye = false;
         for (Battler b : AiDoublesScore.foes(battle, user)) {
             unaware |= b.hasActiveAbility("UNAWARE");
-            keenEye |= b.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE"});
+            keenEye |= b.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE", "ROSYAEGIS"});
         }
         if (user.stage(PBStats.EVASION) >= 3 && !unaware && !keenEye) return NONE;                  // :1020
         if (user.hasActiveAbility("EARLYBIRD") || user.hasActiveAbility("SHEDSKIN")
@@ -1352,7 +1353,7 @@ final class AiSwitching {
         BattleMove foePred = ctx.prediction(foe);
         if (!ctx.goodAi()) return NONE;                                                                // :1714
         if (user.hasStatus("FROZEN")) return NONE;                                                     // :1720
-        if (user.hasStatus("PARALYSIS") && !user.hasActiveAbility("QUICKFEET") && !user.hasActiveAbility("GUTS")) return NONE;   // :1722
+        if (user.hasStatus("PARALYSIS") && !user.hasActiveAbility(new String[] {"QUICKFEET", "GUTS", "ANGERFLAME"})) return NONE;   // :1722
         if (!AiCalc.classDamager(AiCalc.fightingStyle(ctx, user))) return NONE;                        // :1724
         boolean canKO = AiCalc.canKnockOut(ctx, user, foe);
         boolean fakeOutFirst = foePred != null && AiCalc.named(foePred, "FAKEOUT") && !user.hasActiveAbility("INNERFOCUS")

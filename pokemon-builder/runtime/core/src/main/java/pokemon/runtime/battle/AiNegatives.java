@@ -72,13 +72,16 @@ final class AiNegatives {
                     case "ICEBSORB":                                                                 // original ability
                         if ("ICE".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
                         break;
+                    case "ANGRYBODY":                                                                // original ability: Sap Sipper for Fairy
+                        if ("FAIRY".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
+                        break;
                     case "WELLBAKEDBODY":
                         if ("FIRE".equals(moveType) && !partnerTarget) return clamp(dec(viability, 20));
                         break;
                     case "GOODASGOLD":                                                               // immune to all status moves (AROMAVEIL-style -10)
                         if (status && !partnerTarget) return clamp(dec(viability, 10));
                         break;
-                    case "JUSTIFIED":                                                                // Dark (:222)
+                    case "JUSTIFIED": case "GHOSTRAMPAGE":                                           // Dark (:222); GHOSTRAMPAGE: original, Attack +2
                         if ("DARK".equals(moveType) && !status && !partnerTarget && AiCalc.statCanRise(def, PBStats.ATTACK)
                                 && !AiCalc.knocksOutXHits(ctx, move, atk, def, 2) && AiCalc.physicalMoveInMoveset(ctx, def)) {
                             viability = dec(viability, 4);                                           // don't risk raising enemy stats; could get worse
@@ -124,16 +127,16 @@ final class AiNegatives {
                     case "CONTRARY":
                         if (status && AiPartner.statLowering(move) && !partnerTarget) return clamp(dec(viability, 20));
                         break;
-                    case "MIRRORARMOR":
+                    case "MIRRORARMOR": case "SPOVERLORD":                                           // SPOVERLORD: original, same reflection
                         if (status && AiPartner.statLowering(move)) return clamp(dec(viability, 20));   // bad even when attacking a partner
                         break;
-                    case "CLEARBODY": case "WHITESMOKE": case "FULLMETALBODY": case "NOBLESTRIKE": case "ETERNALSTAR": case "TRANSLUCENTGHOST":   // project: same StatLossImmunity copy
+                    case "CLEARBODY": case "WHITESMOKE": case "FULLMETALBODY": case "NOBLESTRIKE": case "ETERNALSTAR": case "TRANSLUCENTGHOST": case "STEELDYNASTY":   // project: same StatLossImmunity copy
                         if (status && (AiPartner.statLowering(move) || AiCalc.named(move, "PARTINGSHOT"))) return clamp(dec(viability, 10));
                         break;
                     case "HYPERCUTTER":
                         if (status && AiCalc.oneOf(move, "042", "04B")) return clamp(dec(viability, 10));         // EFFECT_ATTACK_DOWN(_2)
                         break;
-                    case "KEENEYE": case "MINDSEYE":
+                    case "KEENEYE": case "MINDSEYE": case "ROSYAEGIS":                              // ROSYAEGIS: original, copy(KEENEYE)
                         if (status && AiCalc.oneOf(move, "047")) return clamp(dec(viability, 10));
                         break;
                     case "BIGPECKS":
@@ -151,12 +154,19 @@ final class AiNegatives {
                             return clamp(dec(viability, 8));
                         }
                         break;
-                    case "COMATOSE":
+                    case "COMATOSE": case "PLAYFULHEART":                                            // PLAYFULHEART: original, immune to every status
                         if (setsStatus(move)) return clamp(dec(viability, 10));                      // gSetStatusMoveEffects
                         break;
                     case "SHIELDSDOWN":
                         if (def.isSpecies("MINIOR") && def.form() == 0 && setsStatus(move)) return clamp(dec(viability, 10));
                         break;
+                    case "RAINCURTAIN": {                                                            // original ability: Leaf Guard for rain
+                        int w = battle.pbWeather();
+                        if ((w == PBWeather.Rain || w == PBWeather.HeavyRain) && !def.hasActiveItem("UTILITYUMBRELLA") && setsStatus(move)) {
+                            return clamp(dec(viability, 10));
+                        }
+                        break;
+                    }
                     case "LEAFGUARD": {
                         int w = battle.pbWeather();
                         if ((w == PBWeather.Sun || w == PBWeather.HarshSun) && !def.hasActiveItem("UTILITYUMBRELLA") && setsStatus(move)) {

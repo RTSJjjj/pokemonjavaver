@@ -337,11 +337,11 @@ final class AiCalc {
         int dmg = 0;
         int weather = battle.pbWeather();
         if (weather == PBWeather.Sandstorm && !b.hasType("ROCK") && !b.hasType("GROUND") && !b.hasType("STEEL")
-                && !b.hasActiveAbility(new String[] {"SANDVEIL", "SANDRUSH", "SANDFORCE", "OVERCOAT"})) {
+                && !b.hasActiveAbility(new String[] {"SANDVEIL", "SANDRUSH", "SANDFORCE", "OVERCOAT", "DIVINEPACT"})) {
             dmg += Math.max(1, max / 16);                                                 // GetSandstormDamage
         }
         if (weather == PBWeather.Hail && !b.hasType("ICE")
-                && !b.hasActiveAbility(new String[] {"ICEBODY", "SNOWCLOAK", "OVERCOAT"})) {
+                && !b.hasActiveAbility(new String[] {"ICEBODY", "SNOWCLOAK", "OVERCOAT", "DIVINEPACT"})) {
             dmg += Math.max(1, max / 16);                                                 // GetHailDamage
         }
         if (b.hasStatus("SLEEP") && b.effects.truthy(PBEffects.Battler.Nightmare)) dmg += Math.max(1, max / 4);   // GetNightmareDamage
@@ -352,7 +352,7 @@ final class AiCalc {
         if (b.hasStatus("POISON") && !b.hasActiveAbility("POISONHEAL")) {
             dmg += b.toxic > 0 ? Math.max(1, max * Math.min(b.toxic + 1, 15) / 16) : Math.max(1, max / 8);   // GetPoisonDamage
         }
-        if (b.hasStatus("BURN") && !b.hasActiveAbility("HEATPROOF")) dmg += Math.max(1, max / 16);                // GetBurnDamage (NEWEST_BATTLE_MECHANICS)
+        if (b.hasStatus("BURN") && !b.hasActiveAbility(new String[] {"HEATPROOF", "BIYIHUANGYAN"})) dmg += Math.max(1, max / 16);                // GetBurnDamage (NEWEST_BATTLE_MECHANICS)
         if (b.effects.truthy(PBEffects.Battler.Curse)) dmg += Math.max(1, max / 4);       // GetCurseDamage
         if (b.pbOwnSide().effects.intVal(PBEffects.Side.SeaOfFire) > 0 && !b.hasType("FIRE")
                 && weather != PBWeather.Rain && weather != PBWeather.HeavyRain) {            // GetSeaOfFireDamage (the engine skips it in rain, EOR :272)
@@ -687,7 +687,8 @@ final class AiCalc {
     static boolean isMoxie(String ability) {
         return "MOXIE".equals(ability) || "BEASTBOOST".equals(ability) || "CHILLINGNEIGH".equals(ability)
                 || "GRIMNEIGH".equals(ability) || "ASONEGHOST".equals(ability)
-                || "FEARLESS".equals(ability) || "DRAGONSOULCRY".equals(ability);   // engine: copy(MOXIE, CHILLINGNEIGH, FEARLESS, DRAGONSOULCRY)
+                || "FEARLESS".equals(ability) || "DRAGONSOULCRY".equals(ability)    // engine: copy(MOXIE, CHILLINGNEIGH, FEARLESS, DRAGONSOULCRY)
+                || "NETHERDRIVE".equals(ability) || "GHASTLYWAIL".equals(ability);  // original: Special Attack up on a KO
     }
 
     /** {@code CanHealFirstToPreventKnockOut(bankAtk,foe)} (ai_util.c:2478): a healing move that goes first and keeps the foe from a KO. */
@@ -977,10 +978,11 @@ final class AiCalc {
         if (def.stage(stat) <= -6) return false;
         if (def.pbOwnSide().effects.intVal(PBEffects.Side.Mist) > 0) return false;
         if (!atk.hasMoldBreaker()) {
-            if (def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "MIRRORARMOR", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST"})) return false;
+            if (def.hasActiveAbility(new String[] {"CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "MIRRORARMOR", "NOBLESTRIKE", "ETERNALSTAR", "TRANSLUCENTGHOST",
+                    "STEELDYNASTY", "SPOVERLORD"})) return false;
             if (stat == PBStats.ATTACK && def.hasActiveAbility("HYPERCUTTER")) return false;
             if (stat == PBStats.DEFENSE && def.hasActiveAbility("BIGPECKS")) return false;
-            if (stat == PBStats.ACCURACY && def.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE"})) return false;
+            if (stat == PBStats.ACCURACY && def.hasActiveAbility(new String[] {"KEENEYE", "MINDSEYE", "ROSYAEGIS"})) return false;
         }
         return true;
     }
@@ -1018,11 +1020,18 @@ final class AiCalc {
         return battle.field.effects.intVal(PBEffects.Field.TrickRoom) > 1;
     }
 
+    /** Original abilities that block every major status: PLAYFULHEART always, RAINCURTAIN in rain (Leaf Guard's rain twin). */
+    static boolean originalStatusImmunity(Battle battle, Battler b) {
+        if (b.hasActiveAbility("PLAYFULHEART")) return true;
+        int w = battle.pbWeather();
+        return b.hasActiveAbility("RAINCURTAIN") && (w == PBWeather.Rain || w == PBWeather.HeavyRain) && !b.hasActiveItem("UTILITYUMBRELLA");
+    }
+
     /** {@code CanBePutToSleep(bankDef,bankAtk,TRUE)}. 登记: Sweet Veil's ally check, Flower Veil. */
     static boolean canBePutToSleep(Battle battle, Battler def, Battler atk) {
         if (def.statused()) return false;
         if (def.fainted()) return false;
-        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"INSOMNIA", "VITALSPIRIT", "SWEETVEIL", "COMATOSE"})) return false;
+        if (!atk.hasMoldBreaker() && (def.hasActiveAbility(new String[] {"INSOMNIA", "VITALSPIRIT", "SWEETVEIL", "COMATOSE"}) || originalStatusImmunity(battle, def))) return false;
         if (def.pbOwnSide().effects.intVal(PBEffects.Side.Safeguard) > 0 && !atk.hasActiveAbility("INFILTRATOR")) return false;
         int terrain = battle.terrain();
         if (!def.airborne() && (terrain == PBBattleTerrains.Electric || terrain == PBBattleTerrains.Misty)) return false;
@@ -1057,35 +1066,36 @@ final class AiCalc {
     static boolean canBePoisoned(Battle battle, Battler def, Battler atk) {
         if (def.statused() || def.fainted()) return false;
         if (!atk.hasActiveAbility("CORROSION") && (def.hasType("POISON") || def.hasType("STEEL"))) return false;
-        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"IMMUNITY", "COMATOSE", "PASTELVEIL"})) return false;
+        if (!atk.hasMoldBreaker() && (def.hasActiveAbility(new String[] {"IMMUNITY", "COMATOSE", "PASTELVEIL"}) || originalStatusImmunity(battle, def))) return false;
         return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
     }
 
     /** {@code CanBeParalyzed(bankDef,bankAtk,TRUE)}. */
     static boolean canBeParalyzed(Battle battle, Battler def, Battler atk) {
         if (def.statused() || def.fainted() || def.hasType("ELECTRIC")) return false;
-        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"LIMBER", "COMATOSE"})) return false;
+        if (!atk.hasMoldBreaker() && (def.hasActiveAbility(new String[] {"LIMBER", "COMATOSE"}) || originalStatusImmunity(battle, def))) return false;
         return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
     }
 
     /** {@code CanBeBurned(bankDef,bankAtk,TRUE)}. */
     static boolean canBeBurned(Battle battle, Battler def, Battler atk) {
         if (def.statused() || def.fainted() || def.hasType("FIRE")) return false;
-        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"WATERVEIL", "WATERBUBBLE", "COMATOSE", "THERMALEXCHANGE"})) return false;
+        if (!atk.hasMoldBreaker() && (def.hasActiveAbility(new String[] {"WATERVEIL", "WATERBUBBLE", "COMATOSE", "THERMALEXCHANGE", "DEEPSEAFASCINATION"})
+                || originalStatusImmunity(battle, def))) return false;
         return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
     }
 
     /** {@code CanBeConfused(bankDef,bankAtk,TRUE)}. */
     static boolean canBeConfused(Battle battle, Battler def, Battler atk) {
         if (def.fainted() || def.effects.intVal(PBEffects.Battler.Confusion) > 0) return false;
-        if (!atk.hasMoldBreaker() && def.hasActiveAbility("OWNTEMPO")) return false;
+        if (!atk.hasMoldBreaker() && def.hasActiveAbility(new String[] {"OWNTEMPO", "DEMONKILLER"})) return false;
         return !statusBlockedByTerrainOrSafeguard(battle, def, atk);
     }
 
     /** {@code CanRest(bank)}: below full HP, not asleep or Insomniac, terrain permitting. */
     static boolean canRest(Battle battle, Battler b) {
         if (b.hp >= b.maxHp() || b.hasStatus("SLEEP")) return false;
-        if (b.hasActiveAbility(new String[] {"INSOMNIA", "VITALSPIRIT", "COMATOSE"})) return false;
+        if (b.hasActiveAbility(new String[] {"INSOMNIA", "VITALSPIRIT", "COMATOSE"}) || originalStatusImmunity(battle, b)) return false;
         int terrain = battle.terrain();
         return !( (terrain == PBBattleTerrains.Electric || terrain == PBBattleTerrains.Misty) && !b.airborne());
     }

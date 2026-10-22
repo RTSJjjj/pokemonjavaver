@@ -140,7 +140,7 @@ final class AiPositiveItems {
         String ab = a.ability == null ? "" : a.ability;
         return AiCalc.canBePoisoned(ctx.battle, a, a)
                 && (ab.equals("MARVELSCALE") || ab.equals("POISONHEAL") || ab.equals("QUICKFEET") || ab.equals("MAGICGUARD")
-                || (ab.equals("TOXICBOOST") && AiCalc.physicalMoveInMoveset(ctx, a)) || (ab.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, a))
+                || (ab.equals("TOXICBOOST") && AiCalc.physicalMoveInMoveset(ctx, a)) || ((ab.equals("GUTS") || ab.equals("ANGERFLAME")) && AiCalc.physicalMoveInMoveset(ctx, a))
                 || has(a, "FACADE") || AiCalc.moveFunctionInMoveset(a, "01B"));
     }
 
@@ -148,8 +148,8 @@ final class AiPositiveItems {
     static boolean goodIdeaToBurnSelf(AiCtx ctx, Battler a) {
         String ab = a.ability == null ? "" : a.ability;
         return AiCalc.canBeBurned(ctx.battle, a, a)
-                && (ab.equals("QUICKFEET") || ab.equals("HEATPROOF") || ab.equals("MAGICGUARD")
-                || (ab.equals("FLAREBOOST") && AiCalc.specialMoveInMoveset(ctx, a)) || (ab.equals("GUTS") && AiCalc.physicalMoveInMoveset(ctx, a))
+                && (ab.equals("QUICKFEET") || ab.equals("HEATPROOF") || ab.equals("MAGICGUARD") || ab.equals("BIYIHUANGYAN")
+                || (ab.equals("FLAREBOOST") && AiCalc.specialMoveInMoveset(ctx, a)) || ((ab.equals("GUTS") || ab.equals("ANGERFLAME")) && AiCalc.physicalMoveInMoveset(ctx, a))
                 || has(a, "FACADE") || AiCalc.moveFunctionInMoveset(a, "01B"));
     }
 

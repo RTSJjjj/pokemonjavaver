@@ -558,6 +558,9 @@ final class AbilitiesStatus {
 
         // :2967 BattleHandlers::StatusImmunityAbility.copy(:WATERVEIL,:WATERBUBBLE,:THERMALEXCHANGE)
         BattleHandlers.StatusImmunityAbility.copy("WATERVEIL", "WATERBUBBLE", "THERMALEXCHANGE");
+        // 深海幻惑 ("不会变为灼伤状态"): the plugin only copied Water Veil's StatusCure (:379), so the burn landed and was cured
+        // right after; it gets the immunity as well.
+        BattleHandlers.StatusImmunityAbility.copy("WATERVEIL", "DEEPSEAFASCINATION");
 
         // :3112 BattleHandlers::StatLossImmunityAbility.copy(:KEENEYE, :MINDSEYE)
         BattleHandlers.StatLossImmunityAbility.copy("KEENEYE", "MINDSEYE");

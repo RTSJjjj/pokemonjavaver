@@ -294,7 +294,8 @@ final class AiNegativeEffects {
                 return true;
             }
             case "0FA": case "0FB": case "0FC": case "0FD": case "0FE": case "170": {            // EFFECT_RECOIL (:1568); Mind Blown is half max HP
-                if ("MAGICGUARD".equals(atkAbility) || "ROCKHEAD".equals(atkAbility)) {
+                if ("MAGICGUARD".equals(atkAbility) || "ROCKHEAD".equals(atkAbility)
+                        || ("RAGEFIREBLAST".equals(atkAbility) && !f.equals("170"))) {             // original: Rock Head for PokeBattle_RecoilMove
                     r.standardDamage = true;
                     return true;
                 }

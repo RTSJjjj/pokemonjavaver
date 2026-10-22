@@ -376,7 +376,7 @@ final class AiPositiveMore {
         return (type.equals("ELECTRIC") && (a.equals("VOLTABSORB") || a.equals("MOTORDRIVE") || a.equals("LIGHTNINGROD")))
                 || (type.equals("WATER") && (a.equals("WATERABSORB") || a.equals("DRYSKIN") || a.equals("STORMDRAIN")))
                 || (type.equals("FIRE") && (a.equals("FLASHFIRE") || a.equals("WELLBAKEDBODY"))) || (type.equals("ICE") && a.equals("ICEBSORB")) || (type.equals("GRASS") && a.equals("SAPSIPPER"))
-                || (type.equals("GROUND") && a.equals("EARTHEATER"));
+                || (type.equals("GROUND") && a.equals("EARTHEATER")) || (type.equals("FAIRY") && a.equals("ANGRYBODY"));
     }
 
     private static boolean usefulItemToProtectFor(AiCtx ctx, Battler b) {
@@ -385,12 +385,12 @@ final class AiPositiveMore {
                 && (a.equals("POISONHEAL") || a.equals("TOXICBOOST") || a.equals("QUICKFEET") || a.equals("MAGICGUARD")
                     || AiCalc.named(firstNamed(b, "FACADE"), "FACADE"))) return true;
         return b.hasActiveItem("FLAMEORB") && AiCalc.canBeBurned(ctx.battle, b, b)
-                && (a.equals("GUTS") || a.equals("FLAREBOOST") || a.equals("MAGICGUARD") || AiCalc.named(firstNamed(b, "FACADE"), "FACADE"));
+                && (a.equals("GUTS") || a.equals("ANGERFLAME") || a.equals("BIYIHUANGYAN") || a.equals("FLAREBOOST") || a.equals("MAGICGUARD") || AiCalc.named(firstNamed(b, "FACADE"), "FACADE"));
     }
 
     private static boolean usefulAbilityToProtectFor(Battler atk, Battler def) {
         String a = atk.ability == null ? "" : atk.ability;
-        if (a.equals("SPEEDBOOST")) return AiCalc.speed(atk) <= AiCalc.speed(def) && atk.stage(PBStats.SPEED) < 6;
+        if (a.equals("SPEEDBOOST") || a.equals("SEAMLESS") || a.equals("TMOVERLORD")) return AiCalc.speed(atk) <= AiCalc.speed(def) && atk.stage(PBStats.SPEED) < 6;
         if (a.equals("MOODY")) {
             for (int s = PBStats.ATTACK; s <= PBStats.EVASION; s++) if (s != PBStats.HP && atk.stage(s) < 6) return true;
         }
