@@ -284,6 +284,7 @@ final class AiAbilityRatings {
         RATINGS.put("SAVAGECEREMONY", RATINGS.get("HUGEPOWER"));
         RATINGS.put("FLAMEVEIL", RATINGS.get("DISGUISE"));
         RATINGS.put("LINGERINGAROMA", RATINGS.get("MUMMY"));
+        RATINGS.put("MOERAE", RATINGS.get("MAGICBOUNCE"));
     }
 
     private AiAbilityRatings() {

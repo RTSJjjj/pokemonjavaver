@@ -84,7 +84,27 @@ final class AiMaster {
                 }
             }
         }
+        preferAttacksWhenChoiceLocked(user, score);
         return score;
+    }
+
+    /**
+     * The project's own rule (CFRU only stops set-up moves via {@code GOOD_AI_MOVE_LOCKED}): a Choice item / Gorilla Tactics
+     * holder that can still attack never picks a status move, since it would stay locked into it. Trick, Switcheroo and
+     * Bestow (0F2/0F3) are exempt: they hand the item away. Scores of 0 (unusable or useless) are left alone.
+     */
+    static void preferAttacksWhenChoiceLocked(Battler user, int[] score) {
+        if (!AiCalc.choiceLocked(user)) return;
+        int bestAttack = 0;
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = user.moveSlot(i);
+            if (m != null && !m.statusMove() && score[i] > bestAttack) bestAttack = score[i];
+        }
+        if (bestAttack == 0) return;
+        for (int i = 0; i < Battler.MOVES_MAX; i++) {
+            BattleMove m = user.moveSlot(i);
+            if (m != null && m.statusMove() && !AiCalc.oneOf(m, "0F2", "0F3")) score[i] = Math.min(score[i], bestAttack - 1);
+        }
     }
 
     /** {@code BattleAI_SetupAIData} (:112) + {@code CalculateAIPredictions} (:1008): the per-turn AI context. */
@@ -136,6 +156,7 @@ final class AiMaster {
             viability[i] = AiPositives.score(ctx, atk, def, move, viability[i]);                        // :1204
         }
         ctx.flags = backupFlags;
+        preferAttacksWhenChoiceLocked(atk, viability);
         int max = 0;
         for (int i = 1; i < Battler.MOVES_MAX; i++) if (viability[i] > viability[max]) max = i;         // GetMaxByteIndexInList
         if (viability[max] < 100) {                                                                      // :1218

@@ -118,7 +118,7 @@ final class AiNegatives {
                             return clamp(dec(viability, 10));
                         }
                         break;
-                    case "MAGICBOUNCE": case "CLEARHEART":
+                    case "MAGICBOUNCE": case "CLEARHEART": case "MOERAE": case "RADIANTRULE":   // project: same bounce as BattleSuccessChecks
                         if (AiCalc.has(move, 'c')) return clamp(dec(viability, 20));
                         break;
                     case "CONTRARY":
@@ -184,7 +184,7 @@ final class AiNegatives {
                     case "STORMDRAIN":
                         if ("WATER".equals(moveType) && !redirectionPrevented) return clamp(dec(viability, 20));
                         break;
-                    case "MAGICBOUNCE": case "CLEARHEART":
+                    case "MAGICBOUNCE": case "CLEARHEART": case "MOERAE": case "RADIANTRULE":   // project: same bounce as BattleSuccessChecks
                         if (AiCalc.has(move, 'c') && (spreadMove || foeField)) return clamp(dec(viability, 20));
                         break;
                     case "SWEETVEIL":
