@@ -7,7 +7,7 @@ import java.util.function.Function;
 
 /** The {@link FieldScene} of a field script running on a {@code BlockingTask}: each call is a request for the interpreter. */
 final class TaskFieldScene implements FieldScene {
-    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL, FLY_MAP, DIMENSION_WARP, SHOW_MAP, CHOOSE_NUMBER, CHOOSE_ANY, CHOOSE_LIST }
+    enum Kind { MESSAGE, CONFIRM, CHOOSE, WAIT, SE, TUTOR, ACTION, CHOOSE_NON_EGG, FORGET, RELEARN, ME, CHOOSE_ITEM, FLASH, WAIT_CANCEL, FLY_MAP, DIMENSION_WARP, SHOW_MAP, OPEN_HATCHER, CHOOSE_NUMBER, CHOOSE_ANY, CHOOSE_LIST }
 
     static final class Request {
         final Kind kind;
@@ -58,6 +58,11 @@ final class TaskFieldScene implements FieldScene {
     /** {@code pbShowMap(-1, false)}: the region map of the player's region, closed with B. */
     public void showMap() {
         caller.apply(new Request(Kind.SHOW_MAP));
+    }
+
+    /** 323_Egg_Hatcher:356-359 {@code openHatcher}: the Egg Hatcher screen, until the player closes it. */
+    public void openHatcher() {
+        caller.apply(new Request(Kind.OPEN_HATCHER));
     }
 
     /** {@code dimensionality_warp} (363_Dimensionality): the place picked in the Ethereal Nexus's list ({@code [map, x, y]}), or null. */

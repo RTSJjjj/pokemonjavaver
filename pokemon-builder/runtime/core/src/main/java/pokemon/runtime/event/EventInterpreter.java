@@ -4136,6 +4136,16 @@ public final class EventInterpreter {
                     scriptTaskAnswer = () -> warp.flyResult;
                     return;
                 }
+                case OPEN_HATCHER: {
+                    MenuService.Request hatcher = new MenuService.Request(MenuService.Kind.HATCHER);
+                    if (menuService == null) {
+                        scriptTask.answer(null);
+                        break;
+                    }
+                    menuRequest = menuService.submit(hatcher);
+                    scriptTaskAnswer = () -> null;
+                    return;
+                }
                 case SHOW_MAP: {
                     MenuService.Request map = new MenuService.Request(MenuService.Kind.SHOW_MAP);
                     map.region = -1;
@@ -4711,10 +4721,10 @@ public final class EventInterpreter {
     }
 
     private void elseBranch(EventProgram program) {
-        if (program.branchResult(program.indent())) {
-            program.skipBlock();
-        } else {
+        if (program.consumeElse(program.indent())) {
             program.advance();
+        } else {
+            program.skipBlock();
         }
     }
 

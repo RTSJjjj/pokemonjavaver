@@ -383,7 +383,8 @@ public final class BagView {
         actionKinds.clear();
         actionRows = new ArrayList<>();
         boolean hasParty = context.gameState().trainer().pokemonCount() > 0;
-        if (handlers.hasUseOnPokemon(item) || handlers.hasBagFieldHandler(item) || (handlers.isMachine(item) && context.gameState().trainer().party.size() > 0)) {
+        if (handlers.hasUseOnPokemon(item) || handlers.hasBagFieldHandler(item) || (handlers.isMachine(item) && context.gameState().trainer().party.size() > 0)
+                || ("EGGHATCHER".equals(item) && hatcherHost != null)) {       // 323:342-347 UseFromBag :EGGHATCHER
             actionKinds.add(CMD_USE);                          // :468-474 (UseText is only registered for the bicycles)
             // UseText (189_PItem_ItemEffects:4-8): the bicycles say "步行" while riding and the plugin's own "Use" otherwise.
             actionRows.add(isBicycle(item) ? (context.gameState().fieldGlobals().bicycle ? "步行" : "Use") : "使用");

@@ -306,9 +306,13 @@ public final class MapScreen extends ScreenAdapter {
         if (gameState.takeFlyArrival()) {
             flyArrivalPending = true;                                              // 179:535 pbFlyAnimation(false) once the map has faded in
         }
-        // RMXP rebuilds the screen state on map setup: the black tone a door
-        // applied before the transfer must not survive into the new map.
-        context.screenEffects().clearTone();
+        // $game_screen is global: 049_Scene_Map transfer_player keeps the tone and the pictures, and the events restore
+        // them after the transfer (1449 doors / cut scenes fade back in after 201; 13 leave it to the destination's
+        // autorun, e.g. map 401 -> 402 event 17). A fresh start or a load clears them - this port does not save them.
+        boolean byTransfer = pendingPlayerCarry != null;
+        if (!byTransfer) {
+            context.screenEffects().clearTone();
+        }
         // Scene_Map#transfer_player:70 calls pbBridgeOff: leaving the map drops
         // $PokemonGlobal.bridge, so the next map starts with bridge tiles in
         // their "covers the character" z until its own bridge script fires.
@@ -356,7 +360,9 @@ public final class MapScreen extends ScreenAdapter {
             }
         });
         pictureLayer = new PictureLayer(context.pictureService(), textures, locator);
-        context.pictureService().clear(); // RMXP clears pictures when the map changes
+        if (!byTransfer) {
+            context.pictureService().clear();                              // a fresh start / a load; a transfer keeps them
+        }
         eventCharacters = new EventCharacters(mapData, tileMap, gameState);
         if (gameState.pendingEventPositions != null) {                       // a load: the events stand where the save left them
             eventCharacters.restorePositions(gameState.pendingEventPositions);
@@ -761,6 +767,17 @@ public final class MapScreen extends ScreenAdapter {
         lastPlayerTile = new int[] {player.x(), player.y()};
         if (direction != 0) {
             player.face(direction);
+        } else if (spawnX != Integer.MIN_VALUE) {
+            // 049_Scene_Map:121-126 a Transfer Player with direction 0 keeps the facing ($game_player is the same object);
+            // the new player started facing down, so "step backward" (map 402 event 17) went the wrong way.
+            int kept = gameState.playerDirection();
+            if (kept == 2 || kept == 4 || kept == 6 || kept == 8) player.face(kept);
+        }
+        PlayerCarry carry = pendingPlayerCarry;
+        pendingPlayerCarry = null;
+        if (carry != null) {
+            carry.applyTo(player);
+            playerRoute = carry.route;                                     // a forced route goes on on the new map
         }
         // R6.32: the route context needs the player instance; it wires the live
         // player tile for codes 10/11/25/26 and autonomous movement.
@@ -1056,6 +1073,9 @@ public final class MapScreen extends ScreenAdapter {
         boolean scriptDriven = playerRoute != null || context.transferPending() || playerWait > 0f || readyMenu != null
                 || battleEntry != null
                 || (interpreter != null && interpreter.running());
+        if (scriptDriven) {
+            player.stopRunningSheet();                                     // 026:22-24 pbCanRun? is false while an event runs
+        }
         if (safariGoToStartAfterMessages && !(interpreter != null && interpreter.running())
                 && !context.messageService().visible()) {
             if (pendingSafariMessages != null && !pendingSafariMessages.isEmpty()) {
@@ -1340,18 +1360,75 @@ public final class MapScreen extends ScreenAdapter {
             if (interpreter != null) {
                 interpreter.carryOverTransfer();                           // the commands after 201 run on the new map
             }
+            pokemon.runtime.state.FieldGlobals g = gameState.fieldGlobals();
+            int vehicleAfter = g.diving ? 3 : g.surfing ? 2 : g.bicycle ? 1 : 0;   // after pbCancelVehicles above
+            pendingPlayerCarry = new PlayerCarry(player, playerCharacter, vehicleAfter == vehicleKey);   // $game_player keeps its route state
+            pendingPlayerCarry.route = playerRoute;
+            gameState.setPlayerPosition(player.x(), player.y(), player.direction());   // the facing a direction-0 transfer keeps
             MapScreen next = new MapScreen(context, transfer.mapId, transfer.x, transfer.y, transfer.direction);
             context.game().setScreen(next);
             dispose();
         } catch (RuntimeException error) {
             // A broken transfer target must not take the whole game down: keep
             // the current map, release the waiting event and report the reason.
+            pendingPlayerCarry = null;                                     // not for whatever screen comes next
             context.game().log("transfer to map " + transfer.mapId + " failed: " + error.getMessage());
             if (interpreter != null) {
                 interpreter.stop();
             }
         }
     }
+
+    /**
+     * The move route state of {@code $game_player} a cross-map Transfer Player keeps (049_Scene_Map:110-127 only moves,
+     * turns and straightens the same object): Through, Direction Fix, the walk / step animation, opacity, always on top
+     * and the blend type. Map 401 event 2 turns Through on before the transfer and map 402 event 17 lets the player
+     * fall through the sky tiles with it, turning it off at the end.
+     */
+    private static final class PlayerCarry {
+        final boolean through, directionFix, walkAnime, stepAnime, alwaysOnTop;
+        final float opacity;
+        final int blendType;
+        /**
+         * A sheet a move route gave the player (code 41), or null. 025_Game_Player:418-446: transfer_player's
+         * pbCancelVehicles -> pbUpdateVehicle leaves it, since pbGetPlayerCharset answers nil while the player, vehicle
+         * and outfit are unchanged (map 401 event 2: Rayquaza, then the falling girl the next map shows).
+         */
+        final String routeSheet;
+        /**
+         * The forced move route the player was still running, or null. Game_Player is one object, so the route goes on
+         * after transfer_player's moveto: map 269 event 46 sets "opacity 255" right before its transfer, without waiting.
+         */
+        MoveRoutePlayer route;
+
+        PlayerCarry(MapCharacter from, String playerSheet, boolean vehicleUnchanged) {
+            routeSheet = vehicleUnchanged && from.characterName != null && !from.characterName.isEmpty()
+                    && !from.characterName.equals(playerSheet) ? from.characterName : null;
+            through = from.through;
+            directionFix = from.directionFix;
+            walkAnime = from.walkAnime;
+            stepAnime = from.stepAnime;
+            alwaysOnTop = from.alwaysOnTop;
+            opacity = from.opacity;
+            blendType = from.blendType;
+        }
+
+        void applyTo(MapCharacter to) {
+            to.through = through;
+            to.directionFix = directionFix;
+            to.walkAnime = walkAnime;
+            to.stepAnime = stepAnime;
+            to.alwaysOnTop = alwaysOnTop;
+            to.opacity = opacity;
+            to.blendType = blendType;
+            if (routeSheet != null) {
+                to.characterName = routeSheet;
+            }
+        }
+    }
+
+    /** Set by {@link #switchMap} for the screen it builds next. */
+    private static PlayerCarry pendingPlayerCarry;
 
     /**
      * Essentials' {@code Scene_Map#transfer_player} sets the map up only when
@@ -1419,6 +1496,11 @@ public final class MapScreen extends ScreenAdapter {
 
     /** Starts the action-trigger page (trigger 0) of the event the player faces. */
     private void startFacingEvent() {
+        // 049_Scene_Map:223 / 025_Game_Player:410 check_event_trigger_here([0]) comes first: an action-button event the
+        // player stands on (no sheet or through, on a passable tile - the stairs of map 385 event 9).
+        if (startOwnTileAction()) {
+            return;
+        }
         int x = Collision.targetX(player.x(), player.direction());
         int y = Collision.targetY(player.y(), player.direction());
         if (startFacingDependent(x, y)) {
@@ -1626,19 +1708,20 @@ public final class MapScreen extends ScreenAdapter {
         if (eventCharacters == null) {
             return;
         }
-        int trigger = EventTriggers.pageAt(gameState, mapData, x, y, EventTriggers.ACTION) != null
-                ? EventTriggers.ACTION : EventTriggers.EVENT_TOUCH;      // Game_Event#start locks (turns) for trigger < 3
-        MapData.EventPageData page = EventTriggers.pageAt(gameState, mapData, x, y, trigger);
+        MapData.EventData event = triggerEventAt(x, y, EventTriggers.ACTION);
+        if (event == null) {
+            event = triggerEventAt(x, y, EventTriggers.EVENT_TOUCH);           // Game_Event#start locks (turns) for trigger < 3
+        }
+        MapData.EventPageData page = event == null ? null : EventPages.resolve(gameState, mapData.mapId, event);
         if (page == null || page.movement.directionFix) {
             return;
         }
-        MapCharacter character = eventCharacters.character(
-                EventTriggers.eventIdAt(gameState, mapData, x, y, trigger));
-        if (character == null || (character.x() == player.x() && character.y() == player.y())) {
+        MapCharacter character = eventCharacters.character(event.id);
+        if (character == null || (character.logicalX() == player.x() && character.logicalY() == player.y())) {
             return;
         }
-        int dx = player.x() - character.x();
-        int dy = player.y() - character.y();
+        int dx = player.x() - character.logicalX();                    // turn_toward_player reads @x: the step's destination
+        int dy = player.y() - character.logicalY();
         if (Math.abs(dx) > Math.abs(dy)) {
             character.face(dx > 0 ? 6 : 4);
         } else if (dy != 0) {
@@ -1734,13 +1817,35 @@ public final class MapScreen extends ScreenAdapter {
     }
 
     private boolean startEvent(int x, int y, int trigger) {
-        MapData.EventPageData page = EventTriggers.pageAt(gameState, mapData, x, y, trigger);
-        if (page == null) {
+        MapData.EventData event = triggerEventAt(x, y, trigger);
+        if (event == null) {
             return false;
         }
         arrivalDoorPage = false;
-        interpreter.start(page.commands, mapData.mapId, EventTriggers.eventIdAt(gameState, mapData, x, y, trigger));
+        interpreter.start(EventPages.resolve(gameState, mapData.mapId, event).commands, mapData.mapId, event.id);
         return true;
+    }
+
+    /**
+     * The event on (x, y) whose page answers the trigger, or null. {@code check_event_trigger_there} / {@code _touch}
+     * (025_Game_Player:261-327) compare {@code event.x}, which RMXP sets to the destination when a step starts - so a
+     * walking NPC is found on the tile it is stepping to. Looking at the tile it was leaving started its page there, and
+     * the locked NPC then finished that step away from the player while talking (map 11 event 39).
+     */
+    private MapData.EventData triggerEventAt(int x, int y, int trigger) {
+        for (MapData.EventData event : mapData.events) {
+            MapCharacter character = eventCharacters == null ? null : eventCharacters.character(event.id);
+            int ex = character == null ? event.x : character.logicalX();
+            int ey = character == null ? event.y : character.logicalY();
+            if (ex != x || ey != y) {
+                continue;
+            }
+            MapData.EventPageData page = EventPages.resolve(gameState, mapData.mapId, event);
+            if (page != null && page.trigger == trigger && EventTriggers.startable(page)) {
+                return event;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1864,7 +1969,7 @@ public final class MapScreen extends ScreenAdapter {
             if (character == null) {
                 continue;
             }
-            if (startEvent(character.x(), character.y(), EventTriggers.EVENT_TOUCH)) {
+            if (startEvent(character.logicalX(), character.logicalY(), EventTriggers.EVENT_TOUCH)) {
                 // L6c: RMXP starts no further step once the trainer's page is
                 // running; without this the step the held key began in the
                 // same frame lands during the freeze and the player visibly
@@ -2250,6 +2355,32 @@ public final class MapScreen extends ScreenAdapter {
             return event;
         }
         return null;
+    }
+
+    /** {@code check_event_trigger_here([0])} (025_Game_Player:241-255): starts an action-button page on the player's tile. */
+    private boolean startOwnTileAction() {
+        if (interpreter == null || interpreter.running()) {
+            return false;                                                          // :244
+        }
+        for (pokemon.runtime.data.MapData.EventData event : mapData.events) {
+            MapCharacter character = eventCharacters == null ? null : eventCharacters.character(event.id);
+            int ex = character == null ? event.x : character.logicalX();
+            int ey = character == null ? event.y : character.logicalY();
+            if (ex != player.x() || ey != player.y()) {
+                continue;                                                          // :248
+            }
+            pokemon.runtime.data.MapData.EventPageData page = EventPages.resolve(gameState, mapData.mapId, event);
+            if (page == null || page.trigger != EventTriggers.ACTION || !EventTriggers.startable(page)) {
+                continue;                                                          // :249
+            }
+            if ((character != null && character.isJumping()) || !overTrigger(event, page, ex, ey)) {
+                continue;                                                          // :251
+            }
+            arrivalDoorPage = false;
+            interpreter.start(page.commands, mapData.mapId, event.id);            // :252 event.start
+            return true;
+        }
+        return false;
     }
 
     /** {@code Game_Event#over_trigger?} (024_Game_Event:114-119): a walk-over event (no sheet, or through) on a passable tile. */

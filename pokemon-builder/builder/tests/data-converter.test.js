@@ -732,7 +732,7 @@ test("writes build/cache.json with fingerprints and dependencies", (t) => {
   assert.equal(result.incremental.used, false, "the first build cannot reuse anything");
 
   const cache = readJson(path.join(cacheDir, "cache.json"));
-  assert.equal(cache.format, "pokemon-builder/build-cache/2");
+  assert.equal(cache.format, "pokemon-builder/build-cache/3");
   assert.equal(cache.irFormat, IR_FORMAT);
   assert.equal(cache.builderVersion, "1.2.3");
   assert.equal(cache.project, project);

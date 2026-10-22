@@ -355,9 +355,15 @@ export function parsePokemonForms(text) {
     if (f("moves")) entry.moves = parseMoveset(f("moves"));
     if (f("eggmoves")) entry.eggMoves = list(f("eggmoves"));
     if (f("evolutions")) entry.evolutions = parseEvolutions(f("evolutions"));
+    // Every metric a form leaves out is the base species' (pbCompilePokemonForms copies them into
+    // species_metrics.dat), so a null here means "inherit", never 0.
     entry.battler = {
+      playerX: intOrNull(f("battlerplayerx")),
       playerY: intOrNull(f("battlerplayery")),
+      enemyX: intOrNull(f("battlerenemyx")),
       enemyY: intOrNull(f("battlerenemyy")),
+      shadowX: intOrNull(f("battlershadowx")),
+      shadowSize: intOrNull(f("battlershadowsize")),
     };
     forms[entry.key] = entry;
   }

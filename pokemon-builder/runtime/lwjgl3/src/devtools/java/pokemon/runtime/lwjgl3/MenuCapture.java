@@ -77,7 +77,7 @@ public final class MenuCapture extends ApplicationAdapter {
         if (args.length < 2) {
             throw new IllegalArgumentException("dataRoot outputDir");
         }
-        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
+        if (args.length > 2 && ("mart".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "moveanim".equals(args[2]) || "starter".equals(args[2]) || "items".equals(args[2]) || "storage".equals(args[2]) || "pcitems".equals(args[2]) || "slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2]) || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2]) || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
             System.setProperty("pokemon.menu.clockDelta", "0.025");
         }
         // Keep the capture away from the real save directory.
@@ -290,7 +290,7 @@ public final class MenuCapture extends ApplicationAdapter {
             }
             if (args.length > 2 && ("slots".equals(args[2]) || "hall".equals(args[2]) || "credits".equals(args[2])
                     || "hatch".equals(args[2]) || "relearn".equals(args[2]) || "hatcher".equals(args[2])
-                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "dive".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
+                    || "mining".equals(args[2]) || "voltorb".equals(args[2]) || "triad".equals(args[2]) || "headnames".equals(args[2]) || "fastcatch".equals(args[2]) || "terrain".equals(args[2]) || "quests".equals(args[2]) || "fishing".equals(args[2]) || "dive".equals(args[2]) || "ropes".equals(args[2]) || "nexus".equals(args[2]) || "eon".equals(args[2]) || "chapter".equals(args[2]) || "battleinfo".equals(args[2]) || "transform".equals(args[2]) || "illusion".equals(args[2]) || "moveanim".equals(args[2]) || "habitat".equals(args[2]) || "weather".equals(args[2]) || "ready".equals(args[2]) || "minimap".equals(args[2]))) {
                 captureScenes(args[2]);                    // roadmap stage 8 / 12: the scenes added after the starter
                 Gdx.app.exit();
                 return;
@@ -577,6 +577,35 @@ public final class MenuCapture extends ApplicationAdapter {
                 stepMap(GameAction.CONFIRM);
                 logLeadSprite("mega-win", 4000);
                 System.out.println("mega-win: form after the battle " + (mega.form == null ? 0 : mega.form.form));
+            } else if (args.length > 2 && args[2].startsWith("talk-route")) {
+                boolean walker = "talk-route-walker".equals(args[2]);
+                int map = walker ? 11 : 2, eventId = walker ? 39 : 12;
+                mapScreen = walker ? new MapScreen(context, map, 35, 20, 6) : new MapScreen(context, map, 5, 21, 8);
+                context.game().setScreen(mapScreen);
+                renderMap();
+                java.lang.reflect.Field f = MapScreen.class.getDeclaredField("eventCharacters");
+                f.setAccessible(true);
+                pokemon.runtime.map.MapCharacter npc = ((pokemon.runtime.map.EventCharacters) f.get(mapScreen)).character(eventId);
+                pokemon.runtime.event.EventInterpreter interp = context.eventInterpreter();
+                int waited = 0;
+                if (walker) {
+                    // leaving: the step out of the front tile has begun; arriving: the step into it has begun
+                    boolean arriving = args.length > 3 && "arriving".equals(args[3]);
+                    while (waited++ < 4000 && !(arriving
+                            ? npc.isMoving() && npc.logicalX() == 36 && npc.logicalY() == 20
+                            : npc.x() == 36 && npc.y() == 20)) renderMap();
+                } else {
+                    advanceMap(1f / 60f, 30);
+                }
+                System.out.println("talk-route: before talk npc=" + npc.x() + "," + npc.y() + " dir=" + npc.direction()
+                        + " moving=" + npc.isMoving() + " waited=" + waited);
+                stepMap(GameAction.CONFIRM);
+                for (int i = 0; i < 600; i++) {
+                    renderMap();
+                    if (i % 30 == 0) System.out.println("talk-route: f" + i + " running=" + interp.running() + " id="
+                            + interp.currentEventId() + " msg=" + context.messageService().visible()
+                            + " npc=" + npc.x() + "," + npc.y() + " dir=" + npc.direction() + " moving=" + npc.isMoving());
+                }
             } else if (sightMergeCapture) {
                 int startX = args.length > 3 ? Integer.parseInt(args[3]) : 35;
                 int startY = args.length > 4 ? Integer.parseInt(args[4]) : 16;
@@ -2290,6 +2319,38 @@ public final class MenuCapture extends ApplicationAdapter {
                 advanceMap(1f / 60f, 60);
                 shotMap("transform-info");
                 break;
+            case "moveanim": {                              // the lead uses $POKEMON_CAPTURE_MOVE: its move animation frame by frame and what stays after it
+                String moveName = System.getenv().getOrDefault("POKEMON_CAPTURE_MOVE", "BODYPRESS");
+                pokemon.runtime.pokemon.Pokemon lead = context.gameState().trainer().party.get(0);
+                lead.moves.clear();
+                lead.moves.add(new pokemon.runtime.pokemon.Pokemon.MoveSlot(context.pbsData().move(moveName)));
+                mapScreen = new MapScreen(context, 2);
+                context.game().setScreen(mapScreen);
+                pokemon.runtime.pokemon.Pokemon foe = new pokemon.runtime.pokemon.Pokemon(
+                        context.pbsData().species(System.getenv().getOrDefault("POKEMON_CAPTURE_FOE", "SNORLAX")), 50, context.pbsData());
+                foe.moves.clear();
+                foe.moves.add(new pokemon.runtime.pokemon.Pokemon.MoveSlot(context.pbsData().move("SPLASH")));
+                if ("1".equals(System.getenv("POKEMON_CAPTURE_SWAP"))) {      // the foe uses the move (OppMove animation), the lead splashes
+                    foe.moves.set(0, new pokemon.runtime.pokemon.Pokemon.MoveSlot(context.pbsData().move(moveName)));
+                    lead.moves.set(0, new pokemon.runtime.pokemon.Pokemon.MoveSlot(context.pbsData().move("SPLASH")));
+                    lead.recalculatingStats(() -> lead.setLevelAndExp(80));
+                }
+                context.battlePort().freeWildBattle(foe);
+                renderMap();
+                advanceUntilBattle(s -> "OPENING".equals(s.debugStage()) && s.debugMessageComplete(), 2400);
+                stepMap(GameAction.CONFIRM);
+                advanceUntilBattle(s -> "BATTLE".equals(s.debugStage()), 1200);
+                stepMap(GameAction.CONFIRM);                 // Fight
+                advanceMap(1f / 60f, 12);
+                stepMap(GameAction.CONFIRM);                 // the move
+                float speed = Float.parseFloat(System.getenv().getOrDefault("POKEMON_CAPTURE_SPEED", "1"));   // 4 = the 4x speed-up's frame time
+                for (int i = 0; i < 360; i++) {
+                    advanceMap(speed / 60f, 1);
+                    if (i % 6 == 0) shotMap(String.format(java.util.Locale.ROOT, "moveanim-%03d", i));
+                }
+                shotMap("moveanim-final");
+                break;
+            }
             case "battleinfo":
                 mapScreen = new MapScreen(context, 2);
                 context.game().setScreen(mapScreen);

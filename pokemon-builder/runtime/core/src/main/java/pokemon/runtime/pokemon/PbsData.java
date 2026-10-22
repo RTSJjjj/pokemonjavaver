@@ -899,6 +899,35 @@ public final class PbsData {
         battler.shadowSize = node.getInt("shadowSize", 0);
     }
 
+    /**
+     * A form's metrics: pbCompilePokemonForms starts from the base species' values and replaces only the
+     * Battler* lines the form section declares (species_metrics.dat: Partner Eevee keeps Eevee's PlayerY 24).
+     */
+    private static void readFormBattler(BattlerOffsets battler, Species base, JsonValue node) {
+        if (base != null) {
+            battler.playerX = base.battler.playerX;
+            battler.playerY = base.battler.playerY;
+            battler.enemyX = base.battler.enemyX;
+            battler.enemyY = base.battler.enemyY;
+            battler.shadowX = base.battler.shadowX;
+            battler.shadowSize = base.battler.shadowSize;
+        }
+        if (node == null) {
+            return;
+        }
+        battler.playerX = metric(node, "playerX", battler.playerX);
+        battler.playerY = metric(node, "playerY", battler.playerY);
+        battler.enemyX = metric(node, "enemyX", battler.enemyX);
+        battler.enemyY = metric(node, "enemyY", battler.enemyY);
+        battler.shadowX = metric(node, "shadowX", battler.shadowX);
+        battler.shadowSize = metric(node, "shadowSize", battler.shadowSize);
+    }
+
+    private static int metric(JsonValue node, String name, int inherited) {
+        JsonValue value = node.get(name);
+        return value == null || value.isNull() ? inherited : value.asInt();
+    }
+
     private static void readForms(PbsData data, JsonValue root) {
         JsonValue formsRoot = child(root, "forms");
         if (formsRoot == null || !formsRoot.isObject()) {
@@ -960,7 +989,7 @@ public final class PbsData {
                     form.evolutions.add(evo);
                 }
             }
-            readBattler(form.battler, child(node, "battler"));
+            readFormBattler(form.battler, data.species.get(form.species), child(node, "battler"));
             data.forms.put(form.key, form);
         }
     }

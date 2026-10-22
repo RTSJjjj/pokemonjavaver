@@ -77,6 +77,20 @@ class EventTriggersTest {
     }
 
     @Test
+    @DisplayName("two autorun pages: the first of Ruby's Hash order starts (map 402 event 17 before event 2)")
+    void autorunFollowsRubyHashOrder() {
+        MapData data = mapData();
+        for (int id = 1; id <= 21; id++) {
+            data.events.add(event(id, 0, 0, id == 2 || id == 17 ? EventTriggers.AUTORUN : EventTriggers.ACTION));
+        }
+        GameState state = new GameState();
+        state.enterMap(data.mapId, 0, 0);
+
+        assertEquals(17, EventTriggers.autorunEventId(state, data));
+        assertSame(data.events.get(16).pages.first(), EventTriggers.autorunPage(state, data));
+    }
+
+    @Test
     @DisplayName("a door whose page is hidden by a switch no longer triggers")
     void hiddenDoorDoesNotTrigger() {
         MapData data = mapData();

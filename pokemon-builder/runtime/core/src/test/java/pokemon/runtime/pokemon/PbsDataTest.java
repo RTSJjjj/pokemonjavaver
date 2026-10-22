@@ -185,4 +185,28 @@ class PbsDataTest {
         assertTrue(route1.method("Land").size >= 8, "land slots: " + route1.method("Land").size);
         assertNotNull(data.trainer("NNANXIAO", "南晓"));
     }
+
+    @Test
+    @DisplayName("a form's battler metrics inherit every Battler* line it leaves out (Partner Eevee does not float)")
+    void formMetricsInheritTheSpecies(@TempDir Path tempDir) throws Exception {
+        write(tempDir, "pokemon.json", "{\"species\":{\"EEVEE\":{\"id\":133,\"internalName\":\"EEVEE\","
+                + "\"battler\":{\"playerX\":1,\"playerY\":24,\"enemyX\":2,\"enemyY\":32,\"shadowX\":3,\"shadowSize\":2}}}}");
+        write(tempDir, "pokemonforms.json", "{\"forms\":{"
+                + "\"EEVEE_1\":{\"species\":\"EEVEE\",\"form\":1,\"key\":\"EEVEE_1\","
+                + "\"battler\":{\"playerX\":null,\"playerY\":null,\"enemyY\":null}},"
+                + "\"EEVEE_2\":{\"species\":\"EEVEE\",\"form\":2,\"key\":\"EEVEE_2\","
+                + "\"battler\":{\"playerY\":17,\"shadowSize\":0}}}}");
+        PbsData data = PbsData.parse(tempDir.toFile());
+        PbsData.BattlerOffsets partner = data.form("EEVEE", 1).battler;
+        assertEquals(1, partner.playerX);
+        assertEquals(24, partner.playerY);
+        assertEquals(2, partner.enemyX);
+        assertEquals(32, partner.enemyY);
+        assertEquals(3, partner.shadowX);
+        assertEquals(2, partner.shadowSize);
+        PbsData.BattlerOffsets own = data.form("EEVEE", 2).battler;
+        assertEquals(17, own.playerY, "a declared line still wins");
+        assertEquals(0, own.shadowSize, "a declared 0 is not inherited");
+        assertEquals(32, own.enemyY);
+    }
 }

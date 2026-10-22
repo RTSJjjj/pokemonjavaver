@@ -53,8 +53,8 @@ public final class EventTriggers {
     }
 
     /**
-     * First autorun page in event id order (RMXP runs exactly one autorun at a
-     * time, and restarts it while its conditions still hold).
+     * First autorun page in {@code $game_map.events.values} order ({@link MapData#eventsInRubyOrder()}; RMXP runs
+     * exactly one autorun at a time, and restarts it while its conditions still hold).
      */
     public static MapData.EventPageData autorunPage(GameState state, MapData data) {
         return firstPage(state, data, AUTORUN);
@@ -79,7 +79,9 @@ public final class EventTriggers {
 
     /** Event id of {@link #autorunPage}, or -1. */
     public static int autorunEventId(GameState state, MapData data) {
-        for (MapData.EventData event : data.events) {
+        com.badlogic.gdx.utils.Array<MapData.EventData> events = data.eventsInRubyOrder();
+        for (int i = 0; i < events.size; i++) {                         // index loop: libGDX Array iterators cannot nest
+            MapData.EventData event = events.get(i);
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
             if (page != null && page.trigger == AUTORUN && startable(page)) {
                 return event.id;
@@ -136,7 +138,10 @@ public final class EventTriggers {
     }
 
     private static MapData.EventPageData firstPage(GameState state, MapData data, int trigger) {
-        for (MapData.EventData event : data.events) {
+        // 048_Interpreter:70-83 setup_starting_event: the first of $game_map.events.values - Ruby 1.8's Hash order.
+        com.badlogic.gdx.utils.Array<MapData.EventData> events = data.eventsInRubyOrder();
+        for (int i = 0; i < events.size; i++) {
+            MapData.EventData event = events.get(i);
             MapData.EventPageData page = EventPages.resolve(state, data.mapId, event);
             if (page != null && page.trigger == trigger && startable(page)) {
                 return page;

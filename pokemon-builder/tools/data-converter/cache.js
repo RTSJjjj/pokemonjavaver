@@ -18,7 +18,9 @@ import path from "node:path";
 
 import { sha1 } from "../../builder/src/util.js";
 
-export const CACHE_FORMAT = "pokemon-builder/build-cache/2";
+// 3: the map IR gained eventOrder (the Marshal key order of @events); bumping the format drops the old cache once so
+// every map is converted again instead of keeping IR files written without it.
+export const CACHE_FORMAT = "pokemon-builder/build-cache/3";
 
 export function cacheFilePath(cacheDir) {
   return cacheDir ? path.join(cacheDir, "cache.json") : null;

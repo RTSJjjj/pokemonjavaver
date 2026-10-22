@@ -44,6 +44,9 @@ public final class MapRenderer {
     public int[] surfJumpTile;
     private Texture surfBase;
     private boolean surfBaseLoaded;
+    /** 035_Sprite_SurfBase:12 base_dive: the base under a diving player. */
+    private Texture diveBase;
+    private boolean diveBaseLoaded;
     private Texture[] runningTextures = new Texture[0];
     private int[] entityDepths = new int[0];
     private long[] entityOrder = new long[0];
@@ -480,8 +483,10 @@ public final class MapRenderer {
         int h = image.getHeight() / 4;
         int x = Math.round(character.pixelX() + (TILE - w) / 2f + offsetX);
         int y = Math.round(character.pixelY() + offsetY);
-        // 026_Game_Player_Visuals:70-78 update_pattern: surfing bobs in place (pattern from the frame count, 2px down on 2 and 3).
-        boolean surfing = character.isPlayer && state.fieldGlobals().surfing;
+        // 026_Game_Player_Visuals:70-78 update_pattern: surfing and diving bob in place (pattern from the frame count, 2px down
+        // on 2 and 3).
+        boolean diving = character.isPlayer && !state.fieldGlobals().surfing && state.fieldGlobals().diving;
+        boolean surfing = character.isPlayer && (state.fieldGlobals().surfing || diving);
         int pattern = character.pattern();
         int bob = 0;
         if (surfing) {
@@ -491,7 +496,7 @@ public final class MapRenderer {
         }
         if (x >= right || x + w <= left || y >= top || y + h <= bottom) return;
         if (surfing) {
-            drawSurfBase(batch, character, bob, pattern, offsetX, offsetY);
+            drawSurfBase(batch, character, bob, pattern, offsetX, offsetY, diving);
         }
         batch.setColor(1f, 1f, 1f, Math.max(0f, Math.min(1f, character.opacity)));
         batch.draw(image, x, y, w, h, Math.floorMod(pattern, 4) * w,
@@ -499,15 +504,29 @@ public final class MapRenderer {
         batch.setColor(1f, 1f, 1f, 1f);
     }
 
-    /** 035_Sprite_SurfBase:42-80: the water base under a surfing player (offset 16 px below the feet, bobbing with the player). */
-    private void drawSurfBase(SpriteBatch batch, MapCharacter player, int bob, int pattern, float offsetX, float offsetY) {
-        if (!surfBaseLoaded) {
-            surfBaseLoaded = true;
-            surfBase = lazyCharacterTexture("base_surf");
+    /**
+     * 035_Sprite_SurfBase:42-80: the base under a surfing (base_surf) or diving (base_dive, :53-54) player, offset 16 px
+     * below the feet and bobbing with the player.
+     */
+    private void drawSurfBase(SpriteBatch batch, MapCharacter player, int bob, int pattern, float offsetX, float offsetY,
+                              boolean diving) {
+        Texture base;
+        if (diving) {
+            if (!diveBaseLoaded) {
+                diveBaseLoaded = true;
+                diveBase = lazyCharacterTexture("base_dive");
+            }
+            base = diveBase;
+        } else {
+            if (!surfBaseLoaded) {
+                surfBaseLoaded = true;
+                surfBase = lazyCharacterTexture("base_surf");
+            }
+            base = surfBase;
         }
-        if (surfBase == null) return;
-        int cw = surfBase.getWidth() / 4;
-        int ch = surfBase.getHeight() / 4;
+        if (base == null) return;
+        int cw = base.getWidth() / 4;
+        int ch = base.getHeight() / 4;
         float centerX;
         float bottom;
         if (surfJumpTile != null) {
@@ -518,7 +537,7 @@ public final class MapRenderer {
             bottom = player.pixelY() + offsetY;
         }
         batch.setColor(1f, 1f, 1f, Math.max(0f, Math.min(1f, player.opacity)));
-        batch.draw(surfBase, Math.round(centerX - cw / 2f), Math.round(bottom - 16f - bob), cw, ch,
+        batch.draw(base, Math.round(centerX - cw / 2f), Math.round(bottom - 16f - bob), cw, ch,
                 Math.floorMod(pattern, 4) * cw, directionRow(player.direction()) * ch, cw, ch, false, false);
         batch.setColor(1f, 1f, 1f, 1f);
     }

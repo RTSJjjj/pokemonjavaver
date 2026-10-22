@@ -128,6 +128,20 @@ Height = 2.4
   assert.deepEqual(forms.VENUSAUR_1.baseStats, [80, 100, 123, 80, 122, 120]);
 });
 
+test("pokemonforms carries every Battler* line and leaves the rest null (inherit the species)", () => {
+  const forms = parsePokemonForms(`[EEVEE,1]
+FormName = 搭档伊布
+[PIKACHU,2]
+BattlerPlayerX = 3
+BattlerShadowSize = 1
+`);
+  assert.deepEqual(forms.EEVEE_1.battler,
+    { playerX: null, playerY: null, enemyX: null, enemyY: null, shadowX: null, shadowSize: null });
+  assert.equal(forms.PIKACHU_2.battler.playerX, 3);
+  assert.equal(forms.PIKACHU_2.battler.shadowSize, 1);
+  assert.equal(forms.PIKACHU_2.battler.playerY, null);
+});
+
 test("pokemonforms keeps MegaMove and MegaMessage (Rayquaza's Mega form)", () => {
   const forms = parsePokemonForms(`[RAYQUAZA,1]
 FormName = Mega Rayquaza

@@ -71,12 +71,29 @@ public final class EventProgram {
         index = commands.size;
     }
 
+    /**
+     * Stores a conditional branch result, 048_Interpreter:660-667: a true
+     * result is deleted right away (the branch is entered), a false one stays
+     * until the matching Else consumes it.
+     */
     public void branchResult(int indent, boolean value) {
-        branchResult.put(indent, value);
+        if (value) {
+            branchResult.remove(indent);
+        } else {
+            branchResult.put(indent, Boolean.FALSE);
+        }
     }
 
-    /** Result of the conditional branch that opened this indent (false if none). */
-    public boolean branchResult(int indent) {
-        return branchResult.get(indent, Boolean.FALSE);
+    /**
+     * Else (411), 048_Interpreter:675-685: enters only when a false result is
+     * pending at this indent and deletes it, so reaching the same Else again
+     * (e.g. after a Jump to Label back into the true branch) skips it.
+     */
+    public boolean consumeElse(int indent) {
+        if (branchResult.get(indent) == Boolean.FALSE) {
+            branchResult.remove(indent);
+            return true;
+        }
+        return false;
     }
 }

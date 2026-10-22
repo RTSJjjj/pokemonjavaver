@@ -3555,6 +3555,14 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
     private float oldUserY;
     private float oldTargetX;
     private float oldTargetY;
+    /**
+     * The user's / target's look before the animation. pbAnimationCore only puts x/y/origin back (:576-585), so a last
+     * frame that leaves a cel zoomed or tinted stuck on the battler for the rest of the battle (Jaw Lock / Snake Bite
+     * squashed to 70%, Yin Yang Unity left black, Fire Lash red). This port restores the look too; opacity stays as
+     * the animation left it, since the charging / Substitute / switch animations hide the battler on purpose.
+     */
+    private SpriteLook oldUserLook;
+    private SpriteLook oldTargetLook;
     /** {@code shadows} of pbSaveShadows (:407-411), null when the animation is a common one. */
     private boolean[] savedShadows;
 
@@ -3674,6 +3682,8 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         oldUserY = userSprite != null ? userSprite.y : 0;                         // :549
         oldTargetX = targetSprite != null ? targetSprite.x : oldUserX;            // :550
         oldTargetY = targetSprite != null ? targetSprite.y : oldUserY;            // :551
+        oldUserLook = SpriteLook.of(userSprite);
+        oldTargetLook = SpriteLook.of(targetSprite);
         // Create the animation player
         BattleAnimationPlayer player = new BattleAnimationPlayer(animation, user, target, animationHost, oppMove);   // :553
         // Apply a transformation to the animation based on where the user and
@@ -3744,11 +3754,13 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
             moveAnimUserSprite.x = oldUserX;                                      // :577
             moveAnimUserSprite.y = oldUserY;                                      // :578
             moveAnimUserSprite.updateOrigin();                                    // :579 pbSetOrigin
+            if (oldUserLook != null) oldUserLook.restore(moveAnimUserSprite);
         }
         if (moveAnimTargetSprite != null) {                                       // :581
             moveAnimTargetSprite.x = oldTargetX;                                  // :582
             moveAnimTargetSprite.y = oldTargetY;                                  // :583
             moveAnimTargetSprite.updateOrigin();                                  // :584
+            if (oldTargetLook != null && moveAnimTargetSprite != moveAnimUserSprite) oldTargetLook.restore(moveAnimTargetSprite);
         }
         moveAnim = null;
         moveAnimUserSprite = null;
@@ -3760,6 +3772,41 @@ public final class BattleScreen extends ScreenAdapter implements BattleAnimation
         keepHidden.clear();
         restoreShadows();                                                        // :523 the pbSaveShadows block ends
         resumeRound();
+    }
+
+    /** The display state of a battler sprite a move animation's cels overwrite (pbSpriteSetAnimFrame:631-664), opacity aside. */
+    private static final class SpriteLook {
+        private final float zoomX;
+        private final float zoomY;
+        private final float angle;
+        private final boolean mirror;
+        private final int blendType;
+        private final float[] tone;
+        private final float[] color;
+
+        private SpriteLook(BattleSprite sprite) {
+            zoomX = sprite.zoomX;
+            zoomY = sprite.zoomY;
+            angle = sprite.angle;
+            mirror = sprite.mirror;
+            blendType = sprite.blendType;
+            tone = sprite.tone.clone();
+            color = sprite.color.clone();
+        }
+
+        static SpriteLook of(BattleSprite sprite) {
+            return sprite == null ? null : new SpriteLook(sprite);
+        }
+
+        void restore(BattleSprite sprite) {
+            sprite.zoomX = zoomX;
+            sprite.zoomY = zoomY;
+            sprite.angle = angle;
+            sprite.mirror = mirror;
+            sprite.blendType = blendType;
+            System.arraycopy(tone, 0, sprite.tone, 0, tone.length);
+            System.arraycopy(color, 0, sprite.color, 0, color.length);
+        }
     }
 
     // ---------------------------------------------------------------------

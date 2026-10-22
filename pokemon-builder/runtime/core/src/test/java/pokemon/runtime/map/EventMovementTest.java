@@ -152,4 +152,20 @@ class EventMovementTest {
         assertTrue(wentDown, "the first command walks one tile down");
         assertTrue(cameBack, "the route repeats and walks back up");
     }
+
+    @Test
+    @DisplayName("an event the player is talking to does not walk its own route (Game_Event#start lock)")
+    void talkingEventHoldsItsRoute() {
+        MapData data = map("{\"moveType\":3,\"moveSpeed\":4,\"moveFrequency\":6,"
+                + "\"moveRoute\":{\"repeat\":true,\"skippable\":true,"
+                + "\"commands\":[{\"code\":1,\"parameters\":[]},{\"code\":4,\"parameters\":[]},"
+                + "{\"code\":0,\"parameters\":[]}]}}");
+        EventCharacters characters = events(data);
+        MapCharacter npc = characters.character(3);
+        characters.setActiveEvent(3);
+        for (int frame = 0; frame < 200; frame++) {
+            characters.update(1f / 40f, allowAll());
+            assertEquals(4, npc.y(), "frame " + frame);
+        }
+    }
 }

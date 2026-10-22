@@ -95,6 +95,46 @@ public final class MapData {
         }
     }
     public Array<String> scriptBlockIds = new Array<>();
+    /** The {@code @events} keys in the file's order ({@code eventOrder}); null for data built before it. */
+    public int[] eventOrder;
+    private Array<EventData> rubyOrder;
+
+    /**
+     * {@link #events} in {@code $game_map.events.values} order ({@link RubyHashOrder}): the order
+     * Interpreter#setup_starting_event looks for the autorun page to start. Data without {@code eventOrder} assumes
+     * the keys were saved in id order (the bins come out the same; only events sharing a bin may differ).
+     */
+    public Array<EventData> eventsInRubyOrder() {
+        if (rubyOrder != null && rubyOrder.size == events.size) {
+            return rubyOrder;
+        }
+        int[] keys = eventOrder;
+        if (keys == null || keys.length == 0) {
+            keys = new int[events.size];
+            for (int i = 0; i < events.size; i++) {
+                keys[i] = events.get(i).id;
+            }
+            java.util.Arrays.sort(keys);
+        }
+        java.util.Map<Integer, EventData> byId = new java.util.HashMap<>();
+        for (EventData event : events) {
+            byId.put(event.id, event);
+        }
+        Array<EventData> ordered = new Array<>(events.size);
+        for (int id : RubyHashOrder.gameMapEvents(keys)) {
+            EventData event = byId.remove(id);
+            if (event != null) {
+                ordered.add(event);
+            }
+        }
+        for (EventData event : events) {
+            if (byId.containsKey(event.id)) {
+                ordered.add(event);                                        // not in eventOrder: keep it, at the end
+            }
+        }
+        rubyOrder = ordered;
+        return ordered;
+    }
 
     public static MapData parse(JsonValue root) {
         MapData data = new MapData();
@@ -138,6 +178,10 @@ public final class MapData {
             for (JsonValue id = scriptBlockIds.child; id != null; id = id.next) {
                 data.scriptBlockIds.add(id.asString());
             }
+        }
+        JsonValue order = root.get("eventOrder");
+        if (order != null && order.isArray()) {
+            data.eventOrder = order.asIntArray();
         }
         return data;
     }

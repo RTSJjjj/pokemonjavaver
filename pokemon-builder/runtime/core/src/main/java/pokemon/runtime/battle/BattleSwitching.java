@@ -172,14 +172,26 @@ public final class BattleSwitching {
         Battler battler = battle.battlerAt(idxBattler);                               // :464
         if (battler == null || battler.pokemon == null) return;                       // :465
         if (!battler.hasPrimal() || battler.isPrimal()) return;                       // :466
-        if (battler.isSpecies("KYOGRE")) {                                            // :470
-            battle.commonAnimation("PrimalKyogre", battler);                          // :471
-            battler.pokemon.makePrimal(battle.pbs());                                 // :476
-            battle.commonAnimation("PrimalKyogre2", battler);                         // :484
-        } else if (battler.isSpecies("GROUDON")) {                                    // :485
-            battle.commonAnimation("PrimalGroudon", battler);                         // :486
-            battler.pokemon.makePrimal(battle.pbs());                                 // :491
-            battle.commonAnimation("PrimalGroudon2", battler);                        // :499
+        boolean kyogre = battler.isSpecies("KYOGRE");
+        if (kyogre || battler.isSpecies("GROUDON")) {                                 // :470 / :485
+            String name = kyogre ? "PrimalKyogre" : "PrimalGroudon";
+            battle.commonAnimation(name, battler);                                    // :471 / :486
+            int oldForm = battler.form();
+            battler.pokemon.makePrimal(battle.pbs());                                 // :476 / :491
+            // :477-478 / :492-493 battler.form = pokemon.form; battler.pbUpdate(true): the battler takes the primal form's
+            // ability (Primordial Sea / Desolate Land), which pbEffectsOnSwitchIn then triggers. Left out, it kept Drizzle /
+            // Drought.
+            battler.pbUpdate(true);
+            if (battle.fullMegaAnimation) {                                           // :472-475 / :487-490 za_full_mega_animation?
+                Battle.RoundEvent scene = Battle.RoundEvent.megaScene(idxBattler, kyogre ? 2 : 1, oldForm, battler.form());
+                scene.pokemon = battler.pokemon;                                      // ScenePrimalblue / ScenePrimalred
+                battle.roundEvents.add(scene);
+            } else {
+                Battle.RoundEvent change = Battle.RoundEvent.changePokemon(idxBattler, oldForm);   // :479-480 pbChangePokemon + pbRefreshOne
+                change.pokemon = battler.pokemon;
+                battle.roundEvents.add(change);
+            }
+            battle.commonAnimation(name + "2", battler);                              // :484 / :499
         }
         battle.display(battler.pbThis() + "原始回归了！\n" + battler.pbThis() + "回到了原始形态！");   // :501
     }

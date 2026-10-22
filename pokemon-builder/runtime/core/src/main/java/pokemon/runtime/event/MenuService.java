@@ -6,6 +6,8 @@ import java.util.ArrayDeque;
 /** Headless request queue. Each interpreter waits for its own request only. */
 public final class MenuService {
     public enum Kind { STORAGE, CHOOSE_TRADE, TRADE, GENDER, CHOOSE_ITEM, SHOW_MAP, MART, STARTER, TUTOR,
+        /** 323_Egg_Hatcher {@code openHatcher}: the Egg Hatcher screen (the item used from the Ready Menu). */
+        HATCHER,
         /** {@code dimensionality_warp} (363_Dimensionality): the Ethereal Nexus's list of places; {@link Request#flyResult} is {@code [map, x, y]}. */
         DIMENSION_WARP,
         /** {@code pbChooseNonEggPokemon}: the party screen, eggs refused (252_PSystem_PokemonUtilities:268-270). */

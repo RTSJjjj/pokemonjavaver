@@ -321,6 +321,11 @@ public final class PauseMenuOverlay implements Disposable {
             warpView = new DimensionalWarpView(context);                      // 363_Dimensionality DimensionalWarpScreen
             sub = Sub.WARP;
         }
+        else if (value.kind == pokemon.runtime.event.MenuService.Kind.HATCHER) {
+            hatcherView = new HatcherView(context);                                // 323:356-359 openHatcher
+            hatcherReturnSub = null;                                               // closing it ends the request
+            sub = Sub.HATCHER;
+        }
         else if (value.kind == pokemon.runtime.event.MenuService.Kind.SHOW_MAP) {
             // pbShowMap(region, wallmap) (PScreen_RegionMap:431-437).
             townMapView = new TownMapView(context, assets, value.region, value.wallmap);
@@ -712,7 +717,11 @@ public final class PauseMenuOverlay implements Disposable {
             case HATCHER:
                 if (hatcherView.update(input)) {
                     hatcherView = null;
-                    sub = hatcherReturnSub;
+                    if (hatcherReturnSub == null) {
+                        back();                                                    // the Ready Menu's request: back to the map
+                    } else {
+                        sub = hatcherReturnSub;
+                    }
                 }
                 break;
             case MINIGAME:

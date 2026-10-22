@@ -66,6 +66,9 @@ final class FieldItemTask {
                 useItemMessage(item);
                 new HiddenMoveTask(state, pbs, port, scene, services::pbEncounter, random, null).sweetScentForItem();
                 return 3;
+            case "EGGHATCHER":                                                         // 323_Egg_Hatcher:349-354 openHatcher; next 1
+                scene.openHatcher();
+                return 1;
             case "TOWNMAP":                                                            // :372-375 pbShowMap(-1, false)
                 scene.showMap();
                 return 1;

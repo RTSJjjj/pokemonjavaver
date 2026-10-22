@@ -546,6 +546,10 @@ export function buildMapIr({ file, mapId, mapName, data, blocks, outdoor = false
     }),
     tileData: tileDataIr(data["@data"]),
     events: eventEntriesOf(data).map(([eventId, event]) => eventIr(event, mapId, mapName, blocks)),
+    // The @events keys in the file's (Marshal) order. The runtime rebuilds Ruby 1.8's Hash iteration order from it:
+    // Interpreter#setup_starting_event starts the first autorun event of $game_map.events.values, which is not the
+    // event id order (map 402: event 17 runs before event 2).
+    eventOrder: hashEntries(data && data["@events"]).map((entry) => entry[0]).filter((key) => typeof key === "number"),
     scriptBlockIds: blocks.map((block) => block.id),
   };
 }

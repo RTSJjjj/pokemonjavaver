@@ -136,6 +136,14 @@ public final class MapCharacter {
         int level = Math.max(1, Math.min(6, frequency));
         return (40 - level * 2) * (6 - level);
     }
+    /**
+     * 026_Game_Player_Visuals:22-31 / :38-46: while an event runs or a move route forces the player, {@code pbCanRun?} is
+     * false and the running sheet is not shown - the sheet a route set (code 41) stays. The speed is left to the route.
+     */
+    public void stopRunningSheet() {
+        running = false;
+    }
+
     public void running(boolean value) {
         running = value;
         moveSpeedLevel = value ? 4 : 3;

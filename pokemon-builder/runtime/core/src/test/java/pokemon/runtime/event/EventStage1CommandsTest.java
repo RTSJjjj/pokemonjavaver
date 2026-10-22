@@ -136,6 +136,25 @@ class EventStage1CommandsTest {
     }
 
     @Test
+    @DisplayName("an Else that jumped back into its true branch is skipped the second time (map 464 EV003)")
+    void elseConsumedAfterJumpIntoTrueBranch() {
+        // if switch 1 ON: label A, switch 3 ON / else: var1 += 1, jump A / end
+        run(program(
+                cmd(0, 111, 0, array(0, 1, 0)),
+                cmd(1, 118, 1, array("A")),
+                cmd(2, 121, 1, array(3, 3, 0)),
+                cmd(3, 0, 1, null),
+                cmd(4, 411, 0, null),
+                cmd(5, 122, 1, array(1, 1, 1, 0, 1)),
+                cmd(6, 119, 1, array("A")),
+                cmd(7, 0, 1, null),
+                cmd(8, 412, 0, null),
+                cmd(9, 0, 0, null)));
+        assertTrue(state.switches().get(3));
+        assertEquals(1, state.variables().get(1), "048_Interpreter:675-685 deletes the false result when Else is entered");
+    }
+
+    @Test
     @DisplayName("119 with an unknown label just continues (048_Interpreter:793-795)")
     void unknownLabelContinues() {
         run(program(
